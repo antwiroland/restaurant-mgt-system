@@ -3,90 +3,41 @@
 ## Stack Recommendation
 - Backend: Spring Boot
 - Database: PostgreSQL
-- Staff App: Next.js
-- Mobile App: Expo
+- Staff App: Next.js (`web/`)
+- Mobile App: Expo-style workspace (`mobile/`)
 - Payments: Paystack (MoMo-first UX)
 
 ---
 
-## Key Principles
-- Mobile Money first UX
-- Backend payment verification
-- Simple checkout
-- Real-time updates
-- Offline fallback support
-- Strict role-based access
-- Manager PIN for sensitive actions
+## Current Implementation Status (2026-03-24)
+- Phase 1: Complete
+- Phase 2: Complete
+- Phase 3: Complete
+- Phase 4: Complete
+- Phase 5: Complete
+- Phase 6: Complete
+- Phase 7: Complete
+- Phase 8: Complete
+- Phase 9: Complete
+- Phase 10: Complete
 
 ---
 
-## Architecture
-- Mobile App (Customer)
-- Web App (Staff - Next.js)
-- Backend API (Spring Boot)
+## Code Footprint
+- Backend core modules: `backend/src/main/java/com/restaurantmanager/core/**`
+- Phase 8 modules: `backend/src/main/java/com/restaurantmanager/core/phase8/**`
+- Phase 9 modules: `backend/src/main/java/com/restaurantmanager/core/phase9/**`
+- Phase 10 modules: `backend/src/main/java/com/restaurantmanager/core/phase10/**`
+- Backend tests: `backend/src/test/java/com/restaurantmanager/core/**`
+- Staff app tests: `web/src/features/phase6.test.tsx`
+- Mobile app tests: `mobile/src/features/phase7.test.ts`
 
 ---
 
-## Phases
+## Reporting Rule
+A phase is complete only when all of the following are present:
+- `documentation/PROJECT_PROGRESS.md` updated
+- `documentation/CHANGELOG.md` updated
+- `documentation/reports/phase-N-report.md` created
+- Scenario tests implemented and passing
 
-### Phase 1: Planning
-- User stories
-- Architecture
-- Database design
-
-### Phase 2: Backend Core
-- Auth (Admin, Manager, Cashier)
-- PIN system
-- Roles & permissions
-
-### Phase 3: Menu + Tables
-- Menu APIs
-- Table management
-- Reservations
-
-### Phase 4: Orders
-- Pickup
-- Delivery
-- Dine-in
-- Group ordering
-
-### Phase 5: Payments
-- Paystack integration
-- MoMo-first UI
-- Payment retry & recovery
-
-### Phase 6: Staff App (Next.js)
-- POS
-- Tables
-- Receipts
-- Manager override
-
-### Phase 7: Mobile App (Expo)
-- Ordering
-- Tracking
-- Reservations
-- Group orders
-
-### Phase 8: Ghana Features
-- WhatsApp integration
-- QR table ordering
-- Loyalty system
-
-### Phase 9: Financial Controls
-- Refund
-- Void
-- Discount
-- Reconciliation
-
-### Phase 10: Analytics + QA
-- Reports
-- Testing
-- Deployment
-
----
-
-## AI Agent Rule
-No phase is complete until:
-- PROJECT_PROGRESS.md updated
-- CHANGELOG.md updated
-- Phase report created

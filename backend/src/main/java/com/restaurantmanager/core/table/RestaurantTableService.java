@@ -1,0 +1,118 @@
+package com.restaurantmanager.core.table;
+
+import com.restaurantmanager.core.common.ApiException;
+import com.restaurantmanager.core.config.CacheConfig;
+import com.restaurantmanager.core.table.dto.TableQrResponse;
+import com.restaurantmanager.core.table.dto.TableRequest;
+import com.restaurantmanager.core.table.dto.TableResponse;
+import com.restaurantmanager.core.table.dto.TableScanRequest;
+import com.restaurantmanager.core.table.dto.TableScanResponse;
+import com.restaurantmanager.core.table.dto.TableStatusUpdateRequest;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.UUID;
+
+@Service
+public class RestaurantTableService {
+    private final RestaurantTableRepository tableRepository;
+
+    public RestaurantTableService(RestaurantTableRepository tableRepository) {
+        this.tableRepository = tableRepository;
+    }
+
+    @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheConfig.TABLES)
+    public List<TableResponse> listTables() {
+        return tableRepository.findAll().stream()
+                .sorted((a, b) -> a.getNumber().compareToIgnoreCase(b.getNumber()))
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = {CacheConfig.TABLES, CacheConfig.TABLE_QR, CacheConfig.TABLE_SCAN}, allEntries = true)
+    public TableResponse create(TableRequest request) {
+        if (tableRepository.existsByNumberIgnoreCase(request.number())) {
+            throw new ApiException(409, "Table number already exists");
+        }
+        RestaurantTableEntity table = new RestaurantTableEntity();
+        applyRequest(table, request);
+        table.setStatus(TableStatus.AVAILABLE);
+        table.setQrToken(generateUniqueQrToken());
+        return toResponse(tableRepository.save(table));
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = {CacheConfig.TABLES, CacheConfig.TABLE_QR, CacheConfig.TABLE_SCAN}, allEntries = true)
+    public TableResponse update(UUID id, TableRequest request) {
+        RestaurantTableEntity table = tableRepository.findById(id)
+                .orElseThrow(() -> new ApiException(404, "Table not found"));
+        String incoming = request.number().trim();
+        if (!table.getNumber().equalsIgnoreCase(incoming) && tableRepository.existsByNumberIgnoreCase(incoming)) {
+            throw new ApiException(409, "Table number already exists");
+        }
+        applyRequest(table, request);
+        return toResponse(tableRepository.save(table));
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = {CacheConfig.TABLES, CacheConfig.TABLE_QR, CacheConfig.TABLE_SCAN}, allEntries = true)
+    public TableResponse updateStatus(UUID id, TableStatusUpdateRequest request) {
+        RestaurantTableEntity table = tableRepository.findById(id)
+                .orElseThrow(() -> new ApiException(404, "Table not found"));
+        table.setStatus(request.status());
+        return toResponse(tableRepository.save(table));
+    }
+
+    @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheConfig.TABLE_QR, key = "#id")
+    public TableQrResponse qr(UUID id) {
+        RestaurantTableEntity table = tableRepository.findById(id)
+                .orElseThrow(() -> new ApiException(404, "Table not found"));
+        return new TableQrResponse(table.getId(), table.getNumber(), table.getQrToken(),
+                "/tables/scan?token=" + table.getQrToken());
+    }
+
+    @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheConfig.TABLE_SCAN, key = "#request.qrToken()")
+    public TableScanResponse scan(TableScanRequest request) {
+        RestaurantTableEntity table = tableRepository.findByQrToken(request.qrToken())
+                .orElseThrow(() -> new ApiException(404, "Table token not found"));
+        return new TableScanResponse(table.getId(), table.getNumber(), table.getStatus());
+    }
+
+    private void applyRequest(RestaurantTableEntity table, TableRequest request) {
+        table.setNumber(request.number().trim());
+        table.setCapacity(request.capacity());
+        table.setZone(blankToNull(request.zone()));
+    }
+
+    private String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private String generateUniqueQrToken() {
+        String token;
+        do {
+            token = UUID.randomUUID().toString().replace("-", "");
+        } while (tableRepository.findByQrToken(token).isPresent());
+        return token;
+    }
+
+    private TableResponse toResponse(RestaurantTableEntity table) {
+        return new TableResponse(
+                table.getId(),
+                table.getNumber(),
+                table.getCapacity(),
+                table.getZone(),
+                table.getStatus(),
+                table.getQrToken());
+    }
+}

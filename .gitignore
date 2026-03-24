@@ -1,0 +1,22 @@
+# Backend
+backend/target/
+*.log
+
+# Node workspaces
+web/node_modules/
+web/.next/
+mobile/node_modules/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE/editor
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db

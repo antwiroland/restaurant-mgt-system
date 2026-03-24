@@ -1,0 +1,153 @@
+package com.restaurantmanager.core.runtime;
+
+import com.restaurantmanager.core.BaseIntegrationTest;
+import com.restaurantmanager.core.auth.dto.PinVerifyRequest;
+import com.restaurantmanager.core.common.OverrideActionType;
+import com.restaurantmanager.core.common.Role;
+import com.restaurantmanager.core.user.UserEntity;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+
+import java.time.Instant;
+import java.util.UUID;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+class PhaseRuntimeIntegrationTest extends BaseIntegrationTest {
+
+    @Test
+    void givenCustomer_whenApplyPromoViaPhase8_thenDiscountReturned() throws Exception {
+        UserEntity customer = createUser("Customer", "+233220000001", "customer1@x.com", "secret123", Role.CUSTOMER);
+
+        String payload = """
+                {
+                  "code":"WELCOME10",
+                  "discountType":"PERCENTAGE",
+                  "discountValue":10,
+                  "minOrderAmount":20,
+                  "expiresAt":"%s",
+                  "usageLimit":100,
+                  "usedCount":0,
+                  "active":true,
+                  "subtotal":50
+                }
+                """.formatted(Instant.now().plusSeconds(600));
+
+        mockMvc.perform(post("/phase8/promo/apply")
+                        .header("Authorization", "Bearer " + accessToken(customer))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.discount").value(5.0))
+                .andExpect(jsonPath("$.newTotal").value(45.0));
+    }
+
+    @Test
+    void givenValidDiscountOverride_whenApplyPhase9Discount_thenDiscountApplied() throws Exception {
+        UserEntity manager = createUser("Manager", "+233220000002", "manager1@x.com", "secret123", Role.MANAGER);
+        mockMvc.perform(post("/users/" + manager.getId() + "/pin")
+                        .header("Authorization", "Bearer " + accessToken(manager))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"pin\":\"1234\"}"))
+                .andExpect(status().isNoContent());
+
+        String verifyResponse = mockMvc.perform(post("/auth/pin/verify")
+                        .header("Authorization", "Bearer " + accessToken(manager))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new PinVerifyRequest("1234", OverrideActionType.DISCOUNT))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String overrideToken = objectMapper.readTree(verifyResponse).get("overrideToken").asText();
+
+        String payload = """
+                {
+                  "total":100,
+                  "mode":"PERCENTAGE",
+                  "value":10,
+                  "overrideToken":"%s"
+                }
+                """.formatted(overrideToken);
+
+        mockMvc.perform(post("/phase9/discount/apply")
+                        .header("Authorization", "Bearer " + accessToken(manager))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.discountAmount").value(10.0))
+                .andExpect(jsonPath("$.newTotal").value(90.0));
+    }
+
+    @Test
+    void givenCashier_whenQueryPhase9Audit_then403() throws Exception {
+        UserEntity cashier = createUser("Cashier", "+233220000003", "cashier1@x.com", "secret123", Role.CASHIER);
+
+        mockMvc.perform(get("/phase9/audit")
+                        .header("Authorization", "Bearer " + accessToken(cashier)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void givenAdmin_whenRequestPhase10AnalyticsSummary_thenAggregatesReturned() throws Exception {
+        UserEntity admin = createUser("Admin", "+233220000004", "admin1@x.com", "secret123", Role.ADMIN);
+        UUID customer = UUID.randomUUID();
+        UUID order1 = UUID.randomUUID();
+        UUID order2 = UUID.randomUUID();
+        UUID menuItem = UUID.randomUUID();
+
+        String payload = """
+                {
+                  "topItemLimit": 3,
+                  "records": [
+                    {
+                      "orderId":"%s",
+                      "customerId":"%s",
+                      "menuItemId":"%s",
+                      "itemName":"Jollof",
+                      "quantity":2,
+                      "lineRevenue":30,
+                      "orderHour":12,
+                      "createdAt":"%s",
+                      "paymentSuccessful":true
+                    },
+                    {
+                      "orderId":"%s",
+                      "customerId":"%s",
+                      "menuItemId":"%s",
+                      "itemName":"Jollof",
+                      "quantity":1,
+                      "lineRevenue":15,
+                      "orderHour":12,
+                      "createdAt":"%s",
+                      "paymentSuccessful":true
+                    }
+                  ]
+                }
+                """.formatted(order1, customer, menuItem, Instant.now(), order2, customer, menuItem, Instant.now());
+
+        mockMvc.perform(post("/phase10/analytics/summary")
+                        .header("Authorization", "Bearer " + accessToken(admin))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dailyRevenue").value(45.0))
+                .andExpect(jsonPath("$.peakHour").value(12))
+                .andExpect(jsonPath("$.repeatCustomers").value(1))
+                .andExpect(jsonPath("$.topItems[0].name").value("Jollof"));
+    }
+
+    @Test
+    void givenStaff_whenSanitizeSearchViaPhase10_thenSanitizedStringReturned() throws Exception {
+        UserEntity manager = createUser("Manager", "+233220000005", "manager2@x.com", "secret123", Role.MANAGER);
+
+        mockMvc.perform(post("/phase10/security/sanitize-search")
+                        .header("Authorization", "Bearer " + accessToken(manager))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"value\":\"' OR 1=1; --\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.value").value(" OR 1=1 "));
+    }
+}

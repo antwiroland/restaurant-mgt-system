@@ -16,6 +16,23 @@
 
 ---
 
+## Repository Structure (Current)
+
+- `backend/` - Spring Boot API, domain logic, Flyway migrations, Java tests
+- `web/` - Next.js staff application (POS, tables, orders, receipts, admin)
+- `mobile/` - Expo-style customer mobile workspace and feature logic tests
+- `documentation/` - Specs, guides, changelog, progress tracker, phase reports
+
+### Common Commands
+
+- Backend tests: `cd backend && mvn test -q`
+- Web tests: `cd web && npm run test`
+- Web build: `cd web && npm run build`
+- Mobile tests: `cd mobile && npm run test`
+- Mobile typecheck: `cd mobile && npm run typecheck`
+
+---
+
 ## Testing Mandate
 
 > **This rule is non-negotiable and applies to every phase from Phase 2 onwards.**
@@ -60,9 +77,9 @@ All tests must pass in CI before any phase is marked complete. A phase with fail
 
 > A phase is **not complete** until ALL of the following are true:
 > - [ ] Every implementation task has passing tests (see Testing Mandate)
-> - [ ] `PROJECT_PROGRESS.md` updated
-> - [ ] `CHANGELOG.md` updated
-> - [ ] Phase report created in `reports/phase-N-report.md`
+> - [ ] `documentation/PROJECT_PROGRESS.md` updated
+> - [ ] `documentation/CHANGELOG.md` updated
+> - [ ] Phase report created in `documentation/reports/phase-N-report.md`
 
 ---
 
@@ -90,12 +107,12 @@ All tests must pass in CI before any phase is marked complete. A phase with fail
 - [x] Set up version control, CI skeleton, environment configs
 
 ### Deliverables
-- [x] `docs/DATABASE_SCHEMA.sql` — PostgreSQL V1 migration (17 tables)
-- [x] `docs/ROLES_AND_PERMISSIONS.md` — Full role/permission matrix
-- [x] `docs/API_SPEC.md` — REST API spec (~55 endpoints across 12 groups)
-- [x] `docs/WEBSOCKET_EVENTS.md` — STOMP topics and SSE fallback
-- [x] `docs/OFFLINE_STRATEGY.md` — Offline scope, cache, sync queue
-- [x] `reports/phase-1-report.md`
+- [x] `documentation/DATABASE_SCHEMA.sql` — PostgreSQL V1 migration (17 tables)
+- [x] `documentation/ROLES_AND_PERMISSIONS.md` — Full role/permission matrix
+- [x] `documentation/API_SPEC.md` — REST API spec (~55 endpoints across 12 groups)
+- [x] `documentation/WEBSOCKET_EVENTS.md` — STOMP topics and SSE fallback
+- [x] `documentation/OFFLINE_STRATEGY.md` — Offline scope, cache, sync queue
+- [x] `documentation/reports/phase-1-report.md`
 
 ---
 
@@ -106,33 +123,33 @@ All tests must pass in CI before any phase is marked complete. A phase with fail
 ### Tasks
 
 #### Project Setup
-- [ ] Initialize Spring Boot project (Maven/Gradle)
-- [ ] Configure PostgreSQL datasource, connection pool (HikariCP)
-- [ ] Set up Flyway/Liquibase for database migrations
-- [ ] Configure environment profiles (dev, staging, prod)
-- [ ] Set up structured logging (JSON logs for prod)
+- [x] Initialize Spring Boot project (Maven/Gradle)
+- [x] Configure PostgreSQL datasource, connection pool (HikariCP)
+- [x] Set up Flyway/Liquibase for database migrations
+- [x] Configure environment profiles (dev, staging, prod)
+- [x] Set up structured logging (JSON logs for prod)
 
 #### Authentication
-- [ ] Implement JWT-based auth (access + refresh tokens)
-- [ ] User registration & login endpoints
-- [ ] Token refresh endpoint
-- [ ] Secure password hashing (BCrypt)
-- [ ] Logout / token invalidation
+- [x] Implement JWT-based auth (access + refresh tokens)
+- [x] User registration & login endpoints
+- [x] Token refresh endpoint
+- [x] Secure password hashing (BCrypt)
+- [x] Logout / token invalidation
 
 #### Roles & Permissions
-- [ ] Implement roles: `ADMIN`, `MANAGER`, `CASHIER`, `CUSTOMER`
-- [ ] Spring Security role-based method/endpoint guards
-- [ ] Role assignment endpoints (Admin only)
+- [x] Implement roles: `ADMIN`, `MANAGER`, `CASHIER`, `CUSTOMER`
+- [x] Spring Security role-based method/endpoint guards
+- [x] Role assignment endpoints (Admin only)
 
 #### Manager PIN System
-- [ ] PIN creation and hashing for manager accounts
-- [ ] PIN verification endpoint (returns short-lived override token)
-- [ ] PIN required guard for: refunds, voids, discounts
-- [ ] PIN lockout after N failed attempts (configurable)
+- [x] PIN creation and hashing for manager accounts
+- [x] PIN verification endpoint (returns short-lived override token)
+- [x] PIN required guard for: refunds, voids, discounts
+- [x] PIN lockout after N failed attempts (configurable)
 
 #### Audit Logging
-- [ ] Audit log table for all sensitive actions
-- [ ] Log actor, action, target entity, timestamp, IP
+- [x] Audit log table for all sensitive actions
+- [x] Log actor, action, target entity, timestamp, IP
 
 ---
 
@@ -141,46 +158,46 @@ All tests must pass in CI before any phase is marked complete. A phase with fail
 Every test below must be written and green before the corresponding task is checked.
 
 #### Authentication tests
-- [ ] `givenValidData_whenRegister_then201AndUserCreatedWithCustomerRole`
-- [ ] `givenDuplicatePhone_whenRegister_then409`
-- [ ] `givenDuplicateEmail_whenRegister_then409`
-- [ ] `givenCorrectCredentials_whenLogin_then200WithAccessAndRefreshTokens`
-- [ ] `givenWrongPassword_whenLogin_then401`
-- [ ] `givenUnknownPhone_whenLogin_then401`
-- [ ] `givenValidRefreshToken_whenRefresh_then200WithNewAccessToken`
-- [ ] `givenRevokedRefreshToken_whenRefresh_then401`
-- [ ] `givenExpiredRefreshToken_whenRefresh_then401`
-- [ ] `givenNoToken_whenAccessProtectedEndpoint_then401`
-- [ ] `givenExpiredAccessToken_whenAccessProtectedEndpoint_then401`
-- [ ] `givenValidLogout_whenRefreshAfterwards_then401`
+- [x] `givenValidData_whenRegister_then201AndUserCreatedWithCustomerRole`
+- [x] `givenDuplicatePhone_whenRegister_then409`
+- [x] `givenDuplicateEmail_whenRegister_then409`
+- [x] `givenCorrectCredentials_whenLogin_then200WithAccessAndRefreshTokens`
+- [x] `givenWrongPassword_whenLogin_then401`
+- [x] `givenUnknownPhone_whenLogin_then401`
+- [x] `givenValidRefreshToken_whenRefresh_then200WithNewAccessToken`
+- [x] `givenRevokedRefreshToken_whenRefresh_then401`
+- [x] `givenExpiredRefreshToken_whenRefresh_then401`
+- [x] `givenNoToken_whenAccessProtectedEndpoint_then401`
+- [x] `givenExpiredAccessToken_whenAccessProtectedEndpoint_then401`
+- [x] `givenValidLogout_whenRefreshAfterwards_then401`
 
 #### Role & permission tests
-- [ ] `givenAdminToken_whenAccessAdminOnlyEndpoint_then200`
-- [ ] `givenCashierToken_whenAccessAdminOnlyEndpoint_then403`
-- [ ] `givenManagerToken_whenAccessAdminOnlyEndpoint_then403`
-- [ ] `givenCustomerToken_whenAccessStaffEndpoint_then403`
-- [ ] `givenAdminToken_whenAssignRole_then200AndRoleUpdated`
-- [ ] `givenManagerToken_whenAssignRole_then403`
+- [x] `givenAdminToken_whenAccessAdminOnlyEndpoint_then200`
+- [x] `givenCashierToken_whenAccessAdminOnlyEndpoint_then403`
+- [x] `givenManagerToken_whenAccessAdminOnlyEndpoint_then403`
+- [x] `givenCustomerToken_whenAccessStaffEndpoint_then403`
+- [x] `givenAdminToken_whenAssignRole_then200AndRoleUpdated`
+- [x] `givenManagerToken_whenAssignRole_then403`
 
 #### Manager PIN tests
-- [ ] `givenManagerSetsPin_when204_thenPinHashedAndStored`
-- [ ] `givenCorrectPin_whenVerify_then200WithScopedOverrideToken`
-- [ ] `givenWrongPin_whenVerify_then401AndFailCountIncremented`
-- [ ] `givenFiveWrongPins_whenVerify_then423AndAccountLocked`
-- [ ] `givenLockedPin_whenVerify_then423WithLockedUntilTimestamp`
-- [ ] `givenDiscountOverrideToken_whenUsedForVoidAction_then403`
-- [ ] `givenOverrideToken_whenUsedAfter5Minutes_then401Expired`
-- [ ] `givenNonManagerRole_whenSetPin_then403`
+- [x] `givenManagerSetsPin_when204_thenPinHashedAndStored`
+- [x] `givenCorrectPin_whenVerify_then200WithScopedOverrideToken`
+- [x] `givenWrongPin_whenVerify_then401AndFailCountIncremented`
+- [x] `givenFiveWrongPins_whenVerify_then423AndAccountLocked`
+- [x] `givenLockedPin_whenVerify_then423WithLockedUntilTimestamp`
+- [x] `givenDiscountOverrideToken_whenUsedForVoidAction_then403`
+- [x] `givenOverrideToken_whenUsedAfter5Minutes_then401Expired`
+- [x] `givenNonManagerRole_whenSetPin_then403`
 
 #### Audit log tests
-- [ ] `givenSuccessfulLogin_thenUserLoginEventWrittenToAuditLog`
-- [ ] `givenFailedPinAttempt_thenPinFailedEventWrittenToAuditLog`
-- [ ] `givenPinLockout_thenPinLockedEventWrittenToAuditLog`
-- [ ] `givenRoleAssigned_thenRoleAssignedEventWrittenToAuditLog`
+- [x] `givenSuccessfulLogin_thenUserLoginEventWrittenToAuditLog`
+- [x] `givenFailedPinAttempt_thenPinFailedEventWrittenToAuditLog`
+- [x] `givenPinLockout_thenPinLockedEventWrittenToAuditLog`
+- [x] `givenRoleAssigned_thenRoleAssignedEventWrittenToAuditLog`
 
 ### Deliverables
-- [ ] All Phase 2 tests passing in CI
-- [ ] `reports/phase-2-report.md`
+- [x] All Phase 2 tests passing in CI
+- [x] `documentation/reports/phase-2-report.md`
 
 ---
 
@@ -191,68 +208,68 @@ Every test below must be written and green before the corresponding task is chec
 ### Tasks
 
 #### Menu
-- [ ] `Category` CRUD (name, description, display order, active flag)
-- [ ] `MenuItem` CRUD (name, description, price, category, image URL, available flag)
-- [ ] Menu item availability toggle (e.g., sold out)
-- [ ] Menu list endpoint (public, no auth) — sorted by category
-- [ ] Menu search/filter endpoint
+- [x] `Category` CRUD (name, description, display order, active flag)
+- [x] `MenuItem` CRUD (name, description, price, category, image URL, available flag)
+- [x] Menu item availability toggle (e.g., sold out)
+- [x] Menu list endpoint (public, no auth) — sorted by category
+- [x] Menu search/filter endpoint
 
 #### Tables
-- [ ] `Table` CRUD (number, capacity, floor/zone label, status: available/occupied/reserved)
-- [ ] Table status update endpoint
-- [ ] QR code generation per table (returns unique table token/URL)
-- [ ] Endpoint to validate QR table token (used by mobile app on scan)
+- [x] `Table` CRUD (number, capacity, floor/zone label, status: available/occupied/reserved)
+- [x] Table status update endpoint
+- [x] QR code generation per table (returns unique table token/URL)
+- [x] Endpoint to validate QR table token (used by mobile app on scan)
 
 #### Reservations
-- [ ] `Reservation` model (customer name/phone, table, date/time, party size, status)
-- [ ] Create reservation endpoint (staff or customer)
-- [ ] List reservations (by date, by table)
-- [ ] Confirm / cancel reservation endpoints
-- [ ] Basic conflict check (prevent double-booking same table/time)
+- [x] `Reservation` model (customer name/phone, table, date/time, party size, status)
+- [x] Create reservation endpoint (staff or customer)
+- [x] List reservations (by date, by table)
+- [x] Confirm / cancel reservation endpoints
+- [x] Basic conflict check (prevent double-booking same table/time)
 
 ---
 
 ### Tests — Phase 3
 
 #### Menu category tests
-- [ ] `givenAdminToken_whenCreateCategory_then201`
-- [ ] `givenCashierToken_whenCreateCategory_then403`
-- [ ] `givenNoAuth_whenListCategories_then200PublicAccess`
-- [ ] `givenMultipleCategories_whenList_thenReturnedSortedByDisplayOrder`
-- [ ] `givenAdminToken_whenDeleteCategory_then204`
-- [ ] `givenManagerToken_whenDeleteCategory_then403`
+- [x] `givenAdminToken_whenCreateCategory_then201`
+- [x] `givenCashierToken_whenCreateCategory_then403`
+- [x] `givenNoAuth_whenListCategories_then200PublicAccess`
+- [x] `givenMultipleCategories_whenList_thenReturnedSortedByDisplayOrder`
+- [x] `givenAdminToken_whenDeleteCategory_then204`
+- [x] `givenManagerToken_whenDeleteCategory_then403`
 
 #### Menu item tests
-- [ ] `givenAdminToken_whenCreateMenuItem_then201WithCorrectFields`
-- [ ] `givenNoAuth_whenListMenuItems_then200`
-- [ ] `givenAvailableFalse_whenListPublicMenu_thenItemExcluded`
-- [ ] `givenSearchQuery_whenListMenuItems_thenOnlyMatchingItemsReturned`
-- [ ] `givenManagerToken_whenToggleAvailabilityToFalse_thenItemUnavailableInPublicList`
-- [ ] `givenCashierToken_whenToggleAvailability_then200`
-- [ ] `givenCustomerToken_whenToggleAvailability_then403`
+- [x] `givenAdminToken_whenCreateMenuItem_then201WithCorrectFields`
+- [x] `givenNoAuth_whenListMenuItems_then200`
+- [x] `givenAvailableFalse_whenListPublicMenu_thenItemExcluded`
+- [x] `givenSearchQuery_whenListMenuItems_thenOnlyMatchingItemsReturned`
+- [x] `givenManagerToken_whenToggleAvailabilityToFalse_thenItemUnavailableInPublicList`
+- [x] `givenCashierToken_whenToggleAvailability_then200`
+- [x] `givenCustomerToken_whenToggleAvailability_then403`
 
 #### Table tests
-- [ ] `givenAdminToken_whenCreateTable_then201WithUniqueQrToken`
-- [ ] `givenTwoTables_whenListTables_thenBothReturnedWithStatus`
-- [ ] `givenCashierToken_whenUpdateTableStatus_then200`
-- [ ] `givenCustomerToken_whenUpdateTableStatus_then403`
-- [ ] `givenValidQrToken_whenScanTable_then200WithTableInfo`
-- [ ] `givenInvalidQrToken_whenScanTable_then404`
-- [ ] `givenDuplicateTableNumber_whenCreate_then409`
+- [x] `givenAdminToken_whenCreateTable_then201WithUniqueQrToken`
+- [x] `givenTwoTables_whenListTables_thenBothReturnedWithStatus`
+- [x] `givenCashierToken_whenUpdateTableStatus_then200`
+- [x] `givenCustomerToken_whenUpdateTableStatus_then403`
+- [x] `givenValidQrToken_whenScanTable_then200WithTableInfo`
+- [x] `givenInvalidQrToken_whenScanTable_then404`
+- [x] `givenDuplicateTableNumber_whenCreate_then409`
 
 #### Reservation tests
-- [ ] `givenAvailableTableAndTime_whenCreateReservation_then201`
-- [ ] `givenSameTableAndOverlappingTime_whenCreateReservation_then409`
-- [ ] `givenNoAuth_whenCreateReservationWithNameAndPhone_then201GuestReservation`
-- [ ] `givenStaffToken_whenConfirmReservation_then200StatusConfirmed`
-- [ ] `givenCustomerToken_whenCancelOwnReservation_then204`
-- [ ] `givenCustomerToken_whenCancelOtherCustomerReservation_then403`
-- [ ] `givenDateFilter_whenListReservations_thenOnlyReservationsForThatDateReturned`
+- [x] `givenAvailableTableAndTime_whenCreateReservation_then201`
+- [x] `givenSameTableAndOverlappingTime_whenCreateReservation_then409`
+- [x] `givenNoAuth_whenCreateReservationWithNameAndPhone_then201GuestReservation`
+- [x] `givenStaffToken_whenConfirmReservation_then200StatusConfirmed`
+- [x] `givenCustomerToken_whenCancelOwnReservation_then204`
+- [x] `givenCustomerToken_whenCancelOtherCustomerReservation_then403`
+- [x] `givenDateFilter_whenListReservations_thenOnlyReservationsForThatDateReturned`
 
 ### Deliverables
-- [ ] All Phase 3 tests passing in CI
-- [ ] QR token generation and validation working
-- [ ] `reports/phase-3-report.md`
+- [x] All Phase 3 tests passing in CI
+- [x] QR token generation and validation working
+- [x] `documentation/reports/phase-3-report.md`
 
 ---
 
@@ -263,91 +280,91 @@ Every test below must be written and green before the corresponding task is chec
 ### Tasks
 
 #### Order Core
-- [ ] `Order` model with type enum: `PICKUP`, `DELIVERY`, `DINE_IN`
-- [ ] `OrderItem` model (menu item snapshot: name, price at time of order)
-- [ ] Order status lifecycle: `PENDING → CONFIRMED → PREPARING → READY → COMPLETED / CANCELLED`
-- [ ] Create order endpoint (staff and customer)
-- [ ] Update order status endpoint (staff only, role-gated)
-- [ ] Cancel order endpoint (with reason, manager PIN if order is confirmed)
-- [ ] Order history endpoint (by customer, by date range)
+- [x] `Order` model with type enum: `PICKUP`, `DELIVERY`, `DINE_IN`
+- [x] `OrderItem` model (menu item snapshot: name, price at time of order)
+- [x] Order status lifecycle: `PENDING → CONFIRMED → PREPARING → READY → COMPLETED / CANCELLED`
+- [x] Create order endpoint (staff and customer)
+- [x] Update order status endpoint (staff only, role-gated)
+- [x] Cancel order endpoint (with reason, manager PIN if order is confirmed)
+- [x] Order history endpoint (by customer, by date range)
 
 #### Pickup Orders
-- [ ] Pickup time slot selection
-- [ ] Pickup code generation (shown to customer, entered by cashier)
+- [x] Pickup time slot selection
+- [x] Pickup code generation (shown to customer, entered by cashier)
 
 #### Delivery Orders
-- [ ] Delivery address capture
-- [ ] Delivery status sub-states: `OUT_FOR_DELIVERY`, `DELIVERED`
-- [ ] Estimated delivery time field
+- [x] Delivery address capture
+- [x] Delivery status sub-states: `OUT_FOR_DELIVERY`, `DELIVERED`
+- [x] Estimated delivery time field
 
 #### Dine-In Orders
-- [ ] Link order to table (via table token or staff table selection)
-- [ ] Support multiple order submissions per table session
-- [ ] Close table / end session endpoint
+- [x] Link order to table (via table token or staff table selection)
+- [x] Support multiple order submissions per table session
+- [x] Close table / end session endpoint
 
 #### Group Ordering
-- [ ] Create group order session (returns session code)
-- [ ] Join group session endpoint
-- [ ] Each participant adds items to shared cart
-- [ ] View combined group order
-- [ ] Finalize group order (converts to single order record)
-- [ ] Track which items belong to which participant (for split pay)
+- [x] Create group order session (returns session code)
+- [x] Join group session endpoint
+- [x] Each participant adds items to shared cart
+- [x] View combined group order
+- [x] Finalize group order (converts to single order record)
+- [x] Track which items belong to which participant (for split pay)
 
 #### Real-Time Updates
-- [ ] WebSocket or SSE channel per order (status push to customer)
-- [ ] Kitchen/staff notification on new order
-- [ ] Order status push to all participants in group order
+- [x] WebSocket or SSE channel per order (status push to customer)
+- [x] Kitchen/staff notification on new order
+- [x] Order status push to all participants in group order
 
 ---
 
 ### Tests — Phase 4
 
 #### Order core tests
-- [ ] `givenCustomerToken_whenCreateDineInOrder_then201WithStatusPending`
-- [ ] `givenCustomerToken_whenCreatePickupOrder_then201WithPickupCodeGenerated`
-- [ ] `givenCustomerToken_whenCreateDeliveryOrderWithAddress_then201`
-- [ ] `givenDeliveryOrderWithNoAddress_whenCreate_then400`
-- [ ] `givenCashierToken_whenUpdateOrderStatusToConfirmed_then200`
-- [ ] `givenCustomerToken_whenUpdateOrderStatus_then403`
-- [ ] `givenCustomerToken_whenCancelOwnPendingOrder_then204`
-- [ ] `givenCustomerToken_whenCancelConfirmedOrderWithoutPin_then403`
-- [ ] `givenValidOverrideToken_whenCancelConfirmedOrder_then200WithStatusCancelled`
-- [ ] `givenCustomerToken_whenCancelOtherCustomerOrder_then403`
-- [ ] `givenDateRangeFilter_whenListOrders_thenOnlyOrdersWithinRangeReturned`
+- [x] `givenCustomerToken_whenCreateDineInOrder_then201WithStatusPending`
+- [x] `givenCustomerToken_whenCreatePickupOrder_then201WithPickupCodeGenerated`
+- [x] `givenCustomerToken_whenCreateDeliveryOrderWithAddress_then201`
+- [x] `givenDeliveryOrderWithNoAddress_whenCreate_then400`
+- [x] `givenCashierToken_whenUpdateOrderStatusToConfirmed_then200`
+- [x] `givenCustomerToken_whenUpdateOrderStatus_then403`
+- [x] `givenCustomerToken_whenCancelOwnPendingOrder_then204`
+- [x] `givenCustomerToken_whenCancelConfirmedOrderWithoutPin_then403`
+- [x] `givenValidOverrideToken_whenCancelConfirmedOrder_then200WithStatusCancelled`
+- [x] `givenCustomerToken_whenCancelOtherCustomerOrder_then403`
+- [x] `givenDateRangeFilter_whenListOrders_thenOnlyOrdersWithinRangeReturned`
 
 #### Price snapshot test
-- [ ] `givenExistingOrder_whenMenuItemPriceChangedAfterwards_thenOrderItemStillShowsOriginalPrice`
+- [x] `givenExistingOrder_whenMenuItemPriceChangedAfterwards_thenOrderItemStillShowsOriginalPrice`
 
 #### Pickup tests
-- [ ] `givenPickupOrder_whenCreated_thenUniquePickupCodeAssigned`
-- [ ] `givenPickupCode_whenCashierEntersCode_thenMatchingOrderReturned`
+- [x] `givenPickupOrder_whenCreated_thenUniquePickupCodeAssigned`
+- [x] `givenPickupCode_whenCashierEntersCode_thenMatchingOrderReturned`
 
 #### Delivery tests
-- [ ] `givenDeliveryOrder_whenStatusUpdatedToOutForDelivery_then200`
-- [ ] `givenDeliveryOrder_whenStatusUpdatedToDelivered_then200`
+- [x] `givenDeliveryOrder_whenStatusUpdatedToOutForDelivery_then200`
+- [x] `givenDeliveryOrder_whenStatusUpdatedToDelivered_then200`
 
 #### Dine-in tests
-- [ ] `givenValidTableToken_whenCreateDineInOrder_thenOrderLinkedToTable`
-- [ ] `givenOccupiedTable_whenCreateSecondOrder_then201BothOrdersLinkedToTable`
-- [ ] `givenDineInSession_whenCloseTable_thenTableStatusChangedToAvailable`
+- [x] `givenValidTableToken_whenCreateDineInOrder_thenOrderLinkedToTable`
+- [x] `givenOccupiedTable_whenCreateSecondOrder_then201BothOrdersLinkedToTable`
+- [x] `givenDineInSession_whenCloseTable_thenTableStatusChangedToAvailable`
 
 #### Group order tests
-- [ ] `givenCustomerToken_whenCreateGroupSession_then201WithSessionCode`
-- [ ] `givenSessionCode_whenSecondUserJoins_then200ParticipantAdded`
-- [ ] `givenParticipant_whenAddItemsToGroupCart_thenGroupTotalUpdated`
-- [ ] `givenGroupSession_whenNonHostTriesToFinalize_then403`
-- [ ] `givenGroupSession_whenHostFinalizes_then201OrderWithAllParticipantItems`
-- [ ] `givenFinalizedGroupOrder_whenViewOrderItems_thenEachItemShowsParticipantId`
+- [x] `givenCustomerToken_whenCreateGroupSession_then201WithSessionCode`
+- [x] `givenSessionCode_whenSecondUserJoins_then200ParticipantAdded`
+- [x] `givenParticipant_whenAddItemsToGroupCart_thenGroupTotalUpdated`
+- [x] `givenGroupSession_whenNonHostTriesToFinalize_then403`
+- [x] `givenGroupSession_whenHostFinalizes_then201OrderWithAllParticipantItems`
+- [x] `givenFinalizedGroupOrder_whenViewOrderItems_thenEachItemShowsParticipantId`
 
 #### Real-time tests
-- [ ] `givenSubscribedToOrderTopic_whenOrderCreated_thenWebSocketReceivesOrderCreatedEvent`
-- [ ] `givenSubscribedToOrderTopic_whenStatusUpdated_thenWebSocketReceivesStatusChangedEvent`
-- [ ] `givenGroupSessionParticipants_whenItemAdded_thenAllParticipantsReceiveGroupCartUpdatedEvent`
+- [x] `givenSubscribedToOrderTopic_whenOrderCreated_thenWebSocketReceivesOrderCreatedEvent`
+- [x] `givenSubscribedToOrderTopic_whenStatusUpdated_thenWebSocketReceivesStatusChangedEvent`
+- [x] `givenGroupSessionParticipants_whenItemAdded_thenAllParticipantsReceiveGroupCartUpdatedEvent`
 
 ### Deliverables
-- [ ] All Phase 4 tests passing in CI
-- [ ] Real-time status update verified via WebSocket integration test
-- [ ] `reports/phase-4-report.md`
+- [x] All Phase 4 tests passing in CI
+- [x] Real-time status update verified via WebSocket integration test
+- [x] `documentation/reports/phase-4-report.md`
 
 ---
 
@@ -358,68 +375,68 @@ Every test below must be written and green before the corresponding task is chec
 ### Tasks
 
 #### Paystack Integration
-- [ ] Add Paystack SDK / HTTP client to backend
-- [ ] Store Paystack secret key in environment config (never in code)
-- [ ] Implement payment initiation endpoint (returns Paystack payment URL or reference)
-- [ ] Implement Paystack webhook handler (verify signature, process events)
-- [ ] Payment verification endpoint (poll fallback for webhook failures)
-- [ ] Map Paystack payment status to internal `Payment` status
+- [x] Add Paystack SDK / HTTP client to backend
+- [x] Store Paystack secret key in environment config (never in code)
+- [x] Implement payment initiation endpoint (returns Paystack payment URL or reference)
+- [x] Implement Paystack webhook handler (verify signature, process events)
+- [x] Payment verification endpoint (poll fallback for webhook failures)
+- [x] Map Paystack payment status to internal `Payment` status
 
 #### MoMo-First UX
-- [ ] Default payment method set to Mobile Money on all payment flows
-- [ ] MoMo phone number capture field (pre-filled from customer profile if available)
-- [ ] USSD push prompt flow (customer approves on phone)
-- [ ] Display "waiting for MoMo approval" state
+- [x] Default payment method set to Mobile Money on all payment flows
+- [x] MoMo phone number capture field (pre-filled from customer profile if available)
+- [x] USSD push prompt flow (customer approves on phone)
+- [x] Display "waiting for MoMo approval" state
 
 #### Payment Model
-- [ ] `Payment` entity: order, amount, currency, method, status, paystack reference, timestamps
-- [ ] Payment status: `INITIATED`, `PENDING`, `SUCCESS`, `FAILED`, `REFUNDED`, `VOIDED`
-- [ ] Link payment to order; order moves to `CONFIRMED` on payment success
+- [x] `Payment` entity: order, amount, currency, method, status, paystack reference, timestamps
+- [x] Payment status: `INITIATED`, `PENDING`, `SUCCESS`, `FAILED`, `REFUNDED`, `VOIDED`
+- [x] Link payment to order; order moves to `CONFIRMED` on payment success
 
 #### Retry & Recovery
-- [ ] Retry failed payment endpoint (re-initiates with same order)
-- [ ] Idempotency key to prevent duplicate charges
-- [ ] Payment recovery screen (show last failed payment, offer retry or new method)
+- [x] Retry failed payment endpoint (re-initiates with same order)
+- [x] Idempotency key to prevent duplicate charges
+- [x] Payment recovery screen (show last failed payment, offer retry or new method)
 
 #### Receipts
-- [ ] Generate receipt on payment success (PDF or structured JSON)
-- [ ] Receipt retrieval endpoint by order/payment ID
+- [x] Generate receipt on payment success (PDF or structured JSON)
+- [x] Receipt retrieval endpoint by order/payment ID
 
 ---
 
 ### Tests — Phase 5
 
 #### Payment initiation tests
-- [ ] `givenValidOrder_whenInitiateMoMoPayment_then201WithPaystackReference`
-- [ ] `givenSameIdempotencyKey_whenInitiatePaymentTwice_thenSamePaymentReturnedNoDuplicate`
-- [ ] `givenDifferentIdempotencyKey_whenInitiatePaymentForSameOrder_then201NewPayment`
-- [ ] `givenNoPaystackKey_whenInitiatePayment_thenConfigurationErrorNotExposedToClient`
+- [x] `givenValidOrder_whenInitiateMoMoPayment_then201WithPaystackReference`
+- [x] `givenSameIdempotencyKey_whenInitiatePaymentTwice_thenSamePaymentReturnedNoDuplicate`
+- [x] `givenDifferentIdempotencyKey_whenInitiatePaymentForSameOrder_then201NewPayment`
+- [x] `givenNoPaystackKey_whenInitiatePayment_thenConfigurationErrorNotExposedToClient`
 
 #### Webhook tests
-- [ ] `givenValidPaystackSignature_whenSuccessWebhook_thenPaymentStatusSuccess`
-- [ ] `givenValidPaystackSignature_whenSuccessWebhook_thenOrderStatusChangedToConfirmed`
-- [ ] `givenValidPaystackSignature_whenFailedWebhook_thenPaymentStatusFailed`
-- [ ] `givenInvalidSignature_whenWebhookReceived_then400Rejected`
-- [ ] `givenMissingSignatureHeader_whenWebhookReceived_then400Rejected`
-- [ ] `givenDuplicateWebhookEvent_whenReceivedTwice_thenProcessedOnlyOnce`
+- [x] `givenValidPaystackSignature_whenSuccessWebhook_thenPaymentStatusSuccess`
+- [x] `givenValidPaystackSignature_whenSuccessWebhook_thenOrderStatusChangedToConfirmed`
+- [x] `givenValidPaystackSignature_whenFailedWebhook_thenPaymentStatusFailed`
+- [x] `givenInvalidSignature_whenWebhookReceived_then400Rejected`
+- [x] `givenMissingSignatureHeader_whenWebhookReceived_then400Rejected`
+- [x] `givenDuplicateWebhookEvent_whenReceivedTwice_thenProcessedOnlyOnce`
 
 #### Payment status tests
-- [ ] `givenInitiatedPayment_whenPolled_thenStatusIsInitiated`
-- [ ] `givenSuccessfulPayment_whenGetPayment_thenStatusIsSuccessWithPaidAtTimestamp`
-- [ ] `givenFailedPayment_whenRetried_then201NewPaymentWithNewReference`
+- [x] `givenInitiatedPayment_whenPolled_thenStatusIsInitiated`
+- [x] `givenSuccessfulPayment_whenGetPayment_thenStatusIsSuccessWithPaidAtTimestamp`
+- [x] `givenFailedPayment_whenRetried_then201NewPaymentWithNewReference`
 
 #### Receipt tests
-- [ ] `givenSuccessfulPayment_whenGetReceipt_then200WithCorrectOrderTotalsAndPaymentMethod`
-- [ ] `givenNoPayment_whenGetReceipt_then404`
+- [x] `givenSuccessfulPayment_whenGetReceipt_then200WithCorrectOrderTotalsAndPaymentMethod`
+- [x] `givenNoPayment_whenGetReceipt_then404`
 
 #### Real-time payment tests
-- [ ] `givenSubscribedToPaymentTopic_whenWebhookSuccess_thenWebSocketReceivesPaymentStatusChangedEvent`
-- [ ] `givenSubscribedToPaymentTopic_whenWebhookFailed_thenWebSocketReceivesPaymentFailedEvent`
+- [x] `givenSubscribedToPaymentTopic_whenWebhookSuccess_thenWebSocketReceivesPaymentStatusChangedEvent`
+- [x] `givenSubscribedToPaymentTopic_whenWebhookFailed_thenWebSocketReceivesPaymentFailedEvent`
 
 ### Deliverables
-- [ ] All Phase 5 tests passing in CI (Paystack sandbox)
-- [ ] Webhook signature verification confirmed
-- [ ] `reports/phase-5-report.md`
+- [x] All Phase 5 tests passing in CI (Paystack sandbox)
+- [x] Webhook signature verification confirmed
+- [x] `documentation/reports/phase-5-report.md`
 
 ---
 
@@ -430,96 +447,96 @@ Every test below must be written and green before the corresponding task is chec
 ### Tasks
 
 #### Setup
-- [ ] Initialize Next.js project (App Router, TypeScript)
-- [ ] Configure API client (Axios/fetch with auth interceptors)
-- [ ] Set up state management (Zustand or React Query)
-- [ ] Configure environment variables for API base URL
+- [x] Initialize Next.js project (App Router, TypeScript)
+- [x] Configure API client (Axios/fetch with auth interceptors)
+- [x] Set up state management (Zustand or React Query)
+- [x] Configure environment variables for API base URL
 
 #### Authentication
-- [ ] Login page (role-aware redirect: Admin → dashboard, Cashier → POS)
-- [ ] JWT token storage and refresh logic
-- [ ] Protected route wrapper
-- [ ] Manager PIN modal component (reusable, triggered for guarded actions)
+- [x] Login page (role-aware redirect: Admin → dashboard, Cashier → POS)
+- [x] JWT token storage and refresh logic
+- [x] Protected route wrapper
+- [x] Manager PIN modal component (reusable, triggered for guarded actions)
 
 #### POS (Point of Sale)
-- [ ] Menu browser (categories + items, search)
-- [ ] Add to cart, update quantities, remove items
-- [ ] Order type selector (dine-in / pickup / delivery)
-- [ ] Table selector for dine-in
-- [ ] Submit order to backend
-- [ ] Payment trigger (initiate Paystack, show pending state)
-- [ ] Order confirmation screen with receipt option
+- [x] Menu browser (categories + items, search)
+- [x] Add to cart, update quantities, remove items
+- [x] Order type selector (dine-in / pickup / delivery)
+- [x] Table selector for dine-in
+- [x] Submit order to backend
+- [x] Payment trigger (initiate Paystack, show pending state)
+- [x] Order confirmation screen with receipt option
 
 #### Table Management
-- [ ] Table map/grid view with live status colours
-- [ ] Click table to view active order(s)
-- [ ] Assign / release table
-- [ ] QR code display per table
+- [x] Table map/grid view with live status colours
+- [x] Click table to view active order(s)
+- [x] Assign / release table
+- [x] QR code display per table
 
 #### Order Management
-- [ ] Active orders list (real-time updates)
-- [ ] Update order status (confirm, preparing, ready, complete)
-- [ ] Cancel order (PIN modal)
+- [x] Active orders list (real-time updates)
+- [x] Update order status (confirm, preparing, ready, complete)
+- [x] Cancel order (PIN modal)
 
 #### Financial Controls (Manager+)
-- [ ] Apply discount to order (PIN required)
-- [ ] Void order (PIN required)
-- [ ] Issue refund (PIN required, reason capture)
-- [ ] Daily reconciliation summary view
+- [x] Apply discount to order (PIN required)
+- [x] Void order (PIN required)
+- [x] Issue refund (PIN required, reason capture)
+- [x] Daily reconciliation summary view
 
 #### Receipts
-- [ ] View receipt per order
-- [ ] Print receipt button
-- [ ] Send receipt via WhatsApp (Phase 8 integration point)
+- [x] View receipt per order
+- [x] Print receipt button
+- [x] Send receipt via WhatsApp (Phase 8 integration point)
 
 #### Admin Panel
-- [ ] User management (create/edit/deactivate staff accounts)
-- [ ] Menu management (CRUD for categories and items)
-- [ ] Role assignment
+- [x] User management (create/edit/deactivate staff accounts)
+- [x] Menu management (CRUD for categories and items)
+- [x] Role assignment
 
 ---
 
 ### Tests — Phase 6
 
 #### Auth / routing tests
-- [ ] `givenCashierLogin_whenAuthenticated_thenRedirectedToPosPage`
-- [ ] `givenAdminLogin_whenAuthenticated_thenRedirectedToDashboard`
-- [ ] `givenUnauthenticated_whenVisitProtectedRoute_thenRedirectedToLogin`
-- [ ] `givenExpiredAccessToken_whenApiCallMade_thenRefreshCalledAndRequestRetried`
+- [x] `givenCashierLogin_whenAuthenticated_thenRedirectedToPosPage`
+- [x] `givenAdminLogin_whenAuthenticated_thenRedirectedToDashboard`
+- [x] `givenUnauthenticated_whenVisitProtectedRoute_thenRedirectedToLogin`
+- [x] `givenExpiredAccessToken_whenApiCallMade_thenRefreshCalledAndRequestRetried`
 
 #### PIN modal tests
-- [ ] `givenCashierClicksDiscount_whenRendered_thenPinModalAppears`
-- [ ] `givenCorrectManagerPin_whenEnteredInModal_thenDiscountAppliedAndModalCloses`
-- [ ] `givenWrongPin_whenEnteredInModal_thenErrorMessageShownModalStaysOpen`
-- [ ] `givenLockedPin_whenModalOpened_thenLockedStateMessageShown`
+- [x] `givenCashierClicksDiscount_whenRendered_thenPinModalAppears`
+- [x] `givenCorrectManagerPin_whenEnteredInModal_thenDiscountAppliedAndModalCloses`
+- [x] `givenWrongPin_whenEnteredInModal_thenErrorMessageShownModalStaysOpen`
+- [x] `givenLockedPin_whenModalOpened_thenLockedStateMessageShown`
 
 #### POS tests
-- [ ] `givenMenuLoaded_whenItemAddedToCart_thenQuantityAndTotalUpdated`
-- [ ] `givenItemInCart_whenQuantityIncremented_thenTotalRecalculated`
-- [ ] `givenItemInCart_whenRemoved_thenCartEmpty`
-- [ ] `givenDineInSelected_whenTableChosen_thenTableIdIncludedInOrderPayload`
-- [ ] `givenCompletedCart_whenOrderSubmitted_thenApiCalledAndConfirmationScreenShown`
-- [ ] `givenOrderSubmitted_whenPaymentInitiated_thenPendingStateShown`
+- [x] `givenMenuLoaded_whenItemAddedToCart_thenQuantityAndTotalUpdated`
+- [x] `givenItemInCart_whenQuantityIncremented_thenTotalRecalculated`
+- [x] `givenItemInCart_whenRemoved_thenCartEmpty`
+- [x] `givenDineInSelected_whenTableChosen_thenTableIdIncludedInOrderPayload`
+- [x] `givenCompletedCart_whenOrderSubmitted_thenApiCalledAndConfirmationScreenShown`
+- [x] `givenOrderSubmitted_whenPaymentInitiated_thenPendingStateShown`
 
 #### Table management tests
-- [ ] `givenTableList_whenRendered_thenAvailableTablesShowGreenOccupiedShowRed`
-- [ ] `givenOccupiedTable_whenClicked_thenActiveOrderListShown`
-- [ ] `givenWebSocketEvent_whenTableStatusChanged_thenTableMapUpdatesWithoutReload`
+- [x] `givenTableList_whenRendered_thenAvailableTablesShowGreenOccupiedShowRed`
+- [x] `givenOccupiedTable_whenClicked_thenActiveOrderListShown`
+- [x] `givenWebSocketEvent_whenTableStatusChanged_thenTableMapUpdatesWithoutReload`
 
 #### Order management tests
-- [ ] `givenActiveOrdersList_whenWebSocketReceivesNewOrder_thenOrderAppearsInListWithoutReload`
-- [ ] `givenOrder_whenStatusAdvanced_thenUpdatedStatusShownInList`
-- [ ] `givenCashierClicksCancelOrder_whenConfirmed_thenPinModalShown`
+- [x] `givenActiveOrdersList_whenWebSocketReceivesNewOrder_thenOrderAppearsInListWithoutReload`
+- [x] `givenOrder_whenStatusAdvanced_thenUpdatedStatusShownInList`
+- [x] `givenCashierClicksCancelOrder_whenConfirmed_thenPinModalShown`
 
 #### Financial controls tests
-- [ ] `givenDiscountApplied_whenViewOrder_thenDiscountAmountAndNewTotalShown`
-- [ ] `givenRefundApplied_whenViewReceipt_thenRefundedAmountAndStatusShown`
-- [ ] `givenReconciliationView_whenRendered_thenTotalsMatchExpectedSums`
+- [x] `givenDiscountApplied_whenViewOrder_thenDiscountAmountAndNewTotalShown`
+- [x] `givenRefundApplied_whenViewReceipt_thenRefundedAmountAndStatusShown`
+- [x] `givenReconciliationView_whenRendered_thenTotalsMatchExpectedSums`
 
 ### Deliverables
-- [ ] All Phase 6 tests passing in CI
-- [ ] PIN guard verified on all financial actions
-- [ ] `reports/phase-6-report.md`
+- [x] All Phase 6 tests passing in CI
+- [x] PIN guard verified on all financial actions
+- [x] `documentation/reports/phase-6-report.md`
 
 ---
 
@@ -530,101 +547,101 @@ Every test below must be written and green before the corresponding task is chec
 ### Tasks
 
 #### Setup
-- [ ] Initialize Expo project (TypeScript, Expo Router)
-- [ ] Configure API client with auth
-- [ ] Push notification setup (Expo Notifications)
+- [x] Initialize Expo project (TypeScript, Expo Router)
+- [x] Configure API client with auth
+- [x] Push notification setup (Expo Notifications)
 
 #### Onboarding & Auth
-- [ ] Phone number registration (OTP via SMS or WhatsApp)
-- [ ] Login / guest checkout option
-- [ ] Profile screen (name, phone, saved MoMo number)
+- [x] Phone number registration (OTP via SMS or WhatsApp)
+- [x] Login / guest checkout option
+- [x] Profile screen (name, phone, saved MoMo number)
 
 #### Menu & Ordering
-- [ ] Menu browse (categories, item details, images)
-- [ ] Add to cart, quantity control
-- [ ] Order type selection: pickup / delivery / dine-in
-- [ ] Delivery address entry
-- [ ] Pickup time selection
-- [ ] QR scan → dine-in table link
+- [x] Menu browse (categories, item details, images)
+- [x] Add to cart, quantity control
+- [x] Order type selection: pickup / delivery / dine-in
+- [x] Delivery address entry
+- [x] Pickup time selection
+- [x] QR scan → dine-in table link
 
 #### Group Ordering
-- [ ] Create group session (share code/link)
-- [ ] Join group session by code
-- [ ] Live view of group cart (other participants' items)
-- [ ] Ready / submit trigger
+- [x] Create group session (share code/link)
+- [x] Join group session by code
+- [x] Live view of group cart (other participants' items)
+- [x] Ready / submit trigger
 
 #### Payment
-- [ ] MoMo-first payment screen (phone number, amount, confirm)
-- [ ] "Waiting for MoMo approval" live state
-- [ ] Payment success / failure screens
-- [ ] Retry failed payment
-- [ ] View receipt
+- [x] MoMo-first payment screen (phone number, amount, confirm)
+- [x] "Waiting for MoMo approval" live state
+- [x] Payment success / failure screens
+- [x] Retry failed payment
+- [x] View receipt
 
 #### Order Tracking
-- [ ] Live order status screen (push + polling fallback)
-- [ ] Delivery tracking state
-- [ ] Order history list
-- [ ] Reorder from history
+- [x] Live order status screen (push + polling fallback)
+- [x] Delivery tracking state
+- [x] Order history list
+- [x] Reorder from history
 
 #### Reservations
-- [ ] Browse available tables and time slots
-- [ ] Make reservation (name, party size, date/time)
-- [ ] View / cancel my reservations
+- [x] Browse available tables and time slots
+- [x] Make reservation (name, party size, date/time)
+- [x] View / cancel my reservations
 
 #### Offline Support
-- [ ] Cache menu for offline browsing
-- [ ] Queue order submission when offline (sync on reconnect)
-- [ ] Show offline banner
+- [x] Cache menu for offline browsing
+- [x] Queue order submission when offline (sync on reconnect)
+- [x] Show offline banner
 
 ---
 
 ### Tests — Phase 7
 
 #### Auth tests
-- [ ] `givenValidPhone_whenRegister_thenOtpSentAndRegistrationPending`
-- [ ] `givenCorrectOtp_whenVerified_thenTokenIssuedAndUserLoggedIn`
-- [ ] `givenGuestCheckout_whenOrderCreated_thenSessionTokenUsedWithNoRole`
+- [x] `givenValidPhone_whenRegister_thenOtpSentAndRegistrationPending`
+- [x] `givenCorrectOtp_whenVerified_thenTokenIssuedAndUserLoggedIn`
+- [x] `givenGuestCheckout_whenOrderCreated_thenSessionTokenUsedWithNoRole`
 
 #### Menu & cart tests
-- [ ] `givenMenuLoaded_whenCategoryTapped_thenItemsForCategoryShown`
-- [ ] `givenItemDetailOpen_whenAddToCart_thenCartBadgeIncremented`
-- [ ] `givenItemInCart_whenQuantitySetToZero_thenItemRemovedFromCart`
+- [x] `givenMenuLoaded_whenCategoryTapped_thenItemsForCategoryShown`
+- [x] `givenItemDetailOpen_whenAddToCart_thenCartBadgeIncremented`
+- [x] `givenItemInCart_whenQuantitySetToZero_thenItemRemovedFromCart`
 
 #### Offline tests
-- [ ] `givenOfflineDevice_whenMenuOpened_thenCachedMenuShownWithStaleWarning`
-- [ ] `givenOfflineDevice_whenOrderSubmitted_thenOrderQueuedLocallyWithQueuedStatus`
-- [ ] `givenQueuedOrder_whenDeviceReconnects_thenOrderSubmittedToServerAndStatusUpdated`
-- [ ] `givenOfflineDevice_whenPaymentAttempted_thenBlockedWithInternetRequiredMessage`
+- [x] `givenOfflineDevice_whenMenuOpened_thenCachedMenuShownWithStaleWarning`
+- [x] `givenOfflineDevice_whenOrderSubmitted_thenOrderQueuedLocallyWithQueuedStatus`
+- [x] `givenQueuedOrder_whenDeviceReconnects_thenOrderSubmittedToServerAndStatusUpdated`
+- [x] `givenOfflineDevice_whenPaymentAttempted_thenBlockedWithInternetRequiredMessage`
 
 #### QR / dine-in tests
-- [ ] `givenValidQrCode_whenScanned_thenTableInfoShownAndLinkedToCart`
-- [ ] `givenInvalidQrCode_whenScanned_thenErrorMessageShown`
+- [x] `givenValidQrCode_whenScanned_thenTableInfoShownAndLinkedToCart`
+- [x] `givenInvalidQrCode_whenScanned_thenErrorMessageShown`
 
 #### Payment tests
-- [ ] `givenPaymentScreen_whenRendered_thenMobileMoneyIsDefaultSelectedMethod`
-- [ ] `givenMoMoPaymentInitiated_whenPending_thenWaitingForApprovalStateShown`
-- [ ] `givenPaystackSuccessEvent_whenReceived_thenOrderTrackingScreenShown`
-- [ ] `givenPaystackFailedEvent_whenReceived_thenFailureScreenWithRetryOptionShown`
-- [ ] `givenFailedPayment_whenRetryTapped_thenNewPaymentInitiated`
+- [x] `givenPaymentScreen_whenRendered_thenMobileMoneyIsDefaultSelectedMethod`
+- [x] `givenMoMoPaymentInitiated_whenPending_thenWaitingForApprovalStateShown`
+- [x] `givenPaystackSuccessEvent_whenReceived_thenOrderTrackingScreenShown`
+- [x] `givenPaystackFailedEvent_whenReceived_thenFailureScreenWithRetryOptionShown`
+- [x] `givenFailedPayment_whenRetryTapped_thenNewPaymentInitiated`
 
 #### Group order tests (mobile)
-- [ ] `givenGroupSessionCreated_whenCodeShared_thenSecondDeviceJoinsAndSeesSharedCart`
-- [ ] `givenTwoParticipants_whenBothAddItems_thenGroupTotalReflectsAllItems`
-- [ ] `givenGroupCart_whenHostSubmits_thenSingleOrderCreatedAndAllParticipantsNotified`
+- [x] `givenGroupSessionCreated_whenCodeShared_thenSecondDeviceJoinsAndSeesSharedCart`
+- [x] `givenTwoParticipants_whenBothAddItems_thenGroupTotalReflectsAllItems`
+- [x] `givenGroupCart_whenHostSubmits_thenSingleOrderCreatedAndAllParticipantsNotified`
 
 #### Order tracking tests
-- [ ] `givenActiveOrder_whenStatusChangesToPreparing_thenTrackingScreenUpdatesWithoutManualRefresh`
-- [ ] `givenCompletedOrder_whenViewHistory_thenOrderAppearsInHistoryList`
-- [ ] `givenHistoryOrder_whenReorderTapped_thenCartPrePopulatedWithSameItems`
+- [x] `givenActiveOrder_whenStatusChangesToPreparing_thenTrackingScreenUpdatesWithoutManualRefresh`
+- [x] `givenCompletedOrder_whenViewHistory_thenOrderAppearsInHistoryList`
+- [x] `givenHistoryOrder_whenReorderTapped_thenCartPrePopulatedWithSameItems`
 
 #### Reservation tests (mobile)
-- [ ] `givenAvailableSlot_whenReservationCreated_thenConfirmationShown`
-- [ ] `givenMyReservation_whenCancelTapped_then204AndRemovedFromList`
+- [x] `givenAvailableSlot_whenReservationCreated_thenConfirmationShown`
+- [x] `givenMyReservation_whenCancelTapped_then204AndRemovedFromList`
 
 ### Deliverables
-- [ ] All Phase 7 tests passing (unit + Maestro E2E on iOS and Android)
-- [ ] Offline queue sync verified end-to-end
-- [ ] `reports/phase-7-report.md`
+- [x] All Phase 7 tests passing (unit + Maestro E2E on iOS and Android)
+- [x] Offline queue sync verified end-to-end
+- [x] `documentation/reports/phase-7-report.md`
 
 ---
 
@@ -635,65 +652,65 @@ Every test below must be written and green before the corresponding task is chec
 ### Tasks
 
 #### WhatsApp Integration
-- [ ] Integrate WhatsApp Business API (or Twilio WhatsApp)
-- [ ] Send order confirmation via WhatsApp
-- [ ] Send receipt link via WhatsApp
-- [ ] Send order status updates via WhatsApp
-- [ ] Include reorder deep-link in WhatsApp receipt
+- [x] Integrate WhatsApp Business API (or Twilio WhatsApp)
+- [x] Send order confirmation via WhatsApp
+- [x] Send receipt link via WhatsApp
+- [x] Send order status updates via WhatsApp
+- [x] Include reorder deep-link in WhatsApp receipt
 
 #### QR Table Ordering
-- [ ] Print-ready QR code per table (PDF export for manager)
-- [ ] Mobile app QR scanner (links session to table automatically)
-- [ ] Staff view shows which tables have active mobile sessions
+- [x] Print-ready QR code per table (PDF export for manager)
+- [x] Mobile app QR scanner (links session to table automatically)
+- [x] Staff view shows which tables have active mobile sessions
 
 #### Loyalty & Promotions System
-- [ ] Loyalty points accrual on every payment (configurable rate)
-- [ ] Redeem points at checkout (partial or full payment)
-- [ ] Promo code model (code, discount type: flat/%, min order, expiry, usage limit)
-- [ ] Apply promo code at checkout
-- [ ] "Buy X get Y" offer model and engine
-- [ ] Loyalty points balance on customer profile screen
+- [x] Loyalty points accrual on every payment (configurable rate)
+- [x] Redeem points at checkout (partial or full payment)
+- [x] Promo code model (code, discount type: flat/%, min order, expiry, usage limit)
+- [x] Apply promo code at checkout
+- [x] "Buy X get Y" offer model and engine
+- [x] Loyalty points balance on customer profile screen
 
 ---
 
 ### Tests — Phase 8
 
 #### WhatsApp tests
-- [ ] `givenSuccessfulPayment_whenProcessed_thenWhatsAppOrderConfirmationSent`
-- [ ] `givenReceipt_whenGenerated_thenWhatsAppMessageContainsReceiptLinkAndReorderLink`
-- [ ] `givenOrderStatusChangedToReady_whenUpdated_thenWhatsAppStatusUpdateSent`
-- [ ] `givenWhatsAppApiDown_whenMessageFails_thenErrorLoggedAndOrderNotAffected`
+- [x] `givenSuccessfulPayment_whenProcessed_thenWhatsAppOrderConfirmationSent`
+- [x] `givenReceipt_whenGenerated_thenWhatsAppMessageContainsReceiptLinkAndReorderLink`
+- [x] `givenOrderStatusChangedToReady_whenUpdated_thenWhatsAppStatusUpdateSent`
+- [x] `givenWhatsAppApiDown_whenMessageFails_thenErrorLoggedAndOrderNotAffected`
 
 #### QR table ordering tests
-- [ ] `givenTableQrCode_whenExportedAsPdf_thenPdfContainsCorrectTableNumber`
-- [ ] `givenMobileQrScan_whenTableLinked_thenStaffViewShowsTableHasActiveMobileSession`
-- [ ] `givenTableSessionClosed_whenStaffViews_thenActiveMobileSessionBadgeRemoved`
+- [x] `givenTableQrCode_whenExportedAsPdf_thenPdfContainsCorrectTableNumber`
+- [x] `givenMobileQrScan_whenTableLinked_thenStaffViewShowsTableHasActiveMobileSession`
+- [x] `givenTableSessionClosed_whenStaffViews_thenActiveMobileSessionBadgeRemoved`
 
 #### Loyalty tests
-- [ ] `givenPaymentSuccess_whenProcessed_thenPointsAccruedAtConfiguredRateForCustomer`
-- [ ] `givenCustomerWith200Points_whenRedeem100Points_thenOrderTotalReducedByEquivalentAmount`
-- [ ] `givenRedeemMorePointsThanBalance_whenAttempted_then400`
-- [ ] `givenLoyaltyTransaction_whenViewHistory_thenEarnAndRedeemEntriesShown`
-- [ ] `givenCustomerProfile_whenViewed_thenCurrentLoyaltyBalanceShown`
+- [x] `givenPaymentSuccess_whenProcessed_thenPointsAccruedAtConfiguredRateForCustomer`
+- [x] `givenCustomerWith200Points_whenRedeem100Points_thenOrderTotalReducedByEquivalentAmount`
+- [x] `givenRedeemMorePointsThanBalance_whenAttempted_then400`
+- [x] `givenLoyaltyTransaction_whenViewHistory_thenEarnAndRedeemEntriesShown`
+- [x] `givenCustomerProfile_whenViewed_thenCurrentLoyaltyBalanceShown`
 
 #### Promo code tests
-- [ ] `givenValidPromoCode_whenApplied_thenCorrectDiscountAppliedToOrderTotal`
-- [ ] `givenPercentagePromo_whenApplied_thenDiscountIsPercentageOfSubtotal`
-- [ ] `givenFlatPromo_whenApplied_thenFixedAmountDeducted`
-- [ ] `givenOrderBelowMinAmount_whenPromoApplied_then400MinimumNotMet`
-- [ ] `givenExpiredPromoCode_whenApplied_then400Expired`
-- [ ] `givenPromoAtUsageLimit_whenApplied_then400LimitReached`
-- [ ] `givenInactivePromoCode_whenApplied_then400Invalid`
+- [x] `givenValidPromoCode_whenApplied_thenCorrectDiscountAppliedToOrderTotal`
+- [x] `givenPercentagePromo_whenApplied_thenDiscountIsPercentageOfSubtotal`
+- [x] `givenFlatPromo_whenApplied_thenFixedAmountDeducted`
+- [x] `givenOrderBelowMinAmount_whenPromoApplied_then400MinimumNotMet`
+- [x] `givenExpiredPromoCode_whenApplied_then400Expired`
+- [x] `givenPromoAtUsageLimit_whenApplied_then400LimitReached`
+- [x] `givenInactivePromoCode_whenApplied_then400Invalid`
 
 #### Buy X Get Y tests
-- [ ] `givenBuyXGetYOffer_whenCustomerOrdersMeetsCriteria_thenFreeItemAddedToOrder`
-- [ ] `givenBuyXGetYOffer_whenCriteriaNotMet_thenNoFreeItemAdded`
+- [x] `givenBuyXGetYOffer_whenCustomerOrdersMeetsCriteria_thenFreeItemAddedToOrder`
+- [x] `givenBuyXGetYOffer_whenCriteriaNotMet_thenNoFreeItemAdded`
 
 ### Deliverables
-- [ ] All Phase 8 tests passing in CI
-- [ ] WhatsApp receipt delivery tested in staging
-- [ ] Loyalty accrual and redemption verified end-to-end
-- [ ] `reports/phase-8-report.md`
+- [x] All Phase 8 tests passing in CI
+- [x] WhatsApp receipt delivery tested in staging
+- [x] Loyalty accrual and redemption verified end-to-end
+- [x] `documentation/reports/phase-8-report.md`
 
 ---
 
@@ -704,75 +721,75 @@ Every test below must be written and green before the corresponding task is chec
 ### Tasks
 
 #### Refunds
-- [ ] Refund endpoint (manager PIN, reason, amount — partial or full)
-- [ ] Trigger Paystack refund API
-- [ ] Update payment status to `REFUNDED`
-- [ ] Log refund event to audit log
-- [ ] Display refund status to cashier/customer
+- [x] Refund endpoint (manager PIN, reason, amount — partial or full)
+- [x] Trigger Paystack refund API
+- [x] Update payment status to `REFUNDED`
+- [x] Log refund event to audit log
+- [x] Display refund status to cashier/customer
 
 #### Voids
-- [ ] Void order endpoint (manager PIN, before payment processed)
-- [ ] Void releases table if dine-in
-- [ ] Void logged to audit log
+- [x] Void order endpoint (manager PIN, before payment processed)
+- [x] Void releases table if dine-in
+- [x] Void logged to audit log
 
 #### Discounts
-- [ ] Manual discount (manager PIN, amount or %, reason)
-- [ ] Discount applied to order total before payment
-- [ ] Discount logged to audit log
+- [x] Manual discount (manager PIN, amount or %, reason)
+- [x] Discount applied to order total before payment
+- [x] Discount logged to audit log
 
 #### End-of-Day Reconciliation
-- [ ] Summary report: total sales, total MoMo, total card, total cash, total refunds, total voids, total discounts
-- [ ] Per-cashier breakdown
-- [ ] Export to CSV / PDF
-- [ ] Manager sign-off endpoint (marks day as reconciled)
+- [x] Summary report: total sales, total MoMo, total card, total cash, total refunds, total voids, total discounts
+- [x] Per-cashier breakdown
+- [x] Export to CSV / PDF
+- [x] Manager sign-off endpoint (marks day as reconciled)
 
 #### Audit Log Review
-- [ ] Admin UI to browse audit log (filter by action type, user, date)
-- [ ] Exportable audit log
+- [x] Admin UI to browse audit log (filter by action type, user, date)
+- [x] Exportable audit log
 
 ---
 
 ### Tests — Phase 9
 
 #### Refund tests
-- [ ] `givenNoOverrideToken_whenRefundAttempted_then403`
-- [ ] `givenValidManagerOverrideToken_whenFullRefund_thenPaystackRefundCalledAndPaymentStatusRefunded`
-- [ ] `givenValidManagerOverrideToken_whenPartialRefund_thenPaymentStatusPartiallyRefundedCorrectAmount`
-- [ ] `givenRefundAmountExceedsPaymentAmount_whenAttempted_then400`
-- [ ] `givenSuccessfulRefund_thenRefundEventWrittenToAuditLog`
-- [ ] `givenAlreadyRefundedPayment_whenRefundedAgain_then400`
+- [x] `givenNoOverrideToken_whenRefundAttempted_then403`
+- [x] `givenValidManagerOverrideToken_whenFullRefund_thenPaystackRefundCalledAndPaymentStatusRefunded`
+- [x] `givenValidManagerOverrideToken_whenPartialRefund_thenPaymentStatusPartiallyRefundedCorrectAmount`
+- [x] `givenRefundAmountExceedsPaymentAmount_whenAttempted_then400`
+- [x] `givenSuccessfulRefund_thenRefundEventWrittenToAuditLog`
+- [x] `givenAlreadyRefundedPayment_whenRefundedAgain_then400`
 
 #### Void tests
-- [ ] `givenNoOverrideToken_whenVoidAttempted_then403`
-- [ ] `givenValidManagerOverrideToken_whenOrderVoided_thenOrderStatusVoided`
-- [ ] `givenDineInOrder_whenVoided_thenLinkedTableStatusChangedToAvailable`
-- [ ] `givenAlreadyCompletedOrder_whenVoidAttempted_then400`
-- [ ] `givenSuccessfulVoid_thenVoidEventWrittenToAuditLog`
+- [x] `givenNoOverrideToken_whenVoidAttempted_then403`
+- [x] `givenValidManagerOverrideToken_whenOrderVoided_thenOrderStatusVoided`
+- [x] `givenDineInOrder_whenVoided_thenLinkedTableStatusChangedToAvailable`
+- [x] `givenAlreadyCompletedOrder_whenVoidAttempted_then400`
+- [x] `givenSuccessfulVoid_thenVoidEventWrittenToAuditLog`
 
 #### Discount tests
-- [ ] `givenNoOverrideToken_whenDiscountAttempted_then403`
-- [ ] `givenValidManagerOverrideToken_whenFlatDiscountApplied_thenOrderTotalReducedByAmount`
-- [ ] `givenValidManagerOverrideToken_whenPercentageDiscountApplied_thenOrderTotalReducedByPercentage`
-- [ ] `givenDiscountExceedsOrderTotal_whenApplied_then400`
-- [ ] `givenSuccessfulDiscount_thenDiscountEventWrittenToAuditLog`
+- [x] `givenNoOverrideToken_whenDiscountAttempted_then403`
+- [x] `givenValidManagerOverrideToken_whenFlatDiscountApplied_thenOrderTotalReducedByAmount`
+- [x] `givenValidManagerOverrideToken_whenPercentageDiscountApplied_thenOrderTotalReducedByPercentage`
+- [x] `givenDiscountExceedsOrderTotal_whenApplied_then400`
+- [x] `givenSuccessfulDiscount_thenDiscountEventWrittenToAuditLog`
 
 #### Reconciliation tests
-- [ ] `givenDayWithKnownTransactions_whenReconciliationFetched_thenTotalsMatchSumOfPayments`
-- [ ] `givenDayWithRefunds_whenReconciliationFetched_thenRefundTotalCorrect`
-- [ ] `givenDayWithVoids_whenReconciliationFetched_thenVoidTotalCorrect`
-- [ ] `givenNoOverrideToken_whenSignOffAttempted_then403`
-- [ ] `givenValidManagerOverrideToken_whenSignOff_thenSignedByAndSignedAtPopulated`
-- [ ] `givenAlreadySignedOffDay_whenSignOffAgain_then409`
+- [x] `givenDayWithKnownTransactions_whenReconciliationFetched_thenTotalsMatchSumOfPayments`
+- [x] `givenDayWithRefunds_whenReconciliationFetched_thenRefundTotalCorrect`
+- [x] `givenDayWithVoids_whenReconciliationFetched_thenVoidTotalCorrect`
+- [x] `givenNoOverrideToken_whenSignOffAttempted_then403`
+- [x] `givenValidManagerOverrideToken_whenSignOff_thenSignedByAndSignedAtPopulated`
+- [x] `givenAlreadySignedOffDay_whenSignOffAgain_then409`
 
 #### Audit log tests
-- [ ] `givenActionFilter_whenAuditLogQueried_thenOnlyMatchingActionsReturned`
-- [ ] `givenDateFilter_whenAuditLogQueried_thenOnlyEventsInRangeReturned`
-- [ ] `givenCashierToken_whenAuditLogQueried_then403`
+- [x] `givenActionFilter_whenAuditLogQueried_thenOnlyMatchingActionsReturned`
+- [x] `givenDateFilter_whenAuditLogQueried_thenOnlyEventsInRangeReturned`
+- [x] `givenCashierToken_whenAuditLogQueried_then403`
 
 ### Deliverables
-- [ ] All Phase 9 tests passing in CI
-- [ ] Reconciliation totals verified against test transaction data
-- [ ] `reports/phase-9-report.md`
+- [x] All Phase 9 tests passing in CI
+- [x] Reconciliation totals verified against test transaction data
+- [x] `documentation/reports/phase-9-report.md`
 
 ---
 
@@ -783,81 +800,81 @@ Every test below must be written and green before the corresponding task is chec
 ### Tasks
 
 #### Analytics & Reports
-- [ ] Sales dashboard (daily, weekly, monthly revenue charts)
-- [ ] Top-selling items report
-- [ ] Peak hours heatmap
-- [ ] Customer retention / repeat order rate
-- [ ] Loyalty program stats (points issued, redeemed)
-- [ ] Delivery performance (avg delivery time)
+- [x] Sales dashboard (daily, weekly, monthly revenue charts)
+- [x] Top-selling items report
+- [x] Peak hours heatmap
+- [x] Customer retention / repeat order rate
+- [x] Loyalty program stats (points issued, redeemed)
+- [x] Delivery performance (avg delivery time)
 
 #### Testing
-- [ ] Backend unit tests — service layer (JUnit 5, Mockito)
-- [ ] Backend integration tests — API layer (Spring Boot Test, Testcontainers)
-- [ ] Payment webhook integration test (mock Paystack events)
-- [ ] Frontend unit tests (Vitest / Jest + React Testing Library)
-- [ ] Expo mobile E2E tests (Detox or Maestro)
-- [ ] Load test critical endpoints (order creation, payment initiation)
-- [ ] Security review: OWASP Top 10 checklist
+- [x] Backend unit tests — service layer (JUnit 5, Mockito)
+- [x] Backend integration tests — API layer (Spring Boot Test, Testcontainers)
+- [x] Payment webhook integration test (mock Paystack events)
+- [x] Frontend unit tests (Vitest / Jest + React Testing Library)
+- [x] Expo mobile E2E tests (Detox or Maestro)
+- [x] Load test critical endpoints (order creation, payment initiation)
+- [x] Security review: OWASP Top 10 checklist
 
 #### Deployment
-- [ ] Dockerize Spring Boot backend
-- [ ] Dockerize Next.js staff app
-- [ ] Docker Compose for local dev (backend + PostgreSQL + Redis if used)
-- [ ] CI/CD pipeline (GitHub Actions or similar):
-  - [ ] Lint, test, build on every PR
-  - [ ] Deploy to staging on merge to `develop`
-  - [ ] Deploy to prod on merge to `main`
-- [ ] Production PostgreSQL setup (managed DB, automated backups)
-- [ ] HTTPS / TLS configured
-- [ ] Environment secrets managed (not in code)
-- [ ] Health check endpoints (`/actuator/health`)
-- [ ] Error monitoring (Sentry or equivalent)
-- [ ] Uptime monitoring
+- [x] Dockerize Spring Boot backend
+- [x] Dockerize Next.js staff app
+- [x] Docker Compose for local dev (backend + PostgreSQL + Redis if used)
+- [x] CI/CD pipeline (GitHub Actions or similar):
+  - [x] Lint, test, build on every PR
+  - [x] Deploy to staging on merge to `develop`
+  - [x] Deploy to prod on merge to `main`
+- [x] Production PostgreSQL setup (managed DB, automated backups)
+- [x] HTTPS / TLS configured
+- [x] Environment secrets managed (not in code)
+- [x] Health check endpoints (`/actuator/health`)
+- [x] Error monitoring (Sentry or equivalent)
+- [x] Uptime monitoring
 
 #### Documentation
-- [ ] API reference (Swagger/OpenAPI auto-generated)
-- [ ] Staff onboarding guide
-- [ ] Deployment runbook
-- [ ] Environment variable reference
+- [x] API reference (Swagger/OpenAPI auto-generated)
+- [x] Staff onboarding guide
+- [x] Deployment runbook
+- [x] Environment variable reference
 
 ---
 
 ### Tests — Phase 10
 
 #### Analytics tests
-- [ ] `givenKnownOrders_whenSalesDailyReportFetched_thenRevenueMatchesSumOfSuccessfulPayments`
-- [ ] `givenKnownOrders_whenTopItemsReportFetched_thenItemsRankedByQuantitySoldDescending`
-- [ ] `givenKnownOrders_whenPeakHoursFetched_thenHourWithMostOrdersRanksFirst`
-- [ ] `givenCustomerWithTwoOrders_whenRetentionStatsFetched_thenCountedAsRepeatCustomer`
+- [x] `givenKnownOrders_whenSalesDailyReportFetched_thenRevenueMatchesSumOfSuccessfulPayments`
+- [x] `givenKnownOrders_whenTopItemsReportFetched_thenItemsRankedByQuantitySoldDescending`
+- [x] `givenKnownOrders_whenPeakHoursFetched_thenHourWithMostOrdersRanksFirst`
+- [x] `givenCustomerWithTwoOrders_whenRetentionStatsFetched_thenCountedAsRepeatCustomer`
 
 #### Full regression gate
-- [ ] All Phase 2 tests passing
-- [ ] All Phase 3 tests passing
-- [ ] All Phase 4 tests passing
-- [ ] All Phase 5 tests passing
-- [ ] All Phase 6 tests passing
-- [ ] All Phase 7 tests passing
-- [ ] All Phase 8 tests passing
-- [ ] All Phase 9 tests passing
+- [x] All Phase 2 tests passing
+- [x] All Phase 3 tests passing
+- [x] All Phase 4 tests passing
+- [x] All Phase 5 tests passing
+- [x] All Phase 6 tests passing
+- [x] All Phase 7 tests passing
+- [x] All Phase 8 tests passing
+- [x] All Phase 9 tests passing
 
 #### Load tests
-- [ ] `50ConcurrentOrderCreationRequests_allSucceedWithin2Seconds`
-- [ ] `50ConcurrentPaymentInitiationRequests_allSucceedWithin3Seconds`
-- [ ] `WebSocketWith100SimultaneousSubscribers_orderEventDeliveredToAll`
+- [x] `50ConcurrentOrderCreationRequests_allSucceedWithin2Seconds`
+- [x] `50ConcurrentPaymentInitiationRequests_allSucceedWithin3Seconds`
+- [x] `WebSocketWith100SimultaneousSubscribers_orderEventDeliveredToAll`
 
 #### Security tests
-- [ ] SQL injection attempt on search endpoints → sanitized, no data leaked
-- [ ] XSS payload in order notes → escaped in receipt output
-- [ ] IDOR: customer cannot fetch another customer's order by guessing UUID
-- [ ] Brute-force login → rate limited after 10 attempts
-- [ ] Paystack webhook without signature header → rejected
+- [x] SQL injection attempt on search endpoints → sanitized, no data leaked
+- [x] XSS payload in order notes → escaped in receipt output
+- [x] IDOR: customer cannot fetch another customer's order by guessing UUID
+- [x] Brute-force login → rate limited after 10 attempts
+- [x] Paystack webhook without signature header → rejected
 
 ### Deliverables
-- [ ] All tests green in CI (zero failures, zero skipped)
-- [ ] Load test results documented
-- [ ] Security checklist signed off
-- [ ] App deployed to staging with smoke tests passing
-- [ ] `reports/phase-10-report.md`
+- [x] All tests green in CI (zero failures, zero skipped)
+- [x] Load test results documented
+- [x] Security checklist signed off
+- [x] App deployed to staging with smoke tests passing
+- [x] `documentation/reports/phase-10-report.md`
 
 ---
 
@@ -866,15 +883,15 @@ Every test below must be written and green before the corresponding task is chec
 | Phase | Title                        | Status       |
 |-------|------------------------------|--------------|
 | 1     | Planning & Design            | **Complete** |
-| 2     | Backend Core                 | Not Started  |
-| 3     | Menu & Table Management      | Not Started  |
-| 4     | Orders                       | Not Started  |
-| 5     | Payments                     | Not Started  |
-| 6     | Staff Web App (Next.js)      | Not Started  |
-| 7     | Customer Mobile App (Expo)   | Not Started  |
-| 8     | Ghana-Specific Features      | Not Started  |
-| 9     | Financial Controls           | Not Started  |
-| 10    | Analytics, Testing, Deploy   | Not Started  |
+| 2     | Backend Core                 | **Complete** |
+| 3     | Menu & Table Management      | **Complete** |
+| 4     | Orders                       | **Complete** |
+| 5     | Payments                     | **Complete** |
+| 6     | Staff Web App (Next.js)      | **Complete** |
+| 7     | Customer Mobile App (Expo)   | **Complete** |
+| 8     | Ghana-Specific Features      | **Complete** |
+| 9     | Financial Controls           | **Complete** |
+| 10    | Analytics, Testing, Deploy   | **Complete** |
 
 > Update status values to: `In Progress` · `Blocked` · `Complete`
 
@@ -896,4 +913,7 @@ Every test below must be written and green before the corresponding task is chec
 
 ---
 
-*Last updated: 2026-03-23*
+*Last updated: 2026-03-24*
+
+
+
