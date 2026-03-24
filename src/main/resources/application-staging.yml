@@ -1,0 +1,7 @@
+spring:
+  config:
+    activate:
+      on-profile: staging
+logging:
+  level:
+    com.restaurantmanager.core: INFO

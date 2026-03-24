@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: restaurant-manager-backend-core
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/restaurant_manager}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: ${DB_MAX_POOL_SIZE:10}
+      minimum-idle: ${DB_MIN_IDLE:2}
+      connection-timeout: 30000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${PORT:8080}
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+    access-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS:900}
+    refresh-ttl-seconds: ${JWT_REFRESH_TTL_SECONDS:1209600}
+    override-ttl-seconds: ${JWT_OVERRIDE_TTL_SECONDS:300}
+  pin:
+    max-failed-attempts: ${PIN_MAX_FAILED_ATTEMPTS:5}
+    lockout-minutes: ${PIN_LOCKOUT_MINUTES:30}
+
+logging:
+  level:
+    root: INFO
