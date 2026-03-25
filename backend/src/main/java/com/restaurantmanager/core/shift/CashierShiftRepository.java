@@ -10,4 +10,8 @@ public interface CashierShiftRepository extends JpaRepository<CashierShiftEntity
     Optional<CashierShiftEntity> findFirstByCashierIdAndStatusOrderByOpenedAtDesc(UUID cashierId, ShiftStatus status);
 
     List<CashierShiftEntity> findByStatusOrderByOpenedAtDesc(ShiftStatus status);
+
+    List<CashierShiftEntity> findByStatusAndBranch_IdOrderByOpenedAtDesc(ShiftStatus status, UUID branchId);
+
+    List<CashierShiftEntity> findByCashier_IdAndStatusOrderByOpenedAtDesc(UUID cashierId, ShiftStatus status);
 }

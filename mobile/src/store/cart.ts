@@ -2,9 +2,13 @@ import { create } from 'zustand';
 import type { MenuItem, OrderItem, PromoValidation } from '../types/api';
 
 export type CartLine = {
+  key: string;
   item: MenuItem;
   quantity: number;
   notes?: string;
+  modifierOptionIds?: string[];
+  modifierSummary?: string[];
+  unitPrice?: string;
 };
 
 type CartState = {
@@ -16,9 +20,9 @@ type CartState = {
   promoCode: string | null;
   promoType: PromoValidation['discountType'] | null;
   promoValue: string | null;
-  addItem: (item: MenuItem, notes?: string) => void;
-  removeItem: (itemId: string) => void;
-  setQty: (itemId: string, qty: number) => void;
+  addItem: (item: MenuItem, options?: { notes?: string; modifierOptionIds?: string[]; modifierSummary?: string[]; unitPrice?: string }) => void;
+  removeItem: (lineKey: string) => void;
+  setQty: (lineKey: string, qty: number) => void;
   setTable: (tableId: string, tableNumber: string, tableToken: string, tableStatus: string) => void;
   hydrateFromOrder: (items: OrderItem[], opts?: { tableId?: string | null; tableNumber?: string | null }) => void;
   setPromo: (promo: PromoValidation) => void;
@@ -40,33 +44,49 @@ export const useCartStore = create<CartState>((set, get) => ({
   promoType: null,
   promoValue: null,
 
-  addItem: (item, notes) =>
+  addItem: (item, options) =>
     set((s) => {
-      const existing = s.lines.find((l) => l.item.id === item.id);
+      const sortedModifierIds = [...(options?.modifierOptionIds ?? [])].sort();
+      const key = `${item.id}:${sortedModifierIds.join(',') || 'base'}`;
+      const existing = s.lines.find((l) => l.key === key);
       if (existing) {
         return {
           lines: s.lines.map((l) =>
-            l.item.id === item.id ? { ...l, quantity: l.quantity + 1 } : l
+            l.key === key ? { ...l, quantity: l.quantity + 1 } : l
           ),
         };
       }
-      return { lines: [...s.lines, { item, quantity: 1, notes }] };
+      return {
+        lines: [
+          ...s.lines,
+          {
+            key,
+            item,
+            quantity: 1,
+            notes: options?.notes,
+            modifierOptionIds: sortedModifierIds.length > 0 ? sortedModifierIds : undefined,
+            modifierSummary: options?.modifierSummary,
+            unitPrice: options?.unitPrice ?? item.price,
+          },
+        ],
+      };
     }),
 
-  removeItem: (itemId) =>
-    set((s) => ({ lines: s.lines.filter((l) => l.item.id !== itemId) })),
+  removeItem: (lineKey) =>
+    set((s) => ({ lines: s.lines.filter((l) => l.key !== lineKey) })),
 
-  setQty: (itemId, qty) =>
+  setQty: (lineKey, qty) =>
     set((s) => {
-      if (qty <= 0) return { lines: s.lines.filter((l) => l.item.id !== itemId) };
-      return { lines: s.lines.map((l) => (l.item.id === itemId ? { ...l, quantity: qty } : l)) };
+      if (qty <= 0) return { lines: s.lines.filter((l) => l.key !== lineKey) };
+      return { lines: s.lines.map((l) => (l.key === lineKey ? { ...l, quantity: qty } : l)) };
     }),
 
   setTable: (tableId, tableNumber, tableToken, tableStatus) => set({ tableId, tableNumber, tableToken, tableStatus }),
 
   hydrateFromOrder: (items, opts) =>
     set({
-      lines: items.map((item) => ({
+      lines: items.map((item, index) => ({
+        key: `${item.menuItemId}:base:${index}`,
         item: {
           id: item.menuItemId,
           name: item.menuItemName,
@@ -77,6 +97,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         },
         quantity: item.quantity,
         notes: item.notes,
+        unitPrice: item.unitPrice,
       })),
       tableId: opts?.tableId ?? null,
       tableNumber: opts?.tableNumber ?? null,
@@ -106,7 +127,7 @@ export const useCartStore = create<CartState>((set, get) => ({
     promoValue: null,
   }),
 
-  subtotal: () => get().lines.reduce((sum, l) => sum + parseFloat(l.item.price) * l.quantity, 0),
+  subtotal: () => get().lines.reduce((sum, l) => sum + parseFloat(l.unitPrice ?? l.item.price) * l.quantity, 0),
 
   discountAmount: () => {
     const subtotal = get().subtotal();

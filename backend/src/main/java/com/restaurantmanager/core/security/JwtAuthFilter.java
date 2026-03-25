@@ -41,7 +41,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 return;
             }
             Role role = jwtService.role(claims);
-            UserPrincipal principal = new UserPrincipal(jwtService.userId(claims), role);
+            UserPrincipal principal = new UserPrincipal(jwtService.userId(claims), role, jwtService.branchId(claims));
             UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                     principal,
                     null,

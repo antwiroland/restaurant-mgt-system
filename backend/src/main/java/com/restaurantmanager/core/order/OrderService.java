@@ -133,6 +133,8 @@ public class OrderService {
         List<OrderEntity> orders = orderRepository.findAll().stream()
                 .filter(order -> principal.role() != Role.CUSTOMER
                         || (order.getCustomerUserId() != null && order.getCustomerUserId().equals(principal.userId())))
+                .filter(order -> !isBranchScopedStaff(principal)
+                        || (order.getBranch() != null && order.getBranch().getId().equals(principal.branchId())))
                 .filter(order -> status == null || order.getStatus() == status)
                 .filter(order -> type == null || order.getType() == type)
                 .filter(order -> {
@@ -156,9 +158,10 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse updateStatus(UUID id, OrderStatusUpdateRequest request) {
+    public OrderResponse updateStatus(UUID id, OrderStatusUpdateRequest request, UserPrincipal principal) {
         OrderEntity order = orderRepository.findById(id)
                 .orElseThrow(() -> new ApiException(404, "Order not found"));
+        assertOrderAccess(order, principal);
         if (!isValidTransition(order.getStatus(), request.status(), order.getType())) {
             throw new ApiException(400, "Invalid status transition");
         }
@@ -207,11 +210,12 @@ public class OrderService {
     @Transactional
     @CacheEvict(cacheNames = {CacheConfig.TABLES, CacheConfig.TABLE_SCAN}, allEntries = true)
     public void closeTable(UUID tableId, UserPrincipal principal) {
+        RestaurantTableEntity table = tableRepository.findById(tableId)
+                .orElseThrow(() -> new ApiException(404, "Table not found"));
+        assertTableAccess(table, principal);
         if (tableHasOutstandingBalance(tableId)) {
             throw new ApiException(409, "Table has outstanding balance. Settle bills or reverse table");
         }
-        RestaurantTableEntity table = tableRepository.findById(tableId)
-                .orElseThrow(() -> new ApiException(404, "Table not found"));
         table.setStatus(TableStatus.AVAILABLE);
         tableRepository.save(table);
     }
@@ -221,6 +225,7 @@ public class OrderService {
     public void reverseTable(UUID tableId, UserPrincipal principal) {
         RestaurantTableEntity table = tableRepository.findById(tableId)
                 .orElseThrow(() -> new ApiException(404, "Table not found"));
+        assertTableAccess(table, principal);
 
         List<OrderEntity> tableOrders = orderRepository.findByTableIdOrderByCreatedAtAsc(tableId);
         Map<UUID, BigDecimal> paidByOrderId = paymentTotalsByOrderIds(tableOrders.stream().map(OrderEntity::getId).toList());
@@ -243,9 +248,10 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public TableBillResponse tableBillByTableId(UUID tableId) {
+    public TableBillResponse tableBillByTableId(UUID tableId, UserPrincipal principal) {
         RestaurantTableEntity table = tableRepository.findById(tableId)
                 .orElseThrow(() -> new ApiException(404, "Table not found"));
+        assertTableAccess(table, principal);
         return toTableBillResponse(table, orderRepository.findByTableIdOrderByCreatedAtAsc(tableId));
     }
 
@@ -436,7 +442,7 @@ public class OrderService {
             order.setPickupTime(request.pickupTime());
             order.setPickupCode(generatePickupCode());
         } else if (request.type() == OrderType.DINE_IN) {
-            RestaurantTableEntity table = resolveTable(request.tableId(), request.tableToken());
+            RestaurantTableEntity table = resolveTable(request.tableId(), request.tableToken(), principal);
             table.setStatus(TableStatus.OCCUPIED);
             tableRepository.save(table);
             order.setTable(table);
@@ -501,14 +507,18 @@ public class OrderService {
         return toResponse(saved);
     }
 
-    private RestaurantTableEntity resolveTable(UUID tableId, String tableToken) {
+    private RestaurantTableEntity resolveTable(UUID tableId, String tableToken, UserPrincipal principal) {
         if (tableId != null) {
-            return tableRepository.findById(tableId)
+            RestaurantTableEntity table = tableRepository.findById(tableId)
                     .orElseThrow(() -> new ApiException(404, "Table not found"));
+            assertTableAccess(table, principal);
+            return table;
         }
         if (tableToken != null && !tableToken.isBlank()) {
-            return tableRepository.findByQrToken(tableToken.trim())
+            RestaurantTableEntity table = tableRepository.findByQrToken(tableToken.trim())
                     .orElseThrow(() -> new ApiException(404, "Table token not found"));
+            assertTableAccess(table, principal);
+            return table;
         }
         throw new ApiException(400, "tableId or tableToken is required for dine-in order");
     }
@@ -788,7 +798,30 @@ public class OrderService {
             if (order.getCustomerUserId() == null || !order.getCustomerUserId().equals(principal.userId())) {
                 throw new ApiException(403, "Forbidden");
             }
+            return;
         }
+        if (isBranchScopedStaff(principal)) {
+            UUID branchId = principal.branchId();
+            if (order.getBranch() == null || !branchId.equals(order.getBranch().getId())) {
+                throw new ApiException(403, "Forbidden");
+            }
+        }
+    }
+
+    private void assertTableAccess(RestaurantTableEntity table, UserPrincipal principal) {
+        if (!isBranchScopedStaff(principal)) {
+            return;
+        }
+        UUID branchId = principal.branchId();
+        if (table.getBranch() == null || !branchId.equals(table.getBranch().getId())) {
+            throw new ApiException(403, "Forbidden");
+        }
+    }
+
+    private boolean isBranchScopedStaff(UserPrincipal principal) {
+        return principal != null
+                && (principal.role() == Role.MANAGER || principal.role() == Role.CASHIER)
+                && principal.branchId() != null;
     }
 
     private String generatePickupCode() {

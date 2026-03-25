@@ -6,6 +6,7 @@ import java.util.UUID;
 
 public record UserPrincipal(
         UUID userId,
-        Role role
+        Role role,
+        UUID branchId
 ) {
 }

@@ -53,6 +53,14 @@
 
 ## Menu Item Modifiers
 - Public modifier discovery: `GET /menu/items/{id}/modifiers`
+- Manager/Admin modifier group management:
+  - `POST /menu/items/{id}/modifiers`
+  - `PUT /menu/items/{menuItemId}/modifiers/{groupId}`
+  - `DELETE /menu/items/{menuItemId}/modifiers/{groupId}`
+- Manager/Admin modifier option management:
+  - `POST /menu/items/{menuItemId}/modifiers/{groupId}/options`
+  - `PUT /menu/items/{menuItemId}/modifiers/{groupId}/options/{optionId}`
+  - `DELETE /menu/items/{menuItemId}/modifiers/{groupId}/options/{optionId}`
 - Order input supports `modifierOptionIds` on each order item.
 - Modifier selections are validated per menu-item group rules and persisted in `order_item_modifiers`.
 - Price snapshots include modifier price deltas for correct historical totals.

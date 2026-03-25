@@ -39,17 +39,24 @@
 - KDS board endpoint and staff UI:
   - Backend: `GET /kds/board`
   - Web: `web/src/app/kds/page.tsx`
+  - Columns: `PENDING`, `CONFIRMED`, `PREPARING`, `READY`
 - Multi-branch model:
   - `branches` table + API (`/branches`)
   - `branch_id` carried on users, tables, and orders
+  - Branch-aware scoping:
+    - `MANAGER`/`CASHIER` with assigned `branchId` are scoped to their branch for KDS, table listing/status/QR endpoints, and staff order operations
+    - `ADMIN` remains cross-branch
 - Shift management:
   - Open: `POST /shifts/open`
   - Close: `POST /shifts/{id}/close`
   - Active: `GET /shifts/active`
   - Includes cash drawer reconciliation variance
+  - Staff web UI: `web/src/app/shifts/page.tsx`
 - Menu modifiers:
   - Modifier definitions at DB level (`menu_modifier_groups`, `menu_modifier_options`)
   - Menu lookup: `GET /menu/items/{id}/modifiers`
+  - Manager/Admin group CRUD: `POST|PUT|DELETE /menu/items/{menuItemId}/modifiers[...]`
+  - Manager/Admin option CRUD: `POST|PUT|DELETE /menu/items/{menuItemId}/modifiers/{groupId}/options[...]`
   - Ordering supports `modifierOptionIds` with validation and snapshot persistence (`order_item_modifiers`)
 
 ## Observability Stack (Current)

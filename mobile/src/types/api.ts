@@ -34,6 +34,22 @@ export type MenuItem = {
   categoryId: string;
 };
 
+export type MenuModifierOption = {
+  id: string;
+  name: string;
+  priceDelta: string;
+};
+
+export type MenuModifierGroup = {
+  id: string;
+  name: string;
+  selectionType: 'SINGLE' | 'MULTIPLE';
+  required: boolean;
+  minSelect?: number;
+  maxSelect?: number;
+  options: MenuModifierOption[];
+};
+
 export type Table = {
   id: string;
   number: string;
@@ -58,6 +74,7 @@ export type OrderItem = {
   totalPrice: string;
   participantId?: string;
   notes?: string;
+  modifiers?: { id: string; groupName: string; optionName: string; priceDelta: string }[];
 };
 
 export type OrderType = 'DINE_IN' | 'PICKUP' | 'DELIVERY';
@@ -82,7 +99,7 @@ export type CreateOrderRequest = {
   type: OrderType;
   tableId?: string;
   tableToken?: string;
-  items: { menuItemId: string; quantity: number; notes?: string }[];
+  items: { menuItemId: string; quantity: number; notes?: string; modifierOptionIds?: string[] }[];
   promoCode?: string;
   groupSessionId?: string;
   deliveryAddress?: string;

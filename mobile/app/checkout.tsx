@@ -32,7 +32,12 @@ export default function CheckoutScreen() {
     type: effectiveOrderType as OrderType,
     tableId: tableId ?? undefined,
     tableToken: tableToken ?? undefined,
-    items: lines.map((line) => ({ menuItemId: line.item.id, quantity: line.quantity, notes: line.notes })),
+    items: lines.map((line) => ({
+      menuItemId: line.item.id,
+      quantity: line.quantity,
+      notes: line.notes,
+      modifierOptionIds: line.modifierOptionIds,
+    })),
     promoCode: promoCode ?? undefined,
     deliveryAddress: effectiveOrderType === 'DELIVERY' ? deliveryAddress.trim() : undefined,
   };
@@ -49,11 +54,20 @@ export default function CheckoutScreen() {
     }
 
     if (!isOnline) {
-      await enqueue('CREATE_ORDER', orderPayload, effectiveOrderType === 'DINE_IN' ? {
-        tableToken: tableToken ?? undefined,
-        expectedTableStatus: tableStatus ?? undefined,
-        expectedTableId: tableId ?? undefined,
-      } : undefined);
+      const isGuestTableOrder = isGuest && effectiveOrderType === 'DINE_IN' && !!tableToken;
+      await enqueue(
+        isGuestTableOrder ? 'CREATE_PUBLIC_TABLE_ORDER' : 'CREATE_ORDER',
+        isGuestTableOrder
+          ? { tableToken: tableToken ?? '', items: orderPayload.items }
+          : orderPayload,
+        effectiveOrderType === 'DINE_IN'
+          ? {
+              tableToken: tableToken ?? undefined,
+              expectedTableStatus: tableStatus ?? undefined,
+              expectedTableId: tableId ?? undefined,
+            }
+          : undefined
+      );
       Alert.alert('Order queued', 'Order saved. It will be placed when you reconnect.', [
         { text: 'OK', onPress: () => { clear(); router.replace('/(tabs)/orders'); } },
       ]);

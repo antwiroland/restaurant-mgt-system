@@ -81,24 +81,27 @@ export default function CartScreen() {
 
       <FlatList
         data={lines}
-        keyExtractor={(line) => line.item.id}
+        keyExtractor={(line) => line.key}
         renderItem={({ item: line }) => (
           <View style={styles.item}>
             <View style={styles.itemInfo}>
               <Text style={styles.itemName}>{line.item.name}</Text>
               <Text style={styles.itemPrice}>
-                GHS {(parseFloat(line.item.price) * line.quantity).toFixed(2)}
+                GHS {(parseFloat(line.unitPrice ?? line.item.price) * line.quantity).toFixed(2)}
               </Text>
             </View>
+            {line.modifierSummary && line.modifierSummary.length > 0 ? (
+              <Text style={styles.modifierText}>{line.modifierSummary.join(', ')}</Text>
+            ) : null}
             <View style={styles.qtyRow}>
-              <TouchableOpacity style={styles.qtyBtn} onPress={() => setQty(line.item.id, line.quantity - 1)}>
+              <TouchableOpacity style={styles.qtyBtn} onPress={() => setQty(line.key, line.quantity - 1)}>
                 <Text style={styles.qtyBtnText}>-</Text>
               </TouchableOpacity>
               <Text style={styles.qty}>{line.quantity}</Text>
-              <TouchableOpacity style={styles.qtyBtn} onPress={() => setQty(line.item.id, line.quantity + 1)}>
+              <TouchableOpacity style={styles.qtyBtn} onPress={() => setQty(line.key, line.quantity + 1)}>
                 <Text style={styles.qtyBtnText}>+</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.removeBtn} onPress={() => removeItem(line.item.id)}>
+              <TouchableOpacity style={styles.removeBtn} onPress={() => removeItem(line.key)}>
                 <Text style={styles.removeBtnText}>Remove</Text>
               </TouchableOpacity>
             </View>
@@ -171,6 +174,7 @@ const styles = StyleSheet.create({
   itemInfo: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   itemName: { fontSize: 15, fontWeight: '600', color: '#111827', flex: 1 },
   itemPrice: { fontSize: 15, fontWeight: '700', color: '#2563EB' },
+  modifierText: { fontSize: 12, color: '#6B7280', marginBottom: 6 },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   qtyBtn: {
     backgroundColor: '#E5E7EB',

@@ -12,6 +12,7 @@ import jakarta.validation.constraints.Min;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import com.restaurantmanager.core.security.UserPrincipal;
 
 import java.util.List;
 import java.util.UUID;
@@ -37,8 +39,8 @@ public class RestaurantTableController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
-    public List<TableResponse> list() {
-        return tableService.listTables();
+    public List<TableResponse> list(@AuthenticationPrincipal UserPrincipal principal) {
+        return tableService.listTables(principal);
     }
 
     @PostMapping
@@ -58,22 +60,25 @@ public class RestaurantTableController {
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
     public TableResponse updateStatus(@PathVariable UUID id,
-                                      @Valid @RequestBody TableStatusUpdateRequest request) {
-        return tableService.updateStatus(id, request);
+                                      @Valid @RequestBody TableStatusUpdateRequest request,
+                                      @AuthenticationPrincipal UserPrincipal principal) {
+        return tableService.updateStatus(id, request, principal);
     }
 
     @GetMapping("/{id}/qr")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
-    public TableQrResponse qr(@PathVariable UUID id) {
-        return tableService.qr(id);
+    public TableQrResponse qr(@PathVariable UUID id,
+                              @AuthenticationPrincipal UserPrincipal principal) {
+        return tableService.qr(id, principal);
     }
 
     @GetMapping(value = "/{id}/qr-image", produces = MediaType.IMAGE_PNG_VALUE)
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
     public byte[] qrImage(@PathVariable UUID id,
                           @RequestParam(required = false) String payload,
-                          @RequestParam(defaultValue = "240") @Min(120) @Max(1024) int sizePx) {
-        return tableService.qrImage(id, payload, sizePx);
+                          @RequestParam(defaultValue = "240") @Min(120) @Max(1024) int sizePx,
+                          @AuthenticationPrincipal UserPrincipal principal) {
+        return tableService.qrImage(id, payload, sizePx, principal);
     }
 
     @PostMapping("/scan")

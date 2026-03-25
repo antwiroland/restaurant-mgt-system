@@ -1,8 +1,10 @@
 package com.restaurantmanager.core.table;
 
 import com.restaurantmanager.core.common.ApiException;
+import com.restaurantmanager.core.common.Role;
 import com.restaurantmanager.core.config.CacheConfig;
 import com.restaurantmanager.core.branch.BranchService;
+import com.restaurantmanager.core.security.UserPrincipal;
 import com.restaurantmanager.core.table.dto.TableQrResponse;
 import com.restaurantmanager.core.table.dto.TableRequest;
 import com.restaurantmanager.core.table.dto.TableResponse;
@@ -32,10 +34,18 @@ public class RestaurantTableService {
     }
 
     @Transactional(readOnly = true)
-    @Cacheable(cacheNames = CacheConfig.TABLES)
-    public List<TableResponse> listTables() {
-        return tableRepository.findAll().stream()
-                .sorted((a, b) -> a.getNumber().compareToIgnoreCase(b.getNumber()))
+    @Cacheable(cacheNames = CacheConfig.TABLES, key = "#principal.userId()")
+    public List<TableResponse> listTables(UserPrincipal principal) {
+        List<RestaurantTableEntity> tables;
+        if (isBranchScopedStaff(principal)) {
+            UUID branchId = principal.branchId();
+            tables = tableRepository.findByBranch_IdOrderByNumberAsc(branchId);
+        } else {
+            tables = tableRepository.findAll().stream()
+                    .sorted((a, b) -> a.getNumber().compareToIgnoreCase(b.getNumber()))
+                    .toList();
+        }
+        return tables.stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -68,18 +78,20 @@ public class RestaurantTableService {
 
     @Transactional
     @CacheEvict(cacheNames = {CacheConfig.TABLES, CacheConfig.TABLE_QR, CacheConfig.TABLE_SCAN}, allEntries = true)
-    public TableResponse updateStatus(UUID id, TableStatusUpdateRequest request) {
+    public TableResponse updateStatus(UUID id, TableStatusUpdateRequest request, UserPrincipal principal) {
         RestaurantTableEntity table = tableRepository.findById(id)
                 .orElseThrow(() -> new ApiException(404, "Table not found"));
+        assertTableBranchAccess(table, principal);
         table.setStatus(request.status());
         return toResponse(tableRepository.save(table));
     }
 
     @Transactional(readOnly = true)
-    @Cacheable(cacheNames = CacheConfig.TABLE_QR, key = "#id")
-    public TableQrResponse qr(UUID id) {
+    @Cacheable(cacheNames = CacheConfig.TABLE_QR, key = "#id + ':' + #principal.userId()")
+    public TableQrResponse qr(UUID id, UserPrincipal principal) {
         RestaurantTableEntity table = tableRepository.findById(id)
                 .orElseThrow(() -> new ApiException(404, "Table not found"));
+        assertTableBranchAccess(table, principal);
         return new TableQrResponse(table.getId(), table.getNumber(), table.getQrToken(),
                 "/tables/scan?token=" + table.getQrToken());
     }
@@ -93,9 +105,10 @@ public class RestaurantTableService {
     }
 
     @Transactional(readOnly = true)
-    public byte[] qrImage(UUID id, String payload, int sizePx) {
+    public byte[] qrImage(UUID id, String payload, int sizePx, UserPrincipal principal) {
         RestaurantTableEntity table = tableRepository.findById(id)
                 .orElseThrow(() -> new ApiException(404, "Table not found"));
+        assertTableBranchAccess(table, principal);
         String effectivePayload = payload == null || payload.isBlank() ? table.getQrToken() : payload.trim();
         return tableQrCodeService.generatePng(effectivePayload, sizePx);
     }
@@ -136,5 +149,21 @@ public class RestaurantTableService {
                 table.getQrToken(),
                 table.getBranch() == null ? null : table.getBranch().getId(),
                 table.getBranch() == null ? null : table.getBranch().getName());
+    }
+
+    private boolean isBranchScopedStaff(UserPrincipal principal) {
+        return principal != null
+                && (principal.role() == Role.MANAGER || principal.role() == Role.CASHIER)
+                && principal.branchId() != null;
+    }
+
+    private void assertTableBranchAccess(RestaurantTableEntity table, UserPrincipal principal) {
+        if (!isBranchScopedStaff(principal)) {
+            return;
+        }
+        UUID branchId = principal.branchId();
+        if (table.getBranch() == null || !branchId.equals(table.getBranch().getId())) {
+            throw new ApiException(403, "Forbidden");
+        }
     }
 }

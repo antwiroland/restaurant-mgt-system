@@ -97,7 +97,14 @@ export default function OrderTrackingScreen() {
         <Text style={styles.sectionTitle}>Items</Text>
         {order.items.map((item) => (
           <View key={item.id} style={styles.itemRow}>
-            <Text style={styles.itemName}>{item.menuItemName} x{item.quantity}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.itemName}>{item.menuItemName} x{item.quantity}</Text>
+              {item.modifiers && item.modifiers.length > 0 ? (
+                <Text style={styles.itemModifier}>
+                  {item.modifiers.map((modifier) => `${modifier.groupName}: ${modifier.optionName}`).join(', ')}
+                </Text>
+              ) : null}
+            </View>
             <Text style={styles.itemPrice}>GHS {item.totalPrice}</Text>
           </View>
         ))}
@@ -155,6 +162,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 15, fontWeight: '700', color: '#111827', marginBottom: 12 },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   itemName: { fontSize: 14, color: '#374151' },
+  itemModifier: { fontSize: 11, color: '#6B7280', marginTop: 2 },
   itemPrice: { fontSize: 14, fontWeight: '600', color: '#111827' },
   totalLine: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 8, marginTop: 4 },
   totalLabel: { fontSize: 15, fontWeight: '700', color: '#111827' },

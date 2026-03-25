@@ -78,8 +78,9 @@ public class OrderController {
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
     public OrderResponse updateStatus(@PathVariable UUID id,
-                                      @Valid @RequestBody OrderStatusUpdateRequest request) {
-        return orderService.updateStatus(id, request);
+                                      @Valid @RequestBody OrderStatusUpdateRequest request,
+                                      @AuthenticationPrincipal UserPrincipal principal) {
+        return orderService.updateStatus(id, request, principal);
     }
 
     @DeleteMapping("/{id}")
@@ -118,8 +119,9 @@ public class OrderController {
 
     @GetMapping("/dine-in/tables/{tableId}/bill")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
-    public TableBillResponse tableBill(@PathVariable UUID tableId) {
-        return orderService.tableBillByTableId(tableId);
+    public TableBillResponse tableBill(@PathVariable UUID tableId,
+                                       @AuthenticationPrincipal UserPrincipal principal) {
+        return orderService.tableBillByTableId(tableId, principal);
     }
 
     @GetMapping("/public/dine-in/tables/{tableToken}/bill")

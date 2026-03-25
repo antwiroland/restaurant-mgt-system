@@ -3,6 +3,8 @@ package com.restaurantmanager.core.branch;
 import com.restaurantmanager.core.branch.dto.BranchRequest;
 import com.restaurantmanager.core.branch.dto.BranchResponse;
 import com.restaurantmanager.core.common.ApiException;
+import com.restaurantmanager.core.common.Role;
+import com.restaurantmanager.core.security.UserPrincipal;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,7 +20,14 @@ public class BranchService {
     }
 
     @Transactional(readOnly = true)
-    public List<BranchResponse> list() {
+    public List<BranchResponse> list(UserPrincipal principal) {
+        if (principal != null
+                && (principal.role() == Role.MANAGER || principal.role() == Role.CASHIER)
+                && principal.branchId() != null) {
+            BranchEntity branch = branchRepository.findById(principal.branchId())
+                    .orElseThrow(() -> new ApiException(404, "Branch not found"));
+            return List.of(toResponse(branch));
+        }
         return branchRepository.findAll().stream()
                 .map(this::toResponse)
                 .toList();

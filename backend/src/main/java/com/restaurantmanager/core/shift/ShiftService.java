@@ -57,7 +57,15 @@ public class ShiftService {
         shift.setOpeningCash(request.openingCash() == null ? BigDecimal.ZERO : request.openingCash());
         shift.setNotes(blankToNull(request.notes()));
 
-        BranchEntity branch = request.branchId() == null ? cashier.getBranch() : branchService.require(request.branchId());
+        BranchEntity branch;
+        if ((principal.role() == Role.MANAGER || principal.role() == Role.CASHIER) && principal.branchId() != null) {
+            if (request.branchId() != null && !principal.branchId().equals(request.branchId())) {
+                throw new ApiException(403, "Forbidden");
+            }
+            branch = branchService.require(principal.branchId());
+        } else {
+            branch = request.branchId() == null ? cashier.getBranch() : branchService.require(request.branchId());
+        }
         shift.setBranch(branch);
 
         return toResponse(shiftRepository.save(shift));
@@ -75,6 +83,11 @@ public class ShiftService {
         if (!ownShift && principal.role() != Role.MANAGER && principal.role() != Role.ADMIN) {
             throw new ApiException(403, "Cannot close another cashier's shift");
         }
+        if ((principal.role() == Role.MANAGER || principal.role() == Role.CASHIER)
+                && principal.branchId() != null
+                && (shift.getBranch() == null || !principal.branchId().equals(shift.getBranch().getId()))) {
+            throw new ApiException(403, "Forbidden");
+        }
 
         BigDecimal expectedCash = computeExpectedCash(shift);
         BigDecimal closingCash = request.closingCash() == null ? BigDecimal.ZERO : request.closingCash();
@@ -88,8 +101,18 @@ public class ShiftService {
     }
 
     @Transactional(readOnly = true)
-    public List<ShiftResponse> activeShifts() {
-        return shiftRepository.findByStatusOrderByOpenedAtDesc(ShiftStatus.OPEN).stream()
+    public List<ShiftResponse> activeShifts(UserPrincipal principal) {
+        List<CashierShiftEntity> shifts;
+        if (principal.role() == Role.ADMIN) {
+            shifts = shiftRepository.findByStatusOrderByOpenedAtDesc(ShiftStatus.OPEN);
+        } else if ((principal.role() == Role.MANAGER || principal.role() == Role.CASHIER) && principal.branchId() != null) {
+            shifts = shiftRepository.findByStatusAndBranch_IdOrderByOpenedAtDesc(ShiftStatus.OPEN, principal.branchId());
+        } else if (principal.role() == Role.CASHIER) {
+            shifts = shiftRepository.findByCashier_IdAndStatusOrderByOpenedAtDesc(principal.userId(), ShiftStatus.OPEN);
+        } else {
+            shifts = shiftRepository.findByStatusOrderByOpenedAtDesc(ShiftStatus.OPEN);
+        }
+        return shifts.stream()
                 .map(this::toResponse)
                 .toList();
     }

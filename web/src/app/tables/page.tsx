@@ -50,15 +50,52 @@ export default function TablesPage() {
     return `${origin}/scan/${table.qrToken}`;
   }
 
-  function qrImageUrl(table: TableRecord): string {
-    return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(webScanLink(table))}`;
+  async function qrImageDataUrl(table: TableRecord): Promise<string> {
+    const blob = await authenticatedFetch(async (activeSession) => {
+      const response = await fetch(`/api/rm/tables/${table.id}/qr-image?sizePx=320`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${activeSession.accessToken}`,
+        },
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new Error("Could not load table QR image");
+      }
+      return response.blob();
+    });
+
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result);
+        } else {
+          reject(new Error("Could not encode table QR image"));
+        }
+      };
+      reader.onerror = () => reject(new Error("Could not encode table QR image"));
+      reader.readAsDataURL(blob);
+    });
   }
 
-  function printTableQr(table: TableRecord) {
+  async function printTableQr(table: TableRecord) {
     const url = webScanLink(table);
-    const image = qrImageUrl(table);
     const popup = window.open("", "_blank", "width=500,height=700");
     if (!popup) return;
+    popup.document.write("<html><body style='font-family: Arial, sans-serif; padding: 24px;'>Generating QR image...</body></html>");
+    popup.document.close();
+
+    let image = "";
+    try {
+      image = await qrImageDataUrl(table);
+    } catch (err) {
+      popup.close();
+      setError(err instanceof Error ? err.message : "Could not print QR");
+      return;
+    }
+
+    popup.document.open();
     popup.document.write(`
       <html>
         <head><title>Table ${table.number} QR</title></head>

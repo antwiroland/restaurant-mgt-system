@@ -6,7 +6,7 @@ const QUEUE_KEY = 'offline_queue';
 
 export type QueueEntry = {
   id: string;
-  action: 'CREATE_ORDER' | 'CREATE_RESERVATION';
+  action: 'CREATE_ORDER' | 'CREATE_PUBLIC_TABLE_ORDER' | 'CREATE_RESERVATION';
   payload: CreateOrderRequest | Record<string, unknown>;
   meta?: {
     tableToken?: string;

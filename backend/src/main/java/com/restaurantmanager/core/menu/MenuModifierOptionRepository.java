@@ -7,4 +7,6 @@ import java.util.UUID;
 
 public interface MenuModifierOptionRepository extends JpaRepository<MenuModifierOptionEntity, UUID> {
     List<MenuModifierOptionEntity> findByGroup_MenuItem_IdAndActiveTrueOrderByGroup_DisplayOrderAscDisplayOrderAsc(UUID menuItemId);
+
+    List<MenuModifierOptionEntity> findByGroup_IdAndActiveTrueOrderByDisplayOrderAsc(UUID groupId);
 }

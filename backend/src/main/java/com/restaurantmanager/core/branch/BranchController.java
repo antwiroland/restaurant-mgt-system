@@ -2,9 +2,11 @@ package com.restaurantmanager.core.branch;
 
 import com.restaurantmanager.core.branch.dto.BranchRequest;
 import com.restaurantmanager.core.branch.dto.BranchResponse;
+import com.restaurantmanager.core.security.UserPrincipal;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,8 +30,8 @@ public class BranchController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
-    public List<BranchResponse> list() {
-        return branchService.list();
+    public List<BranchResponse> list(@AuthenticationPrincipal UserPrincipal principal) {
+        return branchService.list(principal);
     }
 
     @PostMapping

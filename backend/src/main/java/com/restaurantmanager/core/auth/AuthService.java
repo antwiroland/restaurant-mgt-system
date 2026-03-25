@@ -63,8 +63,9 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         UserEntity saved = userRepository.save(user);
 
-        String access = jwtService.generateAccessToken(saved.getId(), saved.getRole());
-        String refresh = jwtService.generateRefreshToken(saved.getId(), saved.getRole());
+        UUID branchId = saved.getBranch() == null ? null : saved.getBranch().getId();
+        String access = jwtService.generateAccessToken(saved.getId(), saved.getRole(), branchId);
+        String refresh = jwtService.generateRefreshToken(saved.getId(), saved.getRole(), branchId);
         storeRefresh(saved, refresh);
 
         return new RegisterResponse(saved.getId(), saved.getName(), saved.getPhone(), saved.getRole().name(), access, refresh);
@@ -93,8 +94,9 @@ public class AuthService {
         }
         securityGuardService.clearLoginFailures(phone);
 
-        String access = jwtService.generateAccessToken(user.getId(), user.getRole());
-        String refresh = jwtService.generateRefreshToken(user.getId(), user.getRole());
+        UUID branchId = user.getBranch() == null ? null : user.getBranch().getId();
+        String access = jwtService.generateAccessToken(user.getId(), user.getRole(), branchId);
+        String refresh = jwtService.generateRefreshToken(user.getId(), user.getRole(), branchId);
         storeRefresh(user, refresh);
 
         auditService.log(user, AuditAction.USER_LOGIN, "User", user.getId(), "{\"result\":\"SUCCESS\"}", ipAddress);
@@ -120,7 +122,8 @@ public class AuthService {
             throw new ApiException(401, "Refresh token revoked");
         }
         UserEntity user = tokenEntity.getUser();
-        String access = jwtService.generateAccessToken(user.getId(), user.getRole());
+        UUID branchId = user.getBranch() == null ? null : user.getBranch().getId();
+        String access = jwtService.generateAccessToken(user.getId(), user.getRole(), branchId);
         return new RefreshResponse(access, securityProps.getJwt().getAccessTtlSeconds());
     }
 

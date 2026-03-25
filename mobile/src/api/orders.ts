@@ -9,6 +9,7 @@ type OrderItemResponse = {
   price: string;
   quantity: number;
   notes?: string;
+  modifiers?: { id: string; groupName: string; optionName: string; priceDelta: string }[];
 };
 
 type OrderResponse = {
@@ -48,6 +49,7 @@ function toOrderItem(item: OrderItemResponse): OrderItem {
     quantity: item.quantity,
     participantId: item.participantId,
     notes: item.notes,
+    modifiers: item.modifiers,
   };
 }
 

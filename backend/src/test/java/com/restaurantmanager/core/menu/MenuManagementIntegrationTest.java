@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -184,6 +185,128 @@ class MenuManagementIntegrationTest extends BaseIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"available\":false}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void givenManagerToken_whenCreateAndListModifiers_then201AndVisible() throws Exception {
+        UserEntity manager = createUser("Manager", "+233200100009", "manager+menu3@x.com", "secret123", Role.MANAGER);
+        CategoryEntity category = createCategory("Mains", 1, true);
+        MenuItemEntity item = createItem(category, "Grilled Chicken", true, new BigDecimal("45.00"));
+
+        String groupResponse = mockMvc.perform(post("/menu/items/" + item.getId() + "/modifiers")
+                        .header("Authorization", "Bearer " + accessToken(manager))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{" +
+                                "\"name\":\"Size\"," +
+                                "\"selectionType\":\"SINGLE\"," +
+                                "\"required\":true," +
+                                "\"displayOrder\":1}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Size"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String groupId = objectMapper.readTree(groupResponse).path("id").asText();
+
+        mockMvc.perform(post("/menu/items/" + item.getId() + "/modifiers/" + groupId + "/options")
+                        .header("Authorization", "Bearer " + accessToken(manager))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{" +
+                                "\"name\":\"Large\"," +
+                                "\"priceDelta\":5.00," +
+                                "\"displayOrder\":2}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Large"))
+                .andExpect(jsonPath("$.priceDelta").value(5.00));
+
+        mockMvc.perform(post("/menu/items/" + item.getId() + "/modifiers/" + groupId + "/options")
+                        .header("Authorization", "Bearer " + accessToken(manager))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{" +
+                                "\"name\":\"Regular\"," +
+                                "\"priceDelta\":0.00," +
+                                "\"displayOrder\":1}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/menu/items/" + item.getId() + "/modifiers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("Size"))
+                .andExpect(jsonPath("$[0].required").value(true))
+                .andExpect(jsonPath("$[0].options[0].name").value("Regular"))
+                .andExpect(jsonPath("$[0].options[1].name").value("Large"));
+    }
+
+    @Test
+    void givenCashierToken_whenCreateModifierGroup_then403() throws Exception {
+        UserEntity cashier = createUser("Cashier", "+233200100010", "cashier+menu3@x.com", "secret123", Role.CASHIER);
+        CategoryEntity category = createCategory("Mains", 1, true);
+        MenuItemEntity item = createItem(category, "Pepper Soup", true, new BigDecimal("22.00"));
+
+        mockMvc.perform(post("/menu/items/" + item.getId() + "/modifiers")
+                        .header("Authorization", "Bearer " + accessToken(cashier))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{" +
+                                "\"name\":\"Spice\"," +
+                                "\"selectionType\":\"SINGLE\"," +
+                                "\"required\":false," +
+                                "\"displayOrder\":1}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void givenManagerToken_whenDeleteModifierOption_thenNoLongerVisible() throws Exception {
+        UserEntity manager = createUser("Manager", "+233200100011", "manager+menu4@x.com", "secret123", Role.MANAGER);
+        CategoryEntity category = createCategory("Mains", 1, true);
+        MenuItemEntity item = createItem(category, "Rice Bowl", true, new BigDecimal("18.00"));
+
+        String groupResponse = mockMvc.perform(post("/menu/items/" + item.getId() + "/modifiers")
+                        .header("Authorization", "Bearer " + accessToken(manager))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{" +
+                                "\"name\":\"Spice Level\"," +
+                                "\"selectionType\":\"SINGLE\"," +
+                                "\"required\":false," +
+                                "\"displayOrder\":1}"))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String groupId = objectMapper.readTree(groupResponse).path("id").asText();
+
+        String optionResponse = mockMvc.perform(post("/menu/items/" + item.getId() + "/modifiers/" + groupId + "/options")
+                        .header("Authorization", "Bearer " + accessToken(manager))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{" +
+                                "\"name\":\"Hot\"," +
+                                "\"priceDelta\":0.00," +
+                                "\"displayOrder\":1}"))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String optionId = objectMapper.readTree(optionResponse).path("id").asText();
+
+        mockMvc.perform(delete("/menu/items/" + item.getId() + "/modifiers/" + groupId + "/options/" + optionId)
+                        .header("Authorization", "Bearer " + accessToken(manager)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/menu/items/" + item.getId() + "/modifiers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].options").isEmpty());
+
+        mockMvc.perform(put("/menu/items/" + item.getId() + "/modifiers/" + groupId)
+                        .header("Authorization", "Bearer " + accessToken(manager))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{" +
+                                "\"name\":\"Spice\"," +
+                                "\"selectionType\":\"SINGLE\"," +
+                                "\"required\":false," +
+                                "\"displayOrder\":2}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Spice"));
     }
 
     private CategoryEntity createCategory(String name, int displayOrder, boolean active) {

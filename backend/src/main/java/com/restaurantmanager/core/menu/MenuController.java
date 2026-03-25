@@ -5,7 +5,10 @@ import com.restaurantmanager.core.menu.dto.CategoryRequest;
 import com.restaurantmanager.core.menu.dto.CategoryResponse;
 import com.restaurantmanager.core.menu.dto.MenuItemRequest;
 import com.restaurantmanager.core.menu.dto.MenuItemResponse;
+import com.restaurantmanager.core.menu.dto.MenuModifierGroupRequest;
 import com.restaurantmanager.core.menu.dto.MenuModifierGroupResponse;
+import com.restaurantmanager.core.menu.dto.MenuModifierOptionRequest;
+import com.restaurantmanager.core.menu.dto.MenuModifierOptionResponse;
 import com.restaurantmanager.core.security.UserPrincipal;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -78,6 +81,56 @@ public class MenuController {
     @GetMapping("/items/{id}/modifiers")
     public List<MenuModifierGroupResponse> listModifiers(@PathVariable UUID id) {
         return menuService.listModifiers(id);
+    }
+
+    @PostMapping("/items/{id}/modifiers")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public MenuModifierGroupResponse createModifierGroup(@PathVariable UUID id,
+                                                         @Valid @RequestBody MenuModifierGroupRequest request) {
+        return menuService.createModifierGroup(id, request);
+    }
+
+    @PutMapping("/items/{menuItemId}/modifiers/{groupId}")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public MenuModifierGroupResponse updateModifierGroup(@PathVariable UUID menuItemId,
+                                                         @PathVariable UUID groupId,
+                                                         @Valid @RequestBody MenuModifierGroupRequest request) {
+        return menuService.updateModifierGroup(menuItemId, groupId, request);
+    }
+
+    @DeleteMapping("/items/{menuItemId}/modifiers/{groupId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public void deleteModifierGroup(@PathVariable UUID menuItemId, @PathVariable UUID groupId) {
+        menuService.deleteModifierGroup(menuItemId, groupId);
+    }
+
+    @PostMapping("/items/{menuItemId}/modifiers/{groupId}/options")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public MenuModifierOptionResponse createModifierOption(@PathVariable UUID menuItemId,
+                                                           @PathVariable UUID groupId,
+                                                           @Valid @RequestBody MenuModifierOptionRequest request) {
+        return menuService.createModifierOption(menuItemId, groupId, request);
+    }
+
+    @PutMapping("/items/{menuItemId}/modifiers/{groupId}/options/{optionId}")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public MenuModifierOptionResponse updateModifierOption(@PathVariable UUID menuItemId,
+                                                           @PathVariable UUID groupId,
+                                                           @PathVariable UUID optionId,
+                                                           @Valid @RequestBody MenuModifierOptionRequest request) {
+        return menuService.updateModifierOption(menuItemId, groupId, optionId, request);
+    }
+
+    @DeleteMapping("/items/{menuItemId}/modifiers/{groupId}/options/{optionId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public void deleteModifierOption(@PathVariable UUID menuItemId,
+                                     @PathVariable UUID groupId,
+                                     @PathVariable UUID optionId) {
+        menuService.deleteModifierOption(menuItemId, groupId, optionId);
     }
 
     @PostMapping("/items")

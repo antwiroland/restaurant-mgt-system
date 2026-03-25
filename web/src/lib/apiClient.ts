@@ -21,6 +21,31 @@ export type TableRecord = {
   qrToken: string;
 };
 
+export type BranchRecord = {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+};
+
+export type ShiftStatus = "OPEN" | "CLOSED";
+
+export type ShiftRecord = {
+  id: string;
+  cashierUserId: string;
+  cashierName: string;
+  branchId?: string;
+  branchName?: string;
+  status: ShiftStatus;
+  openingCash: string;
+  closingCash?: string;
+  expectedCash?: string;
+  variance?: string;
+  notes?: string;
+  openedAt: string;
+  closedAt?: string;
+};
+
 export type TableScanRecord = {
   tableId: string;
   tableNumber: string;
@@ -39,6 +64,39 @@ export type MenuItemRecord = {
   active: boolean;
 };
 
+export type MenuModifierOptionRecord = {
+  id: string;
+  name: string;
+  priceDelta: string;
+};
+
+export type MenuModifierGroupRecord = {
+  id: string;
+  name: string;
+  selectionType: "SINGLE" | "MULTIPLE";
+  required: boolean;
+  minSelect?: number;
+  maxSelect?: number;
+  options: MenuModifierOptionRecord[];
+};
+
+export type ModifierGroupUpsertRequest = {
+  name: string;
+  selectionType: "SINGLE" | "MULTIPLE";
+  required: boolean;
+  minSelect?: number;
+  maxSelect?: number;
+  displayOrder: number;
+  active?: boolean;
+};
+
+export type ModifierOptionUpsertRequest = {
+  name: string;
+  priceDelta: number;
+  displayOrder: number;
+  active?: boolean;
+};
+
 export type OrderItemRecord = {
   id: string;
   menuItemId: string;
@@ -47,6 +105,7 @@ export type OrderItemRecord = {
   price: string;
   quantity: number;
   notes?: string;
+  modifiers?: { id: string; groupName: string; optionName: string; priceDelta: string }[];
 };
 
 export type OrderRecord = {
@@ -72,14 +131,14 @@ export type KdsOrderCard = {
   orderId: string;
   tableNumber: string;
   branchName?: string;
-  status: "CONFIRMED" | "PREPARING" | "READY";
+  status: "PENDING" | "CONFIRMED" | "PREPARING" | "READY";
   notes?: string;
   createdAt: string;
   items: { name: string; quantity: number; notes?: string; modifiers: string[] }[];
 };
 
 export type KdsBoardRecord = {
-  columns: Record<"CONFIRMED" | "PREPARING" | "READY", KdsOrderCard[]>;
+  columns: Record<"PENDING" | "CONFIRMED" | "PREPARING" | "READY", KdsOrderCard[]>;
 };
 
 type AuthResponse = {
@@ -96,7 +155,7 @@ type RefreshResponse = {
 };
 
 type RequestOptions = {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   token?: string;
 };
@@ -183,6 +242,37 @@ export async function getOrders(session: StaffSession): Promise<OrderRecord[]> {
   return apiRequest<OrderRecord[]>("/orders", { token: session.accessToken });
 }
 
+export async function getBranches(session: StaffSession): Promise<BranchRecord[]> {
+  return apiRequest<BranchRecord[]>("/branches", { token: session.accessToken });
+}
+
+export async function getActiveShifts(session: StaffSession): Promise<ShiftRecord[]> {
+  return apiRequest<ShiftRecord[]>("/shifts/active", { token: session.accessToken });
+}
+
+export async function openShift(
+  session: StaffSession,
+  payload: { openingCash: number; branchId?: string; notes?: string },
+): Promise<ShiftRecord> {
+  return apiRequest<ShiftRecord>("/shifts/open", {
+    method: "POST",
+    token: session.accessToken,
+    body: payload,
+  });
+}
+
+export async function closeShift(
+  session: StaffSession,
+  shiftId: string,
+  payload: { closingCash: number; notes?: string },
+): Promise<ShiftRecord> {
+  return apiRequest<ShiftRecord>(`/shifts/${shiftId}/close`, {
+    method: "POST",
+    token: session.accessToken,
+    body: payload,
+  });
+}
+
 export async function getKdsBoard(session: StaffSession, branchId?: string): Promise<KdsBoardRecord> {
   const query = branchId ? `?branchId=${encodeURIComponent(branchId)}` : "";
   return apiRequest<KdsBoardRecord>(`/kds/board${query}`, { token: session.accessToken });
@@ -211,10 +301,85 @@ export async function getPublicMenuItems(): Promise<MenuItemRecord[]> {
   return apiRequest<MenuItemRecord[]>("/menu/items");
 }
 
+export async function getMenuItemModifiers(menuItemId: string): Promise<MenuModifierGroupRecord[]> {
+  return apiRequest<MenuModifierGroupRecord[]>(`/menu/items/${menuItemId}/modifiers`);
+}
+
+export async function createMenuModifierGroup(
+  session: StaffSession,
+  menuItemId: string,
+  payload: ModifierGroupUpsertRequest,
+): Promise<MenuModifierGroupRecord> {
+  return apiRequest<MenuModifierGroupRecord>(`/menu/items/${menuItemId}/modifiers`, {
+    method: "POST",
+    token: session.accessToken,
+    body: payload,
+  });
+}
+
+export async function updateMenuModifierGroup(
+  session: StaffSession,
+  menuItemId: string,
+  groupId: string,
+  payload: ModifierGroupUpsertRequest,
+): Promise<MenuModifierGroupRecord> {
+  return apiRequest<MenuModifierGroupRecord>(`/menu/items/${menuItemId}/modifiers/${groupId}`, {
+    method: "PUT",
+    token: session.accessToken,
+    body: payload,
+  });
+}
+
+export async function deleteMenuModifierGroup(session: StaffSession, menuItemId: string, groupId: string): Promise<void> {
+  return apiRequest<void>(`/menu/items/${menuItemId}/modifiers/${groupId}`, {
+    method: "DELETE",
+    token: session.accessToken,
+  });
+}
+
+export async function createMenuModifierOption(
+  session: StaffSession,
+  menuItemId: string,
+  groupId: string,
+  payload: ModifierOptionUpsertRequest,
+): Promise<MenuModifierOptionRecord> {
+  return apiRequest<MenuModifierOptionRecord>(`/menu/items/${menuItemId}/modifiers/${groupId}/options`, {
+    method: "POST",
+    token: session.accessToken,
+    body: payload,
+  });
+}
+
+export async function updateMenuModifierOption(
+  session: StaffSession,
+  menuItemId: string,
+  groupId: string,
+  optionId: string,
+  payload: ModifierOptionUpsertRequest,
+): Promise<MenuModifierOptionRecord> {
+  return apiRequest<MenuModifierOptionRecord>(`/menu/items/${menuItemId}/modifiers/${groupId}/options/${optionId}`, {
+    method: "PUT",
+    token: session.accessToken,
+    body: payload,
+  });
+}
+
+export async function deleteMenuModifierOption(
+  session: StaffSession,
+  menuItemId: string,
+  groupId: string,
+  optionId: string,
+): Promise<void> {
+  return apiRequest<void>(`/menu/items/${menuItemId}/modifiers/${groupId}/options/${optionId}`, {
+    method: "DELETE",
+    token: session.accessToken,
+  });
+}
+
 export async function createPublicDineInOrder(payload: {
   tableToken: string;
   notes?: string;
-  items: { menuItemId: string; quantity: number; notes?: string }[];
+  items: { menuItemId: string; quantity: number; notes?: string; modifierOptionIds?: string[] }[];
 }): Promise<OrderRecord> {
   return apiRequest<OrderRecord>("/orders/public/dine-in", {
     method: "POST",
@@ -233,7 +398,7 @@ export async function createOrder(
     tableId?: string;
     deliveryAddress?: string;
     notes?: string;
-    items: { menuItemId: string; quantity: number }[];
+    items: { menuItemId: string; quantity: number; modifierOptionIds?: string[] }[];
   },
 ): Promise<OrderRecord> {
   return apiRequest<OrderRecord>("/orders", {

@@ -43,7 +43,7 @@ public class ShiftController {
 
     @GetMapping("/active")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
-    public List<ShiftResponse> active() {
-        return shiftService.activeShifts();
+    public List<ShiftResponse> active(@AuthenticationPrincipal UserPrincipal principal) {
+        return shiftService.activeShifts(principal);
     }
 }

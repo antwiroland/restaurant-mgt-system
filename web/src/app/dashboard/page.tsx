@@ -109,6 +109,7 @@ export default function DashboardPage() {
         <Link className="panel transition hover:-translate-y-0.5" href="/orders">Active Orders</Link>
         <Link className="panel transition hover:-translate-y-0.5" href="/tables">Table Map</Link>
         <Link className="panel transition hover:-translate-y-0.5" href="/admin">Admin Panel</Link>
+        <Link className="panel transition hover:-translate-y-0.5" href="/shifts">Shift Management</Link>
       </section>
     </main>
   );

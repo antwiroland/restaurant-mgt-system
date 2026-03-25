@@ -5,6 +5,8 @@ import com.restaurantmanager.core.audit.AuditLogRepository;
 import com.restaurantmanager.core.auth.RefreshTokenRepository;
 import com.restaurantmanager.core.common.Role;
 import com.restaurantmanager.core.menu.CategoryRepository;
+import com.restaurantmanager.core.menu.MenuModifierGroupRepository;
+import com.restaurantmanager.core.menu.MenuModifierOptionRepository;
 import com.restaurantmanager.core.menu.MenuItemRepository;
 import com.restaurantmanager.core.order.GroupOrderSessionRepository;
 import com.restaurantmanager.core.order.GroupSessionItemRepository;
@@ -74,6 +76,10 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected CategoryRepository categoryRepository;
     @Autowired
+    protected MenuModifierGroupRepository menuModifierGroupRepository;
+    @Autowired
+    protected MenuModifierOptionRepository menuModifierOptionRepository;
+    @Autowired
     protected OrderRepository orderRepository;
     @Autowired
     protected OrderItemRepository orderItemRepository;
@@ -101,6 +107,8 @@ public abstract class BaseIntegrationTest {
         groupOrderSessionRepository.deleteAll();
         reservationRepository.deleteAll();
         restaurantTableRepository.deleteAll();
+        menuModifierOptionRepository.deleteAll();
+        menuModifierGroupRepository.deleteAll();
         menuItemRepository.deleteAll();
         categoryRepository.deleteAll();
         auditLogRepository.deleteAll();

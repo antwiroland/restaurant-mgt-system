@@ -5,7 +5,9 @@ import com.restaurantmanager.core.config.CacheConfig;
 import com.restaurantmanager.core.menu.dto.AvailabilityUpdateRequest;
 import com.restaurantmanager.core.menu.dto.CategoryRequest;
 import com.restaurantmanager.core.menu.dto.CategoryResponse;
+import com.restaurantmanager.core.menu.dto.MenuModifierGroupRequest;
 import com.restaurantmanager.core.menu.dto.MenuModifierGroupResponse;
+import com.restaurantmanager.core.menu.dto.MenuModifierOptionRequest;
 import com.restaurantmanager.core.menu.dto.MenuModifierOptionResponse;
 import com.restaurantmanager.core.menu.dto.MenuItemRequest;
 import com.restaurantmanager.core.menu.dto.MenuItemResponse;
@@ -122,29 +124,94 @@ public class MenuService {
 
     @Transactional(readOnly = true)
     public List<MenuModifierGroupResponse> listModifiers(UUID menuItemId) {
-        MenuItemEntity menuItem = menuItemRepository.findById(menuItemId)
-                .orElseThrow(() -> new ApiException(404, "Menu item not found"));
-        if (!menuItem.isActive()) {
-            throw new ApiException(404, "Menu item not found");
-        }
+        MenuItemEntity menuItem = findActiveMenuItem(menuItemId);
+        return buildModifierGroupResponses(menuItem.getId());
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = {CacheConfig.MENU_ITEMS_PUBLIC, CacheConfig.MENU_ITEM_PUBLIC_BY_ID}, allEntries = true)
+    public MenuModifierGroupResponse createModifierGroup(UUID menuItemId, MenuModifierGroupRequest request) {
+        MenuItemEntity menuItem = findActiveMenuItem(menuItemId);
+        MenuModifierGroupEntity group = new MenuModifierGroupEntity();
+        group.setMenuItem(menuItem);
+        applyModifierGroupRequest(group, request);
+        MenuModifierGroupEntity saved = modifierGroupRepository.save(group);
+        return toModifierGroupResponse(saved);
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = {CacheConfig.MENU_ITEMS_PUBLIC, CacheConfig.MENU_ITEM_PUBLIC_BY_ID}, allEntries = true)
+    public MenuModifierGroupResponse updateModifierGroup(UUID menuItemId, UUID groupId, MenuModifierGroupRequest request) {
+        findActiveMenuItem(menuItemId);
+        MenuModifierGroupEntity group = findModifierGroup(menuItemId, groupId);
+        applyModifierGroupRequest(group, request);
+        MenuModifierGroupEntity saved = modifierGroupRepository.save(group);
+        return toModifierGroupResponse(saved);
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = {CacheConfig.MENU_ITEMS_PUBLIC, CacheConfig.MENU_ITEM_PUBLIC_BY_ID}, allEntries = true)
+    public void deleteModifierGroup(UUID menuItemId, UUID groupId) {
+        findActiveMenuItem(menuItemId);
+        MenuModifierGroupEntity group = findModifierGroup(menuItemId, groupId);
+        group.setActive(false);
+        modifierGroupRepository.save(group);
 
         List<MenuModifierOptionEntity> options = modifierOptionRepository
-                .findByGroup_MenuItem_IdAndActiveTrueOrderByGroup_DisplayOrderAscDisplayOrderAsc(menuItemId);
+                .findByGroup_IdAndActiveTrueOrderByDisplayOrderAsc(groupId);
+        for (MenuModifierOptionEntity option : options) {
+            option.setActive(false);
+        }
+        if (!options.isEmpty()) {
+            modifierOptionRepository.saveAll(options);
+        }
+    }
 
-        return modifierGroupRepository.findByMenuItem_IdAndActiveTrueOrderByDisplayOrderAsc(menuItemId).stream()
-                .map(group -> new MenuModifierGroupResponse(
-                        group.getId(),
-                        group.getName(),
-                        group.getSelectionType(),
-                        group.isRequired(),
-                        group.getMinSelect(),
-                        group.getMaxSelect(),
-                        options.stream()
-                                .filter(option -> option.getGroup().getId().equals(group.getId()))
-                                .map(option -> new MenuModifierOptionResponse(option.getId(), option.getName(), option.getPriceDelta()))
-                                .toList()
-                ))
-                .toList();
+    @Transactional
+    @CacheEvict(cacheNames = {CacheConfig.MENU_ITEMS_PUBLIC, CacheConfig.MENU_ITEM_PUBLIC_BY_ID}, allEntries = true)
+    public MenuModifierOptionResponse createModifierOption(UUID menuItemId,
+                                                           UUID groupId,
+                                                           MenuModifierOptionRequest request) {
+        findActiveMenuItem(menuItemId);
+        MenuModifierGroupEntity group = findModifierGroup(menuItemId, groupId);
+
+        MenuModifierOptionEntity option = new MenuModifierOptionEntity();
+        option.setGroup(group);
+        applyModifierOptionRequest(option, request);
+        MenuModifierOptionEntity saved = modifierOptionRepository.save(option);
+        return toModifierOptionResponse(saved);
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = {CacheConfig.MENU_ITEMS_PUBLIC, CacheConfig.MENU_ITEM_PUBLIC_BY_ID}, allEntries = true)
+    public MenuModifierOptionResponse updateModifierOption(UUID menuItemId,
+                                                           UUID groupId,
+                                                           UUID optionId,
+                                                           MenuModifierOptionRequest request) {
+        findActiveMenuItem(menuItemId);
+        MenuModifierGroupEntity group = findModifierGroup(menuItemId, groupId);
+        MenuModifierOptionEntity option = modifierOptionRepository.findById(optionId)
+                .orElseThrow(() -> new ApiException(404, "Modifier option not found"));
+        if (!option.getGroup().getId().equals(group.getId())) {
+            throw new ApiException(404, "Modifier option not found");
+        }
+        applyModifierOptionRequest(option, request);
+        MenuModifierOptionEntity saved = modifierOptionRepository.save(option);
+        return toModifierOptionResponse(saved);
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = {CacheConfig.MENU_ITEMS_PUBLIC, CacheConfig.MENU_ITEM_PUBLIC_BY_ID}, allEntries = true)
+    public void deleteModifierOption(UUID menuItemId, UUID groupId, UUID optionId) {
+        findActiveMenuItem(menuItemId);
+        MenuModifierGroupEntity group = findModifierGroup(menuItemId, groupId);
+        MenuModifierOptionEntity option = modifierOptionRepository.findById(optionId)
+                .orElseThrow(() -> new ApiException(404, "Modifier option not found"));
+        if (!option.getGroup().getId().equals(group.getId())) {
+            throw new ApiException(404, "Modifier option not found");
+        }
+        option.setActive(false);
+        modifierOptionRepository.save(option);
     }
 
     @Transactional
@@ -211,6 +278,105 @@ public class MenuService {
         item.setActive(true);
     }
 
+    private void applyModifierGroupRequest(MenuModifierGroupEntity group, MenuModifierGroupRequest request) {
+        Bounds bounds = normalizeBounds(request.selectionType(), request.required(), request.minSelect(), request.maxSelect());
+        group.setName(request.name().trim());
+        group.setSelectionType(request.selectionType());
+        group.setRequired(request.required());
+        group.setMinSelect(bounds.minSelect());
+        group.setMaxSelect(bounds.maxSelect());
+        group.setDisplayOrder(request.displayOrder());
+        group.setActive(request.active() == null || request.active());
+    }
+
+    private void applyModifierOptionRequest(MenuModifierOptionEntity option, MenuModifierOptionRequest request) {
+        option.setName(request.name().trim());
+        option.setPriceDelta(request.priceDelta());
+        option.setDisplayOrder(request.displayOrder());
+        option.setActive(request.active() == null || request.active());
+    }
+
+    private List<MenuModifierGroupResponse> buildModifierGroupResponses(UUID menuItemId) {
+        List<MenuModifierOptionEntity> options = modifierOptionRepository
+                .findByGroup_MenuItem_IdAndActiveTrueOrderByGroup_DisplayOrderAscDisplayOrderAsc(menuItemId);
+
+        return modifierGroupRepository.findByMenuItem_IdAndActiveTrueOrderByDisplayOrderAsc(menuItemId).stream()
+                .map(group -> new MenuModifierGroupResponse(
+                        group.getId(),
+                        group.getName(),
+                        group.getSelectionType(),
+                        group.isRequired(),
+                        group.getMinSelect(),
+                        group.getMaxSelect(),
+                        options.stream()
+                                .filter(option -> option.getGroup().getId().equals(group.getId()))
+                                .map(this::toModifierOptionResponse)
+                                .toList()
+                ))
+                .toList();
+    }
+
+    private MenuModifierGroupResponse toModifierGroupResponse(MenuModifierGroupEntity group) {
+        List<MenuModifierOptionResponse> options = modifierOptionRepository
+                .findByGroup_IdAndActiveTrueOrderByDisplayOrderAsc(group.getId()).stream()
+                .map(this::toModifierOptionResponse)
+                .toList();
+        return new MenuModifierGroupResponse(
+                group.getId(),
+                group.getName(),
+                group.getSelectionType(),
+                group.isRequired(),
+                group.getMinSelect(),
+                group.getMaxSelect(),
+                options
+        );
+    }
+
+    private MenuModifierOptionResponse toModifierOptionResponse(MenuModifierOptionEntity option) {
+        return new MenuModifierOptionResponse(option.getId(), option.getName(), option.getPriceDelta());
+    }
+
+    private MenuItemEntity findActiveMenuItem(UUID menuItemId) {
+        MenuItemEntity menuItem = menuItemRepository.findById(menuItemId)
+                .orElseThrow(() -> new ApiException(404, "Menu item not found"));
+        if (!menuItem.isActive()) {
+            throw new ApiException(404, "Menu item not found");
+        }
+        return menuItem;
+    }
+
+    private MenuModifierGroupEntity findModifierGroup(UUID menuItemId, UUID groupId) {
+        MenuModifierGroupEntity group = modifierGroupRepository.findById(groupId)
+                .orElseThrow(() -> new ApiException(404, "Modifier group not found"));
+        if (!group.getMenuItem().getId().equals(menuItemId)) {
+            throw new ApiException(404, "Modifier group not found");
+        }
+        return group;
+    }
+
+    private Bounds normalizeBounds(ModifierSelectionType selectionType, boolean required, Integer minSelect, Integer maxSelect) {
+        int normalizedMin = minSelect != null ? minSelect : (required ? 1 : 0);
+        Integer normalizedMax = maxSelect;
+
+        if (required && normalizedMin == 0) {
+            throw new ApiException(400, "Required modifier group must allow at least one selection");
+        }
+
+        if (selectionType == ModifierSelectionType.SINGLE) {
+            if (normalizedMin > 1) {
+                throw new ApiException(400, "SINGLE modifier group minSelect cannot exceed 1");
+            }
+            if (normalizedMax != null && normalizedMax != 1) {
+                throw new ApiException(400, "SINGLE modifier group maxSelect must be 1");
+            }
+            normalizedMax = 1;
+        } else if (normalizedMax != null && normalizedMax < normalizedMin) {
+            throw new ApiException(400, "maxSelect must be greater than or equal to minSelect");
+        }
+
+        return new Bounds(normalizedMin, normalizedMax);
+    }
+
     private CategoryResponse toCategoryResponse(CategoryEntity category) {
         return new CategoryResponse(
                 category.getId(),
@@ -238,5 +404,8 @@ public class MenuService {
             return null;
         }
         return value.trim();
+    }
+
+    private record Bounds(Integer minSelect, Integer maxSelect) {
     }
 }
