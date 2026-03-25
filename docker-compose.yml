@@ -38,6 +38,7 @@ services:
       dockerfile: Dockerfile
     container_name: restaurant_backend
     environment:
+      SPRING_PROFILES_ACTIVE: prod
       PORT: 8080
       DB_URL: jdbc:postgresql://postgres:5432/restaurant_manager
       DB_USERNAME: postgres
@@ -48,6 +49,7 @@ services:
       REDIS_PORT: 6379
       PAYSTACK_SECRET_KEY: test_paystack_secret
       PAYSTACK_BASE_URL: https://api.paystack.co
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
       WEBSOCKET_ALLOWED_ORIGIN_PATTERNS: http://localhost:3000,http://localhost:19006,http://localhost:8080
     ports:
       - "8080:8080"
@@ -56,6 +58,45 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  zipkin:
+    image: openzipkin/zipkin:3
+    container_name: restaurant_zipkin
+    ports:
+      - "9411:9411"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: restaurant_prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: restaurant_grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      prometheus:
+        condition: service_started
     restart: unless-stopped
 
   pgadmin:
@@ -79,3 +120,5 @@ volumes:
   postgres_data:
   redis_data:
   pgadmin_data:
+  prometheus_data:
+  grafana_data:

@@ -1,14 +1,35 @@
 <configuration>
-    <springProfile name="prod">
+    <springProperty scope="context" name="appName" source="spring.application.name"/>
+
+    <springProfile name="prod,staging">
         <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
-            <encoder class="net.logstash.logback.encoder.LogstashEncoder"/>
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                <providers>
+                    <timestamp/>
+                    <version/>
+                    <logLevel/>
+                    <threadName/>
+                    <loggerName/>
+                    <message/>
+                    <mdc/>
+                    <stackTrace/>
+                    <pattern>
+                        <pattern>
+                            {
+                            "service":"${appName:-restaurant-manager-backend-core}",
+                            "environment":"${SPRING_PROFILES_ACTIVE:-local}"
+                            }
+                        </pattern>
+                    </pattern>
+                </providers>
+            </encoder>
         </appender>
         <root level="INFO">
             <appender-ref ref="JSON"/>
         </root>
     </springProfile>
 
-    <springProfile name="!prod">
+    <springProfile name="!prod &amp; !staging">
         <include resource="org/springframework/boot/logging/logback/base.xml"/>
     </springProfile>
 </configuration>

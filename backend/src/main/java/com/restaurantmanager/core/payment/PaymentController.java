@@ -63,7 +63,7 @@ public class PaymentController {
     }
 
     @PostMapping("/webhook")
-    public Map<String, String> webhook(@RequestHeader(value = "x-paystack-signature", required = false) String signature,
+    public Map<String, String> webhook(@RequestHeader(value = "X-Paystack-Signature", required = false) String signature,
                                        @RequestBody String payload) {
         paymentService.processWebhook(signature, payload);
         return paymentService.webhookOkResponse();

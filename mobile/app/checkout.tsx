@@ -12,13 +12,15 @@ import {
 import { router } from 'expo-router';
 import { useCartStore } from '../src/store/cart';
 import { useOfflineStore } from '../src/store/offline';
-import { createOrder } from '../src/api/orders';
+import { createOrder, createPublicTableOrder } from '../src/api/orders';
 import { initiatePayment } from '../src/api/payment';
+import { useAuthStore } from '../src/store/auth';
 import type { PaymentMethod, OrderType } from '../src/types/api';
 
 export default function CheckoutScreen() {
-  const { lines, tableId, promoCode, total, clear } = useCartStore();
+  const { lines, tableId, tableToken, tableStatus, promoCode, total, clear } = useCartStore();
   const { isOnline, enqueue } = useOfflineStore();
+  const { isGuest } = useAuthStore();
   const [method, setMethod] = useState<PaymentMethod>('MOBILE_MONEY');
   const [momoPhone, setMomoPhone] = useState('');
   const [orderType, setOrderType] = useState<OrderType>('DINE_IN');
@@ -29,6 +31,7 @@ export default function CheckoutScreen() {
   const orderPayload = {
     type: effectiveOrderType as OrderType,
     tableId: tableId ?? undefined,
+    tableToken: tableToken ?? undefined,
     items: lines.map((line) => ({ menuItemId: line.item.id, quantity: line.quantity, notes: line.notes })),
     promoCode: promoCode ?? undefined,
     deliveryAddress: effectiveOrderType === 'DELIVERY' ? deliveryAddress.trim() : undefined,
@@ -46,10 +49,19 @@ export default function CheckoutScreen() {
     }
 
     if (!isOnline) {
-      await enqueue('CREATE_ORDER', orderPayload);
+      await enqueue('CREATE_ORDER', orderPayload, effectiveOrderType === 'DINE_IN' ? {
+        tableToken: tableToken ?? undefined,
+        expectedTableStatus: tableStatus ?? undefined,
+        expectedTableId: tableId ?? undefined,
+      } : undefined);
       Alert.alert('Order queued', 'Order saved. It will be placed when you reconnect.', [
         { text: 'OK', onPress: () => { clear(); router.replace('/(tabs)/orders'); } },
       ]);
+      return;
+    }
+
+    if (isGuest && effectiveOrderType === 'DINE_IN' && !tableToken) {
+      Alert.alert('Missing table QR', 'Scan the table QR code before placing a guest dine-in order.');
       return;
     }
 
@@ -60,16 +72,28 @@ export default function CheckoutScreen() {
 
     setLoading(true);
     try {
-      const order = await createOrder(orderPayload);
-      const payment = await initiatePayment(
-        order.id,
-        method,
-        method === 'MOBILE_MONEY' ? momoPhone.trim() : undefined
-      );
+      const order = isGuest && effectiveOrderType === 'DINE_IN'
+        ? await createPublicTableOrder({
+            tableToken: tableToken ?? '',
+            items: orderPayload.items,
+          })
+        : await createOrder(orderPayload);
+
+      if (!isGuest) {
+        const payment = await initiatePayment(
+          order.id,
+          method,
+          method === 'MOBILE_MONEY' ? momoPhone.trim() : undefined
+        );
+        Alert.alert('Payment initiated', payment.message, [
+          { text: 'Track Order', onPress: () => router.replace(`/order/${order.id}`) },
+        ]);
+      } else {
+        Alert.alert('Order placed', `Your order for table ${order.tableNumber ?? ''} was sent to the kitchen.`);
+      }
+
       clear();
-      Alert.alert('Payment initiated', payment.message, [
-        { text: 'Track Order', onPress: () => router.replace(`/order/${order.id}`) },
-      ]);
+      router.replace('/(tabs)/menu');
     } catch (e: any) {
       Alert.alert('Error', e?.response?.data?.message ?? 'Could not place order. Please try again.');
     } finally {

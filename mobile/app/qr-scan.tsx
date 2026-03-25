@@ -36,12 +36,39 @@ export default function QrScanScreen() {
     );
   }
 
+  function extractToken(scannedData: string): string | null {
+    const value = scannedData.trim();
+    if (!value) {
+      return null;
+    }
+    if (!value.includes("://")) {
+      return value;
+    }
+    try {
+      const url = new URL(value);
+      const pathname = url.pathname.toLowerCase();
+      if (pathname.startsWith("/scan/")) {
+        const pathParts = url.pathname.split("/").filter(Boolean);
+        const maybeToken = pathParts.length > 0 ? pathParts[pathParts.length - 1] : null;
+        return maybeToken ?? null;
+      }
+      const tokenQuery = url.searchParams.get("token") ?? url.searchParams.get("tableToken");
+      return tokenQuery;
+    } catch {
+      return null;
+    }
+  }
+
   async function handleBarCodeScanned({ data }: { data: string }) {
     if (scanned) return;
     setScanned(true);
     try {
-      const result = await scanQrToken(data);
-      setTable(result.tableId, result.tableNumber);
+      const token = extractToken(data);
+      if (!token) {
+        throw new Error("Invalid token");
+      }
+      const result = await scanQrToken(token);
+      setTable(result.tableId, result.tableNumber, token, result.status);
       Alert.alert(
         'Table linked',
         `Table ${result.tableNumber} linked to your cart.`,

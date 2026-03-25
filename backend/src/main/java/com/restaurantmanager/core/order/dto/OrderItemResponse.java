@@ -1,6 +1,7 @@
 package com.restaurantmanager.core.order.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 public record OrderItemResponse(
@@ -10,6 +11,7 @@ public record OrderItemResponse(
         String name,
         BigDecimal price,
         int quantity,
-        String notes
+        String notes,
+        List<OrderItemModifierResponse> modifiers
 ) {
 }

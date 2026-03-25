@@ -99,7 +99,12 @@ public class AuthService {
 
         auditService.log(user, AuditAction.USER_LOGIN, "User", user.getId(), "{\"result\":\"SUCCESS\"}", ipAddress);
         return new AuthResponse(access, refresh, securityProps.getJwt().getAccessTtlSeconds(),
-                new UserView(user.getId(), user.getName(), user.getRole().name()));
+                new UserView(
+                        user.getId(),
+                        user.getName(),
+                        user.getRole().name(),
+                        user.getBranch() == null ? null : user.getBranch().getId(),
+                        user.getBranch() == null ? null : user.getBranch().getName()));
     }
 
     @Transactional

@@ -73,6 +73,11 @@ export async function createOrder(req: CreateOrderRequest): Promise<Order> {
   return toOrder(data);
 }
 
+export async function createPublicTableOrder(req: { tableToken: string; items: CreateOrderRequest['items']; notes?: string }): Promise<Order> {
+  const { data } = await apiClient.post<OrderResponse>('/orders/public/dine-in', req);
+  return toOrder(data);
+}
+
 export async function fetchMyOrders(params?: { status?: string; type?: string }): Promise<Order[]> {
   const { data } = await apiClient.get<OrderResponse[]>('/orders', { params });
   return data.map(toOrder);

@@ -2,6 +2,7 @@ package com.restaurantmanager.core.table;
 
 import com.restaurantmanager.core.common.ApiException;
 import com.restaurantmanager.core.config.CacheConfig;
+import com.restaurantmanager.core.branch.BranchService;
 import com.restaurantmanager.core.table.dto.TableQrResponse;
 import com.restaurantmanager.core.table.dto.TableRequest;
 import com.restaurantmanager.core.table.dto.TableResponse;
@@ -19,9 +20,15 @@ import java.util.UUID;
 @Service
 public class RestaurantTableService {
     private final RestaurantTableRepository tableRepository;
+    private final TableQrCodeService tableQrCodeService;
+    private final BranchService branchService;
 
-    public RestaurantTableService(RestaurantTableRepository tableRepository) {
+    public RestaurantTableService(RestaurantTableRepository tableRepository,
+                                  TableQrCodeService tableQrCodeService,
+                                  BranchService branchService) {
         this.tableRepository = tableRepository;
+        this.tableQrCodeService = tableQrCodeService;
+        this.branchService = branchService;
     }
 
     @Transactional(readOnly = true)
@@ -85,10 +92,23 @@ public class RestaurantTableService {
         return new TableScanResponse(table.getId(), table.getNumber(), table.getStatus());
     }
 
+    @Transactional(readOnly = true)
+    public byte[] qrImage(UUID id, String payload, int sizePx) {
+        RestaurantTableEntity table = tableRepository.findById(id)
+                .orElseThrow(() -> new ApiException(404, "Table not found"));
+        String effectivePayload = payload == null || payload.isBlank() ? table.getQrToken() : payload.trim();
+        return tableQrCodeService.generatePng(effectivePayload, sizePx);
+    }
+
     private void applyRequest(RestaurantTableEntity table, TableRequest request) {
         table.setNumber(request.number().trim());
         table.setCapacity(request.capacity());
         table.setZone(blankToNull(request.zone()));
+        if (request.branchId() != null) {
+            table.setBranch(branchService.require(request.branchId()));
+        } else {
+            table.setBranch(null);
+        }
     }
 
     private String blankToNull(String value) {
@@ -113,6 +133,8 @@ public class RestaurantTableService {
                 table.getCapacity(),
                 table.getZone(),
                 table.getStatus(),
-                table.getQrToken());
+                table.getQrToken(),
+                table.getBranch() == null ? null : table.getBranch().getId(),
+                table.getBranch() == null ? null : table.getBranch().getName());
     }
 }

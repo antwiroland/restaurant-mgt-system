@@ -8,18 +8,26 @@ export type QueueEntry = {
   id: string;
   action: 'CREATE_ORDER' | 'CREATE_RESERVATION';
   payload: CreateOrderRequest | Record<string, unknown>;
+  meta?: {
+    tableToken?: string;
+    expectedTableStatus?: string;
+    expectedTableId?: string;
+    expectedTableNumber?: string;
+  };
   createdAt: string;
   retryCount: number;
-  status: 'QUEUED' | 'SYNCED' | 'FAILED';
+  status: 'QUEUED' | 'SYNCED' | 'FAILED' | 'CONFLICT';
+  conflictReason?: string;
 };
 
 type OfflineState = {
   queue: QueueEntry[];
   isOnline: boolean;
   setOnline: (online: boolean) => void;
-  enqueue: (action: QueueEntry['action'], payload: QueueEntry['payload']) => Promise<void>;
+  enqueue: (action: QueueEntry['action'], payload: QueueEntry['payload'], meta?: QueueEntry['meta']) => Promise<void>;
   markSynced: (id: string) => Promise<void>;
   markFailed: (id: string) => Promise<void>;
+  markConflict: (id: string, reason: string) => Promise<void>;
   loadQueue: () => Promise<void>;
   pendingCount: () => number;
 };
@@ -37,11 +45,12 @@ export const useOfflineStore = create<OfflineState>((set, get) => ({
 
   setOnline: (online) => set({ isOnline: online }),
 
-  enqueue: async (action, payload) => {
+  enqueue: async (action, payload, meta) => {
     const entry: QueueEntry = {
       id: uuid(),
       action,
       payload,
+      meta,
       createdAt: new Date().toISOString(),
       retryCount: 0,
       status: 'QUEUED',
@@ -60,6 +69,14 @@ export const useOfflineStore = create<OfflineState>((set, get) => ({
   markFailed: async (id) => {
     const next = get().queue.map((e) =>
       e.id === id ? { ...e, status: 'FAILED' as const, retryCount: e.retryCount + 1 } : e
+    );
+    set({ queue: next });
+    await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(next));
+  },
+
+  markConflict: async (id, reason) => {
+    const next = get().queue.map((e) =>
+      e.id === id ? { ...e, status: 'CONFLICT' as const, conflictReason: reason } : e
     );
     set({ queue: next });
     await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(next));

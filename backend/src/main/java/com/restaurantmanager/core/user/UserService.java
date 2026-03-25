@@ -1,6 +1,7 @@
 package com.restaurantmanager.core.user;
 
 import com.restaurantmanager.core.audit.AuditService;
+import com.restaurantmanager.core.branch.BranchService;
 import com.restaurantmanager.core.common.ApiException;
 import com.restaurantmanager.core.common.AuditAction;
 import com.restaurantmanager.core.common.Role;
@@ -20,11 +21,16 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final BranchService branchService;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuditService auditService) {
+    public UserService(UserRepository userRepository,
+                       PasswordEncoder passwordEncoder,
+                       AuditService auditService,
+                       BranchService branchService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
+        this.branchService = branchService;
     }
 
     @Transactional(readOnly = true)
@@ -42,6 +48,11 @@ public class UserService {
         UserEntity target = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(404, "User not found"));
         target.setRole(request.role());
+        if (request.branchId() != null) {
+            target.setBranch(branchService.require(request.branchId()));
+        } else if (request.role() == Role.CUSTOMER) {
+            target.setBranch(null);
+        }
         userRepository.save(target);
 
         UserEntity actor = userRepository.findById(principal.userId()).orElse(null);
@@ -71,6 +82,14 @@ public class UserService {
     }
 
     private UserResponse toResponse(UserEntity user) {
-        return new UserResponse(user.getId(), user.getName(), user.getPhone(), user.getEmail(), user.getRole(), user.isActive());
+        return new UserResponse(
+                user.getId(),
+                user.getName(),
+                user.getPhone(),
+                user.getEmail(),
+                user.getRole(),
+                user.isActive(),
+                user.getBranch() == null ? null : user.getBranch().getId(),
+                user.getBranch() == null ? null : user.getBranch().getName());
     }
 }

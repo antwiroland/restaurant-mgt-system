@@ -1,5 +1,11 @@
 # Restaurant Manager — API Specification
 
+> Note: live API documentation is generated from Spring controllers using SpringDoc/OpenAPI.
+> Preferred source of truth:
+> - OpenAPI JSON: `/v3/api-docs`
+> - Swagger UI: `/swagger-ui.html`
+> This markdown file is a human-oriented reference and may lag implementation details.
+
 **Base URL:** `https://api.restaurantmanager.com/api/v1`
 **Auth:** Bearer JWT in `Authorization` header
 **Content-Type:** `application/json`

@@ -357,7 +357,7 @@ class OrderPhase4IntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
-    void givenDineInSession_whenCloseTable_thenTableStatusChangedToAvailable() throws Exception {
+    void givenDineInSessionWithOutstandingBill_whenCloseTable_then409() throws Exception {
         UserEntity customer = createUser("C8", "+233270000008", "c8@x.com", "secret123", Role.CUSTOMER);
         UserEntity cashier = createUser("K8", "+233270000018", "k8@x.com", "secret123", Role.CASHIER);
         RestaurantTableEntity table = createTable("P4T8");
@@ -369,7 +369,49 @@ class OrderPhase4IntegrationTest extends BaseIntegrationTest {
                 .andExpect(status().isCreated());
         mockMvc.perform(post("/orders/dine-in/tables/" + table.getId() + "/close")
                         .header("Authorization", "Bearer " + accessToken(cashier)))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void givenOutstandingDineInBills_whenManagerReversesTable_thenTableCanBeClosed() throws Exception {
+        UserEntity manager = createUser("M8", "+2332700000088", "m8@x.com", "secret123", Role.MANAGER);
+        RestaurantTableEntity table = createTable("P4T8R");
+        MenuItemEntity item = createMenuItem("Dish8R", "22.00");
+
+        mockMvc.perform(post("/orders/public/dine-in")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tableToken\":\"" + table.getQrToken() + "\",\"items\":[{\"menuItemId\":\"" + item.getId() + "\",\"quantity\":2}]}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/orders/dine-in/tables/" + table.getId() + "/reverse")
+                        .header("Authorization", "Bearer " + accessToken(manager)))
                 .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/orders/dine-in/tables/" + table.getId() + "/close")
+                        .header("Authorization", "Bearer " + accessToken(manager)))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void givenPublicQrOrders_whenFetchingTableBill_thenOutstandingTotalAggregatesAcrossOrders() throws Exception {
+        RestaurantTableEntity table = createTable("P4TBILL");
+        MenuItemEntity item = createMenuItem("DishBill", "10.00");
+
+        mockMvc.perform(post("/orders/public/dine-in")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tableToken\":\"" + table.getQrToken() + "\",\"items\":[{\"menuItemId\":\"" + item.getId() + "\",\"quantity\":1}]}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/orders/public/dine-in")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tableToken\":\"" + table.getQrToken() + "\",\"items\":[{\"menuItemId\":\"" + item.getId() + "\",\"quantity\":2}]}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/orders/public/dine-in/tables/" + table.getQrToken() + "/bill"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeOrderCount").value(2))
+                .andExpect(jsonPath("$.totalOrdered").value(30.0))
+                .andExpect(jsonPath("$.outstandingTotal").value(30.0));
     }
 
     @Test

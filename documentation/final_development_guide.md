@@ -9,6 +9,65 @@
 
 ---
 
+## Table QR Ordering Guide
+- Manager QR generation:
+  - Table metadata + token: `GET /tables/{id}/qr`
+  - QR image for printing: `GET /tables/{id}/qr-image?payload=<scan-link>&sizePx=240`
+- Public scan + ordering:
+  - Resolve scanned token: `POST /tables/scan`
+  - Public menu listing: `GET /menu/items` and `GET /menu/categories`
+  - Place guest dine-in order (no login): `POST /orders/public/dine-in`
+  - View running table bill: `GET /orders/public/dine-in/tables/{tableToken}/bill`
+- Occupancy lifecycle:
+  - New dine-in order marks table `OCCUPIED`.
+  - Table cannot be closed while outstanding balance exists.
+  - Manager/Admin can reverse table session: `POST /orders/dine-in/tables/{tableId}/reverse`
+  - Staff close table after settlement: `POST /orders/dine-in/tables/{tableId}/close`
+  - Successful payments automatically release table when no outstanding dine-in balance remains.
+
+---
+
+## Kitchen Display System (KDS)
+- Endpoint: `GET /kds/board?branchId=<uuid?>`
+- Purpose: kitchen-focused board grouped by `CONFIRMED`, `PREPARING`, `READY`
+- Web UI: `web/src/app/kds/page.tsx`
+
+---
+
+## Multi-Branch Support
+- Branch master: `branches` entity (`/branches` CRUD for manager/admin)
+- Branch linkage:
+  - Staff: `users.branch_id`
+  - Tables: `restaurant_tables.branch_id`
+  - Orders: `orders.branch_id` (derived from table for dine-in; from staff for non-dine-in)
+
+---
+
+## Shift Management
+- Open shift: `POST /shifts/open`
+- Close shift: `POST /shifts/{id}/close`
+- Active shifts: `GET /shifts/active`
+- Reconciliation: expected cash = opening cash + successful `CASH` payments for the shift scope
+
+---
+
+## Menu Item Modifiers
+- Public modifier discovery: `GET /menu/items/{id}/modifiers`
+- Order input supports `modifierOptionIds` on each order item.
+- Modifier selections are validated per menu-item group rules and persisted in `order_item_modifiers`.
+- Price snapshots include modifier price deltas for correct historical totals.
+
+---
+
+## Observability and Tracing
+- Actuator enabled with health/metrics/prometheus endpoints.
+- Micrometer Prometheus registry integrated for scraping.
+- Micrometer Tracing integrated (Brave bridge) with Zipkin exporter.
+- Structured JSON logging enabled for `prod` and `staging` profiles.
+- Docker stack includes `zipkin`, `prometheus`, and `grafana`.
+
+---
+
 ## Current Implementation Status (2026-03-24)
 - Phase 1: Complete
 - Phase 2: Complete

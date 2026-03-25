@@ -24,8 +24,11 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/register", "/auth/login", "/auth/refresh", "/actuator/health").permitAll()
+                        .requestMatchers("/actuator/prometheus", "/actuator/info").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/menu/**").permitAll()
                         .requestMatchers("/tables/scan").permitAll()
+                        .requestMatchers("/orders/public/**").permitAll()
                         .requestMatchers("/reservations").permitAll()
                         .requestMatchers("/payments/webhook").permitAll()
                         .requestMatchers("/ws/**", "/ws").permitAll()

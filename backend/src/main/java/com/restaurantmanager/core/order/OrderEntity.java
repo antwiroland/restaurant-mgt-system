@@ -1,5 +1,6 @@
 package com.restaurantmanager.core.order;
 
+import com.restaurantmanager.core.branch.BranchEntity;
 import com.restaurantmanager.core.table.RestaurantTableEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -39,6 +40,10 @@ public class OrderEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "table_id")
     private RestaurantTableEntity table;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "branch_id")
+    private BranchEntity branch;
 
     @Column(name = "delivery_address", length = 1000)
     private String deliveryAddress;
@@ -133,6 +138,14 @@ public class OrderEntity {
 
     public void setTable(RestaurantTableEntity table) {
         this.table = table;
+    }
+
+    public BranchEntity getBranch() {
+        return branch;
+    }
+
+    public void setBranch(BranchEntity branch) {
+        this.branch = branch;
     }
 
     public String getDeliveryAddress() {

@@ -6,6 +6,7 @@ import com.restaurantmanager.core.common.ApiException;
 import com.restaurantmanager.core.common.Role;
 import com.restaurantmanager.core.config.PaymentProps;
 import com.restaurantmanager.core.order.OrderEntity;
+import com.restaurantmanager.core.order.OrderType;
 import com.restaurantmanager.core.order.OrderRepository;
 import com.restaurantmanager.core.order.OrderStatus;
 import com.restaurantmanager.core.payment.dto.PaymentInitiateRequest;
@@ -14,6 +15,9 @@ import com.restaurantmanager.core.payment.dto.PaymentResponse;
 import com.restaurantmanager.core.payment.dto.PaymentRetryRequest;
 import com.restaurantmanager.core.payment.dto.ReceiptResponse;
 import com.restaurantmanager.core.security.UserPrincipal;
+import com.restaurantmanager.core.table.RestaurantTableEntity;
+import com.restaurantmanager.core.table.RestaurantTableRepository;
+import com.restaurantmanager.core.table.TableStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +26,8 @@ import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.UUID;
@@ -35,6 +41,7 @@ public class PaymentService {
     private final PaymentProps paymentProps;
     private final PaymentRealtimePublisher realtimePublisher;
     private final ObjectMapper objectMapper;
+    private final RestaurantTableRepository tableRepository;
 
     public PaymentService(PaymentRepository paymentRepository,
                           PaymentWebhookEventRepository paymentWebhookEventRepository,
@@ -42,7 +49,8 @@ public class PaymentService {
                           PaystackClient paystackClient,
                           PaymentProps paymentProps,
                           PaymentRealtimePublisher realtimePublisher,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          RestaurantTableRepository tableRepository) {
         this.paymentRepository = paymentRepository;
         this.paymentWebhookEventRepository = paymentWebhookEventRepository;
         this.orderRepository = orderRepository;
@@ -50,6 +58,7 @@ public class PaymentService {
         this.paymentProps = paymentProps;
         this.realtimePublisher = realtimePublisher;
         this.objectMapper = objectMapper;
+        this.tableRepository = tableRepository;
     }
 
     @Transactional
@@ -238,6 +247,7 @@ public class PaymentService {
                 order.setStatus(OrderStatus.CONFIRMED);
                 orderRepository.save(order);
             }
+            updateTableOccupancy(order);
         } else if (mapped == PaymentStatus.FAILED) {
             payment.setFailureReason(providerMessage == null || providerMessage.isBlank() ? "Payment failed" : providerMessage.trim());
         }
@@ -245,6 +255,31 @@ public class PaymentService {
         if (previous == PaymentStatus.SUCCESS && mapped != PaymentStatus.SUCCESS) {
             payment.setPaidAt(null);
         }
+    }
+
+    private void updateTableOccupancy(OrderEntity paidOrder) {
+        if (paidOrder.getType() != OrderType.DINE_IN || paidOrder.getTable() == null) {
+            return;
+        }
+
+        RestaurantTableEntity table = tableRepository.findById(paidOrder.getTable().getId())
+                .orElse(null);
+        if (table == null) {
+            return;
+        }
+
+        boolean hasOutstanding = orderRepository.findByTableIdOrderByCreatedAtAsc(table.getId()).stream()
+                .filter(order -> order.getType() == OrderType.DINE_IN)
+                .filter(order -> order.getStatus() != OrderStatus.CANCELLED)
+                .anyMatch(order -> {
+                    BigDecimal paid = paymentRepository.findByOrderIdAndStatus(order.getId(), PaymentStatus.SUCCESS).stream()
+                            .map(PaymentEntity::getAmount)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    return paid.compareTo(order.getTotal()) < 0;
+                });
+
+        table.setStatus(hasOutstanding ? TableStatus.OCCUPIED : TableStatus.AVAILABLE);
+        tableRepository.save(table);
     }
 
     private PaymentStatus mapProviderStatus(String providerStatus) {
@@ -345,5 +380,53 @@ public class PaymentService {
 
     public Map<String, String> webhookOkResponse() {
         return Map.of("status", "ok");
+    }
+
+    @Transactional
+    public int reconcilePendingPayments(int olderThanMinutes, int batchSize) {
+        ensureProviderConfigured();
+
+        int thresholdMinutes = Math.max(1, olderThanMinutes);
+        int maxBatch = Math.max(1, batchSize);
+        Instant cutoff = Instant.now().minus(thresholdMinutes, ChronoUnit.MINUTES);
+
+        List<PaymentEntity> candidates = paymentRepository.findByStatusInAndCreatedAtBeforeOrderByCreatedAtAsc(
+                List.of(PaymentStatus.PENDING, PaymentStatus.INITIATED), cutoff);
+        if (candidates.isEmpty()) {
+            return 0;
+        }
+
+        int processed = 0;
+        for (PaymentEntity payment : candidates) {
+            if (processed >= maxBatch) {
+                break;
+            }
+
+            PaymentStatus previous = payment.getStatus();
+            try {
+                PaystackClient.VerifyResult verifyResult = paystackClient.verify(payment.getPaystackReference());
+                PaymentStatus mapped = mapProviderStatus(verifyResult.providerStatus());
+                applyStatusChange(payment, mapped, verifyResult.message());
+                paymentRepository.save(payment);
+
+                if (previous != payment.getStatus()) {
+                    realtimePublisher.publishPaymentStatusChanged(
+                            payment.getId(), payment.getOrder().getId(), previous, payment.getStatus(),
+                            payment.getAmount(), payment.getMethod()
+                    );
+                    if (payment.getStatus() == PaymentStatus.FAILED) {
+                        realtimePublisher.publishPaymentFailed(
+                                payment.getId(), payment.getOrder().getId(),
+                                payment.getFailureReason() == null ? "Payment failed" : payment.getFailureReason()
+                        );
+                    }
+                }
+            } catch (Exception ignored) {
+                // keep payment pending; next cycle will retry
+            }
+            processed++;
+        }
+
+        return processed;
     }
 }

@@ -41,6 +41,8 @@ class PaymentPhase5IntegrationTest extends BaseIntegrationTest {
     private PaymentRealtimePublisher realtimePublisher;
     @Autowired
     private PaymentProps paymentProps;
+    @Autowired
+    private PaymentService paymentService;
 
     @BeforeEach
     void resetSpy() {
@@ -345,6 +347,25 @@ class PaymentPhase5IntegrationTest extends BaseIntegrationTest {
                 .andExpect(status().isOk());
 
         verify(realtimePublisher, atLeastOnce()).publishPaymentFailed(any(UUID.class), any(UUID.class), contains("Declined"));
+    }
+
+    @Test
+    void givenOldPendingPayment_whenReconciliationRuns_thenPaymentIsReverifiedAndUpdated() throws Exception {
+        UserEntity customer = createUser("P18", "+233270010018", "p18@x.com", "secret123", Role.CUSTOMER);
+        UUID orderId = createPickupOrder(customer, createMenuItem("P18Dish", "23.00"));
+        String paymentJson = initiate(customer, orderId, "idem-p18");
+        String paymentId = objectMapper.readTree(paymentJson).get("paymentId").asText();
+
+        PaymentEntity payment = paymentRepository.findById(UUID.fromString(paymentId)).orElseThrow();
+        payment.setStatus(PaymentStatus.PENDING);
+        payment.setCreatedAt(Instant.now().minusSeconds(3600));
+        paymentRepository.save(payment);
+
+        int processed = paymentService.reconcilePendingPayments(15, 50);
+        org.junit.jupiter.api.Assertions.assertTrue(processed >= 1);
+
+        PaymentEntity refreshed = paymentRepository.findById(payment.getId()).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(PaymentStatus.INITIATED, refreshed.getStatus());
     }
 
     private String initiate(UserEntity customer, UUID orderId, String idempotencyKey) throws Exception {

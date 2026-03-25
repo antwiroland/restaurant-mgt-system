@@ -1,5 +1,6 @@
 package com.restaurantmanager.core.user;
 
+import com.restaurantmanager.core.branch.BranchEntity;
 import com.restaurantmanager.core.common.Role;
 import jakarta.persistence.*;
 
@@ -27,6 +28,10 @@ public class UserEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Role role;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "branch_id")
+    private BranchEntity branch;
 
     @Column(name = "pin_hash")
     private String pinHash;
@@ -102,6 +107,14 @@ public class UserEntity {
 
     public void setRole(Role role) {
         this.role = role;
+    }
+
+    public BranchEntity getBranch() {
+        return branch;
+    }
+
+    public void setBranch(BranchEntity branch) {
+        this.branch = branch;
     }
 
     public String getPinHash() {

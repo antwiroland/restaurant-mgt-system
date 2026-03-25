@@ -10,6 +10,7 @@ export default function Home() {
         <div className="mt-6 flex flex-wrap gap-3">
           <Link href="/login" className="rounded-full bg-[#132018] px-4 py-2 text-white">Open Login</Link>
           <Link href="/pos" className="rounded-full border border-[#132018] px-4 py-2 text-[#132018]">Go to POS</Link>
+          <Link href="/kds" className="rounded-full border border-[#132018] px-4 py-2 text-[#132018]">Open KDS</Link>
         </div>
       </section>
     </main>

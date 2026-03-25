@@ -5,6 +5,7 @@ import com.restaurantmanager.core.menu.dto.CategoryRequest;
 import com.restaurantmanager.core.menu.dto.CategoryResponse;
 import com.restaurantmanager.core.menu.dto.MenuItemRequest;
 import com.restaurantmanager.core.menu.dto.MenuItemResponse;
+import com.restaurantmanager.core.menu.dto.MenuModifierGroupResponse;
 import com.restaurantmanager.core.security.UserPrincipal;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -72,6 +73,11 @@ public class MenuController {
     public MenuItemResponse getItem(@PathVariable UUID id,
                                     @AuthenticationPrincipal UserPrincipal principal) {
         return menuService.getItem(id, principal);
+    }
+
+    @GetMapping("/items/{id}/modifiers")
+    public List<MenuModifierGroupResponse> listModifiers(@PathVariable UUID id) {
+        return menuService.listModifiers(id);
     }
 
     @PostMapping("/items")

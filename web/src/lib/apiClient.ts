@@ -21,6 +21,12 @@ export type TableRecord = {
   qrToken: string;
 };
 
+export type TableScanRecord = {
+  tableId: string;
+  tableNumber: string;
+  status: "AVAILABLE" | "OCCUPIED" | "RESERVED" | "CLOSED";
+};
+
 export type MenuItemRecord = {
   id: string;
   categoryId: string;
@@ -58,6 +64,22 @@ export type OrderRecord = {
   total: string;
   createdAt: string;
   items: OrderItemRecord[];
+  branchId?: string;
+  branchName?: string;
+};
+
+export type KdsOrderCard = {
+  orderId: string;
+  tableNumber: string;
+  branchName?: string;
+  status: "CONFIRMED" | "PREPARING" | "READY";
+  notes?: string;
+  createdAt: string;
+  items: { name: string; quantity: number; notes?: string; modifiers: string[] }[];
+};
+
+export type KdsBoardRecord = {
+  columns: Record<"CONFIRMED" | "PREPARING" | "READY", KdsOrderCard[]>;
 };
 
 type AuthResponse = {
@@ -161,6 +183,11 @@ export async function getOrders(session: StaffSession): Promise<OrderRecord[]> {
   return apiRequest<OrderRecord[]>("/orders", { token: session.accessToken });
 }
 
+export async function getKdsBoard(session: StaffSession, branchId?: string): Promise<KdsBoardRecord> {
+  const query = branchId ? `?branchId=${encodeURIComponent(branchId)}` : "";
+  return apiRequest<KdsBoardRecord>(`/kds/board${query}`, { token: session.accessToken });
+}
+
 export async function updateOrderStatus(session: StaffSession, orderId: string, status: OrderRecord["status"]): Promise<OrderRecord> {
   return apiRequest<OrderRecord>(`/orders/${orderId}/status`, {
     method: "PATCH",
@@ -171,6 +198,28 @@ export async function updateOrderStatus(session: StaffSession, orderId: string, 
 
 export async function getTables(session: StaffSession): Promise<TableRecord[]> {
   return apiRequest<TableRecord[]>("/tables", { token: session.accessToken });
+}
+
+export async function getTableScan(tableToken: string): Promise<TableScanRecord> {
+  return apiRequest<TableScanRecord>("/tables/scan", {
+    method: "POST",
+    body: { qrToken: tableToken },
+  });
+}
+
+export async function getPublicMenuItems(): Promise<MenuItemRecord[]> {
+  return apiRequest<MenuItemRecord[]>("/menu/items");
+}
+
+export async function createPublicDineInOrder(payload: {
+  tableToken: string;
+  notes?: string;
+  items: { menuItemId: string; quantity: number; notes?: string }[];
+}): Promise<OrderRecord> {
+  return apiRequest<OrderRecord>("/orders/public/dine-in", {
+    method: "POST",
+    body: payload,
+  });
 }
 
 export async function getMenuItems(session: StaffSession): Promise<MenuItemRecord[]> {

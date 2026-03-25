@@ -11,6 +11,8 @@ import com.restaurantmanager.core.order.dto.OrderCancelRequest;
 import com.restaurantmanager.core.order.dto.OrderCreateRequest;
 import com.restaurantmanager.core.order.dto.OrderResponse;
 import com.restaurantmanager.core.order.dto.OrderStatusUpdateRequest;
+import com.restaurantmanager.core.order.dto.PublicTableOrderCreateRequest;
+import com.restaurantmanager.core.order.dto.TableBillResponse;
 import com.restaurantmanager.core.security.UserPrincipal;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -48,6 +50,12 @@ public class OrderController {
     public OrderResponse createOrder(@Valid @RequestBody OrderCreateRequest request,
                                      @AuthenticationPrincipal UserPrincipal principal) {
         return orderService.createOrder(request, principal);
+    }
+
+    @PostMapping("/public/dine-in")
+    @ResponseStatus(HttpStatus.CREATED)
+    public OrderResponse createPublicDineInOrder(@Valid @RequestBody PublicTableOrderCreateRequest request) {
+        return orderService.createPublicDineInOrder(request);
     }
 
     @GetMapping
@@ -95,8 +103,28 @@ public class OrderController {
     @PostMapping("/dine-in/tables/{tableId}/close")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
-    public void closeTable(@PathVariable UUID tableId) {
-        orderService.closeTable(tableId);
+    public void closeTable(@PathVariable UUID tableId,
+                           @AuthenticationPrincipal UserPrincipal principal) {
+        orderService.closeTable(tableId, principal);
+    }
+
+    @PostMapping("/dine-in/tables/{tableId}/reverse")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public void reverseTable(@PathVariable UUID tableId,
+                             @AuthenticationPrincipal UserPrincipal principal) {
+        orderService.reverseTable(tableId, principal);
+    }
+
+    @GetMapping("/dine-in/tables/{tableId}/bill")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
+    public TableBillResponse tableBill(@PathVariable UUID tableId) {
+        return orderService.tableBillByTableId(tableId);
+    }
+
+    @GetMapping("/public/dine-in/tables/{tableToken}/bill")
+    public TableBillResponse publicTableBill(@PathVariable String tableToken) {
+        return orderService.tableBillByTableToken(tableToken);
     }
 
     @PostMapping("/group/sessions")

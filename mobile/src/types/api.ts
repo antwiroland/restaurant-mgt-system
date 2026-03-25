@@ -81,6 +81,7 @@ export type Order = {
 export type CreateOrderRequest = {
   type: OrderType;
   tableId?: string;
+  tableToken?: string;
   items: { menuItemId: string; quantity: number; notes?: string }[];
   promoCode?: string;
   groupSessionId?: string;

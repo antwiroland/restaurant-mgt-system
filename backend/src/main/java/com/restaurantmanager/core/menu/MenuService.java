@@ -5,6 +5,8 @@ import com.restaurantmanager.core.config.CacheConfig;
 import com.restaurantmanager.core.menu.dto.AvailabilityUpdateRequest;
 import com.restaurantmanager.core.menu.dto.CategoryRequest;
 import com.restaurantmanager.core.menu.dto.CategoryResponse;
+import com.restaurantmanager.core.menu.dto.MenuModifierGroupResponse;
+import com.restaurantmanager.core.menu.dto.MenuModifierOptionResponse;
 import com.restaurantmanager.core.menu.dto.MenuItemRequest;
 import com.restaurantmanager.core.menu.dto.MenuItemResponse;
 import com.restaurantmanager.core.security.UserPrincipal;
@@ -21,10 +23,17 @@ import java.util.UUID;
 public class MenuService {
     private final CategoryRepository categoryRepository;
     private final MenuItemRepository menuItemRepository;
+    private final MenuModifierGroupRepository modifierGroupRepository;
+    private final MenuModifierOptionRepository modifierOptionRepository;
 
-    public MenuService(CategoryRepository categoryRepository, MenuItemRepository menuItemRepository) {
+    public MenuService(CategoryRepository categoryRepository,
+                       MenuItemRepository menuItemRepository,
+                       MenuModifierGroupRepository modifierGroupRepository,
+                       MenuModifierOptionRepository modifierOptionRepository) {
         this.categoryRepository = categoryRepository;
         this.menuItemRepository = menuItemRepository;
+        this.modifierGroupRepository = modifierGroupRepository;
+        this.modifierOptionRepository = modifierOptionRepository;
     }
 
     @Transactional(readOnly = true)
@@ -109,6 +118,33 @@ public class MenuService {
             throw new ApiException(404, "Menu item not found");
         }
         return toMenuItemResponse(item);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MenuModifierGroupResponse> listModifiers(UUID menuItemId) {
+        MenuItemEntity menuItem = menuItemRepository.findById(menuItemId)
+                .orElseThrow(() -> new ApiException(404, "Menu item not found"));
+        if (!menuItem.isActive()) {
+            throw new ApiException(404, "Menu item not found");
+        }
+
+        List<MenuModifierOptionEntity> options = modifierOptionRepository
+                .findByGroup_MenuItem_IdAndActiveTrueOrderByGroup_DisplayOrderAscDisplayOrderAsc(menuItemId);
+
+        return modifierGroupRepository.findByMenuItem_IdAndActiveTrueOrderByDisplayOrderAsc(menuItemId).stream()
+                .map(group -> new MenuModifierGroupResponse(
+                        group.getId(),
+                        group.getName(),
+                        group.getSelectionType(),
+                        group.isRequired(),
+                        group.getMinSelect(),
+                        group.getMaxSelect(),
+                        options.stream()
+                                .filter(option -> option.getGroup().getId().equals(group.getId()))
+                                .map(option -> new MenuModifierOptionResponse(option.getId(), option.getName(), option.getPriceDelta()))
+                                .toList()
+                ))
+                .toList();
     }
 
     @Transactional

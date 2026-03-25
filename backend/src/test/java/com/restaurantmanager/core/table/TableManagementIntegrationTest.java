@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -95,6 +96,17 @@ class TableManagementIntegrationTest extends BaseIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"number\":\"T6\",\"capacity\":4,\"zone\":\"Main Hall\"}"))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void givenManagerToken_whenGetTableQrImage_then200Png() throws Exception {
+        UserEntity manager = createUser("Manager", "+233200200006", "manager+table2@x.com", "secret123", Role.MANAGER);
+        RestaurantTableEntity table = createTable("T7");
+
+        mockMvc.perform(get("/tables/" + table.getId() + "/qr-image?payload=https://example.com/scan/" + table.getQrToken())
+                        .header("Authorization", "Bearer " + accessToken(manager)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/png"));
     }
 
     private RestaurantTableEntity createTable(String number) {

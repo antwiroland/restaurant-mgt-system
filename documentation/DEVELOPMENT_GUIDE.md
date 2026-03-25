@@ -23,6 +23,52 @@
 - `mobile/` - Expo-style customer mobile workspace and feature logic tests
 - `documentation/` - Specs, guides, changelog, progress tracker, phase reports
 
+## Table QR Ordering Implementation (Current)
+
+- Manager can generate per-table QR data from `GET /tables/{id}/qr` and print-ready PNG from `GET /tables/{id}/qr-image`.
+- Printed QR should encode the web scan route format: `/scan/{tableToken}`.
+- Mobile app scanner accepts both raw token QR and URL QR, extracts `tableToken`, then resolves table via `POST /tables/scan`.
+- Web guest users open `/scan/{tableToken}` and can browse menu images and place dine-in orders without authentication using `POST /orders/public/dine-in`.
+- Every public dine-in order must include the scanned table token so order ownership is tied to the table automatically.
+- Running table bill is aggregated across active dine-in orders and exposed via `GET /orders/public/dine-in/tables/{tableToken}/bill`.
+- Table close is blocked when outstanding dine-in balance exists; manager/admin can reverse with `POST /orders/dine-in/tables/{tableId}/reverse`.
+- Table remains occupied until all active dine-in bills are settled or reversed by manager/admin.
+
+## Kitchen Display / Branch / Shift / Modifiers (Current)
+
+- KDS board endpoint and staff UI:
+  - Backend: `GET /kds/board`
+  - Web: `web/src/app/kds/page.tsx`
+- Multi-branch model:
+  - `branches` table + API (`/branches`)
+  - `branch_id` carried on users, tables, and orders
+- Shift management:
+  - Open: `POST /shifts/open`
+  - Close: `POST /shifts/{id}/close`
+  - Active: `GET /shifts/active`
+  - Includes cash drawer reconciliation variance
+- Menu modifiers:
+  - Modifier definitions at DB level (`menu_modifier_groups`, `menu_modifier_options`)
+  - Menu lookup: `GET /menu/items/{id}/modifiers`
+  - Ordering supports `modifierOptionIds` with validation and snapshot persistence (`order_item_modifiers`)
+
+## Observability Stack (Current)
+
+- Spring Boot Actuator endpoints exposed:
+  - `/actuator/health`
+  - `/actuator/prometheus`
+  - `/actuator/metrics`
+- Metrics collection:
+  - Micrometer Prometheus registry in backend
+  - Prometheus scrape config: `docker/prometheus/prometheus.yml`
+- Dashboards:
+  - Grafana with provisioned Prometheus datasource at `docker/grafana/provisioning/datasources/datasource.yml`
+- Tracing:
+  - Micrometer Tracing (Brave bridge) enabled
+  - Zipkin export via `management.zipkin.tracing.endpoint`
+- Logging:
+  - Structured JSON logs for `prod` and `staging` profiles in `backend/src/main/resources/logback-spring.xml`
+
 ### Common Commands
 
 - Backend tests: `cd backend && mvn test -q`

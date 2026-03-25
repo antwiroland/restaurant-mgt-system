@@ -10,6 +10,8 @@ public record UserResponse(
         String phone,
         String email,
         Role role,
-        boolean active
+        boolean active,
+        UUID branchId,
+        String branchName
 ) {
 }

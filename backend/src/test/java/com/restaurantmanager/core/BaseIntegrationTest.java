@@ -48,6 +48,7 @@ public abstract class BaseIntegrationTest {
         registry.add("security.jwt.refresh-ttl-seconds", () -> "1209600");
         registry.add("security.jwt.override-ttl-seconds", () -> "5");
         registry.add("payments.paystack.secret-key", () -> "test_paystack_secret");
+        registry.add("payments.reconciliation.enabled", () -> "false");
     }
 
     @Autowired

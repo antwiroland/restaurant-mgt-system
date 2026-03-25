@@ -18,6 +18,13 @@ export default function TablesPage() {
   const [tables, setTables] = useState<TableRecord[]>([]);
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [error, setError] = useState("");
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setOrigin(window.location.origin);
+    }
+  }, []);
 
   useEffect(() => {
     if (!session) return;
@@ -35,6 +42,38 @@ export default function TablesPage() {
     () => orders.filter((order) => !["COMPLETED", "CANCELLED", "VOIDED"].includes(order.status)),
     [orders],
   );
+
+  function webScanLink(table: TableRecord): string {
+    if (!origin) {
+      return `/scan/${table.qrToken}`;
+    }
+    return `${origin}/scan/${table.qrToken}`;
+  }
+
+  function qrImageUrl(table: TableRecord): string {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(webScanLink(table))}`;
+  }
+
+  function printTableQr(table: TableRecord) {
+    const url = webScanLink(table);
+    const image = qrImageUrl(table);
+    const popup = window.open("", "_blank", "width=500,height=700");
+    if (!popup) return;
+    popup.document.write(`
+      <html>
+        <head><title>Table ${table.number} QR</title></head>
+        <body style="font-family: Arial, sans-serif; text-align:center; padding: 24px;">
+          <h1>Table ${table.number}</h1>
+          <p>Scan to order from web without signup</p>
+          <img src="${image}" alt="Table ${table.number} QR" />
+          <p style="word-break: break-all; font-size: 12px;">${url}</p>
+          <p style="font-size: 12px;">Table token: ${table.qrToken}</p>
+          <script>window.onload = function() { window.print(); };</script>
+        </body>
+      </html>
+    `);
+    popup.document.close();
+  }
 
   if (loading) {
     return <main className="shell"><section className="panel">Loading tables...</section></main>;
@@ -75,6 +114,18 @@ export default function TablesPage() {
                 <p className="mt-4 text-sm">
                   {tableOrders.length > 0 ? `Active orders: ${tableOrders.join(", ")}` : "No active orders"}
                 </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded-full border border-current px-3 py-1 text-xs font-semibold"
+                    onClick={() => printTableQr(table)}
+                  >
+                    Print QR
+                  </button>
+                  <Link className="rounded-full border border-current px-3 py-1 text-xs font-semibold" href={`/scan/${table.qrToken}`}>
+                    Open Web Menu
+                  </Link>
+                </div>
               </article>
             );
           })}

@@ -11,13 +11,15 @@ type CartState = {
   lines: CartLine[];
   tableId: string | null;
   tableNumber: string | null;
+  tableToken: string | null;
+  tableStatus: string | null;
   promoCode: string | null;
   promoType: PromoValidation['discountType'] | null;
   promoValue: string | null;
   addItem: (item: MenuItem, notes?: string) => void;
   removeItem: (itemId: string) => void;
   setQty: (itemId: string, qty: number) => void;
-  setTable: (tableId: string, tableNumber: string) => void;
+  setTable: (tableId: string, tableNumber: string, tableToken: string, tableStatus: string) => void;
   hydrateFromOrder: (items: OrderItem[], opts?: { tableId?: string | null; tableNumber?: string | null }) => void;
   setPromo: (promo: PromoValidation) => void;
   clearPromo: () => void;
@@ -32,6 +34,8 @@ export const useCartStore = create<CartState>((set, get) => ({
   lines: [],
   tableId: null,
   tableNumber: null,
+  tableToken: null,
+  tableStatus: null,
   promoCode: null,
   promoType: null,
   promoValue: null,
@@ -58,7 +62,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       return { lines: s.lines.map((l) => (l.item.id === itemId ? { ...l, quantity: qty } : l)) };
     }),
 
-  setTable: (tableId, tableNumber) => set({ tableId, tableNumber }),
+  setTable: (tableId, tableNumber, tableToken, tableStatus) => set({ tableId, tableNumber, tableToken, tableStatus }),
 
   hydrateFromOrder: (items, opts) =>
     set({
@@ -76,6 +80,8 @@ export const useCartStore = create<CartState>((set, get) => ({
       })),
       tableId: opts?.tableId ?? null,
       tableNumber: opts?.tableNumber ?? null,
+      tableToken: null,
+      tableStatus: null,
       promoCode: null,
       promoType: null,
       promoValue: null,
@@ -93,6 +99,8 @@ export const useCartStore = create<CartState>((set, get) => ({
     lines: [],
     tableId: null,
     tableNumber: null,
+    tableToken: null,
+    tableStatus: null,
     promoCode: null,
     promoType: null,
     promoValue: null,

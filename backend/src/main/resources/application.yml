@@ -31,6 +31,26 @@ server:
 websocket:
   allowed-origin-patterns: ${WEBSOCKET_ALLOWED_ORIGIN_PATTERNS:http://localhost:3000,http://localhost:19006}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  tracing:
+    enabled: true
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
+
 app:
   cache:
     redis-enabled: ${CACHE_REDIS_ENABLED:false}
@@ -51,7 +71,21 @@ payments:
   paystack:
     secret-key: ${PAYSTACK_SECRET_KEY:test_paystack_secret}
     base-url: ${PAYSTACK_BASE_URL:https://api.paystack.co}
+  reconciliation:
+    enabled: ${PAYMENTS_RECONCILIATION_ENABLED:true}
+    pending-older-than-minutes: ${PAYMENTS_RECONCILIATION_PENDING_OLDER_THAN_MINUTES:15}
+    batch-size: ${PAYMENTS_RECONCILIATION_BATCH_SIZE:200}
+    fixed-delay-ms: ${PAYMENTS_RECONCILIATION_FIXED_DELAY_MS:60000}
 
 logging:
   level:
     root: INFO
+  pattern:
+    level: "%5p [${spring.application.name:},trace=%X{traceId:-},span=%X{spanId:-}]"
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    display-request-duration: true

@@ -10,6 +10,8 @@ public record TableResponse(
         int capacity,
         String zone,
         TableStatus status,
-        String qrToken
+        String qrToken,
+        UUID branchId,
+        String branchName
 ) {
 }

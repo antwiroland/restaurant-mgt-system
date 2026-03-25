@@ -13,6 +13,8 @@ public record OrderResponse(
         UUID customerUserId,
         OrderType type,
         OrderStatus status,
+        UUID branchId,
+        String branchName,
         UUID tableId,
         String tableNumber,
         String deliveryAddress,
