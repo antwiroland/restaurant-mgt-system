@@ -27,14 +27,43 @@ async function proxy(request: NextRequest, path: string[]): Promise<NextResponse
     init.body = await request.text();
   }
 
-  const response = await fetch(targetUrl, init);
-  const body = await response.text();
+  let response: Response;
+  try {
+    response = await fetch(targetUrl, init);
+  } catch {
+    return NextResponse.json(
+      { message: "Backend service is unavailable" },
+      { status: 502 },
+    );
+  }
+
+  let body: string;
+  try {
+    body = await response.text();
+  } catch {
+    return NextResponse.json(
+      { message: "Backend response could not be read" },
+      { status: 502 },
+    );
+  }
+
+  const forwardHeaders = new Headers();
+  const contentTypeHeader = response.headers.get("content-type");
+  if (contentTypeHeader) {
+    forwardHeaders.set("content-type", contentTypeHeader);
+  } else {
+    forwardHeaders.set("content-type", "application/json");
+  }
+  for (const header of ["x-page", "x-size", "x-total-elements", "x-total-pages"]) {
+    const value = response.headers.get(header);
+    if (value) {
+      forwardHeaders.set(header, value);
+    }
+  }
 
   return new NextResponse(body, {
     status: response.status,
-    headers: {
-      "content-type": response.headers.get("content-type") ?? "application/json",
-    },
+    headers: forwardHeaders,
   });
 }
 
@@ -51,6 +80,11 @@ export async function POST(request: NextRequest, context: Params) {
 }
 
 export async function PATCH(request: NextRequest, context: Params) {
+  const { path } = await context.params;
+  return proxy(request, path);
+}
+
+export async function PUT(request: NextRequest, context: Params) {
   const { path } = await context.params;
   return proxy(request, path);
 }

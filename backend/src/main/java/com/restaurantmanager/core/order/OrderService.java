@@ -29,6 +29,7 @@ import com.restaurantmanager.core.order.dto.OrderItemModifierResponse;
 import com.restaurantmanager.core.order.dto.OrderItemResponse;
 import com.restaurantmanager.core.order.dto.OrderResponse;
 import com.restaurantmanager.core.order.dto.OrderStatusUpdateRequest;
+import com.restaurantmanager.core.order.dto.PublicOrderTrackingResponse;
 import com.restaurantmanager.core.order.dto.PublicTableOrderCreateRequest;
 import com.restaurantmanager.core.order.dto.TableBillResponse;
 import com.restaurantmanager.core.payment.PaymentRepository;
@@ -168,7 +169,7 @@ public class OrderService {
         OrderStatus previous = order.getStatus();
         order.setStatus(request.status());
         OrderEntity saved = orderRepository.save(order);
-        realtimePublisher.publishOrderStatusChanged(saved.getId(), previous, saved.getStatus());
+        realtimePublisher.publishOrderStatusChanged(saved.getId(), previous, saved.getStatus(), tableToken(saved));
         return toResponse(saved);
     }
 
@@ -194,7 +195,7 @@ public class OrderService {
         order.setStatus(OrderStatus.CANCELLED);
         order.setCancelReason(request == null ? null : blankToNull(request.reason()));
         OrderEntity saved = orderRepository.save(order);
-        realtimePublisher.publishOrderStatusChanged(saved.getId(), previous, saved.getStatus());
+        realtimePublisher.publishOrderStatusChanged(saved.getId(), previous, saved.getStatus(), tableToken(saved));
 
         boolean returnBody = previous != OrderStatus.PENDING;
         return new CancelResult(returnBody, toResponse(saved));
@@ -240,7 +241,7 @@ public class OrderService {
             order.setStatus(OrderStatus.CANCELLED);
             order.setCancelReason("Reversed by manager");
             OrderEntity savedOrder = orderRepository.save(order);
-            realtimePublisher.publishOrderStatusChanged(savedOrder.getId(), previous, savedOrder.getStatus());
+            realtimePublisher.publishOrderStatusChanged(savedOrder.getId(), previous, savedOrder.getStatus(), tableToken(savedOrder));
         }
 
         table.setStatus(TableStatus.AVAILABLE);
@@ -260,6 +261,24 @@ public class OrderService {
         RestaurantTableEntity table = tableRepository.findByQrToken(tableToken)
                 .orElseThrow(() -> new ApiException(404, "Table token not found"));
         return toTableBillResponse(table, orderRepository.findByTable_QrTokenOrderByCreatedAtAsc(tableToken));
+    }
+
+    @Transactional(readOnly = true)
+    public List<PublicOrderTrackingResponse> publicTableTracking(String tableToken) {
+        RestaurantTableEntity table = tableRepository.findByQrToken(tableToken)
+                .orElseThrow(() -> new ApiException(404, "Table token not found"));
+        return orderRepository.findByTable_QrTokenOrderByCreatedAtAsc(table.getQrToken()).stream()
+                .filter(order -> order.getType() == OrderType.DINE_IN)
+                .map(order -> new PublicOrderTrackingResponse(
+                        order.getId(),
+                        table.getNumber(),
+                        order.getStatus(),
+                        order.getNotes(),
+                        order.getCancelReason(),
+                        order.getCreatedAt(),
+                        order.getUpdatedAt()
+                ))
+                .toList();
     }
 
     @Transactional
@@ -503,8 +522,12 @@ public class OrderService {
             orderItemModifierRepository.saveAll(modifierRows);
         }
 
-        realtimePublisher.publishOrderCreated(saved.getId(), saved.getType(), saved.getStatus(), saved.getTotal());
+        realtimePublisher.publishOrderCreated(saved.getId(), saved.getType(), saved.getStatus(), saved.getTotal(), tableToken(saved));
         return toResponse(saved);
+    }
+
+    private String tableToken(OrderEntity order) {
+        return order.getTable() == null ? null : order.getTable().getQrToken();
     }
 
     private RestaurantTableEntity resolveTable(UUID tableId, String tableToken, UserPrincipal principal) {

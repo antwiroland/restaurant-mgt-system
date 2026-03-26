@@ -9,9 +9,11 @@ import com.restaurantmanager.core.menu.dto.MenuModifierGroupRequest;
 import com.restaurantmanager.core.menu.dto.MenuModifierGroupResponse;
 import com.restaurantmanager.core.menu.dto.MenuModifierOptionRequest;
 import com.restaurantmanager.core.menu.dto.MenuModifierOptionResponse;
+import com.restaurantmanager.core.common.Pagination;
 import com.restaurantmanager.core.security.UserPrincipal;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -39,8 +41,14 @@ public class MenuController {
     }
 
     @GetMapping("/categories")
-    public List<CategoryResponse> listCategories() {
-        return menuService.listCategories();
+    public ResponseEntity<List<CategoryResponse>> listCategories(@RequestParam(required = false) Integer page,
+                                                                 @RequestParam(required = false) Integer size) {
+        List<CategoryResponse> all = menuService.listCategories();
+        Pagination.Params params = Pagination.from(page, size);
+        List<CategoryResponse> data = Pagination.slice(all, params);
+        return ResponseEntity.ok()
+                .headers(Pagination.headers(all.size(), params))
+                .body(data);
     }
 
     @PostMapping("/categories")
@@ -65,11 +73,18 @@ public class MenuController {
     }
 
     @GetMapping("/items")
-    public List<MenuItemResponse> listItems(@RequestParam(required = false) UUID categoryId,
-                                            @RequestParam(required = false) Boolean available,
-                                            @RequestParam(name = "q", required = false) String query,
-                                            @AuthenticationPrincipal UserPrincipal principal) {
-        return menuService.listItems(categoryId, available, query, principal);
+    public ResponseEntity<List<MenuItemResponse>> listItems(@RequestParam(required = false) UUID categoryId,
+                                                            @RequestParam(required = false) Boolean available,
+                                                            @RequestParam(name = "q", required = false) String query,
+                                                            @AuthenticationPrincipal UserPrincipal principal,
+                                                            @RequestParam(required = false) Integer page,
+                                                            @RequestParam(required = false) Integer size) {
+        List<MenuItemResponse> all = menuService.listItems(categoryId, available, query, principal);
+        Pagination.Params params = Pagination.from(page, size);
+        List<MenuItemResponse> data = Pagination.slice(all, params);
+        return ResponseEntity.ok()
+                .headers(Pagination.headers(all.size(), params))
+                .body(data);
     }
 
     @GetMapping("/items/{id}")

@@ -11,12 +11,22 @@ export default function LoginPage() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ phone?: string; password?: string }>({});
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const nextFieldErrors: { phone?: string; password?: string } = {};
+    if (!phone.trim()) nextFieldErrors.phone = "Phone is required";
+    if (!password.trim()) nextFieldErrors.password = "Password is required";
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
+      return;
+    }
+
     setSubmitting(true);
     setError("");
+    setFieldErrors({});
 
     try {
       const nextSession = await login(phone.trim(), password);
@@ -49,6 +59,7 @@ export default function LoginPage() {
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
             />
+            {fieldErrors.phone ? <span className="text-xs text-[#991b1b]">{fieldErrors.phone}</span> : null}
           </label>
           <label className="grid gap-2">
             <span className="text-sm font-medium text-[#35523d]">Password</span>
@@ -59,6 +70,7 @@ export default function LoginPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
+            {fieldErrors.password ? <span className="text-xs text-[#991b1b]">{fieldErrors.password}</span> : null}
           </label>
           {error ? <p className="rounded-xl bg-[#fee2e2] px-4 py-3 text-sm text-[#991b1b]">{error}</p> : null}
           {session ? <p className="text-sm text-[#35523d]">Signed in as {session.user.name} ({session.user.role}).</p> : null}

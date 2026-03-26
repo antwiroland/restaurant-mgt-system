@@ -53,6 +53,8 @@ function toIntOrUndefined(value: string): number | undefined {
 export default function AdminPage() {
   const { session, loading, authenticatedFetch } = useStaffSession();
   const [menuItems, setMenuItems] = useState<MenuItemRecord[]>([]);
+  const [menuItemQuery, setMenuItemQuery] = useState("");
+  const [groupQuery, setGroupQuery] = useState("");
   const [selectedMenuItemId, setSelectedMenuItemId] = useState("");
   const [groups, setGroups] = useState<MenuModifierGroupRecord[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(false);
@@ -67,6 +69,20 @@ export default function AdminPage() {
     () => menuItems.find((item) => item.id === selectedMenuItemId) ?? null,
     [menuItems, selectedMenuItemId],
   );
+  const filteredMenuItems = useMemo(() => {
+    const normalizedQuery = menuItemQuery.trim().toLowerCase();
+    return menuItems.filter((item) => !normalizedQuery
+      || item.name.toLowerCase().includes(normalizedQuery)
+      || item.categoryName.toLowerCase().includes(normalizedQuery));
+  }, [menuItems, menuItemQuery]);
+  const filteredGroups = useMemo(() => {
+    const normalizedQuery = groupQuery.trim().toLowerCase();
+    return groups.filter((group) => {
+      if (!normalizedQuery) return true;
+      return group.name.toLowerCase().includes(normalizedQuery)
+        || group.options.some((option) => option.name.toLowerCase().includes(normalizedQuery));
+    });
+  }, [groups, groupQuery]);
 
   useEffect(() => {
     if (!session || !allowed) return;
@@ -220,13 +236,23 @@ export default function AdminPage() {
         <p className="mt-2 text-[#35523d]">Configure size/spice groups and options for each menu item.</p>
 
         <label className="mt-4 grid gap-2 text-sm text-[#35523d]">
+          <span>Search Menu Item</span>
+          <input
+            className="rounded-xl border border-[#cfe0c8] p-3"
+            placeholder="Search item or category"
+            value={menuItemQuery}
+            onChange={(event) => setMenuItemQuery(event.target.value)}
+          />
+        </label>
+
+        <label className="mt-4 grid gap-2 text-sm text-[#35523d]">
           <span>Menu Item</span>
           <select
             className="rounded-xl border border-[#cfe0c8] p-3"
             value={selectedMenuItemId}
             onChange={(event) => setSelectedMenuItemId(event.target.value)}
           >
-            {menuItems.map((item) => (
+            {filteredMenuItems.map((item) => (
               <option key={item.id} value={item.id}>{item.name}</option>
             ))}
           </select>
@@ -290,14 +316,20 @@ export default function AdminPage() {
       <section className="panel">
         <p className="kicker">Modifiers</p>
         <h2 className="text-xl font-semibold">{selectedItem ? selectedItem.name : "Select a menu item"}</h2>
+        <input
+          className="mt-4 w-full rounded-xl border border-[#cfe0c8] p-3 text-sm"
+          placeholder="Search group or option"
+          value={groupQuery}
+          onChange={(event) => setGroupQuery(event.target.value)}
+        />
 
         {loadingGroups ? (
           <p className="mt-4 text-sm text-[#35523d]">Loading groups...</p>
-        ) : groups.length === 0 ? (
+        ) : filteredGroups.length === 0 ? (
           <p className="mt-4 rounded-lg border border-dashed border-[#cfe0c8] p-3 text-sm text-[#35523d]">No modifier groups yet.</p>
         ) : (
           <div className="mt-4 grid gap-3">
-            {groups.map((group) => (
+            {filteredGroups.map((group) => (
               <article key={group.id} className="rounded-xl border border-[#cfe0c8] p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-semibold text-[#132018]">{group.name}</p>

@@ -98,4 +98,8 @@ public class AuditLogEntity {
     public void setIpAddress(String ipAddress) {
         this.ipAddress = ipAddress;
     }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
 }

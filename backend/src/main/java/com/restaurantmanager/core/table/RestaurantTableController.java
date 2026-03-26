@@ -6,9 +6,11 @@ import com.restaurantmanager.core.table.dto.TableResponse;
 import com.restaurantmanager.core.table.dto.TableScanRequest;
 import com.restaurantmanager.core.table.dto.TableScanResponse;
 import com.restaurantmanager.core.table.dto.TableStatusUpdateRequest;
+import com.restaurantmanager.core.common.Pagination;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -39,8 +41,15 @@ public class RestaurantTableController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
-    public List<TableResponse> list(@AuthenticationPrincipal UserPrincipal principal) {
-        return tableService.listTables(principal);
+    public ResponseEntity<List<TableResponse>> list(@AuthenticationPrincipal UserPrincipal principal,
+                                                     @RequestParam(required = false) Integer page,
+                                                     @RequestParam(required = false) Integer size) {
+        List<TableResponse> all = tableService.listTables(principal);
+        Pagination.Params params = Pagination.from(page, size);
+        List<TableResponse> data = Pagination.slice(all, params);
+        return ResponseEntity.ok()
+                .headers(Pagination.headers(all.size(), params))
+                .body(data);
     }
 
     @PostMapping

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/HP/Desktop/restaurant_manager -path *node_modules -prune -o -name *.java -type f -exec grep -l \"TODO\\\\|FIXME\\\\|STUB\\\\|XXX\" {})",
+      "Bash(2)",
+      "Bash(grep -r \"TODO\\\\|FIXME\\\\|XXX\" /c/Users/HP/Desktop/restaurant_manager/web/src --include=*.tsx --include=*.ts)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/tables)",
+      "Bash(curl:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJjZTkxZGIwZS00MzYzLTRjNzMtOTI4Mi00YjZjMzJmMjU5NmEiLCJyb2xlIjoiQ1VTVE9NRVIiLCJ0b2tlblR5cGUiOiJBQ0NFU1MiLCJpYXQiOjE3NzQ0ODU2MDUsImV4cCI6MTc3NDQ4NjUwNX0.MmpwgVevVhPjzPWUckIV-4T4xLwJnpsFpRVInAzmNMLfoVa9rqatP5Adv2Hz5e927K_lIyHNPCH7E_bBwZnaUQ\")",
+      "Bash(docker exec:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJjZTkxZGIwZS00MzYzLTRjNzMtOTI4Mi00YjZjMzJmMjU5NmEiLCJyb2xlIjoiQURNSU4iLCJ0b2tlblR5cGUiOiJBQ0NFU1MiLCJpYXQiOjE3NzQ0ODY0NDcsImV4cCI6MTc3NDQ4NzM0N30.IWLmVj46Qkk3jUFP3qMm_0y_3oK1rzZ86CddAUo-xwnEG7aX55g1wW2AQ_o-ebr99lVFQKy7lQnBgss-DFtpjg\")",
+      "Bash(git:*)",
+      "Bash(python3:*)",
+      "Bash(ls:*)",
+      "Bash(npx tsc:*)",
+      "Bash(find /c/Users/HP/Desktop/restaurant_manager/web/.next -name *error* -o -name *log*)",
+      "Bash(xxd)",
+      "Bash(node:*)",
+      "Bash(1 ls:*)",
+      "Bash(docker ps:*)",
+      "Bash(wmic process:*)",
+      "Bash(tasklist /FI \"IMAGENAME eq node.exe\" /FO CSV)",
+      "Bash(cmd /c \"tasklist /FI \"\"IMAGENAME eq node.exe\"\" /FO CSV\")",
+      "Bash(cmd /c \"netstat -ano | findstr :3000\" 2>&1)"
+    ]
+  }
+}

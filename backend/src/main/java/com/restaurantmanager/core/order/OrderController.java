@@ -11,8 +11,10 @@ import com.restaurantmanager.core.order.dto.OrderCancelRequest;
 import com.restaurantmanager.core.order.dto.OrderCreateRequest;
 import com.restaurantmanager.core.order.dto.OrderResponse;
 import com.restaurantmanager.core.order.dto.OrderStatusUpdateRequest;
+import com.restaurantmanager.core.order.dto.PublicOrderTrackingResponse;
 import com.restaurantmanager.core.order.dto.PublicTableOrderCreateRequest;
 import com.restaurantmanager.core.order.dto.TableBillResponse;
+import com.restaurantmanager.core.common.Pagination;
 import com.restaurantmanager.core.security.UserPrincipal;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -60,12 +62,19 @@ public class OrderController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','CUSTOMER')")
-    public List<OrderResponse> listOrders(@AuthenticationPrincipal UserPrincipal principal,
-                                          @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-                                          @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-                                          @RequestParam(required = false) OrderStatus status,
-                                          @RequestParam(required = false) OrderType type) {
-        return orderService.listOrders(principal, from, to, status, type);
+    public ResponseEntity<List<OrderResponse>> listOrders(@AuthenticationPrincipal UserPrincipal principal,
+                                                          @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                                          @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                                                          @RequestParam(required = false) OrderStatus status,
+                                                          @RequestParam(required = false) OrderType type,
+                                                          @RequestParam(required = false) Integer page,
+                                                          @RequestParam(required = false) Integer size) {
+        List<OrderResponse> all = orderService.listOrders(principal, from, to, status, type);
+        Pagination.Params params = Pagination.from(page, size);
+        List<OrderResponse> data = Pagination.slice(all, params);
+        return ResponseEntity.ok()
+                .headers(Pagination.headers(all.size(), params))
+                .body(data);
     }
 
     @GetMapping("/{id}")
@@ -127,6 +136,11 @@ public class OrderController {
     @GetMapping("/public/dine-in/tables/{tableToken}/bill")
     public TableBillResponse publicTableBill(@PathVariable String tableToken) {
         return orderService.tableBillByTableToken(tableToken);
+    }
+
+    @GetMapping("/public/dine-in/tables/{tableToken}/tracking")
+    public List<PublicOrderTrackingResponse> publicTableTracking(@PathVariable String tableToken) {
+        return orderService.publicTableTracking(tableToken);
     }
 
     @PostMapping("/group/sessions")

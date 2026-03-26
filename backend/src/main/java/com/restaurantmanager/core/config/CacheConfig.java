@@ -3,7 +3,10 @@ package com.restaurantmanager.core.config;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.cache.interceptor.CacheErrorHandler;
+import org.springframework.cache.interceptor.SimpleCacheErrorHandler;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.context.annotation.Bean;
@@ -17,11 +20,15 @@ import org.springframework.data.redis.serializer.RedisSerializationContext;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Configuration
 @EnableCaching
 @EnableConfigurationProperties(CacheProps.class)
 public class CacheConfig {
+    private static final Logger log = LoggerFactory.getLogger(CacheConfig.class);
+
     public static final String MENU_CATEGORIES = "menuCategories";
     public static final String MENU_ITEMS_PUBLIC = "menuItemsPublic";
     public static final String MENU_ITEM_PUBLIC_BY_ID = "menuItemPublicById";
@@ -64,5 +71,38 @@ public class CacheConfig {
                 TABLE_QR,
                 TABLE_SCAN
         );
+    }
+
+    @Bean
+    public CacheErrorHandler cacheErrorHandler() {
+        return new SimpleCacheErrorHandler() {
+            @Override
+            public void handleCacheGetError(RuntimeException exception, Cache cache, Object key) {
+                log.warn("Cache GET failed for cache={} key={}. Falling back to source data.",
+                        cacheName(cache), key, exception);
+            }
+
+            @Override
+            public void handleCachePutError(RuntimeException exception, Cache cache, Object key, Object value) {
+                log.warn("Cache PUT failed for cache={} key={}. Continuing without cache write.",
+                        cacheName(cache), key, exception);
+            }
+
+            @Override
+            public void handleCacheEvictError(RuntimeException exception, Cache cache, Object key) {
+                log.warn("Cache EVICT failed for cache={} key={}. Continuing without cache eviction.",
+                        cacheName(cache), key, exception);
+            }
+
+            @Override
+            public void handleCacheClearError(RuntimeException exception, Cache cache) {
+                log.warn("Cache CLEAR failed for cache={}. Continuing without cache clear.",
+                        cacheName(cache), exception);
+            }
+        };
+    }
+
+    private String cacheName(Cache cache) {
+        return cache == null ? "<unknown>" : cache.getName();
     }
 }

@@ -1,14 +1,18 @@
 "use client";
 
+import { Client } from "@stomp/stompjs";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   createPublicDineInOrder,
   getMenuItemModifiers,
   getPublicMenuItems,
+  getPublicTableTracking,
   getTableScan,
   type MenuItemRecord,
   type MenuModifierGroupRecord,
+  type PublicOrderTrackingRecord,
   type TableScanRecord,
 } from "@/lib/apiClient";
 
@@ -22,6 +26,16 @@ type CartLine = {
 };
 
 type SelectionByGroup = Record<string, string[]>;
+
+const STATUS_STYLES: Record<PublicOrderTrackingRecord["status"], string> = {
+  PENDING: "bg-[#fff7ed] text-[#9a3412]",
+  CONFIRMED: "bg-[#eff6ff] text-[#1d4ed8]",
+  PREPARING: "bg-[#fef3c7] text-[#92400e]",
+  READY: "bg-[#dcfce7] text-[#166534]",
+  COMPLETED: "bg-[#e0f2fe] text-[#075985]",
+  CANCELLED: "bg-[#fee2e2] text-[#991b1b]",
+  VOIDED: "bg-[#e5e7eb] text-[#374151]",
+};
 
 function toCurrencyValue(value: string): number {
   const parsed = Number.parseFloat(value);
@@ -53,11 +67,13 @@ export default function GuestScanMenuPage() {
   const [modifiersByItemId, setModifiersByItemId] = useState<Record<string, MenuModifierGroupRecord[]>>({});
   const [selectionByItemId, setSelectionByItemId] = useState<Record<string, SelectionByGroup>>({});
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [trackedOrders, setTrackedOrders] = useState<PublicOrderTrackingRecord[]>([]);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
 
   useEffect(() => {
     if (!params?.token) {
@@ -97,6 +113,35 @@ export default function GuestScanMenuPage() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load table menu"))
       .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    getPublicTableTracking(token)
+      .then(setTrackedOrders)
+      .catch(() => {});
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    const wsUrl = process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? "ws://localhost:8080/ws";
+    const client = new Client({
+      brokerURL: wsUrl,
+      reconnectDelay: 5000,
+      onConnect: () => {
+        setRealtimeConnected(true);
+        client.subscribe(`/topic/public.tables.${token}.orders`, () => {
+          getPublicTableTracking(token).then(setTrackedOrders).catch(() => {});
+        });
+      },
+      onWebSocketClose: () => setRealtimeConnected(false),
+      onStompError: () => setRealtimeConnected(false),
+    });
+    client.activate();
+    return () => {
+      setRealtimeConnected(false);
+      client.deactivate();
+    };
   }, [token]);
 
   const categories = useMemo(() => {
@@ -256,6 +301,7 @@ export default function GuestScanMenuPage() {
       setCart([]);
       setNotes("");
       setMessage(`Order ${order.id.slice(0, 8).toUpperCase()} sent for table ${order.tableNumber}.`);
+      getPublicTableTracking(token).then(setTrackedOrders).catch(() => {});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not place order");
     } finally {
@@ -360,6 +406,29 @@ export default function GuestScanMenuPage() {
             <aside className="rounded-xl border border-[#d6e4ce] bg-white p-4">
               <h2 className="text-xl font-semibold">Your Table Bill</h2>
               <p className="mt-1 text-sm text-[#35523d]">New items are added to the same table bill.</p>
+              <p className={`mt-1 text-xs ${realtimeConnected ? "text-[#166534]" : "text-[#9a3412]"}`}>
+                {realtimeConnected ? "Realtime order tracking connected" : "Realtime order tracking reconnecting"}
+              </p>
+              <div className="mt-2">
+                <Link className="rounded-full border border-[#132018] px-3 py-1 text-xs text-[#132018]" href={`/bill/${token}`}>
+                  View Running Bill
+                </Link>
+              </div>
+              <div className="mt-4 rounded-lg border border-[#dfe9d8] p-3">
+                <h3 className="text-sm font-semibold">Live Order Status</h3>
+                <div className="mt-2 grid gap-2">
+                  {trackedOrders.slice().reverse().map((order) => (
+                    <article key={order.orderId} className="rounded-lg border border-[#e4eddc] p-2 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold">#{order.orderId.slice(0, 8).toUpperCase()}</span>
+                        <span className={`rounded-full px-2 py-0.5 font-semibold ${STATUS_STYLES[order.status]}`}>{order.status}</span>
+                      </div>
+                      <p className="mt-1 text-[#35523d]">Updated {new Date(order.updatedAt).toLocaleTimeString()}</p>
+                    </article>
+                  ))}
+                  {trackedOrders.length === 0 ? <p className="text-sm text-[#35523d]">No orders yet.</p> : null}
+                </div>
+              </div>
               <div className="mt-4 space-y-3">
                 {cart.length === 0 ? (
                   <p className="text-sm text-[#35523d]">Cart is empty.</p>

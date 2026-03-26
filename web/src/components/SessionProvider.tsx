@@ -80,10 +80,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       return run(current);
     }
 
-    const refreshed = await refreshStaffSession(current.refreshToken);
-    const nextSession: StaffSession = { ...current, ...refreshed };
-    applySession(nextSession);
-    return run(nextSession);
+    try {
+      const refreshed = await refreshStaffSession(current.refreshToken);
+      const nextSession: StaffSession = { ...current, ...refreshed };
+      applySession(nextSession);
+      return run(nextSession);
+    } catch {
+      applySession(null);
+      throw new Error("Session expired. Please sign in again.");
+    }
   }, [applySession, session]);
 
   const value = useMemo<SessionContextValue>(() => ({

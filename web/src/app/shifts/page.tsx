@@ -16,8 +16,12 @@ export default function ShiftsPage() {
   const { session, loading, authenticatedFetch } = useStaffSession();
   const [branches, setBranches] = useState<BranchRecord[]>([]);
   const [shifts, setShifts] = useState<ShiftRecord[]>([]);
+  const [query, setQuery] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [openFieldError, setOpenFieldError] = useState<string>("");
+  const [closeFieldErrors, setCloseFieldErrors] = useState<Record<string, string>>({});
   const [openingCash, setOpeningCash] = useState("0");
   const [branchId, setBranchId] = useState("");
   const [openNotes, setOpenNotes] = useState("");
@@ -25,6 +29,14 @@ export default function ShiftsPage() {
   const [closingNotesByShift, setClosingNotesByShift] = useState<Record<string, string>>({});
   const [busyOpen, setBusyOpen] = useState(false);
   const [busyCloseId, setBusyCloseId] = useState<string | null>(null);
+  const filteredShifts = shifts.filter((shift) => {
+    const normalizedQuery = query.trim().toLowerCase();
+    const matchesQuery = !normalizedQuery
+      || shift.cashierName.toLowerCase().includes(normalizedQuery)
+      || (shift.branchName?.toLowerCase().includes(normalizedQuery) ?? false);
+    const matchesBranch = !branchFilter || (shift.branchId ?? "") === branchFilter;
+    return matchesQuery && matchesBranch;
+  });
 
   async function loadData() {
     if (!session) return;
@@ -47,11 +59,12 @@ export default function ShiftsPage() {
     if (!session) return;
     const amount = Number.parseFloat(openingCash);
     if (!Number.isFinite(amount) || amount < 0) {
-      setError("Opening cash must be a valid non-negative amount");
+      setOpenFieldError("Opening cash must be a valid non-negative amount");
       return;
     }
 
     setBusyOpen(true);
+    setOpenFieldError("");
     setError("");
     setMessage("");
     try {
@@ -77,11 +90,12 @@ export default function ShiftsPage() {
     const raw = closingCashByShift[shiftId] ?? "0";
     const amount = Number.parseFloat(raw);
     if (!Number.isFinite(amount) || amount < 0) {
-      setError("Closing cash must be a valid non-negative amount");
+      setCloseFieldErrors((current) => ({ ...current, [shiftId]: "Closing cash must be a valid non-negative amount" }));
       return;
     }
 
     setBusyCloseId(shiftId);
+    setCloseFieldErrors((current) => ({ ...current, [shiftId]: "" }));
     setError("");
     setMessage("");
     try {
@@ -134,6 +148,7 @@ export default function ShiftsPage() {
               value={openingCash}
               onChange={(event) => setOpeningCash(event.target.value)}
             />
+            {openFieldError ? <span className="text-xs text-[#991b1b]">{openFieldError}</span> : null}
           </label>
 
           <label className="grid gap-2 text-sm text-[#35523d]">
@@ -176,11 +191,18 @@ export default function ShiftsPage() {
       <section className="panel">
         <p className="kicker">Active Shifts</p>
         <h2 className="text-xl font-semibold">Open Drawers</h2>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          <input className="rounded-xl border border-[#cfe0c8] p-2 text-sm" placeholder="Search cashier or branch" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <select className="rounded-xl border border-[#cfe0c8] p-2 text-sm" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
+            <option value="">All branches</option>
+            {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+          </select>
+        </div>
         <div className="mt-4 grid gap-3">
-          {shifts.length === 0 ? (
+          {filteredShifts.length === 0 ? (
             <p className="rounded-xl border border-dashed border-[#cfe0c8] p-4 text-sm text-[#35523d]">No active shifts.</p>
           ) : (
-            shifts.map((shift) => (
+            filteredShifts.map((shift) => (
               <article key={shift.id} className="rounded-xl border border-[#cfe0c8] p-4">
                 <p className="font-semibold">{shift.cashierName}</p>
                 <p className="text-sm text-[#35523d]">{shift.branchName ?? "No branch"}</p>
@@ -188,17 +210,20 @@ export default function ShiftsPage() {
                 <p className="mt-1 text-sm text-[#35523d]">Opening Cash: GHS {Number.parseFloat(shift.openingCash).toFixed(2)}</p>
 
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
-                  <input
-                    className="rounded-xl border border-[#cfe0c8] p-3 text-sm"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="Closing cash"
-                    value={closingCashByShift[shift.id] ?? ""}
-                    onChange={(event) =>
-                      setClosingCashByShift((current) => ({ ...current, [shift.id]: event.target.value }))
-                    }
-                  />
+                  <div className="grid gap-1">
+                    <input
+                      className="rounded-xl border border-[#cfe0c8] p-3 text-sm"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Closing cash"
+                      value={closingCashByShift[shift.id] ?? ""}
+                      onChange={(event) =>
+                        setClosingCashByShift((current) => ({ ...current, [shift.id]: event.target.value }))
+                      }
+                    />
+                    {closeFieldErrors[shift.id] ? <span className="text-xs text-[#991b1b]">{closeFieldErrors[shift.id]}</span> : null}
+                  </div>
                   <input
                     className="rounded-xl border border-[#cfe0c8] p-3 text-sm"
                     type="text"

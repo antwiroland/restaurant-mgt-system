@@ -110,6 +110,16 @@ export default function DashboardPage() {
         <Link className="panel transition hover:-translate-y-0.5" href="/tables">Table Map</Link>
         <Link className="panel transition hover:-translate-y-0.5" href="/admin">Admin Panel</Link>
         <Link className="panel transition hover:-translate-y-0.5" href="/shifts">Shift Management</Link>
+        <Link className="panel transition hover:-translate-y-0.5" href="/menu">Menu Management</Link>
+        <Link className="panel transition hover:-translate-y-0.5" href="/orders/pickup">Pickup Lookup</Link>
+        <Link className="panel transition hover:-translate-y-0.5" href="/group-ordering">Group Ordering</Link>
+        <Link className="panel transition hover:-translate-y-0.5" href="/branches">Branch Management</Link>
+        <Link className="panel transition hover:-translate-y-0.5" href="/users">User Management</Link>
+        <Link className="panel transition hover:-translate-y-0.5" href="/audit">Audit Log</Link>
+        <Link className="panel transition hover:-translate-y-0.5" href="/reservations">Reservations</Link>
+        <Link className="panel transition hover:-translate-y-0.5" href="/payments">Payments</Link>
+        <Link className="panel transition hover:-translate-y-0.5" href="/financial">Financial Controls</Link>
+        <Link className="panel transition hover:-translate-y-0.5" href="/receipts">Receipts</Link>
       </section>
     </main>
   );

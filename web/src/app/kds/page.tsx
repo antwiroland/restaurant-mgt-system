@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Client } from "@stomp/stompjs";
 import { useStaffSession } from "@/components/SessionProvider";
 import { getBranches, getKdsBoard, updateOrderStatus, type BranchRecord, type KdsBoardRecord, type KdsOrderCard } from "@/lib/apiClient";
 
@@ -15,9 +16,11 @@ export default function KdsPage() {
   const [board, setBoard] = useState<KdsBoardRecord | null>(null);
   const [branches, setBranches] = useState<BranchRecord[]>([]);
   const [branchId, setBranchId] = useState<string>("");
+  const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
 
   async function loadBoard() {
     if (!session) return;
@@ -53,6 +56,36 @@ export default function KdsPage() {
 
     return () => window.clearInterval(timer);
   }, [authenticatedFetch, session, branchId]);
+
+  useEffect(() => {
+    if (!session) return;
+    const wsUrl = process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? "ws://localhost:8080/ws";
+    const client = new Client({
+      brokerURL: wsUrl,
+      reconnectDelay: 5000,
+      onConnect: () => {
+        setRealtimeConnected(true);
+        client.subscribe("/topic/orders.new", () => {
+          loadBoard().catch(() => {});
+        });
+        client.subscribe("/topic/orders.status", () => {
+          loadBoard().catch(() => {});
+        });
+      },
+      onWebSocketClose: () => {
+        setRealtimeConnected(false);
+      },
+      onStompError: () => {
+        setRealtimeConnected(false);
+      },
+    });
+    client.activate();
+
+    return () => {
+      setRealtimeConnected(false);
+      client.deactivate();
+    };
+  }, [session, authenticatedFetch, branchId]);
 
   async function moveOrder(orderId: string, status: KdsAdvanceStatus) {
     setBusyOrderId(orderId);
@@ -112,17 +145,26 @@ export default function KdsPage() {
             Refresh
           </button>
           <span>{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Not refreshed yet"}</span>
+          <span className={realtimeConnected ? "text-[#166534]" : "text-[#9a3412]"}>
+            {realtimeConnected ? "Realtime: connected" : "Realtime: reconnecting"}
+          </span>
         </div>
+        <input
+          className="mt-3 w-full rounded-xl border border-[#cfe0c8] p-2 text-sm"
+          placeholder="Search order, table, branch, or item"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
         {error ? <p className="mt-4 rounded-xl bg-[#fee2e2] px-4 py-3 text-sm text-[#991b1b]">{error}</p> : null}
         <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           {COLUMNS.map((column) => (
             <section key={column} className="rounded-xl border border-[#d6e4ce] bg-white p-3">
               <h2 className="font-semibold">{column}</h2>
               <div className="mt-3 space-y-3">
-                {(board?.columns?.[column] ?? []).map((card) => (
+                {(board?.columns?.[column] ?? []).filter((card) => matchesCardQuery(card, query)).map((card) => (
                   <OrderCard key={card.orderId} card={card} busy={busyOrderId === card.orderId} onMove={moveOrder} />
                 ))}
-                {(board?.columns?.[column] ?? []).length === 0 ? (
+                {(board?.columns?.[column] ?? []).filter((card) => matchesCardQuery(card, query)).length === 0 ? (
                   <p className="text-sm text-[#35523d]">No orders</p>
                 ) : null}
               </div>
@@ -132,6 +174,15 @@ export default function KdsPage() {
       </section>
     </main>
   );
+}
+
+function matchesCardQuery(card: KdsOrderCard, query: string): boolean {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return true;
+  return card.orderId.toLowerCase().includes(normalizedQuery)
+    || card.tableNumber.toLowerCase().includes(normalizedQuery)
+    || (card.branchName?.toLowerCase().includes(normalizedQuery) ?? false)
+    || card.items.some((item) => item.name.toLowerCase().includes(normalizedQuery));
 }
 
 function nextAction(status: KdsOrderCard["status"]): { label: string; status: KdsAdvanceStatus } | null {

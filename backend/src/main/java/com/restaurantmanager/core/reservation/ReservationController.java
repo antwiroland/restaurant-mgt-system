@@ -3,10 +3,12 @@ package com.restaurantmanager.core.reservation;
 import com.restaurantmanager.core.reservation.dto.ReservationCreateRequest;
 import com.restaurantmanager.core.reservation.dto.ReservationResponse;
 import com.restaurantmanager.core.reservation.dto.ReservationStatusUpdateRequest;
+import com.restaurantmanager.core.common.Pagination;
 import com.restaurantmanager.core.security.UserPrincipal;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -42,10 +44,17 @@ public class ReservationController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
-    public List<ReservationResponse> list(
+    public ResponseEntity<List<ReservationResponse>> list(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam(required = false) UUID tableId) {
-        return reservationService.list(date, tableId);
+            @RequestParam(required = false) UUID tableId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        List<ReservationResponse> all = reservationService.list(date, tableId);
+        Pagination.Params params = Pagination.from(page, size);
+        List<ReservationResponse> data = Pagination.slice(all, params);
+        return ResponseEntity.ok()
+                .headers(Pagination.headers(all.size(), params))
+                .body(data);
     }
 
     @GetMapping("/mine")

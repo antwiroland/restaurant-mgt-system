@@ -17,26 +17,34 @@ public class StompOrderRealtimePublisher implements OrderRealtimePublisher {
     }
 
     @Override
-    public void publishOrderCreated(UUID orderId, OrderType type, OrderStatus status, BigDecimal total) {
-        messagingTemplate.convertAndSend("/topic/orders.new", Map.of(
+    public void publishOrderCreated(UUID orderId, OrderType type, OrderStatus status, BigDecimal total, String tableToken) {
+        Map<String, Object> payload = Map.of(
                 "event", "ORDER_CREATED",
                 "orderId", orderId,
                 "type", type.name(),
                 "status", status.name(),
                 "total", total,
                 "createdAt", Instant.now().toString()
-        ));
+        );
+        messagingTemplate.convertAndSend("/topic/orders.new", payload);
+        if (tableToken != null && !tableToken.isBlank()) {
+            messagingTemplate.convertAndSend("/topic/public.tables." + tableToken + ".orders", payload);
+        }
     }
 
     @Override
-    public void publishOrderStatusChanged(UUID orderId, OrderStatus previous, OrderStatus current) {
-        messagingTemplate.convertAndSend("/topic/orders.status", Map.of(
+    public void publishOrderStatusChanged(UUID orderId, OrderStatus previous, OrderStatus current, String tableToken) {
+        Map<String, Object> payload = Map.of(
                 "event", "ORDER_STATUS_CHANGED",
                 "orderId", orderId,
                 "previousStatus", previous.name(),
                 "newStatus", current.name(),
                 "updatedAt", Instant.now().toString()
-        ));
+        );
+        messagingTemplate.convertAndSend("/topic/orders.status", payload);
+        if (tableToken != null && !tableToken.isBlank()) {
+            messagingTemplate.convertAndSend("/topic/public.tables." + tableToken + ".orders", payload);
+        }
     }
 
     @Override
