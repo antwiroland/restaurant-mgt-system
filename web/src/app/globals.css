@@ -1,42 +1,671 @@
 @import "tailwindcss";
+@config "../../tailwind.config.ts";
 
+/* ============================================================
+   RESTAURANT MANAGER — DESIGN TOKEN SYSTEM
+   Tailwind v4: tokens in @theme become real utility classes.
+
+   Naming rules so generated classes stay readable:
+     --color-brand       → bg-brand  text-brand  border-brand
+     --color-ink         → text-ink  (foreground)
+     --color-surface     → bg-surface
+     --color-line        → border-line
+     --radius-card       → rounded-card
+     --shadow-card       → shadow-card
+     --font-display      → font-display
+   ============================================================ */
+
+
+/* ----------------------------------------------------------
+   RAW COLOR SCALES  (internal palette — not Tailwind utilities)
+   Reference these only inside @theme values below.
+   Naming: --clr-{hue}-{step}  lower = darker, higher = lighter
+---------------------------------------------------------- */
 :root {
-  --bg-0: #f3f5ec;
-  --bg-1: #dbe9d3;
-  --ink: #132018;
-  --ink-soft: #35523d;
-  --card: #fbfff7;
-  --accent: #c7522a;
+  /* Forest Green — brand primary */
+  --clr-green-0:  #050e08;
+  --clr-green-1:  #0a1c10;
+  --clr-green-2:  #132018;
+  --clr-green-3:  #1e3426;
+  --clr-green-4:  #2c4a36;
+  --clr-green-5:  #35523d;
+  --clr-green-6:  #4a7055;
+  --clr-green-7:  #6b9976;
+  --clr-green-8:  #9dc4a5;
+  --clr-green-9:  #c5dfca;
+  --clr-green-10: #d6e4ce;
+  --clr-green-11: #eaf2e6;
+  --clr-green-12: #f3f5ec;
+  --clr-green-13: #fbfff7;
+
+  /* Sage — secondary surface */
+  --clr-sage-0: #1a2e1f;
+  --clr-sage-1: #2a4832;
+  --clr-sage-2: #3d6449;
+  --clr-sage-3: #527d5f;
+  --clr-sage-4: #6b9c79;
+  --clr-sage-5: #8ab89a;
+  --clr-sage-6: #aed0b9;
+  --clr-sage-7: #cce3d5;
+  --clr-sage-8: #dbe9d3;
+  --clr-sage-9: #e8f3e4;
+  --clr-sage-10: #f0f8ed;
+
+  /* Amber — warnings */
+  --clr-amber-0: #3d1a00;
+  --clr-amber-1: #6b2e00;
+  --clr-amber-2: #92400e;
+  --clr-amber-3: #b45309;
+  --clr-amber-4: #d97706;
+  --clr-amber-5: #f59e0b;
+  --clr-amber-6: #fbbf24;
+  --clr-amber-7: #fcd34d;
+  --clr-amber-8: #fde68a;
+  --clr-amber-9: #fef3c7;
+  --clr-amber-10: #fffbeb;
+
+  /* Terracotta — accent / CTA */
+  --clr-terra-0: #2c0f07;
+  --clr-terra-1: #57200f;
+  --clr-terra-2: #7c2d12;
+  --clr-terra-3: #9a3412;
+  --clr-terra-4: #c7522a;
+  --clr-terra-5: #d97650;
+  --clr-terra-6: #e89872;
+  --clr-terra-7: #f4bca0;
+  --clr-terra-8: #f9d8c8;
+  --clr-terra-9: #fdeee7;
+  --clr-terra-10: #fff7f5;
+
+  /* Crimson — errors / danger */
+  --clr-red-0: #3b0202;
+  --clr-red-1: #7f1d1d;
+  --clr-red-2: #991b1b;
+  --clr-red-3: #b91c1c;
+  --clr-red-4: #dc2626;
+  --clr-red-5: #ef4444;
+  --clr-red-6: #f87171;
+  --clr-red-7: #fca5a5;
+  --clr-red-8: #fecaca;
+  --clr-red-9: #fee2e2;
+  --clr-red-10: #fff5f5;
+
+  /* Sky — info / confirmed */
+  --clr-sky-0: #082040;
+  --clr-sky-1: #0c4a6e;
+  --clr-sky-2: #075985;
+  --clr-sky-3: #0369a1;
+  --clr-sky-4: #0284c7;
+  --clr-sky-5: #0ea5e9;
+  --clr-sky-6: #38bdf8;
+  --clr-sky-7: #7dd3fc;
+  --clr-sky-8: #bae6fd;
+  --clr-sky-9: #e0f2fe;
+  --clr-sky-10: #f0f9ff;
+
+  /* Neutral — grays */
+  --clr-neutral-0:  #060606;
+  --clr-neutral-1:  #111827;
+  --clr-neutral-2:  #1f2937;
+  --clr-neutral-3:  #374151;
+  --clr-neutral-4:  #4b5563;
+  --clr-neutral-5:  #6b7280;
+  --clr-neutral-6:  #9ca3af;
+  --clr-neutral-7:  #d1d5db;
+  --clr-neutral-8:  #e5e7eb;
+  --clr-neutral-9:  #f3f4f6;
+  --clr-neutral-10: #f9fafb;
+
+  /* Cream — warm whites */
+  --clr-cream-0: #c8b97a;
+  --clr-cream-1: #e2d4a0;
+  --clr-cream-2: #f0e8c2;
+  --clr-cream-3: #f7f0d4;
+  --clr-cream-4: #faf5e4;
+  --clr-cream-5: #fdf9ef;
+  --clr-cream-6: #fff9e6;
 }
 
-body {
-  min-height: 100vh;
-  margin: 0;
-  background: radial-gradient(circle at 20% 15%, #fff9e6 0%, transparent 30%),
-    radial-gradient(circle at 85% 80%, #d9f3d1 0%, transparent 35%),
-    linear-gradient(135deg, var(--bg-0), var(--bg-1));
-  color: var(--ink);
-  font-family: var(--font-display), sans-serif;
+
+/* ----------------------------------------------------------
+   TAILWIND THEME EXTENSIONS
+   Every token here generates real Tailwind utility classes.
+   e.g.  --color-brand  → bg-brand  text-brand  border-brand
+         --radius-card  → rounded-card
+         --shadow-card  → shadow-card
+         --font-display → font-display
+---------------------------------------------------------- */
+@theme {
+
+  /* ---- FONTS ------------------------------------------ */
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono:    "IBM Plex Mono", monospace;
+
+  /* ---- COLORS — Surfaces (bg-canvas, bg-surface …) ---- */
+  --color-canvas:    #f3f5ec;   /* page background           */
+  --color-surface:   #fbfff7;   /* card / panel background   */
+  --color-sunken:    #eaf2e6;   /* recessed section          */
+  --color-muted:     #e8f3e4;   /* muted background          */
+  --color-overlay:   rgba(5, 14, 8, 0.55);
+
+  /* ---- COLORS — Ink / foreground (text-ink …) --------- */
+  --color-ink:          #132018;  /* primary text             */
+  --color-ink-soft:     #35523d;  /* secondary text           */
+  --color-ink-muted:    #6b9976;  /* tertiary / placeholder   */
+  --color-ink-disabled: #9ca3af;  /* disabled label           */
+  --color-ink-inverse:  #fbfff7;  /* text on dark backgrounds */
+
+  /* ---- COLORS — Brand (bg-brand, text-brand …) -------- */
+  --color-brand:        #132018;
+  --color-brand-hover:  #1e3426;
+  --color-brand-active: #0a1c10;
+  --color-brand-subtle: #eaf2e6;
+  --color-brand-on:     #fbfff7;  /* text on brand bg         */
+
+  /* ---- COLORS — Accent / CTA (bg-accent …) ------------ */
+  --color-accent:        #c7522a;
+  --color-accent-hover:  #9a3412;
+  --color-accent-subtle: #fdeee7;
+  --color-accent-on:     #ffffff;
+
+  /* ---- COLORS — Borders (border-line …) --------------- */
+  --color-line:         #d6e4ce;  /* default border           */
+  --color-line-subtle:  #eaf2e6;  /* hairline / ghost border  */
+  --color-line-strong:  #9dc4a5;  /* strong border            */
+  --color-line-input:   #cce3d5;  /* input border             */
+  --color-line-focus:   #35523d;  /* focused input border     */
+
+  /* ---- COLORS — Semantic status ----------------------- */
+  /* Success */
+  --color-success:        #35523d;
+  --color-success-subtle: #dcfce7;
+  --color-success-border: #9dc4a5;
+  --color-success-on:     #1e3426;
+
+  /* Warning */
+  --color-warning:        #d97706;
+  --color-warning-subtle: #fef3c7;
+  --color-warning-border: #fcd34d;
+  --color-warning-on:     #92400e;
+
+  /* Danger */
+  --color-danger:        #b91c1c;
+  --color-danger-subtle: #fee2e2;
+  --color-danger-border: #fca5a5;
+  --color-danger-on:     #991b1b;
+
+  /* Info */
+  --color-info:        #0284c7;
+  --color-info-subtle: #f0f9ff;
+  --color-info-border: #bae6fd;
+  --color-info-on:     #075985;
+
+  /* ---- COLORS — Order status chips -------------------- */
+  --color-pending:        #b45309;
+  --color-pending-subtle: #fef3c7;
+
+  --color-confirmed:        #0284c7;
+  --color-confirmed-subtle: #f0f9ff;
+
+  --color-preparing:        #c7522a;
+  --color-preparing-subtle: #fdeee7;
+
+  --color-ready:        #0369a1;
+  --color-ready-subtle: #e0f2fe;
+
+  --color-completed:        #35523d;
+  --color-completed-subtle: #dcfce7;
+
+  --color-cancelled:        #b91c1c;
+  --color-cancelled-subtle: #fee2e2;
+
+  --color-voided:        #374151;
+  --color-voided-subtle: #f3f4f6;
+
+  /* ---- COLORS — Table status -------------------------- */
+  --color-available:        #166534;
+  --color-available-subtle: #dcfce7;
+
+  --color-occupied:        #991b1b;
+  --color-occupied-subtle: #fee2e2;
+
+  --color-reserved:        #92400e;
+  --color-reserved-subtle: #fef3c7;
+
+  --color-closed:        #374151;
+  --color-closed-subtle: #e5e7eb;
+
+  /* ---- BORDER RADIUS ---------------------------------- */
+  /* Adds rounded-card, rounded-panel, rounded-modal, rounded-pill
+     alongside Tailwind's built-in rounded-sm/md/lg/xl/2xl        */
+  --radius-xs:   0.25rem;   /* 4px  */
+  --radius-sm:   0.5rem;    /* 8px  */
+  --radius-md:   0.75rem;   /* 12px */
+  --radius-lg:   1rem;      /* 16px */
+  --radius-xl:   1.25rem;   /* 20px */
+  --radius-2xl:  1.5rem;    /* 24px */
+  --radius-card:  1rem;     /* alias — use on cards         */
+  --radius-panel: 1rem;     /* alias — use on panels        */
+  --radius-modal: 1.25rem;  /* alias — use on modals/drawers*/
+  --radius-pill:  9999px;   /* fully-rounded pill           */
+
+  /* ---- SHADOWS ---------------------------------------- */
+  /* Adds shadow-xs … shadow-xl, shadow-focus, shadow-focus-danger
+     alongside Tailwind's built-in shadow-sm/md/lg               */
+  --shadow-xs:    0 1px 3px rgba(13, 28, 18, 0.06), 0 1px 2px rgba(13, 28, 18, 0.04);
+  --shadow-sm:    0 2px 6px rgba(13, 28, 18, 0.07), 0 1px 3px rgba(13, 28, 18, 0.05);
+  --shadow-card:  0 4px 14px rgba(13, 28, 18, 0.09), 0 2px 6px rgba(13, 28, 18, 0.06);
+  --shadow-panel: 0 4px 14px rgba(13, 28, 18, 0.09), 0 2px 6px rgba(13, 28, 18, 0.06);
+  --shadow-lg:    0 10px 26px rgba(13, 28, 18, 0.10), 0 4px 12px rgba(13, 28, 18, 0.07);
+  --shadow-xl:    0 20px 48px rgba(13, 28, 18, 0.13), 0 8px 18px rgba(13, 28, 18, 0.08);
+  --shadow-inner: inset 0 2px 6px rgba(13, 28, 18, 0.08);
+  --shadow-focus: 0 0 0 3px rgba(53, 82, 61, 0.30);
+  --shadow-focus-danger: 0 0 0 3px rgba(153, 27, 27, 0.28);
+
+  /* ---- EASING ----------------------------------------- */
+  --ease-default: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in:      cubic-bezier(0.4, 0, 1, 1);
+  --ease-out:     cubic-bezier(0, 0, 0.2, 1);
+  --ease-bounce:  cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.shell {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 1.2rem;
+
+/* ----------------------------------------------------------
+   EXTRA :ROOT VARS  (not Tailwind utilities — used only in
+   @layer components or inline CSS var() references)
+---------------------------------------------------------- */
+:root {
+  /* Touch target heights — used in component layer below */
+  --touch-xs:   36px;   /* minimum small control            */
+  --touch-sm:   44px;   /* minimum interactive (Apple HIG)  */
+  --touch-md:   48px;   /* comfortable control              */
+  --touch-lg:   56px;   /* primary action button            */
+  --touch-xl:   64px;   /* large CTA                        */
+  --touch-card: 80px;   /* tappable card min-height         */
+
+  /* Layout */
+  --layout-shell-max:   1280px;
+  --layout-sidebar:     260px;
+  --layout-panel-max:   480px;
+  --layout-content-max: 760px;
+
+  /* Motion */
+  --duration-fast:   120ms;
+  --duration-base:   200ms;
+  --duration-slow:   350ms;
+  --duration-slower: 500ms;
+  --transition-default: var(--duration-base) var(--ease-default);
+  --transition-fast:    var(--duration-fast) var(--ease-default);
+
+  /* Z-index layers */
+  --z-base:   0;
+  --z-raised: 10;
+  --z-sticky: 100;
+  --z-drawer: 200;
+  --z-modal:  300;
+  --z-toast:  400;
+  --z-top:    9999;
+
+  /* Legacy aliases — keep old code working during migration */
+  --bg-0:     var(--color-canvas);
+  --bg-1:     #dbe9d3;
+  --ink:      var(--color-ink);
+  --ink-soft: var(--color-ink-soft);
+  --card:     var(--color-surface);
+  --accent:   var(--color-accent);
 }
 
-.panel {
-  background: var(--card);
-  border: 1px solid #d6e4ce;
-  border-radius: 16px;
-  box-shadow: 0 10px 26px rgba(16, 38, 24, 0.08);
-  padding: 1rem;
+
+/* ============================================================
+   BASE LAYER — resets and global defaults
+   ============================================================ */
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100dvh;
+    margin: 0;
+    background:
+      radial-gradient(circle at 18% 12%, #fff9e6 0%, transparent 28%),
+      radial-gradient(circle at 84% 82%, #e8f3e4 0%, transparent 34%),
+      linear-gradient(140deg, var(--color-canvas), #dbe9d3);
+    color: var(--color-ink);
+    font-family: var(--font-display), sans-serif;
+    font-size: 0.9375rem; /* 15px */
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Remove tap highlight on touch devices */
+  a, button, [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevent double-tap zoom on interactive elements */
+  button, a, input, select, textarea, [role="button"] {
+    touch-action: manipulation;
+  }
+
+  /* Keyboard-only focus ring using the theme shadow token */
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-radius: var(--radius-sm);
+  }
+
+  /* Thin themed scrollbars */
+  ::-webkit-scrollbar        { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track  { background: var(--color-sunken); border-radius: var(--radius-pill); }
+  ::-webkit-scrollbar-thumb  { background: #c5dfca; border-radius: var(--radius-pill); }
+  ::-webkit-scrollbar-thumb:hover { background: #9dc4a5; }
 }
 
-.kicker {
-  font-family: var(--font-mono), monospace;
-  color: var(--ink-soft);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-size: 0.78rem;
+
+/* ============================================================
+   COMPONENT LAYER — reusable UI primitives
+   Build these with @apply so they stay consistent with the
+   utility classes generated from @theme above.
+   ============================================================ */
+
+@layer components {
+
+  /* ------ LAYOUT SHELL ---------------------------------- */
+
+  .shell {
+    @apply max-w-[1280px] mx-auto p-4 grid gap-4;
+  }
+
+  .shell-sm {
+    @apply max-w-[480px] mx-auto p-4;
+  }
+
+  @media (max-width: 640px) {
+    .shell {
+      @apply p-3 gap-3;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .shell {
+      @apply p-6 gap-6;
+    }
+  }
+
+  /* ------ PANELS ---------------------------------------- */
+
+  .panel {
+    @apply bg-surface border border-line rounded-panel shadow-panel p-4;
+  }
+
+  .panel-flat {
+    @apply bg-surface border border-line-subtle rounded-panel p-4;
+  }
+
+  .panel-muted {
+    @apply bg-muted border border-line rounded-panel p-4;
+  }
+
+  /* ------ TYPOGRAPHY ------------------------------------ */
+
+  /* Monospaced section kicker: OPERATIONS, TABLES, etc. */
+  .kicker {
+    @apply font-mono text-ink-soft uppercase tracking-widest text-xs font-medium;
+  }
+
+  .heading-xl {
+    @apply text-4xl font-semibold leading-tight tracking-tight text-ink;
+  }
+
+  .heading-lg {
+    @apply text-3xl font-semibold leading-tight tracking-tight text-ink;
+  }
+
+  .heading-md {
+    @apply text-xl font-semibold leading-snug text-ink;
+  }
+
+  .body-sm {
+    @apply text-sm leading-relaxed text-ink-soft;
+  }
+
+  .label {
+    @apply text-sm font-medium text-ink tracking-wide;
+  }
+
+  /* ------ BUTTON SYSTEM --------------------------------- */
+  /*
+   * Touch targets: min-height enforced via padding + line-height.
+   * On touch devices, the active press shrinks to 97% for tactile
+   * feedback without layout shift.
+   *
+   * Usage:
+   *   <button className="btn btn-primary">Save</button>
+   *   <button className="btn btn-secondary btn-sm">Edit</button>
+   *   <button className="btn btn-danger btn-lg btn-block">Delete</button>
+   */
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2
+           px-4 rounded-pill
+           font-display text-base font-medium leading-none
+           whitespace-nowrap cursor-pointer no-underline
+           select-none border border-transparent
+           transition-all duration-150;
+    min-height: var(--touch-sm);     /* 44px — Apple HIG minimum */
+  }
+
+  .btn:active:not(:disabled) {
+    @apply scale-[0.97];
+  }
+
+  .btn:disabled {
+    @apply opacity-50 cursor-not-allowed pointer-events-none;
+  }
+
+  /* Variants */
+  .btn-primary {
+    @apply bg-brand border-brand text-brand-on shadow-xs;
+  }
+  .btn-primary:hover:not(:disabled) {
+    @apply bg-brand-hover border-brand-hover shadow-sm;
+  }
+
+  .btn-secondary {
+    @apply bg-transparent border-brand text-brand;
+  }
+  .btn-secondary:hover:not(:disabled) {
+    @apply bg-brand-subtle;
+  }
+
+  .btn-danger {
+    @apply bg-transparent border-danger text-danger-on;
+  }
+  .btn-danger:hover:not(:disabled) {
+    @apply bg-danger-subtle;
+  }
+
+  .btn-accent {
+    @apply bg-accent border-accent text-accent-on shadow-xs;
+  }
+  .btn-accent:hover:not(:disabled) {
+    @apply bg-accent-hover border-accent-hover;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent border-transparent text-ink-soft;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    @apply bg-sunken text-ink;
+  }
+
+  /* Sizes */
+  .btn-sm {
+    @apply px-3 text-sm;
+    min-height: var(--touch-xs);     /* 36px */
+  }
+
+  .btn-md {
+    @apply px-4 text-base;
+    min-height: var(--touch-md);     /* 48px */
+  }
+
+  .btn-lg {
+    @apply px-6 text-lg font-semibold rounded-xl;
+    min-height: var(--touch-lg);     /* 56px */
+  }
+
+  .btn-xl {
+    @apply px-8 text-xl font-semibold rounded-2xl;
+    min-height: var(--touch-xl);     /* 64px */
+  }
+
+  .btn-block {
+    @apply w-full rounded-lg;
+  }
+
+  /* ------ FORM CONTROLS --------------------------------- */
+  /*
+   * All form controls are at least 44px tall for touch-friendliness.
+   *
+   * Usage:
+   *   <input  className="input"  />
+   *   <select className="select" />
+   *   <textarea className="textarea" />
+   *   <label  className="field">
+   *     <span className="field-label">Name</span>
+   *     <input className="input" />
+   *     <span className="field-hint">Optional</span>
+   *   </label>
+   */
+
+  .input,
+  .select,
+  .textarea {
+    @apply block w-full px-4 py-3
+           bg-surface border border-line-input rounded-md
+           text-ink text-base leading-normal font-display
+           appearance-none transition-colors duration-150;
+    min-height: var(--touch-sm);     /* 44px */
+  }
+
+  .input:focus,
+  .select:focus,
+  .textarea:focus {
+    @apply outline-none border-line-focus shadow-focus;
+  }
+
+  .input::placeholder,
+  .textarea::placeholder {
+    @apply text-ink-disabled;
+  }
+
+  .textarea {
+    @apply min-h-[100px] resize-y;
+    min-height: 100px;
+  }
+
+  .input-error {
+    @apply border-danger;
+  }
+  .input-error:focus {
+    box-shadow: var(--shadow-focus-danger);
+  }
+
+  /* Field wrapper */
+  .field       { @apply grid gap-2; }
+  .field-label { @apply text-sm font-medium text-ink; }
+  .field-hint  { @apply text-xs text-ink-soft; }
+  .field-error { @apply text-xs text-danger-on; }
+
+  /* ------ STATUS BADGES --------------------------------- */
+  /*
+   * Usage: <span className="badge badge-pending">PENDING</span>
+   */
+
+  .badge {
+    @apply inline-flex items-center gap-1
+           px-3 py-1 rounded-pill
+           text-xs font-semibold tracking-wide uppercase
+           whitespace-nowrap;
+  }
+
+  /* Order statuses */
+  .badge-pending   { @apply bg-pending-subtle text-pending;   }
+  .badge-confirmed { @apply bg-confirmed-subtle text-confirmed; }
+  .badge-preparing { @apply bg-preparing-subtle text-preparing; }
+  .badge-ready     { @apply bg-ready-subtle text-ready;       }
+  .badge-completed { @apply bg-completed-subtle text-completed; }
+  .badge-cancelled { @apply bg-cancelled-subtle text-cancelled; }
+  .badge-voided    { @apply bg-voided-subtle text-voided;     }
+
+  /* Table statuses */
+  .badge-available { @apply bg-available-subtle text-available; }
+  .badge-occupied  { @apply bg-occupied-subtle text-occupied;   }
+  .badge-reserved  { @apply bg-reserved-subtle text-reserved;   }
+  .badge-closed    { @apply bg-closed-subtle text-closed;       }
+
+  /* Generic semantic */
+  .badge-success { @apply bg-success-subtle text-success-on; }
+  .badge-warning { @apply bg-warning-subtle text-warning-on; }
+  .badge-danger  { @apply bg-danger-subtle text-danger-on;   }
+  .badge-info    { @apply bg-info-subtle text-info-on;       }
+  .badge-neutral { @apply bg-muted text-ink-soft;            }
+
+  /* ------ ALERT / INLINE BANNERS ------------------------ */
+  /*
+   * Usage: <div className="alert alert-danger">Something failed</div>
+   */
+
+  .alert {
+    @apply flex items-start gap-3
+           px-4 py-3 rounded-md
+           text-sm border leading-relaxed;
+  }
+
+  .alert-success { @apply bg-success-subtle text-success-on border-success-border; }
+  .alert-warning { @apply bg-warning-subtle text-warning-on border-warning-border; }
+  .alert-danger  { @apply bg-danger-subtle  text-danger-on  border-danger-border;  }
+  .alert-info    { @apply bg-info-subtle    text-info-on    border-info-border;    }
+
+  /* ------ CARDS ----------------------------------------- */
+  /*
+   * .card           — static display card
+   * .card-interactive — tappable/clickable card (hover + press)
+   *
+   * Usage:
+   *   <article className="card">...</article>
+   *   <button  className="card card-interactive">...</button>
+   */
+
+  .card {
+    @apply bg-surface border border-line rounded-card shadow-xs p-4
+           transition-shadow duration-150;
+  }
+
+  .card-interactive {
+    @apply cursor-pointer select-none;
+  }
+  .card-interactive:hover {
+    @apply border-line-strong shadow-card;
+  }
+  .card-interactive:active {
+    @apply scale-[0.99] shadow-xs;
+  }
+
+  /* Nav tile on dashboard — square card with icon + label */
+  .nav-tile {
+    @apply card card-interactive
+           flex flex-col items-start gap-2 p-4
+           min-h-[80px];
+  }
 }
