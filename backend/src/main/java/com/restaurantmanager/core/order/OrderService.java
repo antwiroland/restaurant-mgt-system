@@ -29,6 +29,7 @@ import com.restaurantmanager.core.order.dto.OrderItemModifierResponse;
 import com.restaurantmanager.core.order.dto.OrderItemResponse;
 import com.restaurantmanager.core.order.dto.OrderResponse;
 import com.restaurantmanager.core.order.dto.OrderStatusUpdateRequest;
+import com.restaurantmanager.core.order.dto.OrderPublicStatusView;
 import com.restaurantmanager.core.order.dto.PublicOrderTrackingResponse;
 import com.restaurantmanager.core.order.dto.PublicTableOrderCreateRequest;
 import com.restaurantmanager.core.order.dto.TableBillResponse;
@@ -261,6 +262,21 @@ public class OrderService {
         RestaurantTableEntity table = tableRepository.findByQrToken(tableToken)
                 .orElseThrow(() -> new ApiException(404, "Table token not found"));
         return toTableBillResponse(table, orderRepository.findByTable_QrTokenOrderByCreatedAtAsc(tableToken));
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderPublicStatusView> listPublicOrders() {
+        return orderRepository.findActiveForPublicDisplay(List.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED))
+                .stream()
+                .map(order -> new OrderPublicStatusView(
+                        order.getId(),
+                        order.getTable() != null ? order.getTable().getNumber() : null,
+                        order.getType(),
+                        order.getStatus(),
+                        order.getCreatedAt(),
+                        order.getUpdatedAt()
+                ))
+                .toList();
     }
 
     @Transactional(readOnly = true)

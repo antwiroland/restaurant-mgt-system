@@ -51,6 +51,7 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/menu/**").permitAll()
                         .requestMatchers("/tables/scan").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/tables/public").permitAll()
                         .requestMatchers("/orders/public/**").permitAll()
                         .requestMatchers("/reservations").permitAll()
                         .requestMatchers("/payments/webhook").permitAll()
@@ -61,7 +62,7 @@ public class SecurityConfig {
                         .authenticationEntryPoint((request, response, authException) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED))
                         .accessDeniedHandler((request, response, accessDeniedException) -> response.sendError(HttpServletResponse.SC_FORBIDDEN))
                 )
-                .addFilterBefore(rateLimitFilter, JwtAuthFilter.class)
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

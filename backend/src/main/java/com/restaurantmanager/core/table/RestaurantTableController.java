@@ -1,5 +1,6 @@
 package com.restaurantmanager.core.table;
 
+import com.restaurantmanager.core.table.dto.TablePublicStatusView;
 import com.restaurantmanager.core.table.dto.TableQrResponse;
 import com.restaurantmanager.core.table.dto.TableRequest;
 import com.restaurantmanager.core.table.dto.TableResponse;
@@ -37,6 +38,11 @@ public class RestaurantTableController {
 
     public RestaurantTableController(RestaurantTableService tableService) {
         this.tableService = tableService;
+    }
+
+    @GetMapping("/public")
+    public List<TablePublicStatusView> listPublic() {
+        return tableService.listPublicTables();
     }
 
     @GetMapping

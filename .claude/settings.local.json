@@ -21,7 +21,15 @@
       "Bash(wmic process:*)",
       "Bash(tasklist /FI \"IMAGENAME eq node.exe\" /FO CSV)",
       "Bash(cmd /c \"tasklist /FI \"\"IMAGENAME eq node.exe\"\" /FO CSV\")",
-      "Bash(cmd /c \"netstat -ano | findstr :3000\" 2>&1)"
+      "Bash(cmd /c \"netstat -ano | findstr :3000\" 2>&1)",
+      "Bash(docker compose:*)",
+      "Bash(grep -r api/rm C:/Users/HP/Desktop/restaurant_manager/backend/src/ --include=*.java -l)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -r \"api/rm\\\\|context-path\" C:/Users/HP/Desktop/restaurant_manager/backend/ --include=*.yml --include=*.yaml --include=*.properties)",
+      "Bash(grep -r \"api.rm\\\\|api/rm\\\\|context-path\" C:/Users/HP/Desktop/restaurant_manager/ --include=*.yml --include=*.yaml --include=*.nginx* --include=nginx* -r)",
+      "Bash(grep \"rewrite\\\\|proxy\" C:/Users/HP/Desktop/restaurant_manager/web/next.config.*)",
+      "Bash(cat C:/Users/HP/Desktop/restaurant_manager/web/next.config.*)",
+      "Bash(xargs cat:*)"
     ]
   }
 }

@@ -531,7 +531,7 @@ class OrderPhase4IntegrationTest extends BaseIntegrationTest {
         UserEntity customer = createUser("C10", "+233270000010", "c10@x.com", "secret123", Role.CUSTOMER);
         MenuItemEntity item = createMenuItem("Dish10", "17.00");
         createPickupOrder(customer, item);
-        verify(realtimePublisher, atLeastOnce()).publishOrderCreated(any(UUID.class), eq(OrderType.PICKUP), eq(OrderStatus.PENDING), any(BigDecimal.class));
+        verify(realtimePublisher, atLeastOnce()).publishOrderCreated(any(UUID.class), eq(OrderType.PICKUP), eq(OrderStatus.PENDING), any(BigDecimal.class), any());
     }
 
     @Test
@@ -545,7 +545,7 @@ class OrderPhase4IntegrationTest extends BaseIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"CONFIRMED\"}"))
                 .andExpect(status().isOk());
-        verify(realtimePublisher, atLeastOnce()).publishOrderStatusChanged(eq(orderId), eq(OrderStatus.PENDING), eq(OrderStatus.CONFIRMED));
+        verify(realtimePublisher, atLeastOnce()).publishOrderStatusChanged(eq(orderId), eq(OrderStatus.PENDING), eq(OrderStatus.CONFIRMED), any());
     }
 
     @Test

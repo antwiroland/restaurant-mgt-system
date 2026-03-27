@@ -562,6 +562,30 @@ export async function getTableQr(session: StaffSession, tableId: string): Promis
   return apiRequest<TableQrRecord>(`/tables/${tableId}/qr`, { token: session.accessToken });
 }
 
+export type TablePublicStatusView = {
+  number: string;
+  capacity: number;
+  zone: string | null;
+  status: TableRecord["status"];
+};
+
+export async function getPublicTableStatus(): Promise<TablePublicStatusView[]> {
+  return apiRequest<TablePublicStatusView[]>("/tables/public");
+}
+
+export type OrderPublicStatusView = {
+  orderId: string;
+  tableNumber: string | null;
+  type: "DINE_IN" | "PICKUP" | "DELIVERY";
+  status: "PENDING" | "CONFIRMED" | "PREPARING" | "READY" | "OUT_FOR_DELIVERY" | "DELIVERED";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function getPublicOrderStatus(): Promise<OrderPublicStatusView[]> {
+  return apiRequest<OrderPublicStatusView[]>("/orders/public/status");
+}
+
 export async function getTableScan(tableToken: string): Promise<TableScanRecord> {
   return apiRequest<TableScanRecord>("/tables/scan", {
     method: "POST",

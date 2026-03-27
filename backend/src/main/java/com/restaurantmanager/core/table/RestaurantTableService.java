@@ -5,6 +5,7 @@ import com.restaurantmanager.core.common.Role;
 import com.restaurantmanager.core.config.CacheConfig;
 import com.restaurantmanager.core.branch.BranchService;
 import com.restaurantmanager.core.security.UserPrincipal;
+import com.restaurantmanager.core.table.dto.TablePublicStatusView;
 import com.restaurantmanager.core.table.dto.TableQrResponse;
 import com.restaurantmanager.core.table.dto.TableRequest;
 import com.restaurantmanager.core.table.dto.TableResponse;
@@ -31,6 +32,14 @@ public class RestaurantTableService {
         this.tableRepository = tableRepository;
         this.tableQrCodeService = tableQrCodeService;
         this.branchService = branchService;
+    }
+
+    @Transactional(readOnly = true)
+    public List<TablePublicStatusView> listPublicTables() {
+        return tableRepository.findAll().stream()
+                .sorted((a, b) -> a.getNumber().compareToIgnoreCase(b.getNumber()))
+                .map(t -> new TablePublicStatusView(t.getNumber(), t.getCapacity(), t.getZone(), t.getStatus()))
+                .toList();
     }
 
     @Transactional(readOnly = true)

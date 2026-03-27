@@ -8,6 +8,7 @@ import com.restaurantmanager.core.order.dto.GroupJoinResponse;
 import com.restaurantmanager.core.order.dto.GroupSessionResponse;
 import com.restaurantmanager.core.order.dto.GroupViewResponse;
 import com.restaurantmanager.core.order.dto.OrderCancelRequest;
+import com.restaurantmanager.core.order.dto.OrderPublicStatusView;
 import com.restaurantmanager.core.order.dto.OrderCreateRequest;
 import com.restaurantmanager.core.order.dto.OrderResponse;
 import com.restaurantmanager.core.order.dto.OrderStatusUpdateRequest;
@@ -52,6 +53,11 @@ public class OrderController {
     public OrderResponse createOrder(@Valid @RequestBody OrderCreateRequest request,
                                      @AuthenticationPrincipal UserPrincipal principal) {
         return orderService.createOrder(request, principal);
+    }
+
+    @GetMapping("/public/status")
+    public List<OrderPublicStatusView> listPublicOrders() {
+        return orderService.listPublicOrders();
     }
 
     @PostMapping("/public/dine-in")
