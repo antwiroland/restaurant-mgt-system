@@ -29,7 +29,9 @@
       "Bash(grep -r \"api.rm\\\\|api/rm\\\\|context-path\" C:/Users/HP/Desktop/restaurant_manager/ --include=*.yml --include=*.yaml --include=*.nginx* --include=nginx* -r)",
       "Bash(grep \"rewrite\\\\|proxy\" C:/Users/HP/Desktop/restaurant_manager/web/next.config.*)",
       "Bash(cat C:/Users/HP/Desktop/restaurant_manager/web/next.config.*)",
-      "Bash(xargs cat:*)"
+      "Bash(xargs cat:*)",
+      "Bash(grep -E \"\\\\.java$\")",
+      "Bash(grep -r @Scheduled C:/Users/HP/Desktop/restaurant_manager/backend --include=*.java)"
     ]
   }
 }

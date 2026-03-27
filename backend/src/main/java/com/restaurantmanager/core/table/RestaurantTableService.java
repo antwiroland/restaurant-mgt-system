@@ -25,13 +25,16 @@ public class RestaurantTableService {
     private final RestaurantTableRepository tableRepository;
     private final TableQrCodeService tableQrCodeService;
     private final BranchService branchService;
+    private final TableRealtimePublisher realtimePublisher;
 
     public RestaurantTableService(RestaurantTableRepository tableRepository,
                                   TableQrCodeService tableQrCodeService,
-                                  BranchService branchService) {
+                                  BranchService branchService,
+                                  TableRealtimePublisher realtimePublisher) {
         this.tableRepository = tableRepository;
         this.tableQrCodeService = tableQrCodeService;
         this.branchService = branchService;
+        this.realtimePublisher = realtimePublisher;
     }
 
     @Transactional(readOnly = true)
@@ -92,7 +95,9 @@ public class RestaurantTableService {
                 .orElseThrow(() -> new ApiException(404, "Table not found"));
         assertTableBranchAccess(table, principal);
         table.setStatus(request.status());
-        return toResponse(tableRepository.save(table));
+        TableResponse saved = toResponse(tableRepository.save(table));
+        realtimePublisher.publishTableStatusChanged(table.getNumber(), request.status());
+        return saved;
     }
 
     @Transactional(readOnly = true)

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Client } from "@stomp/stompjs";
 import { getPublicTableStatus, type TablePublicStatusView } from "@/lib/apiClient";
 
 type TableStatus = TablePublicStatusView["status"];
@@ -35,6 +36,7 @@ export default function TableStatusPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
 
   async function load() {
     try {
@@ -52,7 +54,27 @@ export default function TableStatusPage() {
   useEffect(() => {
     void load();
     const interval = setInterval(() => void load(), REFRESH_INTERVAL_MS);
-    return () => clearInterval(interval);
+
+    const wsUrl = process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? "ws://localhost:8080/ws";
+    const client = new Client({
+      brokerURL: wsUrl,
+      reconnectDelay: 5000,
+      onConnect: () => {
+        setRealtimeConnected(true);
+        client.subscribe("/topic/tables.status", () => {
+          void load();
+        });
+      },
+      onWebSocketClose: () => setRealtimeConnected(false),
+      onStompError: () => setRealtimeConnected(false),
+    });
+    client.activate();
+
+    return () => {
+      clearInterval(interval);
+      setRealtimeConnected(false);
+      client.deactivate();
+    };
   }, []);
 
   const groups = useMemo(() => {
@@ -86,7 +108,13 @@ export default function TableStatusPage() {
         <div className="mb-8 text-center">
           <p className="kicker">Restaurant</p>
           <h1 className="mt-1 text-3xl font-semibold text-ink">Table Availability</h1>
-          <p className="mt-2 text-sm text-ink-soft">Updated every 30 seconds · Walk-in welcome</p>
+          <p className="mt-2 text-sm text-ink-soft">Walk-in welcome</p>
+          <div className="mt-2 flex items-center justify-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${realtimeConnected ? "bg-success" : "bg-warning"}`} />
+            <p className="text-xs text-ink-soft">
+              {realtimeConnected ? "Live updates connected" : "Reconnecting\u2026"}
+            </p>
+          </div>
           {lastUpdated ? (
             <p className="mt-1 text-xs text-ink-soft">
               Last updated: {lastUpdated.toLocaleTimeString()}

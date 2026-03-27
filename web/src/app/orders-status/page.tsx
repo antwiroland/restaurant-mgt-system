@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Client } from "@stomp/stompjs";
 import { getPublicOrderStatus, type OrderPublicStatusView } from "@/lib/apiClient";
 
 type OrderStatus = OrderPublicStatusView["status"];
@@ -55,6 +56,7 @@ export default function OrdersStatusPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [, setTick] = useState(0);
 
   async function load() {
@@ -74,9 +76,30 @@ export default function OrdersStatusPage() {
     void load();
     const fetchInterval = setInterval(() => void load(), REFRESH_INTERVAL_MS);
     const tickInterval = setInterval(() => setTick((n) => n + 1), 60_000);
+
+    const wsUrl = process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? "ws://localhost:8080/ws";
+    const client = new Client({
+      brokerURL: wsUrl,
+      reconnectDelay: 5000,
+      onConnect: () => {
+        setRealtimeConnected(true);
+        client.subscribe("/topic/orders.new", () => {
+          void load();
+        });
+        client.subscribe("/topic/orders.status", () => {
+          void load();
+        });
+      },
+      onWebSocketClose: () => setRealtimeConnected(false),
+      onStompError: () => setRealtimeConnected(false),
+    });
+    client.activate();
+
     return () => {
       clearInterval(fetchInterval);
       clearInterval(tickInterval);
+      setRealtimeConnected(false);
+      client.deactivate();
     };
   }, []);
 
@@ -103,7 +126,13 @@ export default function OrdersStatusPage() {
         <div className="mb-8 text-center">
           <p className="kicker">Restaurant</p>
           <h1 className="mt-1 text-3xl font-semibold text-ink">Order Status Board</h1>
-          <p className="mt-2 text-sm text-ink-soft">Updated every 30 seconds · Completed and cancelled orders are removed</p>
+          <p className="mt-2 text-sm text-ink-soft">Completed and cancelled orders are removed</p>
+          <div className="mt-2 flex items-center justify-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${realtimeConnected ? "bg-success" : "bg-warning"}`} />
+            <p className="text-xs text-ink-soft">
+              {realtimeConnected ? "Live updates connected" : "Reconnecting\u2026"}
+            </p>
+          </div>
           {lastUpdated ? (
             <p className="mt-1 text-xs text-ink-soft">
               Last updated: {lastUpdated.toLocaleTimeString()}
