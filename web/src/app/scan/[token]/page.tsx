@@ -1,9 +1,11 @@
-"use client";
+﻿"use client";
 
 import { Client } from "@stomp/stompjs";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { Skeleton } from "@/components/Skeleton";
+import { Spinner } from "@/components/Spinner";
 import {
   createPublicDineInOrder,
   getMenuItemModifiers,
@@ -27,14 +29,14 @@ type CartLine = {
 
 type SelectionByGroup = Record<string, string[]>;
 
-const STATUS_STYLES: Record<PublicOrderTrackingRecord["status"], string> = {
-  PENDING: "bg-[#fff7ed] text-[#9a3412]",
-  CONFIRMED: "bg-[#eff6ff] text-[#1d4ed8]",
-  PREPARING: "bg-[#fef3c7] text-[#92400e]",
-  READY: "bg-[#dcfce7] text-[#166534]",
-  COMPLETED: "bg-[#e0f2fe] text-[#075985]",
-  CANCELLED: "bg-[#fee2e2] text-[#991b1b]",
-  VOIDED: "bg-[#e5e7eb] text-[#374151]",
+const STATUS_BADGE: Record<PublicOrderTrackingRecord["status"], string> = {
+  PENDING: "badge-pending",
+  CONFIRMED: "badge-confirmed",
+  PREPARING: "badge-preparing",
+  READY: "badge-ready",
+  COMPLETED: "badge-completed",
+  CANCELLED: "badge-cancelled",
+  VOIDED: "badge-voided",
 };
 
 function toCurrencyValue(value: string): number {
@@ -64,16 +66,20 @@ export default function GuestScanMenuPage() {
   const [token, setToken] = useState("");
   const [table, setTable] = useState<TableScanRecord | null>(null);
   const [menu, setMenu] = useState<MenuItemRecord[]>([]);
+  const [activeCategory, setActiveCategory] = useState("ALL");
   const [modifiersByItemId, setModifiersByItemId] = useState<Record<string, MenuModifierGroupRecord[]>>({});
   const [selectionByItemId, setSelectionByItemId] = useState<Record<string, SelectionByGroup>>({});
   const [cart, setCart] = useState<CartLine[]>([]);
   const [trackedOrders, setTrackedOrders] = useState<PublicOrderTrackingRecord[]>([]);
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const checkoutRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!params?.token) {
@@ -145,17 +151,28 @@ export default function GuestScanMenuPage() {
   }, [token]);
 
   const categories = useMemo(() => {
-    const map = new Map<string, MenuItemRecord[]>();
-    for (const item of menu) {
-      const bucket = map.get(item.categoryName) ?? [];
-      bucket.push(item);
-      map.set(item.categoryName, bucket);
-    }
-    return Array.from(map.entries());
+    const names = Array.from(new Set(menu.map((item) => item.categoryName))).sort((a, b) => a.localeCompare(b));
+    return ["ALL", ...names];
   }, [menu]);
+
+  useEffect(() => {
+    if (!categories.includes(activeCategory)) {
+      setActiveCategory(categories[0] ?? "ALL");
+    }
+  }, [categories, activeCategory]);
+
+  const filteredMenu = useMemo(() => {
+    if (activeCategory === "ALL") return menu;
+    return menu.filter((item) => item.categoryName === activeCategory);
+  }, [menu, activeCategory]);
 
   const total = useMemo(
     () => cart.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0),
+    [cart],
+  );
+
+  const cartItemsCount = useMemo(
+    () => cart.reduce((sum, line) => sum + line.quantity, 0),
     [cart],
   );
 
@@ -222,9 +239,7 @@ export default function GuestScanMenuPage() {
 
       for (const optionId of selectedIds) {
         const option = group.options.find((candidate) => candidate.id === optionId);
-        if (!option) {
-          continue;
-        }
+        if (!option) continue;
         optionIds.push(option.id);
         summary.push(`${group.name}: ${option.name}`);
         modifierDelta += toCurrencyValue(option.priceDelta);
@@ -268,30 +283,27 @@ export default function GuestScanMenuPage() {
   function updateQuantity(lineKey: string, delta: number) {
     setCart((previous) => {
       const existing = previous.find((line) => line.key === lineKey);
-      if (!existing && delta < 0) {
-        return previous;
-      }
-      if (!existing) {
-        return previous;
-      }
+      if (!existing) return previous;
       const nextQty = existing.quantity + delta;
-      if (nextQty <= 0) {
-        return previous.filter((line) => line.key !== lineKey);
-      }
+      if (nextQty <= 0) return previous.filter((line) => line.key !== lineKey);
       return previous.map((line) => (line.key === lineKey ? { ...line, quantity: nextQty } : line));
     });
   }
 
   async function placeOrder() {
-    if (cart.length === 0 || !token) {
-      return;
-    }
+    if (cart.length === 0 || !token) return;
     setPlacing(true);
     setError("");
     try {
+      const mergedNotes = [
+        notes.trim(),
+        customerName.trim() ? `Guest: ${customerName.trim()}` : "",
+        customerPhone.trim() ? `Phone: ${customerPhone.trim()}` : "",
+      ].filter(Boolean).join(" | ");
+
       const order = await createPublicDineInOrder({
         tableToken: token,
-        notes: notes.trim() || undefined,
+        notes: mergedNotes || undefined,
         items: cart.map((line) => ({
           menuItemId: line.item.id,
           quantity: line.quantity,
@@ -310,182 +322,172 @@ export default function GuestScanMenuPage() {
   }
 
   return (
-    <main className="shell">
+    <main className="shell-sm max-w-5xl pb-28 sm:pb-24">
       <section className="panel">
-        <p className="kicker">Table Order</p>
-        <h1 className="mt-2 text-3xl font-semibold">
-          {table ? `Table ${table.tableNumber} Menu` : "Loading table..."}
-        </h1>
-        <p className="mt-2 text-[#35523d]">No app download and no sign-up required. Add items and submit.</p>
+        <p className="kicker">Table {table?.tableNumber ?? "-"}</p>
+        <h1 className="mt-1 text-2xl font-semibold text-ink">Menu</h1>
+        <p className="mt-1 text-sm text-ink-soft">Order directly from your phone. No app required.</p>
+        <p className={`mt-1 text-xs ${realtimeConnected ? "text-success-on" : "text-warning-on"}`}>
+          {realtimeConnected ? "Live order tracking connected" : "Reconnecting live tracking"}
+        </p>
 
-        {error ? <p className="mt-3 rounded-xl bg-[#fee2e2] px-3 py-2 text-sm text-[#991b1b]">{error}</p> : null}
-        {message ? <p className="mt-3 rounded-xl bg-[#dcfce7] px-3 py-2 text-sm text-[#166534]">{message}</p> : null}
+        {error ? <p className="mt-3 alert alert-danger">{error}</p> : null}
+        {message ? <p className="mt-3 alert alert-success">{message}</p> : null}
 
         {loading ? (
-          <p className="mt-6 text-sm text-[#35523d]">Loading menu...</p>
+          <div className="mt-5 grid gap-3">
+            <Skeleton className="h-10 w-full" />
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Skeleton key={index} className="h-32 w-full" />
+            ))}
+          </div>
         ) : (
-          <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[2fr_1fr]">
-            <div className="space-y-5">
-              {categories.map(([category, items]) => (
-                <section key={category}>
-                  <h2 className="mb-2 text-lg font-semibold">{category}</h2>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    {items.map((item) => {
-                      const groups = modifiersByItemId[item.id] ?? [];
-                      const selectedByGroup = selectionByItemId[item.id] ?? {};
-
-                      return (
-                        <article key={item.id} className="rounded-xl border border-[#d6e4ce] bg-white p-3">
-                          <p className="font-semibold">{item.name}</p>
-                          {item.description ? <p className="mt-1 text-sm text-[#35523d]">{item.description}</p> : null}
-                          {item.imageUrl ? (
-                            <img src={item.imageUrl} alt={item.name} className="mt-2 h-28 w-full rounded-lg object-cover" />
-                          ) : null}
-                          {groups.map((group) => (
-                            <div key={group.id} className="mt-3 rounded-lg border border-[#dfe9d8] p-2">
-                              <div className="flex items-center justify-between">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-[#35523d]">{group.name}</p>
-                                <p className="text-[11px] text-[#4b6a53]">
-                                  {group.selectionType === "SINGLE" ? "Pick one" : `Pick ${group.minSelect ?? 0}-${group.maxSelect ?? group.options.length}`}
-                                </p>
-                              </div>
-
-                              {group.selectionType === "SINGLE" ? (
-                                <select
-                                  className="mt-2 w-full rounded-lg border border-[#d6e4ce] px-2 py-1 text-sm"
-                                  value={(selectedByGroup[group.id] ?? [""])[0] ?? ""}
-                                  onChange={(event) => setSingleSelection(item.id, group.id, event.target.value)}
-                                >
-                                  {!group.required ? <option value="">None</option> : null}
-                                  {group.options.map((option) => (
-                                    <option key={option.id} value={option.id}>
-                                      {option.name} ({toCurrencyValue(option.priceDelta) >= 0 ? "+" : ""}GHS {option.priceDelta})
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <div className="mt-2 grid grid-cols-2 gap-2">
-                                  {group.options.map((option) => {
-                                    const selected = (selectedByGroup[group.id] ?? []).includes(option.id);
-                                    return (
-                                      <button
-                                        key={option.id}
-                                        type="button"
-                                        className={`rounded-lg border px-2 py-1 text-left text-xs ${selected ? "border-[#132018] bg-[#ecf5e7]" : "border-[#d6e4ce]"}`}
-                                        onClick={() => toggleMultiSelection(item.id, group, option.id)}
-                                      >
-                                        <span className="block font-semibold">{option.name}</span>
-                                        <span className="block text-[11px] text-[#35523d]">
-                                          {toCurrencyValue(option.priceDelta) >= 0 ? "+" : ""}GHS {option.priceDelta}
-                                        </span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                          <div className="mt-3 flex items-center justify-between">
-                            <p className="font-mono text-sm">Base GHS {item.price}</p>
-                            <button
-                              type="button"
-                              className="rounded-full bg-[#132018] px-4 py-1.5 text-sm text-white"
-                              onClick={() => addConfiguredItem(item)}
-                            >
-                              Add
-                            </button>
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                </section>
-              ))}
+          <>
+            <div className="sticky top-0 z-[var(--z-sticky)] -mx-4 mt-4 border-y border-line bg-surface px-4 py-2">
+              <div className="flex gap-2 overflow-x-auto">
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    className={`btn btn-sm ${activeCategory === category ? "btn-primary" : "btn-secondary"}`}
+                    onClick={() => setActiveCategory(category)}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <aside className="rounded-xl border border-[#d6e4ce] bg-white p-4">
-              <h2 className="text-xl font-semibold">Your Table Bill</h2>
-              <p className="mt-1 text-sm text-[#35523d]">New items are added to the same table bill.</p>
-              <p className={`mt-1 text-xs ${realtimeConnected ? "text-[#166534]" : "text-[#9a3412]"}`}>
-                {realtimeConnected ? "Realtime order tracking connected" : "Realtime order tracking reconnecting"}
-              </p>
-              <div className="mt-2">
-                <Link className="rounded-full border border-[#132018] px-3 py-1 text-xs text-[#132018]" href={`/bill/${token}`}>
-                  View Running Bill
-                </Link>
-              </div>
-              <div className="mt-4 rounded-lg border border-[#dfe9d8] p-3">
-                <h3 className="text-sm font-semibold">Live Order Status</h3>
-                <div className="mt-2 grid gap-2">
-                  {trackedOrders.slice().reverse().map((order) => (
-                    <article key={order.orderId} className="rounded-lg border border-[#e4eddc] p-2 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold">#{order.orderId.slice(0, 8).toUpperCase()}</span>
-                        <span className={`rounded-full px-2 py-0.5 font-semibold ${STATUS_STYLES[order.status]}`}>{order.status}</span>
+            <div className="mt-4 grid gap-3">
+              {filteredMenu.map((item) => {
+                const groups = modifiersByItemId[item.id] ?? [];
+                return (
+                  <article key={item.id} className="card grid gap-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-base font-semibold text-ink">{item.name}</p>
+                        <p className="text-sm text-ink-soft">{item.categoryName}</p>
                       </div>
-                      <p className="mt-1 text-[#35523d]">Updated {new Date(order.updatedAt).toLocaleTimeString()}</p>
-                    </article>
-                  ))}
-                  {trackedOrders.length === 0 ? <p className="text-sm text-[#35523d]">No orders yet.</p> : null}
-                </div>
-              </div>
-              <div className="mt-4 space-y-3">
+                      <span className="badge badge-info">GHS {item.price}</span>
+                    </div>
+
+                    {item.description ? <p className="text-sm text-ink-soft">{item.description}</p> : null}
+
+                    {groups.map((group) => {
+                      const selectedByGroup = selectionByItemId[item.id] ?? {};
+                      return (
+                        <div key={group.id} className="rounded-lg border border-line p-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">{group.name}</p>
+                            <p className="text-xs text-ink-soft">
+                              {group.selectionType === "SINGLE" ? "Pick one" : `Pick ${group.minSelect ?? 0}-${group.maxSelect ?? group.options.length}`}
+                            </p>
+                          </div>
+
+                          {group.selectionType === "SINGLE" ? (
+                            <select
+                              className="select mt-2"
+                              value={(selectedByGroup[group.id] ?? [""])[0] ?? ""}
+                              onChange={(event) => setSingleSelection(item.id, group.id, event.target.value)}
+                            >
+                              {!group.required ? <option value="">None</option> : null}
+                              {group.options.map((option) => (
+                                <option key={option.id} value={option.id}>
+                                  {option.name} ({toCurrencyValue(option.priceDelta) >= 0 ? "+" : ""}GHS {option.priceDelta})
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <div className="mt-2 grid grid-cols-2 gap-2">
+                              {group.options.map((option) => {
+                                const selected = (selectedByGroup[group.id] ?? []).includes(option.id);
+                                return (
+                                  <button
+                                    key={option.id}
+                                    type="button"
+                                    className={`rounded-lg border p-2 text-left text-xs ${selected ? "border-line-focus bg-brand-subtle" : "border-line"}`}
+                                    onClick={() => toggleMultiSelection(item.id, group, option.id)}
+                                  >
+                                    <span className="block font-semibold">{option.name}</span>
+                                    <span className="block text-ink-soft">
+                                      {toCurrencyValue(option.priceDelta) >= 0 ? "+" : ""}GHS {option.priceDelta}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    <button type="button" className="btn btn-primary btn-md" onClick={() => addConfiguredItem(item)}>
+                      Add to Cart
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+
+            <section ref={checkoutRef} className="mt-5 rounded-xl border border-line bg-surface p-4">
+              <h2 className="text-lg font-semibold">Checkout</h2>
+              <div className="mt-3 grid gap-2">
                 {cart.length === 0 ? (
-                  <p className="text-sm text-[#35523d]">Cart is empty.</p>
+                  <p className="text-sm text-ink-soft">Your cart is empty.</p>
                 ) : (
                   cart.map((line) => (
-                    <div key={line.key} className="rounded-lg border border-[#dfe9d8] p-2 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span>{line.item.name} x {line.quantity}</span>
+                    <div key={line.key} className="rounded-lg border border-line p-2 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span>{line.item.name} × {line.quantity}</span>
                         <span>GHS {(line.unitPrice * line.quantity).toFixed(2)}</span>
                       </div>
-                      {line.modifierSummary.length > 0 ? (
-                        <p className="mt-1 text-xs text-[#35523d]">{line.modifierSummary.join(", ")}</p>
-                      ) : null}
+                      {line.modifierSummary.length > 0 ? <p className="mt-1 text-xs text-ink-soft">{line.modifierSummary.join(", ")}</p> : null}
                       <div className="mt-2 flex gap-2">
-                        <button
-                          type="button"
-                          className="rounded-full border border-[#132018] px-2 py-0.5"
-                          onClick={() => updateQuantity(line.key, -1)}
-                        >
-                          -
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-[#132018] px-2 py-0.5"
-                          onClick={() => updateQuantity(line.key, 1)}
-                        >
-                          +
-                        </button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => updateQuantity(line.key, -1)}>-</button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => updateQuantity(line.key, 1)}>+</button>
                       </div>
                     </div>
                   ))
                 )}
               </div>
-              <label className="mt-4 block text-sm font-semibold" htmlFor="notes">Order note</label>
-              <textarea
-                id="notes"
-                className="mt-1 w-full rounded-lg border border-[#d6e4ce] px-3 py-2 text-sm"
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                placeholder="Optional note for kitchen"
-              />
-              <div className="mt-4 flex items-center justify-between">
-                <span className="font-semibold">Total</span>
-                <span className="font-mono text-lg">GHS {total.toFixed(2)}</span>
+
+              <div className="mt-3 grid gap-2">
+                <input className="input" placeholder="Your name (optional)" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                <input className="input" placeholder="Phone (optional)" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+                <textarea className="textarea" placeholder="Kitchen note (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
-              <button
-                type="button"
-                disabled={placing || cart.length === 0}
-                onClick={placeOrder}
-                className="mt-4 w-full rounded-full bg-[#132018] px-4 py-2 text-white disabled:cursor-not-allowed disabled:bg-[#6b7280]"
-              >
-                {placing ? "Submitting..." : "Place Order"}
-              </button>
-            </aside>
-          </div>
+
+              <h3 className="mt-4 text-sm font-semibold text-ink">Live Order Status</h3>
+              <div className="mt-2 grid gap-2">
+                {trackedOrders.slice().reverse().slice(0, 4).map((order) => (
+                  <article key={order.orderId} className="rounded-lg border border-line p-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold">#{order.orderId.slice(0, 8).toUpperCase()}</span>
+                      <span className={`badge ${STATUS_BADGE[order.status]}`}>{order.status}</span>
+                    </div>
+                    <p className="mt-1 text-ink-soft">Updated {new Date(order.updatedAt).toLocaleTimeString()}</p>
+                  </article>
+                ))}
+                {trackedOrders.length === 0 ? <p className="text-sm text-ink-soft">No orders yet.</p> : null}
+              </div>
+
+              <Link className="btn btn-secondary btn-sm mt-3" href={`/bill/${token}`}>View Running Bill</Link>
+            </section>
+          </>
         )}
       </section>
+
+      <div className="fixed inset-x-0 bottom-0 z-[var(--z-sticky)] border-t border-line bg-surface/95 px-3 py-3 backdrop-blur sm:px-4">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+          <button className="btn btn-secondary btn-sm" onClick={() => checkoutRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+            Cart ({cartItemsCount}) · GHS {total.toFixed(2)}
+          </button>
+          <button type="button" disabled={placing || cart.length === 0} onClick={() => void placeOrder()} className="btn btn-primary btn-md disabled:opacity-60">
+            {placing ? <Spinner className="text-current" /> : null}
+            Place Order
+          </button>
+        </div>
+      </div>
     </main>
   );
 }

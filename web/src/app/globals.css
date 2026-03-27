@@ -368,6 +368,17 @@
   ::-webkit-scrollbar-track  { background: var(--color-sunken); border-radius: var(--radius-pill); }
   ::-webkit-scrollbar-thumb  { background: #c5dfca; border-radius: var(--radius-pill); }
   ::-webkit-scrollbar-thumb:hover { background: #9dc4a5; }
+
+  @keyframes modalIn {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
 }
 
 
@@ -511,7 +522,7 @@
   /* Sizes */
   .btn-sm {
     @apply px-3 text-sm;
-    min-height: var(--touch-xs);     /* 36px */
+    min-height: var(--touch-sm);     /* 44px */
   }
 
   .btn-md {
@@ -664,8 +675,14 @@
 
   /* Nav tile on dashboard — square card with icon + label */
   .nav-tile {
-    @apply card card-interactive
-           flex flex-col items-start gap-2 p-4
-           min-h-[80px];
+    @apply bg-surface border border-line rounded-card shadow-xs
+           flex flex-col items-start gap-2 p-4 min-h-[80px]
+           cursor-pointer select-none transition-all duration-150;
+  }
+  .nav-tile:hover {
+    @apply border-line-strong shadow-card;
+  }
+  .nav-tile:active {
+    @apply scale-[0.99] shadow-xs;
   }
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { routeByRole } from "@/features/auth/auth";
 import { useStaffSession } from "@/components/SessionProvider";
+import { Spinner } from "@/components/Spinner";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -45,37 +46,38 @@ export default function LoginPage() {
     <main className="shell">
       <section className="panel mx-auto max-w-xl">
         <p className="kicker">Access</p>
-        <h1 className="mt-2 text-3xl font-semibold">Staff Login</h1>
-        <p className="mt-2 text-[#35523d]">
+        <h1 className="mt-2 text-3xl font-semibold text-ink">Staff Login</h1>
+        <p className="mt-2 text-ink-soft">
           Sign in with an existing staff account. Admins and managers land on the dashboard; cashiers go straight to POS.
         </p>
 
         <form className="mt-6 grid gap-3" onSubmit={handleSubmit}>
-          <label className="grid gap-2">
-            <span className="text-sm font-medium text-[#35523d]">Phone</span>
+          <label className="field">
+            <span className="field-label">Phone</span>
             <input
-              className="rounded-xl border border-[#cfe0c8] p-3"
+              className="input"
               placeholder="+233..."
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
             />
-            {fieldErrors.phone ? <span className="text-xs text-[#991b1b]">{fieldErrors.phone}</span> : null}
+            {fieldErrors.phone ? <span className="field-error">{fieldErrors.phone}</span> : null}
           </label>
-          <label className="grid gap-2">
-            <span className="text-sm font-medium text-[#35523d]">Password</span>
+          <label className="field">
+            <span className="field-label">Password</span>
             <input
-              className="rounded-xl border border-[#cfe0c8] p-3"
+              className="input"
               placeholder="Password"
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
-            {fieldErrors.password ? <span className="text-xs text-[#991b1b]">{fieldErrors.password}</span> : null}
+            {fieldErrors.password ? <span className="field-error">{fieldErrors.password}</span> : null}
           </label>
-          {error ? <p className="rounded-xl bg-[#fee2e2] px-4 py-3 text-sm text-[#991b1b]">{error}</p> : null}
-          {session ? <p className="text-sm text-[#35523d]">Signed in as {session.user.name} ({session.user.role}).</p> : null}
-          <button className="rounded-full bg-[#132018] px-4 py-3 text-white disabled:opacity-60" disabled={submitting}>
-            {submitting ? "Signing in..." : "Sign In"}
+          {error ? <p className="alert alert-danger">{error}</p> : null}
+          {session ? <p className="text-sm text-ink-soft">Signed in as {session.user.name} ({session.user.role}).</p> : null}
+          <button className="btn btn-primary btn-md w-full disabled:opacity-60" disabled={submitting}>
+            {submitting ? <Spinner className="text-current" /> : null}
+            Sign In
           </button>
         </form>
       </section>
