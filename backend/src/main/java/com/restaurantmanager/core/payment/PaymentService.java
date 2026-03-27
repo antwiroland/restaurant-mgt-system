@@ -15,9 +15,12 @@ import com.restaurantmanager.core.payment.dto.PaymentResponse;
 import com.restaurantmanager.core.payment.dto.PaymentRetryRequest;
 import com.restaurantmanager.core.payment.dto.ReceiptResponse;
 import com.restaurantmanager.core.security.UserPrincipal;
+import com.restaurantmanager.core.config.CacheConfig;
 import com.restaurantmanager.core.table.RestaurantTableEntity;
 import com.restaurantmanager.core.table.RestaurantTableRepository;
+import com.restaurantmanager.core.table.TableRealtimePublisher;
 import com.restaurantmanager.core.table.TableStatus;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +45,8 @@ public class PaymentService {
     private final PaymentRealtimePublisher realtimePublisher;
     private final ObjectMapper objectMapper;
     private final RestaurantTableRepository tableRepository;
+    private final TableRealtimePublisher tableRealtimePublisher;
+    private final CacheManager cacheManager;
 
     public PaymentService(PaymentRepository paymentRepository,
                           PaymentWebhookEventRepository paymentWebhookEventRepository,
@@ -50,7 +55,9 @@ public class PaymentService {
                           PaymentProps paymentProps,
                           PaymentRealtimePublisher realtimePublisher,
                           ObjectMapper objectMapper,
-                          RestaurantTableRepository tableRepository) {
+                          RestaurantTableRepository tableRepository,
+                          TableRealtimePublisher tableRealtimePublisher,
+                          CacheManager cacheManager) {
         this.paymentRepository = paymentRepository;
         this.paymentWebhookEventRepository = paymentWebhookEventRepository;
         this.orderRepository = orderRepository;
@@ -59,6 +66,8 @@ public class PaymentService {
         this.realtimePublisher = realtimePublisher;
         this.objectMapper = objectMapper;
         this.tableRepository = tableRepository;
+        this.tableRealtimePublisher = tableRealtimePublisher;
+        this.cacheManager = cacheManager;
     }
 
     @Transactional
@@ -278,8 +287,18 @@ public class PaymentService {
                     return paid.compareTo(order.getTotal()) < 0;
                 });
 
-        table.setStatus(hasOutstanding ? TableStatus.OCCUPIED : TableStatus.AVAILABLE);
+        TableStatus newStatus = hasOutstanding ? TableStatus.OCCUPIED : TableStatus.AVAILABLE;
+        table.setStatus(newStatus);
         tableRepository.save(table);
+        evictTableCache();
+        tableRealtimePublisher.publishTableStatusChanged(table.getNumber(), newStatus);
+    }
+
+    private void evictTableCache() {
+        var tables = cacheManager.getCache(CacheConfig.TABLES);
+        if (tables != null) tables.clear();
+        var scan = cacheManager.getCache(CacheConfig.TABLE_SCAN);
+        if (scan != null) scan.clear();
     }
 
     private PaymentStatus mapProviderStatus(String providerStatus) {
