@@ -5,10 +5,13 @@ import com.restaurantmanager.core.phase10.analytics.OrderAnalyticsRecord;
 import com.restaurantmanager.core.phase10.analytics.TopItem;
 import com.restaurantmanager.core.phase10.load.LoadTestService;
 import com.restaurantmanager.core.phase10.security.SecurityGuardService;
+import com.restaurantmanager.core.order.OrderStatus;
 import com.restaurantmanager.core.order.OrderEntity;
 import com.restaurantmanager.core.order.OrderItemEntity;
 import com.restaurantmanager.core.order.OrderItemRepository;
 import com.restaurantmanager.core.order.OrderRepository;
+import com.restaurantmanager.core.order.OrderType;
+import com.restaurantmanager.core.payment.PaymentMethod;
 import com.restaurantmanager.core.payment.PaymentEntity;
 import com.restaurantmanager.core.payment.PaymentRepository;
 import com.restaurantmanager.core.payment.PaymentStatus;
@@ -76,8 +79,8 @@ public class Phase10RuntimeService {
         return securityGuardService.canCustomerAccessOrder(requesterId, orderOwnerId);
     }
 
-    public RevenueResponse revenue(LocalDate from, LocalDate to, RevenuePeriod period) {
-        List<OrderAnalyticsRecord> records = analyticsRecords(from, to);
+    public RevenueResponse revenue(LocalDate from, LocalDate to, UUID branchId, RevenuePeriod period) {
+        List<OrderAnalyticsRecord> records = analyticsRecords(from, to, branchId);
         Function<OrderAnalyticsRecord, String> bucket = switch (period) {
             case DAY -> record -> record.createdAt().atOffset(ZoneOffset.UTC).toLocalDate().toString();
             case WEEK -> record -> {
@@ -99,12 +102,12 @@ public class Phase10RuntimeService {
         return new RevenueResponse(points);
     }
 
-    public List<TopItem> topItems(LocalDate from, LocalDate to, int limit) {
-        return analyticsService.topItems(analyticsRecords(from, to), limit);
+    public List<TopItem> topItems(LocalDate from, LocalDate to, UUID branchId, int limit) {
+        return analyticsService.topItems(analyticsRecords(from, to, branchId), limit);
     }
 
-    public List<PeakHourPoint> peakHours(LocalDate from, LocalDate to) {
-        return analyticsRecords(from, to).stream()
+    public List<PeakHourPoint> peakHours(LocalDate from, LocalDate to, UUID branchId) {
+        return analyticsRecords(from, to, branchId).stream()
                 .collect(Collectors.groupingBy(OrderAnalyticsRecord::orderHour, Collectors.summingInt(OrderAnalyticsRecord::quantity)))
                 .entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
@@ -112,8 +115,8 @@ public class Phase10RuntimeService {
                 .toList();
     }
 
-    public AverageOrderValueResponse averageOrderValue(LocalDate from, LocalDate to) {
-        List<OrderEntity> orders = successfulOrders(from, to);
+    public AverageOrderValueResponse averageOrderValue(LocalDate from, LocalDate to, UUID branchId) {
+        List<OrderEntity> orders = successfulOrders(from, to, branchId);
         BigDecimal total = orders.stream().map(OrderEntity::getTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal average = orders.isEmpty()
                 ? BigDecimal.ZERO
@@ -121,8 +124,40 @@ public class Phase10RuntimeService {
         return new AverageOrderValueResponse(average, orders.size());
     }
 
-    private List<OrderAnalyticsRecord> analyticsRecords(LocalDate from, LocalDate to) {
-        List<OrderEntity> orders = successfulOrders(from, to);
+    public AnalyticsOverview overview(LocalDate from, LocalDate to, UUID branchId, RevenuePeriod period) {
+        List<OrderEntity> paidOrders = successfulOrders(from, to, branchId);
+        List<OrderEntity> visibleOrders = visibleOrders(from, to, branchId);
+        List<PaymentEntity> successfulPayments = successfulPayments(from, to, branchId);
+        List<OrderAnalyticsRecord> records = analyticsRecords(paidOrders);
+
+        BigDecimal totalRevenue = successfulPayments.stream()
+                .map(PaymentEntity::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        int paidOrderCount = paidOrders.size();
+        BigDecimal averageOrderValue = paidOrderCount == 0
+                ? BigDecimal.ZERO
+                : totalRevenue.divide(BigDecimal.valueOf(paidOrderCount), 2, RoundingMode.HALF_UP);
+
+        return new AnalyticsOverview(
+                totalRevenue.setScale(2, RoundingMode.HALF_UP),
+                paidOrderCount,
+                averageOrderValue,
+                analyticsService.repeatCustomers(records),
+                revenue(from, to, branchId, period),
+                analyticsService.topItems(records, 5),
+                peakHours(from, to, branchId),
+                branchBreakdown(paidOrders, successfulPayments),
+                paymentMethodBreakdown(successfulPayments),
+                orderTypeBreakdown(paidOrders),
+                orderStatusBreakdown(visibleOrders)
+        );
+    }
+
+    private List<OrderAnalyticsRecord> analyticsRecords(LocalDate from, LocalDate to, UUID branchId) {
+        return analyticsRecords(successfulOrders(from, to, branchId));
+    }
+
+    private List<OrderAnalyticsRecord> analyticsRecords(List<OrderEntity> orders) {
         if (orders.isEmpty()) {
             return List.of();
         }
@@ -150,18 +185,91 @@ public class Phase10RuntimeService {
         return records;
     }
 
-    private List<OrderEntity> successfulOrders(LocalDate from, LocalDate to) {
-        Instant fromInstant = from == null ? Instant.EPOCH : from.atStartOfDay().toInstant(ZoneOffset.UTC);
-        Instant toInstant = to == null ? Instant.now().plusSeconds(86_400) : to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
-        List<PaymentEntity> payments = paymentRepository.findByStatusInAndCreatedAtBeforeOrderByCreatedAtAsc(
-                List.of(PaymentStatus.SUCCESS), toInstant);
-        return payments.stream()
-                .filter(payment -> payment.getPaidAt() != null)
-                .filter(payment -> !payment.getPaidAt().isBefore(fromInstant) && payment.getPaidAt().isBefore(toInstant))
+    private List<OrderEntity> successfulOrders(LocalDate from, LocalDate to, UUID branchId) {
+        return successfulPayments(from, to, branchId).stream()
                 .map(PaymentEntity::getOrder)
                 .collect(Collectors.toMap(OrderEntity::getId, Function.identity(), (left, right) -> left))
                 .values().stream()
                 .sorted(Comparator.comparing(OrderEntity::getCreatedAt))
+                .toList();
+    }
+
+    private List<PaymentEntity> successfulPayments(LocalDate from, LocalDate to, UUID branchId) {
+        Instant fromInstant = from == null ? Instant.EPOCH : from.atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant toInstant = to == null ? Instant.now().plusSeconds(86_400) : to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        return paymentRepository.findByStatusInAndCreatedAtBeforeOrderByCreatedAtAsc(
+                List.of(PaymentStatus.SUCCESS), toInstant)
+                .stream()
+                .filter(payment -> payment.getPaidAt() != null)
+                .filter(payment -> !payment.getPaidAt().isBefore(fromInstant) && payment.getPaidAt().isBefore(toInstant))
+                .filter(payment -> branchId == null
+                        || (payment.getOrder().getBranch() != null && branchId.equals(payment.getOrder().getBranch().getId())))
+                .sorted(Comparator.comparing(PaymentEntity::getPaidAt))
+                .toList();
+    }
+
+    private List<OrderEntity> visibleOrders(LocalDate from, LocalDate to, UUID branchId) {
+        Instant fromInstant = from == null ? Instant.EPOCH : from.atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant toInstant = to == null ? null : to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        return orderRepository.findVisibleOrders(null, branchId, null, null, fromInstant, toInstant);
+    }
+
+    private List<BranchPerformancePoint> branchBreakdown(List<OrderEntity> paidOrders, List<PaymentEntity> successfulPayments) {
+        Map<UUID, BigDecimal> revenueByBranch = successfulPayments.stream()
+                .filter(payment -> payment.getOrder().getBranch() != null)
+                .collect(Collectors.groupingBy(payment -> payment.getOrder().getBranch().getId(),
+                        Collectors.reducing(BigDecimal.ZERO, PaymentEntity::getAmount, BigDecimal::add)));
+        Map<UUID, Long> ordersByBranch = paidOrders.stream()
+                .filter(order -> order.getBranch() != null)
+                .collect(Collectors.groupingBy(order -> order.getBranch().getId(), Collectors.counting()));
+
+        return paidOrders.stream()
+                .filter(order -> order.getBranch() != null)
+                .collect(Collectors.toMap(order -> order.getBranch().getId(), Function.identity(), (left, right) -> left))
+                .values().stream()
+                .map(order -> {
+                    UUID id = order.getBranch().getId();
+                    BigDecimal revenue = revenueByBranch.getOrDefault(id, BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+                    int count = ordersByBranch.getOrDefault(id, 0L).intValue();
+                    BigDecimal average = count == 0 ? BigDecimal.ZERO : revenue.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_UP);
+                    return new BranchPerformancePoint(id, order.getBranch().getCode(), order.getBranch().getName(), revenue, count, average);
+                })
+                .sorted(Comparator.comparing(BranchPerformancePoint::revenue).reversed())
+                .toList();
+    }
+
+    private List<PaymentMethodBreakdownPoint> paymentMethodBreakdown(List<PaymentEntity> successfulPayments) {
+        return successfulPayments.stream()
+                .collect(Collectors.groupingBy(PaymentEntity::getMethod))
+                .entrySet().stream()
+                .map(entry -> new PaymentMethodBreakdownPoint(
+                        entry.getKey(),
+                        entry.getValue().stream().map(PaymentEntity::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP),
+                        entry.getValue().size()
+                ))
+                .sorted(Comparator.comparing(PaymentMethodBreakdownPoint::revenue).reversed())
+                .toList();
+    }
+
+    private List<OrderTypeBreakdownPoint> orderTypeBreakdown(List<OrderEntity> paidOrders) {
+        return paidOrders.stream()
+                .collect(Collectors.groupingBy(OrderEntity::getType))
+                .entrySet().stream()
+                .map(entry -> new OrderTypeBreakdownPoint(
+                        entry.getKey(),
+                        entry.getValue().stream().map(OrderEntity::getTotal).reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP),
+                        entry.getValue().size()
+                ))
+                .sorted(Comparator.comparing(OrderTypeBreakdownPoint::revenue).reversed())
+                .toList();
+    }
+
+    private List<OrderStatusBreakdownPoint> orderStatusBreakdown(List<OrderEntity> visibleOrders) {
+        return visibleOrders.stream()
+                .collect(Collectors.groupingBy(OrderEntity::getStatus, Collectors.counting()))
+                .entrySet().stream()
+                .map(entry -> new OrderStatusBreakdownPoint(entry.getKey(), entry.getValue().intValue()))
+                .sorted(Comparator.comparing(OrderStatusBreakdownPoint::orderCount).reversed())
                 .toList();
     }
 
@@ -176,6 +284,46 @@ public class Phase10RuntimeService {
     public record PeakHourPoint(int hour, int orders) {}
 
     public record AverageOrderValueResponse(BigDecimal averageOrderValue, int orderCount) {}
+
+    public record AnalyticsOverview(
+            BigDecimal totalRevenue,
+            int paidOrderCount,
+            BigDecimal averageOrderValue,
+            int repeatCustomers,
+            RevenueResponse revenue,
+            List<TopItem> topItems,
+            List<PeakHourPoint> peakHours,
+            List<BranchPerformancePoint> branches,
+            List<PaymentMethodBreakdownPoint> paymentMethods,
+            List<OrderTypeBreakdownPoint> orderTypes,
+            List<OrderStatusBreakdownPoint> orderStatuses
+    ) {}
+
+    public record BranchPerformancePoint(
+            UUID branchId,
+            String branchCode,
+            String branchName,
+            BigDecimal revenue,
+            int orderCount,
+            BigDecimal averageOrderValue
+    ) {}
+
+    public record PaymentMethodBreakdownPoint(
+            PaymentMethod method,
+            BigDecimal revenue,
+            int paymentCount
+    ) {}
+
+    public record OrderTypeBreakdownPoint(
+            OrderType type,
+            BigDecimal revenue,
+            int orderCount
+    ) {}
+
+    public record OrderStatusBreakdownPoint(
+            OrderStatus status,
+            int orderCount
+    ) {}
 
     public enum RevenuePeriod {
         DAY,

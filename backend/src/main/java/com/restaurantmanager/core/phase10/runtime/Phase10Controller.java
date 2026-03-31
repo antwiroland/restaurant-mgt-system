@@ -35,8 +35,9 @@ public class Phase10Controller {
     public Phase10RuntimeService.RevenueResponse revenue(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) UUID branchId,
             @RequestParam(defaultValue = "DAY") Phase10RuntimeService.RevenuePeriod period) {
-        return runtimeService.revenue(from, to, period);
+        return runtimeService.revenue(from, to, branchId, period);
     }
 
     @GetMapping("/analytics/top-items")
@@ -44,24 +45,37 @@ public class Phase10Controller {
     public List<com.restaurantmanager.core.phase10.analytics.TopItem> topItems(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) UUID branchId,
             @RequestParam(defaultValue = "10") @Min(1) int limit) {
-        return runtimeService.topItems(from, to, limit);
+        return runtimeService.topItems(from, to, branchId, limit);
     }
 
     @GetMapping("/analytics/peak-hours")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public List<Phase10RuntimeService.PeakHourPoint> peakHours(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return runtimeService.peakHours(from, to);
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) UUID branchId) {
+        return runtimeService.peakHours(from, to, branchId);
     }
 
     @GetMapping("/analytics/average-order-value")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public Phase10RuntimeService.AverageOrderValueResponse averageOrderValue(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return runtimeService.averageOrderValue(from, to);
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) UUID branchId) {
+        return runtimeService.averageOrderValue(from, to, branchId);
+    }
+
+    @GetMapping("/analytics/overview")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public Phase10RuntimeService.AnalyticsOverview overview(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) UUID branchId,
+            @RequestParam(defaultValue = "DAY") Phase10RuntimeService.RevenuePeriod period) {
+        return runtimeService.overview(from, to, branchId, period);
     }
 
     @PostMapping("/load/run")
