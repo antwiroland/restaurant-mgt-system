@@ -7,6 +7,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
@@ -55,7 +56,8 @@ public class PromoCodeEntity {
     private Instant createdAt;
 
     @PrePersist
-    public void prePersist() {
+    @PreUpdate
+    public void normalize() {
         if (id == null) {
             id = UUID.randomUUID();
         }

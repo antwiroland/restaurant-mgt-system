@@ -6,6 +6,7 @@ import com.restaurantmanager.core.phase10.analytics.TopItem;
 import com.restaurantmanager.core.phase10.load.LoadTestService;
 import com.restaurantmanager.core.phase10.security.SecurityGuardService;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -15,6 +16,8 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class Phase10FeaturesTest {
 
@@ -102,7 +105,7 @@ class Phase10FeaturesTest {
 
     @Test
     void securitySqlInjectionAttemptOnSearchEndpoints_sanitizedNoDataLeaked() {
-        SecurityGuardService service = new SecurityGuardService();
+        SecurityGuardService service = redisUnavailableSecurityService();
         String sanitized = service.sanitizeSearch("' OR 1=1; --");
 
         assertFalse(sanitized.contains("'"));
@@ -111,7 +114,7 @@ class Phase10FeaturesTest {
 
     @Test
     void securityXssPayloadInOrderNotes_escapedInReceiptOutput() {
-        SecurityGuardService service = new SecurityGuardService();
+        SecurityGuardService service = redisUnavailableSecurityService();
         String escaped = service.escapeReceiptNotes("<script>alert(1)</script>");
 
         assertTrue(escaped.contains("&lt;script&gt;"));
@@ -119,7 +122,7 @@ class Phase10FeaturesTest {
 
     @Test
     void securityIdorCustomerCannotFetchAnotherCustomersOrderByGuessingUuid() {
-        SecurityGuardService service = new SecurityGuardService();
+        SecurityGuardService service = redisUnavailableSecurityService();
         boolean allowed = service.canCustomerAccessOrder(UUID.randomUUID(), UUID.randomUUID());
 
         assertFalse(allowed);
@@ -127,7 +130,7 @@ class Phase10FeaturesTest {
 
     @Test
     void securityBruteForceLogin_rateLimitedAfter10Attempts() {
-        SecurityGuardService service = new SecurityGuardService();
+        SecurityGuardService service = redisUnavailableSecurityService();
         String phone = "+233200000010";
         for (int i = 0; i < 10; i++) {
             service.registerLoginFailure(phone);
@@ -138,9 +141,15 @@ class Phase10FeaturesTest {
 
     @Test
     void securityPaystackWebhookWithoutSignatureHeader_rejected() {
-        SecurityGuardService service = new SecurityGuardService();
+        SecurityGuardService service = redisUnavailableSecurityService();
 
         assertFalse(service.hasWebhookSignature(""));
+    }
+
+    private SecurityGuardService redisUnavailableSecurityService() {
+        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        when(redis.opsForValue()).thenThrow(new RuntimeException("redis unavailable"));
+        return new SecurityGuardService(redis);
     }
 
     private OrderAnalyticsRecord rec(String itemName,

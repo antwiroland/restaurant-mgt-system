@@ -243,6 +243,35 @@ export type ModifierOptionUpsertRequest = {
   active?: boolean;
 };
 
+export type PromoDiscountType = "PERCENTAGE" | "FLAT";
+
+export type PromoCodeRecord = {
+  id: string;
+  code: string;
+  description?: string;
+  discountType: PromoDiscountType;
+  discountValue: string;
+  minOrderAmount: string;
+  maxDiscount?: string;
+  expiryDate?: string;
+  usageLimit?: number;
+  usageCount: number;
+  active: boolean;
+  createdAt: string;
+};
+
+export type PromoCodeUpsertRequest = {
+  code: string;
+  description?: string;
+  discountType: PromoDiscountType;
+  discountValue: number;
+  minOrderAmount: number;
+  maxDiscount?: number;
+  expiryDate?: string;
+  usageLimit?: number;
+  active: boolean;
+};
+
 export type OrderItemRecord = {
   id: string;
   menuItemId: string;
@@ -694,6 +723,45 @@ export async function deleteMenuModifierOption(
   return apiRequest<void>(`/menu/items/${menuItemId}/modifiers/${groupId}/options/${optionId}`, {
     method: "DELETE",
     token: session.accessToken,
+  });
+}
+
+export async function getPromoCodes(session: StaffSession): Promise<PromoCodeRecord[]> {
+  return apiRequest<PromoCodeRecord[]>("/phase8/promo-codes", { token: session.accessToken });
+}
+
+export async function createPromoCode(
+  session: StaffSession,
+  payload: PromoCodeUpsertRequest,
+): Promise<PromoCodeRecord> {
+  return apiRequest<PromoCodeRecord>("/phase8/promo-codes", {
+    method: "POST",
+    token: session.accessToken,
+    body: payload,
+  });
+}
+
+export async function updatePromoCode(
+  session: StaffSession,
+  id: string,
+  payload: PromoCodeUpsertRequest,
+): Promise<PromoCodeRecord> {
+  return apiRequest<PromoCodeRecord>(`/phase8/promo-codes/${id}`, {
+    method: "PUT",
+    token: session.accessToken,
+    body: payload,
+  });
+}
+
+export async function updatePromoCodeStatus(
+  session: StaffSession,
+  id: string,
+  active: boolean,
+): Promise<PromoCodeRecord> {
+  return apiRequest<PromoCodeRecord>(`/phase8/promo-codes/${id}/status`, {
+    method: "PATCH",
+    token: session.accessToken,
+    body: { active },
   });
 }
 

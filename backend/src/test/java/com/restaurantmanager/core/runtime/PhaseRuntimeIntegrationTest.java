@@ -14,8 +14,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -71,6 +74,85 @@ class PhaseRuntimeIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.discountType").value("PERCENTAGE"))
                 .andExpect(jsonPath("$.discountValue").value(10))
                 .andExpect(jsonPath("$.valid").value(true));
+    }
+
+    @Test
+    void givenManager_whenManagePromoCodes_thenCrudWorkflowSupported() throws Exception {
+        UserEntity manager = createUser("Manager", "+233220000012", "manager12@x.com", "secret123", Role.MANAGER);
+
+        String createPayload = """
+                {
+                  "code":"SPRING25",
+                  "description":"25 percent off spring promotion",
+                  "discountType":"PERCENTAGE",
+                  "discountValue":25,
+                  "minOrderAmount":40,
+                  "maxDiscount":15,
+                  "expiryDate":"%s",
+                  "usageLimit":250,
+                  "active":true
+                }
+                """.formatted(Instant.now().plusSeconds(7200));
+
+        String responseBody = mockMvc.perform(post("/phase8/promo-codes")
+                        .header("Authorization", "Bearer " + accessToken(manager))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createPayload))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.code").value("SPRING25"))
+                .andExpect(jsonPath("$.usageCount").value(0))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String promoId = objectMapper.readTree(responseBody).get("id").asText();
+
+        String updatePayload = """
+                {
+                  "code":"SPRING25",
+                  "description":"Updated spring promotion",
+                  "discountType":"PERCENTAGE",
+                  "discountValue":20,
+                  "minOrderAmount":30,
+                  "maxDiscount":12,
+                  "expiryDate":"%s",
+                  "usageLimit":300,
+                  "active":true
+                }
+                """.formatted(Instant.now().plusSeconds(10800));
+
+        mockMvc.perform(put("/phase8/promo-codes/" + promoId)
+                        .header("Authorization", "Bearer " + accessToken(manager))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updatePayload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.description").value("Updated spring promotion"))
+                .andExpect(jsonPath("$.discountValue").value(20))
+                .andExpect(jsonPath("$.minOrderAmount").value(30))
+                .andExpect(jsonPath("$.usageLimit").value(300));
+
+        mockMvc.perform(patch("/phase8/promo-codes/" + promoId + "/status")
+                        .header("Authorization", "Bearer " + accessToken(manager))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"active\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
+
+        mockMvc.perform(get("/phase8/promo-codes")
+                        .header("Authorization", "Bearer " + accessToken(manager)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].code").value("SPRING25"))
+                .andExpect(jsonPath("$[0].active").value(false));
+    }
+
+    @Test
+    void givenCustomer_whenListPromoCodes_thenForbidden() throws Exception {
+        UserEntity customer = createUser("Customer", "+233220000013", "customer13@x.com", "secret123", Role.CUSTOMER);
+
+        mockMvc.perform(get("/phase8/promo-codes")
+                        .header("Authorization", "Bearer " + accessToken(customer)))
+                .andExpect(status().isForbidden());
     }
 
     @Test
