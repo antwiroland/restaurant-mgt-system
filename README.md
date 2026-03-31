@@ -35,6 +35,7 @@ npm run typecheck
 ## Documentation
 
 - Master guide: `documentation/DEVELOPMENT_GUIDE.md`
+- Deployment readiness: `documentation/DEPLOYMENT_READINESS.md`
 - Live OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 - Live Swagger UI: `http://localhost:8080/swagger-ui.html`
 - Final guide snapshot: `documentation/final_development_guide.md`

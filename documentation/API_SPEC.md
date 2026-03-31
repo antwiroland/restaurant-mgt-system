@@ -1,513 +1,317 @@
-# Restaurant Manager — API Specification
+# Restaurant Manager API Specification
 
-> Note: live API documentation is generated from Spring controllers using SpringDoc/OpenAPI.
 > Preferred source of truth:
 > - OpenAPI JSON: `/v3/api-docs`
 > - Swagger UI: `/swagger-ui.html`
-> This markdown file is a human-oriented reference and may lag implementation details.
+>
+> This file is a human-oriented runtime reference for the current backend.
 
-**Base URL:** `https://api.restaurantmanager.com/api/v1`
+**Base URL:** `https://api.restaurantmanager.com`
 **Auth:** Bearer JWT in `Authorization` header
 **Content-Type:** `application/json`
 
----
+## Notes
 
-## Conventions
-
-- All IDs are UUIDs
-- All timestamps are ISO 8601 UTC (`2026-03-23T14:00:00Z`)
-- Currency amounts are `NUMERIC` strings (e.g. `"12.50"`) in GHS
-- Paginated endpoints accept `?page=0&size=20&sort=createdAt,desc`
-- Error response shape:
-  ```json
-  {
-    "status": 400,
-    "error": "BAD_REQUEST",
-    "message": "Human-readable message",
-    "timestamp": "2026-03-23T14:00:00Z"
-  }
-  ```
-
----
+- The backend does not use a runtime `/api/v1` prefix.
+- The staff web app proxies browser requests through `/api/rm/**` and forwards them to backend root routes.
+- Paginated endpoints return pagination metadata through response headers such as `X-Page`, `X-Size`, `X-Total-Elements`, and `X-Total-Pages`.
 
 ## 1. Authentication
 
 ### POST `/auth/register`
-Register a new customer account.
-```json
-// Request
-{ "name": "Kofi Mensah", "phone": "+233201234567", "email": "kofi@example.com", "password": "secret123" }
-
-// Response 201
-{ "id": "uuid", "name": "Kofi Mensah", "phone": "+233201234567", "role": "CUSTOMER", "accessToken": "...", "refreshToken": "..." }
-```
+Register a customer account.
 
 ### POST `/auth/login`
-```json
-// Request
-{ "phone": "+233201234567", "password": "secret123" }
-
-// Response 200
-{ "accessToken": "...", "refreshToken": "...", "expiresIn": 900, "user": { "id": "uuid", "name": "Kofi Mensah", "role": "CUSTOMER" } }
-```
+Returns access token, refresh token, expiry, and user payload.
 
 ### POST `/auth/refresh`
-```json
-// Request
-{ "refreshToken": "..." }
-
-// Response 200
-{ "accessToken": "...", "expiresIn": 900 }
-```
+Returns a new access token.
 
 ### POST `/auth/logout`
-Revokes refresh token. Requires Bearer token.
-```json
-// Request
-{ "refreshToken": "..." }
-// Response 204 No Content
-```
+Revokes the supplied refresh token.
 
 ### POST `/auth/pin/verify`
-Manager provides their PIN to get a short-lived override token.
-```json
-// Request
-{ "pin": "1234", "actionType": "DISCOUNT" }
+Returns a short-lived override token for manager-controlled actions.
 
-// Response 200
-{ "overrideToken": "...", "expiresIn": 300, "actionType": "DISCOUNT" }
-
-// Response 401 — wrong PIN
-// Response 423 — PIN locked (includes lockedUntil)
-```
-
----
-
-## 2. Users (Admin only)
+## 2. Users
 
 ### GET `/users`
-List all staff accounts. `?role=CASHIER`
-```json
-// Response 200
-{ "content": [{ "id": "uuid", "name": "Ama", "role": "CASHIER", "active": true }], "totalElements": 5 }
-```
+Admin only. List users.
 
-### POST `/users`
-Create staff account.
-```json
-// Request
-{ "name": "Ama Asante", "phone": "+233209999999", "email": "ama@restaurant.com", "role": "CASHIER", "password": "temp1234" }
-// Response 201 — User object
-```
-
-### GET `/users/{id}`
-### PUT `/users/{id}`
-```json
-// Request (partial update allowed)
-{ "name": "Ama Asante", "active": false }
-```
-
-### DELETE `/users/{id}`
-Deactivates (soft delete). Response 204.
+### PATCH `/users/{id}/role`
+Admin only. Assign a role and optional branch.
 
 ### POST `/users/{id}/pin`
-Set or update manager PIN.
-```json
-// Request
-{ "pin": "5678" }
-// Response 204
-```
+Authenticated user with permission can set a PIN.
 
----
+### GET `/users/me`
+Authenticated profile lookup.
+
+### PATCH `/users/me`
+Customer only. Update own profile.
+
+### GET `/users/me/addresses`
+Customer only. List delivery addresses.
+
+### POST `/users/me/addresses`
+Customer only. Add delivery address.
 
 ## 3. Menu
 
 ### GET `/menu/categories`
-Public. Returns active categories with items.
-```json
-// Response 200
-[{ "id": "uuid", "name": "Starters", "displayOrder": 1, "items": [ {...} ] }]
-```
-
-### POST `/menu/categories` — Admin/Manager
-```json
-{ "name": "Starters", "description": "Light bites", "displayOrder": 1 }
-```
-
-### PUT `/menu/categories/{id}` — Admin/Manager
-### DELETE `/menu/categories/{id}` — Admin only. Response 204.
+Public. List categories with pagination headers.
 
 ### GET `/menu/items`
-Public. Supports `?categoryId=uuid&available=true&q=chicken`
-```json
-{ "content": [{ "id": "uuid", "name": "Jollof Rice", "price": "25.00", "available": true, "imageUrl": "..." }] }
-```
+Public. Supports `categoryId`, `available`, and `q`.
 
 ### GET `/menu/items/{id}`
+Public/staff lookup by ID.
 
-### POST `/menu/items` — Admin/Manager
-```json
-{ "categoryId": "uuid", "name": "Jollof Rice", "description": "Smoky...", "price": "25.00", "imageUrl": "https://..." }
-```
+### GET `/menu/items/{id}/modifiers`
+Public/staff lookup for modifier groups and options.
 
-### PUT `/menu/items/{id}` — Admin/Manager
+### POST `/menu/categories`
+Admin/manager only.
 
-### PATCH `/menu/items/{id}/availability` — Admin/Manager/Cashier
-```json
-{ "available": false }
-// Response 200 — updated item
-```
+### PUT `/menu/categories/{id}`
+Admin/manager only.
 
-### DELETE `/menu/items/{id}` — Admin only. Response 204.
+### DELETE `/menu/categories/{id}`
+Admin only.
 
----
+### POST `/menu/items`
+Admin/manager only.
+
+### PUT `/menu/items/{id}`
+Admin/manager only.
+
+### PATCH `/menu/items/{id}/availability`
+Admin/manager/cashier only.
+
+### DELETE `/menu/items/{id}`
+Admin only.
 
 ## 4. Tables
 
+### GET `/tables/public`
+Public table-status view.
+
 ### GET `/tables`
-Staff only. Returns all tables with current status.
-```json
-[{ "id": "uuid", "number": "T1", "capacity": 4, "zone": "Main Hall", "status": "AVAILABLE", "qrToken": "abc123" }]
-```
+Staff only.
 
-### POST `/tables` — Admin only
-```json
-{ "number": "T5", "capacity": 6, "zone": "Rooftop" }
-```
+### POST `/tables`
+Admin only.
 
-### GET `/tables/{id}`
-### PUT `/tables/{id}` — Admin only
+### PUT `/tables/{id}`
+Admin only.
 
-### PATCH `/tables/{id}/status` — Admin/Manager/Cashier
-```json
-{ "status": "OCCUPIED" }
-```
+### PATCH `/tables/{id}/status`
+Admin/manager/cashier only.
 
 ### GET `/tables/{id}/qr`
-Returns QR code payload and PNG data URL.
-```json
-{ "tableId": "uuid", "tableNumber": "T1", "qrToken": "abc123", "qrImageDataUrl": "data:image/png;base64,..." }
-```
+Staff only.
+
+### GET `/tables/{id}/qr-image`
+Staff only. PNG response.
 
 ### POST `/tables/scan`
-Validates a QR token and returns table info (used by mobile app).
-```json
-// Request
-{ "qrToken": "abc123" }
-// Response 200
-{ "tableId": "uuid", "tableNumber": "T1", "status": "AVAILABLE" }
-// Response 404 — invalid token
-```
-
----
+Public QR-token validation.
 
 ## 5. Reservations
 
-### GET `/reservations`
-Staff only. Supports `?date=2026-03-23&tableId=uuid&status=PENDING`
-```json
-{ "content": [{ "id": "uuid", "customerName": "Kwame", "tableNumber": "T3", "reservedAt": "...", "partySize": 4, "status": "CONFIRMED" }] }
-```
-
 ### POST `/reservations`
-Auth or public (guest with name/phone).
-```json
-{ "tableId": "uuid", "customerName": "Kwame", "customerPhone": "+233207777777", "partySize": 4, "reservedAt": "2026-03-25T19:00:00Z", "durationMins": 90, "notes": "Anniversary dinner" }
-// Response 201 — Reservation object
-// Response 409 — table already booked for that slot
-```
+Public or authenticated customer creation.
 
-### GET `/reservations/{id}`
-### PUT `/reservations/{id}` — Staff / reservation owner
+### GET `/reservations`
+Staff list endpoint with `date` and `tableId` filters.
 
-### PATCH `/reservations/{id}/status` — Staff
-```json
-{ "status": "CONFIRMED" }
-```
+### GET `/reservations/mine`
+Customer only.
 
-### DELETE `/reservations/{id}` — Staff or owner. Response 204.
+### PATCH `/reservations/{id}/status`
+Staff only.
 
----
+### DELETE `/reservations/{id}`
+Staff or reservation owner.
 
 ## 6. Orders
 
 ### POST `/orders`
-Creates an order. Customer or staff.
-```json
-{
-  "type": "DINE_IN",
-  "tableId": "uuid",
-  "items": [
-    { "menuItemId": "uuid", "quantity": 2, "notes": "No pepper" }
-  ],
-  "promoCode": "SAVE10",
-  "groupSessionId": "uuid",
-  "deliveryAddress": null,
-  "notes": "Extra napkins please"
-}
-// Response 201
-{
-  "id": "uuid",
-  "status": "PENDING",
-  "type": "DINE_IN",
-  "subtotal": "50.00",
-  "discountAmount": "5.00",
-  "total": "45.00",
-  "items": [...]
-}
-```
+Create order.
 
 ### GET `/orders`
-Staff: all orders. Customer: own orders. Supports `?status=PREPARING&type=DINE_IN`
+Role-aware list endpoint.
 
 ### GET `/orders/{id}`
-Returns full order with items, payment summary.
+Role-aware order lookup.
 
-### PATCH `/orders/{id}/status` — Staff only
-```json
-{ "status": "PREPARING" }
-```
+### PATCH `/orders/{id}/status`
+Staff only.
 
 ### DELETE `/orders/{id}`
-Cancel. Customer: own pending orders only. Confirmed+ requires manager override token.
-```json
-// Request for confirmed+ orders
-{ "reason": "Customer changed mind", "overrideToken": "..." }
-```
+Role-aware cancellation path.
 
-### GET `/orders/{id}/receipt`
-Returns receipt object.
-```json
-{
-  "receiptNumber": "RCP-20260323-0042",
-  "orderId": "uuid",
-  "items": [...],
-  "subtotal": "50.00",
-  "discount": "5.00",
-  "total": "45.00",
-  "paymentMethod": "MOBILE_MONEY",
-  "paidAt": "2026-03-23T14:01:00Z"
-}
-```
+### GET `/orders/pickup/{pickupCode}`
+Staff only.
 
----
+### POST `/orders/dine-in/tables/{tableId}/close`
+Staff only.
+
+### POST `/orders/dine-in/tables/{tableId}/reverse`
+Admin/manager only.
+
+### GET `/orders/dine-in/tables/{tableId}/bill`
+Staff only.
+
+### GET `/orders/public/status`
+Public status board.
+
+### POST `/orders/public/dine-in`
+Public table order creation.
+
+### GET `/orders/public/dine-in/tables/{tableToken}/bill`
+Public.
+
+### GET `/orders/public/dine-in/tables/{tableToken}/tracking`
+Public.
 
 ## 7. Group Orders
 
 ### POST `/orders/group/sessions`
-```json
-// Request
-{ "displayName": "Kofi" }
-// Response 201
-{ "sessionId": "uuid", "sessionCode": "GRP-4829", "status": "OPEN" }
-```
+Create group session.
 
 ### POST `/orders/group/sessions/{code}/join`
-```json
-{ "displayName": "Ama" }
-// Response 200
-{ "sessionId": "uuid", "participantId": "uuid", "participants": [...] }
-```
-
-### GET `/orders/group/sessions/{code}`
-Live view of group cart. Returns all participants and their items.
-```json
-{
-  "sessionCode": "GRP-4829",
-  "status": "OPEN",
-  "participants": [
-    { "participantId": "uuid", "displayName": "Kofi", "items": [...], "subtotal": "30.00" }
-  ],
-  "groupTotal": "75.00"
-}
-```
+Join group session.
 
 ### POST `/orders/group/sessions/{code}/items`
-Participant adds items to the group cart.
-```json
-{ "participantId": "uuid", "items": [{ "menuItemId": "uuid", "quantity": 1 }] }
-```
+Add participant items.
+
+### GET `/orders/group/sessions/{code}`
+View live group cart.
 
 ### POST `/orders/group/sessions/{code}/finalize`
-Host converts group session into a single order.
-```json
-{ "type": "DINE_IN", "tableId": "uuid" }
-// Response 201 — Order object (same as POST /orders)
-```
-
----
+Finalize group order.
 
 ## 8. Payments
 
 ### POST `/payments/initiate`
-```json
-{
-  "orderId": "uuid",
-  "method": "MOBILE_MONEY",
-  "momoPhone": "+233201234567",
-  "idempotencyKey": "client-generated-uuid"
-}
-// Response 201
-{
-  "paymentId": "uuid",
-  "status": "PENDING",
-  "paystackReference": "PAY-abc123",
-  "authorizationUrl": "https://checkout.paystack.com/...",
-  "message": "Approve payment on your phone"
-}
-```
+Initiate payment.
 
 ### GET `/payments/{id}`
-```json
-{
-  "id": "uuid",
-  "orderId": "uuid",
-  "amount": "45.00",
-  "status": "SUCCESS",
-  "method": "MOBILE_MONEY",
-  "paidAt": "2026-03-23T14:01:00Z"
-}
-```
+Get payment status.
+
+### GET `/payments/{id}/verify`
+Verify payment.
 
 ### POST `/payments/{id}/retry`
-Re-initiates a failed payment for the same order.
-```json
-{ "momoPhone": "+233201234567", "idempotencyKey": "new-client-uuid" }
-// Response 201 — same as initiate response
-```
+Retry failed payment.
 
 ### POST `/payments/webhook`
-Paystack webhook. Verifies `x-paystack-signature` header. Internal use only.
-Response: `200 OK` (always respond 200 to Paystack to prevent retries).
+Public webhook endpoint.
 
----
+### GET `/payments/{id}/receipt`
+Receipt by payment ID.
 
-## 9. Financial Controls
+### GET `/payments/orders/{orderId}/receipt`
+Receipt by order ID.
 
-All endpoints require a valid `overrideToken` from `POST /auth/pin/verify`.
+## 9. Phase 8 Runtime
 
-### POST `/financial/discount`
-```json
-{
-  "orderId": "uuid",
-  "discountType": "PERCENTAGE",
-  "discountValue": "10",
-  "reason": "Staff courtesy",
-  "overrideToken": "..."
-}
-// Response 200 — updated Order object
-```
+### GET `/phase8/promo-codes/validate/{code}?subtotal=50.00`
+Validate a persisted promo code for the given subtotal.
 
-### POST `/financial/void`
-```json
-{
-  "orderId": "uuid",
-  "reason": "Duplicate order",
-  "overrideToken": "..."
-}
-// Response 200 — updated Order (status: VOIDED)
-```
+### POST `/phase8/promo/apply`
+Low-level promo runtime endpoint using an explicit promo payload.
 
-### POST `/financial/refund`
-```json
-{
-  "paymentId": "uuid",
-  "amount": "20.00",
-  "reason": "Customer complaint",
-  "overrideToken": "..."
-}
-// Response 200
-{ "paymentId": "uuid", "refundedAmount": "20.00", "status": "PARTIALLY_REFUNDED" }
-```
+### POST `/phase8/offer/free-items`
+Buy-X-get-Y runtime helper.
 
-### GET `/financial/reconciliation?date=2026-03-23`
-Manager+ only.
-```json
-{
-  "date": "2026-03-23",
-  "totalSales": "1240.00",
-  "totalMomo": "980.00",
-  "totalCard": "200.00",
-  "totalCash": "60.00",
-  "totalRefunds": "45.00",
-  "totalVoids": "25.00",
-  "totalDiscounts": "30.00",
-  "orderCount": 48,
-  "signedBy": null,
-  "signedAt": null
-}
-```
+### POST `/phase8/loyalty/accrue`
+Staff accrual endpoint.
 
-### POST `/financial/reconciliation/{date}/sign-off`
-```json
-{ "overrideToken": "..." }
-// Response 200 — updated reconciliation with signedBy / signedAt
-```
+### POST `/phase8/loyalty/redeem`
+Loyalty redemption endpoint.
 
----
+### GET `/phase8/loyalty/{customerId}/balance`
+Loyalty balance lookup.
 
-## 10. Loyalty & Promotions
+### GET `/phase8/loyalty/{customerId}/history`
+Loyalty history lookup.
 
-### GET `/loyalty/balance`
-```json
-{ "customerId": "uuid", "points": 320 }
-```
+### POST `/phase8/qr/sessions/link`
+Link mobile QR session.
 
-### GET `/loyalty/transactions`
-```json
-{ "content": [{ "id": "uuid", "points": 50, "type": "EARN", "orderId": "uuid", "createdAt": "..." }] }
-```
+### GET `/phase8/qr/sessions/{tableNumber}/active`
+Check active QR session.
 
-### GET `/promo-codes/validate/{code}`
-```json
-// Response 200
-{ "code": "SAVE10", "discountType": "PERCENTAGE", "discountValue": "10", "valid": true }
-// Response 400 — expired / usage limit reached
-```
+### DELETE `/phase8/qr/sessions/{tableNumber}`
+Close QR session.
 
----
+### GET `/phase8/qr/tables/{tableNumber}/pdf`
+Export QR PDF payload.
 
-## 11. Analytics (Admin/Manager)
+### POST `/phase8/whatsapp/order-confirmation`
+### POST `/phase8/whatsapp/receipt`
+### POST `/phase8/whatsapp/status`
+WhatsApp runtime endpoints.
 
-### GET `/analytics/sales?from=2026-03-01&to=2026-03-23&groupBy=DAY`
-```json
-{ "data": [{ "period": "2026-03-23", "revenue": "1240.00", "orderCount": 48 }] }
-```
+## 10. Phase 9 Runtime
 
-### GET `/analytics/top-items?from=2026-03-01&to=2026-03-23&limit=10`
-```json
-{ "items": [{ "menuItemId": "uuid", "name": "Jollof Rice", "quantitySold": 142, "revenue": "3550.00" }] }
-```
+### POST `/phase9/discount/apply`
+### POST `/phase9/refund/apply`
+### POST `/phase9/void/apply`
+Financial control endpoints.
 
-### GET `/analytics/peak-hours?date=2026-03-23`
-```json
-{ "hours": [{ "hour": 12, "orderCount": 18 }, { "hour": 13, "orderCount": 22 }] }
-```
+### POST `/phase9/reconciliation/summarize`
+### POST `/phase9/reconciliation/{businessDate}/sign-off`
+Reconciliation endpoints.
 
----
+### GET `/phase9/audit`
+Phase 9 audit review endpoint.
 
-## 12. Audit Log (Admin/Manager)
+## 11. Phase 10 Runtime
 
-### GET `/audit-logs?action=PAYMENT_REFUNDED&from=2026-03-01&to=2026-03-23`
-```json
-{ "content": [{ "id": "uuid", "actorId": "uuid", "action": "PAYMENT_REFUNDED", "entityType": "Payment", "entityId": "uuid", "metadata": {...}, "createdAt": "..." }] }
-```
+### POST `/phase10/analytics/summary`
+Synthetic analytics summary endpoint.
 
----
+### GET `/phase10/analytics/revenue`
+Revenue points by period.
 
-## HTTP Status Code Reference
+### GET `/phase10/analytics/top-items`
+Top-selling items.
 
-| Code | Meaning                    |
-|------|----------------------------|
-| 200  | OK                         |
-| 201  | Created                    |
-| 204  | No Content                 |
-| 400  | Bad Request                |
-| 401  | Unauthorized               |
-| 403  | Forbidden                  |
-| 404  | Not Found                  |
-| 409  | Conflict (duplicate/clash) |
-| 422  | Unprocessable Entity       |
-| 423  | Locked (PIN locked)        |
-| 500  | Internal Server Error      |
+### GET `/phase10/analytics/peak-hours`
+Peak-hour report.
 
+### GET `/phase10/analytics/average-order-value`
+Average order value report.
+
+### POST `/phase10/load/run`
+Synthetic load report.
+
+### POST `/phase10/security/sanitize-search`
+### POST `/phase10/security/escape-notes`
+### GET `/phase10/security/order-access/{ownerId}`
+Security/runtime guard endpoints.
+
+## 12. Audit
+
+### GET `/audit`
+Admin/manager/cashier audit-log view with `action`, `from`, and `to` filters.
+
+## HTTP Status Codes
+
+| Code | Meaning |
+|------|---------|
+| 200 | OK |
+| 201 | Created |
+| 204 | No Content |
+| 400 | Bad Request |
+| 401 | Unauthorized |
+| 403 | Forbidden |
+| 404 | Not Found |
+| 409 | Conflict |
+| 422 | Unprocessable Entity |
+| 423 | Locked |
+| 429 | Too Many Requests |
+| 500 | Internal Server Error |
