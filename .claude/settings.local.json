@@ -31,7 +31,13 @@
       "Bash(cat C:/Users/HP/Desktop/restaurant_manager/web/next.config.*)",
       "Bash(xargs cat:*)",
       "Bash(grep -E \"\\\\.java$\")",
-      "Bash(grep -r @Scheduled C:/Users/HP/Desktop/restaurant_manager/backend --include=*.java)"
+      "Bash(grep -r @Scheduled C:/Users/HP/Desktop/restaurant_manager/backend --include=*.java)",
+      "Bash(grep -r \"TODO\\\\|FIXME\\\\|WIP\\\\|stub\\\\|placeholder\" C:/Users/HP/Desktop/restaurant_manager/web/src --include=*.tsx --include=*.ts --include=*.jsx --include=*.js)",
+      "Bash(find \"C:/Users/HP/Desktop/restaurant_manager/backend/src/main/java\" -type f -name \"*Controller.java\" -exec basename {})",
+      "Bash(grep -r \"ensureProviderConfigured\\\\|NotImplementedException\" C:/Users/HP/Desktop/restaurant_manager/backend/src/main/java --include=*.java -A 3)",
+      "Bash(ls -la \"C:/Users/HP/Desktop/restaurant_manager/web/src/app/\\(staff\\)/\")",
+      "Bash(grep -r \"getOrders\\\\|getTables\\\\|getPayments\" C:/Users/HP/Desktop/restaurant_manager/web/src/lib --include=*.ts --include=*.tsx)",
+      "Bash(grep -r \"throw\\\\|console.error\\\\|catch\" C:/Users/HP/Desktop/restaurant_manager/web/src/app --include=*.tsx)"
     ]
   }
 }

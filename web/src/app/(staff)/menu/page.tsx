@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { Modal } from "@/components/Modal";
 import { Skeleton } from "@/components/Skeleton";
 import { Spinner } from "@/components/Spinner";
@@ -37,6 +38,9 @@ export default function MenuManagementPage() {
   const [editingItem, setEditingItem] = useState<MenuItemRecord | null>(null);
   const [editingItemForm, setEditingItemForm] = useState({ categoryId: "", name: "", description: "", price: "", imageUrl: "", available: true });
   const [editBusy, setEditBusy] = useState(false);
+  const [deletingCategory, setDeletingCategory] = useState<CategoryRecord | null>(null);
+  const [deletingItem, setDeletingItem] = useState<MenuItemRecord | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const filteredCategories = categories.filter((category) => {
     const normalizedQuery = categoryQuery.trim().toLowerCase();
     return !normalizedQuery
@@ -243,7 +247,7 @@ export default function MenuManagementPage() {
                   >
                     Edit
                   </button>
-                  <button className="btn btn-danger btn-sm" onClick={() => void authenticatedFetch((s) => deleteMenuCategory(s, category.id)).then(loadAll)}>Delete</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => setDeletingCategory(category)}>Delete</button>
                 </div>
               </li>
             ))}
@@ -291,7 +295,7 @@ export default function MenuManagementPage() {
                       Edit
                     </button>
                     <button className="btn btn-secondary btn-sm" onClick={() => void authenticatedFetch((s) => updateMenuItemAvailability(s, item.id, !item.available)).then(loadAll)}>{item.available ? "Disable" : "Enable"}</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => void authenticatedFetch((s) => deleteMenuItem(s, item.id)).then(loadAll)}>Delete</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => setDeletingItem(item)}>Delete</button>
                   </div>
                 </div>
               </li>
@@ -300,6 +304,56 @@ export default function MenuManagementPage() {
           </ul>
         </article>
       </section>
+
+      <ConfirmModal
+        open={!!deletingCategory}
+        title="Delete Category"
+        message={`Delete "${deletingCategory?.name}"? All items in this category will also be deleted.`}
+        confirmLabel="Delete"
+        danger
+        busy={deleteBusy}
+        onConfirm={async () => {
+          if (!deletingCategory) return;
+          setDeleteBusy(true);
+          try {
+            await authenticatedFetch((s) => deleteMenuCategory(s, deletingCategory.id));
+            await loadAll();
+            setMessage("Category deleted.");
+            setDeletingCategory(null);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Could not delete category");
+            setDeletingCategory(null);
+          } finally {
+            setDeleteBusy(false);
+          }
+        }}
+        onClose={() => setDeletingCategory(null)}
+      />
+
+      <ConfirmModal
+        open={!!deletingItem}
+        title="Delete Item"
+        message={`Delete "${deletingItem?.name}"?`}
+        confirmLabel="Delete"
+        danger
+        busy={deleteBusy}
+        onConfirm={async () => {
+          if (!deletingItem) return;
+          setDeleteBusy(true);
+          try {
+            await authenticatedFetch((s) => deleteMenuItem(s, deletingItem.id));
+            await loadAll();
+            setMessage("Item deleted.");
+            setDeletingItem(null);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Could not delete item");
+            setDeletingItem(null);
+          } finally {
+            setDeleteBusy(false);
+          }
+        }}
+        onClose={() => setDeletingItem(null)}
+      />
 
       <Modal
         open={!!editingCategory}

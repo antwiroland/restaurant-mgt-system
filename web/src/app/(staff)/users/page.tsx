@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { Skeleton } from "@/components/Skeleton";
 import { hasStaffRole, useStaffSession } from "@/components/SessionProvider";
 import { assignUserRole, getBranches, getUsers, registerUser, setUserPin, type BranchRecord, type StaffRole, type UserRecord } from "@/lib/apiClient";
 
@@ -117,7 +118,7 @@ export default function UsersPage() {
     }
   }
 
-  if (loading) return <main className="shell"><section className="panel">Loading users...</section></main>;
+  if (loading) return <main className="shell"><section className="panel grid gap-3"><Skeleton className="h-6 w-40" />{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</section></main>;
   if (!session) return <main className="shell"><section className="panel"><p className="kicker">Users</p><h1 className="text-2xl font-semibold">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
   if (!canManage) return <main className="shell"><section className="panel"><p className="kicker">Users</p><h1 className="text-2xl font-semibold">Admin only</h1></section></main>;
 

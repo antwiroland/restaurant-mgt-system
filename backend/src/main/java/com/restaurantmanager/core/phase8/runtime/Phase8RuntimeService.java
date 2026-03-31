@@ -2,8 +2,12 @@ package com.restaurantmanager.core.phase8.runtime;
 
 import com.restaurantmanager.core.phase8.common.DiscountType;
 import com.restaurantmanager.core.phase8.loyalty.LoyaltyAccount;
+import com.restaurantmanager.core.phase8.loyalty.LoyaltyBalanceEntity;
+import com.restaurantmanager.core.phase8.loyalty.LoyaltyBalanceRepository;
 import com.restaurantmanager.core.phase8.loyalty.LoyaltyService;
 import com.restaurantmanager.core.phase8.loyalty.LoyaltyTransaction;
+import com.restaurantmanager.core.phase8.loyalty.LoyaltyTransactionEntity;
+import com.restaurantmanager.core.phase8.loyalty.LoyaltyTransactionRepository;
 import com.restaurantmanager.core.phase8.offer.BuyXGetYOfferService;
 import com.restaurantmanager.core.phase8.promo.PromoCode;
 import com.restaurantmanager.core.phase8.promo.PromoCodeEntity;
@@ -14,27 +18,31 @@ import com.restaurantmanager.core.phase8.qr.TableQrPdfService;
 import com.restaurantmanager.core.phase8.whatsapp.WhatsAppService;
 import com.restaurantmanager.core.common.ApiException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 @Service
 public class Phase8RuntimeService {
     private final PromoCodeRepository promoCodeRepository;
+    private final LoyaltyBalanceRepository loyaltyBalanceRepository;
+    private final LoyaltyTransactionRepository loyaltyTransactionRepository;
     private final PromoService promoService = new PromoService();
     private final BuyXGetYOfferService offerService = new BuyXGetYOfferService();
     private final LoyaltyService loyaltyService = new LoyaltyService(1);
     private final MobileSessionService mobileSessionService = new MobileSessionService();
     private final TableQrPdfService tableQrPdfService = new TableQrPdfService();
     private final WhatsAppService whatsAppService = new WhatsAppService((phone, message) -> {}, __ -> {});
-    private final ConcurrentMap<UUID, LoyaltyAccount> loyaltyAccounts = new ConcurrentHashMap<>();
 
-    public Phase8RuntimeService(PromoCodeRepository promoCodeRepository) {
+    public Phase8RuntimeService(PromoCodeRepository promoCodeRepository,
+                                LoyaltyBalanceRepository loyaltyBalanceRepository,
+                                LoyaltyTransactionRepository loyaltyTransactionRepository) {
         this.promoCodeRepository = promoCodeRepository;
+        this.loyaltyBalanceRepository = loyaltyBalanceRepository;
+        this.loyaltyTransactionRepository = loyaltyTransactionRepository;
     }
 
     public BigDecimal applyPromo(String code,
@@ -70,24 +78,47 @@ public class Phase8RuntimeService {
         return offerService.freeItemsFor(purchasedQuantity, buyQty, getQty);
     }
 
+    @Transactional
     public int accrue(UUID customerId, BigDecimal paymentAmount, String orderId) {
-        LoyaltyAccount account = loyaltyAccounts.computeIfAbsent(customerId, ignored -> new LoyaltyAccount());
-        return loyaltyService.accrue(account, paymentAmount, orderId);
+        LoyaltyBalanceEntity balance = findOrCreateBalance(customerId);
+        LoyaltyAccount account = toAccount(balance);
+
+        int awarded = loyaltyService.accrue(account, paymentAmount, orderId);
+
+        balance.setPoints(account.getPoints());
+        loyaltyBalanceRepository.save(balance);
+        saveTransaction(account.getTransactions().get(0), customerId);
+
+        return awarded;
     }
 
+    @Transactional
     public LoyaltyService.RedeemResult redeem(UUID customerId, int pointsToRedeem, BigDecimal orderTotal, String orderId) {
-        LoyaltyAccount account = loyaltyAccounts.computeIfAbsent(customerId, ignored -> new LoyaltyAccount());
-        return loyaltyService.redeem(account, pointsToRedeem, orderTotal, orderId);
+        LoyaltyBalanceEntity balance = findOrCreateBalance(customerId);
+        LoyaltyAccount account = toAccount(balance);
+
+        LoyaltyService.RedeemResult result = loyaltyService.redeem(account, pointsToRedeem, orderTotal, orderId);
+
+        balance.setPoints(account.getPoints());
+        loyaltyBalanceRepository.save(balance);
+        saveTransaction(account.getTransactions().get(0), customerId);
+
+        return result;
     }
 
+    @Transactional(readOnly = true)
     public int balance(UUID customerId) {
-        LoyaltyAccount account = loyaltyAccounts.computeIfAbsent(customerId, ignored -> new LoyaltyAccount());
-        return loyaltyService.currentBalance(account);
+        return loyaltyBalanceRepository.findByCustomerId(customerId)
+                .map(LoyaltyBalanceEntity::getPoints)
+                .orElse(0);
     }
 
+    @Transactional(readOnly = true)
     public List<LoyaltyTransaction> history(UUID customerId) {
-        LoyaltyAccount account = loyaltyAccounts.computeIfAbsent(customerId, ignored -> new LoyaltyAccount());
-        return loyaltyService.history(account);
+        return loyaltyTransactionRepository.findByCustomerIdOrderByCreatedAtDesc(customerId)
+                .stream()
+                .map(e -> new LoyaltyTransaction(e.getPoints(), e.getType(), e.getOrderId(), e.getCreatedAt()))
+                .toList();
     }
 
     public void linkSession(String tableNumber, String sessionId) {
@@ -116,6 +147,32 @@ public class Phase8RuntimeService {
 
     public boolean sendStatusUpdate(String phone, String status) {
         return whatsAppService.sendStatusUpdate(phone, status);
+    }
+
+    private LoyaltyBalanceEntity findOrCreateBalance(UUID customerId) {
+        return loyaltyBalanceRepository.findByCustomerId(customerId)
+                .orElseGet(() -> {
+                    LoyaltyBalanceEntity e = new LoyaltyBalanceEntity();
+                    e.setCustomerId(customerId);
+                    e.setPoints(0);
+                    return e;
+                });
+    }
+
+    private LoyaltyAccount toAccount(LoyaltyBalanceEntity balance) {
+        LoyaltyAccount account = new LoyaltyAccount();
+        account.setPoints(balance.getPoints());
+        return account;
+    }
+
+    private void saveTransaction(LoyaltyTransaction tx, UUID customerId) {
+        LoyaltyTransactionEntity entity = new LoyaltyTransactionEntity();
+        entity.setCustomerId(customerId);
+        entity.setPoints(tx.points());
+        entity.setType(tx.type());
+        entity.setOrderId(tx.orderId());
+        entity.setCreatedAt(tx.createdAt());
+        loyaltyTransactionRepository.save(entity);
     }
 
     private PromoCode loadPromo(String code) {

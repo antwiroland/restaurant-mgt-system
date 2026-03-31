@@ -4,6 +4,8 @@ import type { CreateOrderRequest } from '../types/api';
 
 const QUEUE_KEY = 'offline_queue';
 
+export const MAX_RETRY_COUNT = 3;
+
 export type QueueEntry = {
   id: string;
   action: 'CREATE_ORDER' | 'CREATE_PUBLIC_TABLE_ORDER' | 'CREATE_RESERVATION';
@@ -29,6 +31,7 @@ type OfflineState = {
   markFailed: (id: string) => Promise<void>;
   markConflict: (id: string, reason: string) => Promise<void>;
   loadQueue: () => Promise<void>;
+  cleanupSynced: () => Promise<void>;
   pendingCount: () => number;
 };
 
@@ -85,6 +88,12 @@ export const useOfflineStore = create<OfflineState>((set, get) => ({
   loadQueue: async () => {
     const raw = await AsyncStorage.getItem(QUEUE_KEY);
     if (raw) set({ queue: JSON.parse(raw) });
+  },
+
+  cleanupSynced: async () => {
+    const next = get().queue.filter((e) => e.status !== 'SYNCED');
+    set({ queue: next });
+    await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(next));
   },
 
   pendingCount: () => get().queue.filter((e) => e.status === 'QUEUED').length,

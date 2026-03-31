@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Skeleton } from "@/components/Skeleton";
 import { useStaffSession, hasStaffRole } from "@/components/SessionProvider";
 import {
   createMenuModifierGroup,
@@ -202,7 +203,7 @@ export default function AdminPage() {
   }
 
   if (loading) {
-    return <main className="shell"><section className="panel">Loading...</section></main>;
+    return <main className="shell"><section className="panel grid gap-3"><Skeleton className="h-6 w-44" />{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</section></main>;
   }
 
   if (!session) {

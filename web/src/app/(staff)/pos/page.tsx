@@ -98,7 +98,7 @@ export default function PosPage() {
         || item.categoryName.toLowerCase().includes(normalizedQuery)
         || (item.description?.toLowerCase().includes(normalizedQuery) ?? false);
       return matchesCategory && matchesQuery;
-    });
+    }).sort((a, b) => a.categoryName.localeCompare(b.categoryName) || a.name.localeCompare(b.name));
   }, [menuItems, menuQuery, categoryFilter]);
 
   const total = useMemo(() => cartTotal(cart), [cart]);

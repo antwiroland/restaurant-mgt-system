@@ -75,12 +75,11 @@ public class OrderController {
                                                           @RequestParam(required = false) OrderType type,
                                                           @RequestParam(required = false) Integer page,
                                                           @RequestParam(required = false) Integer size) {
-        List<OrderResponse> all = orderService.listOrders(principal, from, to, status, type);
         Pagination.Params params = Pagination.from(page, size);
-        List<OrderResponse> data = Pagination.slice(all, params);
+        Pagination.PagedResult<OrderResponse> result = orderService.listOrders(principal, from, to, status, type, params);
         return ResponseEntity.ok()
-                .headers(Pagination.headers(all.size(), params))
-                .body(data);
+                .headers(Pagination.headers(result.total(), params))
+                .body(result.data());
     }
 
     @GetMapping("/{id}")

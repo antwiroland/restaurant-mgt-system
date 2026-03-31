@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { Skeleton } from "@/components/Skeleton";
 import { useStaffSession } from "@/components/SessionProvider";
 import { cancelOrder, getOrderById, type OrderRecord } from "@/lib/apiClient";
 
@@ -58,7 +59,7 @@ export default function OrderDetailPage() {
     }
   }
 
-  if (loading) return <main className="shell"><section className="panel">Loading order...</section></main>;
+  if (loading) return <main className="shell"><section className="panel grid gap-3"><Skeleton className="h-6 w-40" /><Skeleton className="h-32 w-full" /><Skeleton className="h-24 w-full" /></section></main>;
   if (!session) return <main className="shell"><section className="panel"><p className="kicker">Order</p><h1 className="text-2xl font-semibold">Staff access required</h1><Link className="mt-4 inline-flex btn btn-primary" href="/login">Open Login</Link></section></main>;
 
   return (

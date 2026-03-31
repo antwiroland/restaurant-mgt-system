@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Drawer } from "@/components/Drawer";
+import { Skeleton } from "@/components/Skeleton";
 import { Spinner } from "@/components/Spinner";
 import { useStaffSession } from "@/components/SessionProvider";
 import {
@@ -188,7 +189,7 @@ export default function TablesPage() {
   }
 
   if (loading) {
-    return <main className="shell"><section className="panel">Loading tables...</section></main>;
+    return <main className="shell"><section className="panel grid gap-3"><Skeleton className="h-6 w-40" />{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</section></main>;
   }
 
   if (!session) {

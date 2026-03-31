@@ -32,9 +32,6 @@ public final class Pagination {
 
     public static HttpHeaders headers(long totalElements, Params params) {
         HttpHeaders headers = new HttpHeaders();
-        if (!params.paged()) {
-            return headers;
-        }
         long totalPages = params.size() == 0 ? 0 : (long) Math.ceil((double) totalElements / params.size());
         headers.add("X-Page", String.valueOf(params.page()));
         headers.add("X-Size", String.valueOf(params.size()));
@@ -44,5 +41,8 @@ public final class Pagination {
     }
 
     public record Params(int page, int size, boolean paged) {
+    }
+
+    public record PagedResult<T>(List<T> data, long total) {
     }
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Skeleton } from "@/components/Skeleton";
 import { useStaffSession } from "@/components/SessionProvider";
 import {
   closeShift,
@@ -115,7 +116,7 @@ export default function ShiftsPage() {
   }
 
   if (loading) {
-    return <main className="shell"><section className="panel">Loading shifts...</section></main>;
+    return <main className="shell"><section className="panel grid gap-3"><Skeleton className="h-6 w-40" />{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</section></main>;
   }
 
   if (!session) {

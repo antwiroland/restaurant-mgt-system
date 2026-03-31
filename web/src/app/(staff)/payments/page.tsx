@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { Skeleton } from "@/components/Skeleton";
 import { useStaffSession } from "@/components/SessionProvider";
 import {
   getPayment,
@@ -87,7 +88,7 @@ export default function PaymentsPage() {
     }
   }
 
-  if (loading) return <main className="shell"><section className="panel">Loading payments...</section></main>;
+  if (loading) return <main className="shell"><section className="panel grid gap-3"><Skeleton className="h-6 w-44" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></section></main>;
   if (!session) return <main className="shell"><section className="panel"><p className="kicker">Payments</p><h1 className="text-2xl font-semibold">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
 
   return (

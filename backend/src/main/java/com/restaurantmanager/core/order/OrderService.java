@@ -2,6 +2,7 @@ package com.restaurantmanager.core.order;
 
 import com.restaurantmanager.core.common.ApiException;
 import com.restaurantmanager.core.common.OverrideActionType;
+import com.restaurantmanager.core.common.Pagination;
 import com.restaurantmanager.core.common.Role;
 import com.restaurantmanager.core.common.TokenType;
 import com.restaurantmanager.core.config.CacheConfig;
@@ -46,6 +47,8 @@ import com.restaurantmanager.core.user.UserRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -135,14 +138,17 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public List<OrderResponse> listOrders(UserPrincipal principal, LocalDate from, LocalDate to,
-                                          OrderStatus status, OrderType type) {
+    public Pagination.PagedResult<OrderResponse> listOrders(UserPrincipal principal, LocalDate from, LocalDate to,
+                                                             OrderStatus status, OrderType type,
+                                                             Pagination.Params params) {
         UUID customerId = principal.role() == Role.CUSTOMER ? principal.userId() : null;
         UUID branchId = isBranchScopedStaff(principal) ? principal.branchId() : null;
         Instant fromInstant = from == null ? null : from.atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant toInstant = to == null ? null : to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
-        List<OrderEntity> orders = orderRepository.findVisibleOrders(customerId, branchId, status, type, fromInstant, toInstant);
-        return toResponses(orders);
+        PageRequest pageable = PageRequest.of(params.page(), params.size(), Sort.by("createdAt").descending());
+        org.springframework.data.domain.Page<OrderEntity> page =
+                orderRepository.findVisibleOrdersPage(customerId, branchId, status, type, fromInstant, toInstant, pageable);
+        return new Pagination.PagedResult<>(toResponses(page.getContent()), page.getTotalElements());
     }
 
     @Transactional(readOnly = true)

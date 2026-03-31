@@ -44,16 +44,10 @@ public class KdsService {
         columns.put(OrderStatus.PREPARING, List.of());
         columns.put(OrderStatus.READY, List.of());
 
-        List<OrderEntity> orders = orderRepository.findAll().stream()
-                .filter(order -> order.getType() == OrderType.DINE_IN || order.getType() == OrderType.PICKUP)
-                .filter(order -> order.getStatus() == OrderStatus.PENDING
-                        || order.getStatus() == OrderStatus.CONFIRMED
-                        || order.getStatus() == OrderStatus.PREPARING
-                        || order.getStatus() == OrderStatus.READY)
-                .filter(order -> effectiveBranchId == null
-                        || (order.getBranch() != null && order.getBranch().getId().equals(effectiveBranchId)))
-                .sorted((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()))
-                .toList();
+        List<OrderEntity> orders = orderRepository.findForKdsBoard(
+                List.of(OrderType.DINE_IN, OrderType.PICKUP),
+                List.of(OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.READY),
+                effectiveBranchId);
 
         List<UUID> orderIds = orders.stream().map(OrderEntity::getId).toList();
         Map<UUID, List<OrderItemEntity>> itemsByOrderId = new HashMap<>();

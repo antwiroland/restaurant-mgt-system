@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { Skeleton } from "@/components/Skeleton";
 import { useStaffSession } from "@/components/SessionProvider";
 import { getOrderByPickupCode, type OrderRecord } from "@/lib/apiClient";
 
@@ -24,7 +25,7 @@ export default function PickupLookupPage() {
     }
   }
 
-  if (loading) return <main className="shell"><section className="panel">Loading...</section></main>;
+  if (loading) return <main className="shell"><section className="panel grid gap-3"><Skeleton className="h-6 w-40" /><Skeleton className="h-10 w-full" /></section></main>;
   if (!session) return <main className="shell"><section className="panel"><p className="kicker">Pickup Lookup</p><h1 className="text-2xl font-semibold">Staff access required</h1><Link className="mt-4 inline-flex btn btn-primary" href="/login">Open Login</Link></section></main>;
 
   return (

@@ -1,13 +1,14 @@
 import { useEffect } from 'react';
 import NetInfo from '@react-native-community/netinfo';
-import { useOfflineStore } from '../store/offline';
+import { useOfflineStore, MAX_RETRY_COUNT } from '../store/offline';
 import { createOrder, createPublicTableOrder } from '../api/orders';
+import { createReservation } from '../api/reservation';
 import { scanQrToken } from '../api/tables';
-import type { CreateOrderRequest } from '../types/api';
+import type { CreateOrderRequest, CreateReservationRequest } from '../types/api';
 import type { QueueEntry } from '../store/offline';
 
 export function useConnectivity() {
-  const { setOnline, queue, markSynced, markFailed, markConflict, isOnline } = useOfflineStore();
+  const { setOnline, queue, markSynced, markFailed, markConflict, cleanupSynced, isOnline } = useOfflineStore();
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -27,8 +28,11 @@ export function useConnectivity() {
   }, [isOnline, queue]);
 
   async function syncQueue() {
-    const pending = queue.filter((e) => e.status === 'QUEUED');
-    for (const entry of pending) {
+    const eligible = queue.filter(
+      (e) => e.status === 'QUEUED' || (e.status === 'FAILED' && e.retryCount < MAX_RETRY_COUNT)
+    );
+
+    for (const entry of eligible) {
       try {
         if (entry.action === 'CREATE_ORDER') {
           const orderPayload = entry.payload as CreateOrderRequest;
@@ -49,7 +53,10 @@ export function useConnectivity() {
             continue;
           }
           await createPublicTableOrder(entry.payload as { tableToken: string; items: CreateOrderRequest['items']; notes?: string });
+        } else if (entry.action === 'CREATE_RESERVATION') {
+          await createReservation(entry.payload as CreateReservationRequest);
         }
+
         await markSynced(entry.id);
       } catch (error) {
         if (isOrderConflictError(error)) {
@@ -59,6 +66,8 @@ export function useConnectivity() {
         await markFailed(entry.id);
       }
     }
+
+    await cleanupSynced();
   }
 
   return { isOnline };

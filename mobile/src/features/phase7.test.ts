@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { createGuestSessionToken, registerPhone, verifyOtp } from "./auth/auth";
 import { addItem, itemsForCategory, setCartQty } from "./menu/menu";
-import { canAttemptPaymentOffline, openMenuOffline, queueOrderWhenOffline, syncQueuedOrderOnReconnect } from "./offline/offline";
+import { canAttemptPaymentOffline, openMenuOffline, queueOrderWhenOffline, shouldRetryEntry, MAX_RETRY_COUNT } from "./offline/offline";
 import { scanQr } from "./qr/qr";
 import { defaultMethod, handlePaystackEvent, pendingState, retryFailedPayment } from "./payment/payment";
 import { groupTotal, joinSharedCart, submitGroupByHost } from "./group/group";
@@ -53,15 +53,23 @@ describe("Phase 7 scenarios", () => {
     expect(state.staleWarning).toBe(true);
   });
 
-  test("givenOfflineDevice_whenOrderSubmitted_thenOrderQueuedLocallyWithQueuedStatus", () => {
-    const queued = queueOrderWhenOffline("o1");
-    expect(queued.status).toBe("QUEUED");
+  test("givenOfflineDevice_whenOrderSubmitted_thenOrderQueuedLocallyWithQueuedStatus", async () => {
+    const { vi } = await import("vitest");
+    const enqueue = vi.fn().mockResolvedValue(undefined);
+    const { useOfflineStore } = await import("../store/offline");
+    vi.spyOn(useOfflineStore, "getState").mockReturnValue({ enqueue } as any);
+
+    await queueOrderWhenOffline("CREATE_ORDER", { type: "PICKUP", items: [] });
+
+    expect(enqueue).toHaveBeenCalledWith("CREATE_ORDER", { type: "PICKUP", items: [] }, undefined);
+    vi.restoreAllMocks();
   });
 
-  test("givenQueuedOrder_whenDeviceReconnects_thenOrderSubmittedToServerAndStatusUpdated", () => {
-    const synced = syncQueuedOrderOnReconnect(queueOrderWhenOffline("o2"));
-    expect(synced.submitted).toBe(true);
-    expect(synced.status).toBe("SYNCED");
+  test("givenQueuedOrder_whenDeviceReconnects_thenRetryRespectesMaxRetryCountAndSkipsExhausted", () => {
+    expect(shouldRetryEntry({ status: "FAILED", retryCount: 0 })).toBe(true);
+    expect(shouldRetryEntry({ status: "FAILED", retryCount: MAX_RETRY_COUNT - 1 })).toBe(true);
+    expect(shouldRetryEntry({ status: "FAILED", retryCount: MAX_RETRY_COUNT })).toBe(false);
+    expect(shouldRetryEntry({ status: "QUEUED", retryCount: 0 })).toBe(false);
   });
 
   test("givenOfflineDevice_whenPaymentAttempted_thenBlockedWithInternetRequiredMessage", () => {
