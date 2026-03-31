@@ -213,9 +213,14 @@ export default function TablesPage() {
             <h1 className="text-2xl font-semibold">Floor Map</h1>
             <p className="mt-1 text-sm text-ink-soft">Tap a table tile to open details, status controls, and inline edit form.</p>
           </div>
-          <button className="btn btn-primary btn-md" onClick={() => setAddDrawerOpen(true)}>
-            Add Table
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <Link className="btn btn-secondary btn-md" href="/tables/qr">
+              QR Studio
+            </Link>
+            <button className="btn btn-primary btn-md" onClick={() => setAddDrawerOpen(true)}>
+              Add Table
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 grid gap-2 md:grid-cols-3">
@@ -335,7 +340,7 @@ export default function TablesPage() {
 
             <section className="grid gap-2 sm:grid-cols-2">
               <Link className="btn btn-secondary btn-md" href={`/tables/${selectedTable.id}/bill`}>Table Bill</Link>
-              <Link className="btn btn-secondary btn-md" href={`/scan/${selectedTable.qrToken}`}>Web Menu</Link>
+              <Link className="btn btn-secondary btn-md" href={`/tables/${selectedTable.id}/qr`}>Printable QR</Link>
             </section>
           </div>
         ) : null}

@@ -640,6 +640,13 @@ export async function updateTable(
   });
 }
 
+export async function deleteTable(session: StaffSession, tableId: string): Promise<void> {
+  return apiRequest<void>(`/tables/${tableId}`, {
+    method: "DELETE",
+    token: session.accessToken,
+  });
+}
+
 export async function updateTableStatus(
   session: StaffSession,
   tableId: string,

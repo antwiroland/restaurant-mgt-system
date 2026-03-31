@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -107,6 +108,21 @@ class TableManagementIntegrationTest extends BaseIntegrationTest {
                         .header("Authorization", "Bearer " + accessToken(manager)))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("image/png"));
+    }
+
+    @Test
+    void givenAdminToken_whenDeleteTable_then204AndTableRemoved() throws Exception {
+        UserEntity admin = createUser("Admin", "+233200200007", "admin+table3@x.com", "secret123", Role.ADMIN);
+        RestaurantTableEntity table = createTable("T8");
+
+        mockMvc.perform(delete("/tables/" + table.getId())
+                        .header("Authorization", "Bearer " + accessToken(admin)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/tables")
+                        .header("Authorization", "Bearer " + accessToken(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id=='" + table.getId() + "')]").isEmpty());
     }
 
     private RestaurantTableEntity createTable(String number) {

@@ -88,6 +88,14 @@ public class RestaurantTableService {
 
     @Transactional
     @CacheEvict(cacheNames = {CacheConfig.TABLES, CacheConfig.TABLE_QR, CacheConfig.TABLE_SCAN}, allEntries = true)
+    public void delete(UUID id) {
+        RestaurantTableEntity table = tableRepository.findById(id)
+                .orElseThrow(() -> new ApiException(404, "Table not found"));
+        tableRepository.delete(table);
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = {CacheConfig.TABLES, CacheConfig.TABLE_QR, CacheConfig.TABLE_SCAN}, allEntries = true)
     public TableResponse updateStatus(UUID id, TableStatusUpdateRequest request, UserPrincipal principal) {
         RestaurantTableEntity table = tableRepository.findById(id)
                 .orElseThrow(() -> new ApiException(404, "Table not found"));
