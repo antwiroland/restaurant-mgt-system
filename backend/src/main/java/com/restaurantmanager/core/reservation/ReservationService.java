@@ -2,6 +2,7 @@ package com.restaurantmanager.core.reservation;
 
 import com.restaurantmanager.core.common.ApiException;
 import com.restaurantmanager.core.common.Role;
+import com.restaurantmanager.core.phase8.whatsapp.WhatsAppService;
 import com.restaurantmanager.core.reservation.dto.ReservationCreateRequest;
 import com.restaurantmanager.core.reservation.dto.ReservationResponse;
 import com.restaurantmanager.core.reservation.dto.ReservationStatusUpdateRequest;
@@ -26,13 +27,16 @@ public class ReservationService {
     private final ReservationRepository reservationRepository;
     private final RestaurantTableRepository tableRepository;
     private final UserRepository userRepository;
+    private final WhatsAppService whatsAppService;
 
     public ReservationService(ReservationRepository reservationRepository,
                               RestaurantTableRepository tableRepository,
-                              UserRepository userRepository) {
+                              UserRepository userRepository,
+                              WhatsAppService whatsAppService) {
         this.reservationRepository = reservationRepository;
         this.tableRepository = tableRepository;
         this.userRepository = userRepository;
+        this.whatsAppService = whatsAppService;
     }
 
     @Transactional
@@ -115,8 +119,13 @@ public class ReservationService {
     public ReservationResponse updateStatus(UUID id, ReservationStatusUpdateRequest request) {
         ReservationEntity reservation = reservationRepository.findById(id)
                 .orElseThrow(() -> new ApiException(404, "Reservation not found"));
+        ReservationStatus previous = reservation.getStatus();
         reservation.setStatus(request.status());
-        return toResponse(reservationRepository.save(reservation));
+        ReservationEntity saved = reservationRepository.save(reservation);
+        if (previous != ReservationStatus.CONFIRMED && saved.getStatus() == ReservationStatus.CONFIRMED) {
+            whatsAppService.sendStatusUpdate(saved.getCustomerPhone(), "Reservation confirmed for table " + saved.getTable().getNumber());
+        }
+        return toResponse(saved);
     }
 
     @Transactional

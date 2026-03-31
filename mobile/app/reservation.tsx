@@ -18,7 +18,13 @@ export default function ReservationScreen() {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => { if (isAuthenticated) load(); else setLoading(false); }, []);
+  useEffect(() => {
+    if (isAuthenticated) {
+      load();
+    } else {
+      setLoading(false);
+    }
+  }, [isAuthenticated]);
 
   async function load() {
     setLoading(true);
@@ -40,13 +46,13 @@ export default function ReservationScreen() {
         tableId: form.tableId,
         customerName: form.customerName,
         customerPhone: form.customerPhone,
-        partySize: parseInt(form.partySize),
+        partySize: parseInt(form.partySize, 10),
         reservedAt: form.reservedAt,
-        durationMins: parseInt(form.durationMins),
+        durationMins: parseInt(form.durationMins, 10),
         notes: form.notes,
       });
       setShowForm(false);
-      load();
+      void load();
       Alert.alert('Confirmed', 'Your reservation has been made!');
     } catch (e: any) {
       Alert.alert('Error', e?.response?.data?.message ?? 'Could not make reservation');
@@ -61,8 +67,12 @@ export default function ReservationScreen() {
       {
         text: 'Yes', style: 'destructive',
         onPress: async () => {
-          try { await apiCancel(id); load(); }
-          catch (e: any) { Alert.alert('Error', e?.response?.data?.message ?? 'Cannot cancel'); }
+          try {
+            await apiCancel(id);
+            void load();
+          } catch (e: any) {
+            Alert.alert('Error', e?.response?.data?.message ?? 'Cannot cancel');
+          }
         },
       },
     ]);
@@ -83,17 +93,21 @@ export default function ReservationScreen() {
       ) : (
         <FlatList
           data={reservations}
-          keyExtractor={(r) => r.id}
-          renderItem={({ item: r }) => (
+          keyExtractor={(reservation) => reservation.id}
+          renderItem={({ item: reservation }) => (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Table {r.tableNumber} — {new Date(r.reservedAt).toLocaleString()}</Text>
-              <Text style={styles.cardMeta}>Party of {r.partySize} • {r.durationMins} mins • {r.status}</Text>
-              {r.notes && <Text style={styles.cardNotes}>{r.notes}</Text>}
-              {r.status !== 'CANCELLED' && (
-                <TouchableOpacity onPress={() => handleCancel(r.id)}>
+              <Text style={styles.cardTitle}>
+                Table {reservation.tableNumber} | {new Date(reservation.reservedAt).toLocaleString()}
+              </Text>
+              <Text style={styles.cardMeta}>
+                Party of {reservation.partySize} | {reservation.durationMins} mins | {reservation.status}
+              </Text>
+              {reservation.notes ? <Text style={styles.cardNotes}>{reservation.notes}</Text> : null}
+              {reservation.status !== 'CANCELLED' ? (
+                <TouchableOpacity onPress={() => void handleCancel(reservation.id)}>
                   <Text style={styles.cancelLink}>Cancel reservation</Text>
                 </TouchableOpacity>
-              )}
+              ) : null}
             </View>
           )}
           contentContainerStyle={{ padding: 12 }}
@@ -117,8 +131,8 @@ export default function ReservationScreen() {
               <TextInput
                 style={styles.fieldInput}
                 placeholder={placeholder}
-                value={(form as any)[key]}
-                onChangeText={(v) => setForm((f) => ({ ...f, [key]: v }))}
+                value={(form as Record<string, string>)[key]}
+                onChangeText={(value) => setForm((current) => ({ ...current, [key]: value }))}
               />
             </View>
           ))}

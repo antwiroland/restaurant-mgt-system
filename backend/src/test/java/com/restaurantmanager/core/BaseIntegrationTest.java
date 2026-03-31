@@ -15,6 +15,7 @@ import com.restaurantmanager.core.order.OrderItemRepository;
 import com.restaurantmanager.core.order.OrderRepository;
 import com.restaurantmanager.core.payment.PaymentRepository;
 import com.restaurantmanager.core.payment.PaymentWebhookEventRepository;
+import com.restaurantmanager.core.phase8.promo.PromoCodeRepository;
 import com.restaurantmanager.core.phase10.security.SecurityGuardService;
 import com.restaurantmanager.core.reservation.ReservationRepository;
 import com.restaurantmanager.core.security.JwtService;
@@ -94,10 +95,13 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected PaymentWebhookEventRepository paymentWebhookEventRepository;
     @Autowired
+    protected PromoCodeRepository promoCodeRepository;
+    @Autowired
     protected SecurityGuardService securityGuardService;
 
     @BeforeEach
     void cleanupDb() {
+        promoCodeRepository.deleteAll();
         paymentWebhookEventRepository.deleteAll();
         paymentRepository.deleteAll();
         orderItemRepository.deleteAll();

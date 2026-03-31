@@ -2,6 +2,8 @@ import { apiClient } from './client';
 import type { AuthResponse, LoginResponse } from '../types/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+const SESSION_KEYS = ['accessToken', 'refreshToken', 'userId', 'userName', 'userRole'] as const;
+
 export async function registerCustomer(name: string, phone: string, password: string): Promise<AuthResponse> {
   const { data } = await apiClient.post<AuthResponse>('/auth/register', { name, phone, password });
   await AsyncStorage.setItem('accessToken', data.accessToken);
@@ -21,5 +23,5 @@ export async function logoutCustomer(): Promise<void> {
   if (refreshToken) {
     await apiClient.post('/auth/logout', { refreshToken }).catch(() => {});
   }
-  await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
+  await AsyncStorage.multiRemove([...SESSION_KEYS]);
 }

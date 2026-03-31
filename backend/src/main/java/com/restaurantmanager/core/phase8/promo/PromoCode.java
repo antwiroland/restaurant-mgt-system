@@ -10,9 +10,10 @@ public class PromoCode {
     private final DiscountType discountType;
     private final BigDecimal discountValue;
     private final BigDecimal minOrderAmount;
+    private final BigDecimal maxDiscount;
     private final Instant expiresAt;
-    private final int usageLimit;
-    private int usedCount;
+    private final Integer usageLimit;
+    private int usageCount;
     private boolean active;
 
     public PromoCode(String code,
@@ -21,15 +22,28 @@ public class PromoCode {
                      BigDecimal minOrderAmount,
                      Instant expiresAt,
                      int usageLimit,
-                     int usedCount,
+                     int usageCount,
+                     boolean active) {
+        this(code, discountType, discountValue, minOrderAmount, null, expiresAt, usageLimit, usageCount, active);
+    }
+
+    public PromoCode(String code,
+                     DiscountType discountType,
+                     BigDecimal discountValue,
+                     BigDecimal minOrderAmount,
+                     BigDecimal maxDiscount,
+                     Instant expiresAt,
+                     Integer usageLimit,
+                     int usageCount,
                      boolean active) {
         this.code = code;
         this.discountType = discountType;
         this.discountValue = discountValue;
         this.minOrderAmount = minOrderAmount;
+        this.maxDiscount = maxDiscount;
         this.expiresAt = expiresAt;
         this.usageLimit = usageLimit;
-        this.usedCount = usedCount;
+        this.usageCount = usageCount;
         this.active = active;
     }
 
@@ -49,20 +63,24 @@ public class PromoCode {
         return minOrderAmount;
     }
 
+    public BigDecimal getMaxDiscount() {
+        return maxDiscount;
+    }
+
     public Instant getExpiresAt() {
         return expiresAt;
     }
 
-    public int getUsageLimit() {
+    public Integer getUsageLimit() {
         return usageLimit;
     }
 
-    public int getUsedCount() {
-        return usedCount;
+    public int getUsageCount() {
+        return usageCount;
     }
 
     public void incrementUsedCount() {
-        usedCount += 1;
+        usageCount += 1;
     }
 
     public boolean isActive() {

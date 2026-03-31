@@ -35,7 +35,7 @@ export default function CartScreen() {
     if (!promoInput.trim()) return;
     setPromoLoading(true);
     try {
-      const res = await validatePromoCode(promoInput.trim());
+      const res = await validatePromoCode(promoInput.trim(), subtotal());
       if (!res.valid) {
         Alert.alert('Invalid promo', 'Code not valid or expired');
         return;
@@ -49,8 +49,9 @@ export default function CartScreen() {
           ? `${res.discountValue}% off your order`
           : `GHS ${res.discountValue} off your order`
       );
-    } catch {
-      Alert.alert('Invalid promo', 'Code not valid or expired');
+    } catch (error: any) {
+      const message = error?.response?.data?.message ?? (error instanceof Error ? error.message : 'Code not valid or expired');
+      Alert.alert('Invalid promo', message);
     } finally {
       setPromoLoading(false);
     }

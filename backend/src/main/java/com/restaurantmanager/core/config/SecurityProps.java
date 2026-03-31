@@ -16,10 +16,10 @@ public class SecurityProps {
     }
 
     public static class Jwt {
-        private String secret;
-        private long accessTtlSeconds;
-        private long refreshTtlSeconds;
-        private long overrideTtlSeconds;
+        private String secret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        private long accessTtlSeconds = 900;
+        private long refreshTtlSeconds = 1_209_600;
+        private long overrideTtlSeconds = 300;
 
         public String getSecret() {
             return secret;
@@ -55,8 +55,8 @@ public class SecurityProps {
     }
 
     public static class Pin {
-        private int maxFailedAttempts;
-        private int lockoutMinutes;
+        private int maxFailedAttempts = 5;
+        private int lockoutMinutes = 30;
 
         public int getMaxFailedAttempts() {
             return maxFailedAttempts;

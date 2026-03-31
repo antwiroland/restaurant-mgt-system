@@ -95,7 +95,7 @@ export async function cancelOrder(id: string): Promise<void> {
 }
 
 export async function fetchReceipt(orderId: string): Promise<Receipt> {
-  const { data } = await apiClient.get<ReceiptResponse>(`/orders/${orderId}/receipt`);
+  const { data } = await apiClient.get<ReceiptResponse>(`/payments/orders/${orderId}/receipt`);
   return {
     receiptNumber: data.receiptNumber,
     paymentId: data.paymentId,

@@ -4,10 +4,13 @@ import com.restaurantmanager.core.BaseIntegrationTest;
 import com.restaurantmanager.core.auth.dto.PinVerifyRequest;
 import com.restaurantmanager.core.common.OverrideActionType;
 import com.restaurantmanager.core.common.Role;
+import com.restaurantmanager.core.phase8.common.DiscountType;
+import com.restaurantmanager.core.phase8.promo.PromoCodeEntity;
 import com.restaurantmanager.core.user.UserEntity;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -43,6 +46,31 @@ class PhaseRuntimeIntegrationTest extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.discount").value(5.0))
                 .andExpect(jsonPath("$.newTotal").value(45.0));
+    }
+
+    @Test
+    void givenCustomer_whenValidatePromoViaPhase8_thenPromoMetadataReturned() throws Exception {
+        UserEntity customer = createUser("Customer", "+233220000011", "customer11@x.com", "secret123", Role.CUSTOMER);
+        PromoCodeEntity promo = new PromoCodeEntity();
+        promo.setCode("SAVE10");
+        promo.setDescription("10 percent off");
+        promo.setDiscountType(DiscountType.PERCENTAGE);
+        promo.setDiscountValue(new BigDecimal("10.00"));
+        promo.setMinOrderAmount(new BigDecimal("20.00"));
+        promo.setUsageLimit(1000);
+        promo.setUsageCount(0);
+        promo.setActive(true);
+        promo.setExpiryDate(Instant.now().plusSeconds(3600));
+        promoCodeRepository.save(promo);
+
+        mockMvc.perform(get("/phase8/promo-codes/validate/SAVE10")
+                        .header("Authorization", "Bearer " + accessToken(customer))
+                        .param("subtotal", "50.00"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SAVE10"))
+                .andExpect(jsonPath("$.discountType").value("PERCENTAGE"))
+                .andExpect(jsonPath("$.discountValue").value(10))
+                .andExpect(jsonPath("$.valid").value(true));
     }
 
     @Test

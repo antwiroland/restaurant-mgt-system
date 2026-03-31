@@ -3,6 +3,9 @@ package com.restaurantmanager.core.user;
 import com.restaurantmanager.core.security.UserPrincipal;
 import com.restaurantmanager.core.common.Pagination;
 import com.restaurantmanager.core.user.dto.AssignRoleRequest;
+import com.restaurantmanager.core.user.dto.CustomerAddressRequest;
+import com.restaurantmanager.core.user.dto.CustomerAddressResponse;
+import com.restaurantmanager.core.user.dto.CustomerProfileUpdateRequest;
 import com.restaurantmanager.core.user.dto.SetPinRequest;
 import com.restaurantmanager.core.user.dto.UserResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -53,5 +56,32 @@ public class UserController {
                        @PathVariable UUID id,
                        @Valid @RequestBody SetPinRequest request) {
         userService.setPin(principal, id, request);
+    }
+
+    @GetMapping("/me")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','CUSTOMER')")
+    public UserResponse me(@AuthenticationPrincipal UserPrincipal principal) {
+        return userService.me(principal);
+    }
+
+    @PatchMapping("/me")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public UserResponse updateMe(@AuthenticationPrincipal UserPrincipal principal,
+                                 @Valid @RequestBody CustomerProfileUpdateRequest request) {
+        return userService.updateMe(principal, request);
+    }
+
+    @GetMapping("/me/addresses")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public List<CustomerAddressResponse> myAddresses(@AuthenticationPrincipal UserPrincipal principal) {
+        return userService.myAddresses(principal);
+    }
+
+    @PostMapping("/me/addresses")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public CustomerAddressResponse addAddress(@AuthenticationPrincipal UserPrincipal principal,
+                                              @Valid @RequestBody CustomerAddressRequest request) {
+        return userService.addAddress(principal, request);
     }
 }

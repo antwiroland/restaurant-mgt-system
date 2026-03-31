@@ -53,9 +53,7 @@ public class RestaurantTableService {
             UUID branchId = principal.branchId();
             tables = tableRepository.findByBranch_IdOrderByNumberAsc(branchId);
         } else {
-            tables = tableRepository.findAll().stream()
-                    .sorted((a, b) -> a.getNumber().compareToIgnoreCase(b.getNumber()))
-                    .toList();
+            tables = tableRepository.findAllOrdered();
         }
         return tables.stream()
                 .map(this::toResponse)

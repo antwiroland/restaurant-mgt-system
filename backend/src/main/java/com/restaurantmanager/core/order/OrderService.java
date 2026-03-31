@@ -35,6 +35,7 @@ import com.restaurantmanager.core.order.dto.PublicTableOrderCreateRequest;
 import com.restaurantmanager.core.order.dto.TableBillResponse;
 import com.restaurantmanager.core.payment.PaymentRepository;
 import com.restaurantmanager.core.payment.PaymentStatus;
+import com.restaurantmanager.core.phase8.whatsapp.WhatsAppService;
 import com.restaurantmanager.core.security.JwtService;
 import com.restaurantmanager.core.security.UserPrincipal;
 import com.restaurantmanager.core.table.RestaurantTableEntity;
@@ -58,6 +59,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -77,6 +79,7 @@ public class OrderService {
     private final UserRepository userRepository;
     private final OrderRealtimePublisher realtimePublisher;
     private final PaymentRepository paymentRepository;
+    private final WhatsAppService whatsAppService;
 
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
@@ -91,7 +94,8 @@ public class OrderService {
                         GroupSessionItemRepository groupSessionItemRepository,
                         UserRepository userRepository,
                         OrderRealtimePublisher realtimePublisher,
-                        PaymentRepository paymentRepository) {
+                        PaymentRepository paymentRepository,
+                        WhatsAppService whatsAppService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderItemModifierRepository = orderItemModifierRepository;
@@ -106,6 +110,7 @@ public class OrderService {
         this.userRepository = userRepository;
         this.realtimePublisher = realtimePublisher;
         this.paymentRepository = paymentRepository;
+        this.whatsAppService = whatsAppService;
     }
 
     @Transactional
@@ -132,22 +137,11 @@ public class OrderService {
     @Transactional(readOnly = true)
     public List<OrderResponse> listOrders(UserPrincipal principal, LocalDate from, LocalDate to,
                                           OrderStatus status, OrderType type) {
-        List<OrderEntity> orders = orderRepository.findAll().stream()
-                .filter(order -> principal.role() != Role.CUSTOMER
-                        || (order.getCustomerUserId() != null && order.getCustomerUserId().equals(principal.userId())))
-                .filter(order -> !isBranchScopedStaff(principal)
-                        || (order.getBranch() != null && order.getBranch().getId().equals(principal.branchId())))
-                .filter(order -> status == null || order.getStatus() == status)
-                .filter(order -> type == null || order.getType() == type)
-                .filter(order -> {
-                    LocalDate date = order.getCreatedAt().atOffset(ZoneOffset.UTC).toLocalDate();
-                    if (from != null && date.isBefore(from)) {
-                        return false;
-                    }
-                    return to == null || !date.isAfter(to);
-                })
-                .sorted(Comparator.comparing(OrderEntity::getCreatedAt).reversed())
-                .toList();
+        UUID customerId = principal.role() == Role.CUSTOMER ? principal.userId() : null;
+        UUID branchId = isBranchScopedStaff(principal) ? principal.branchId() : null;
+        Instant fromInstant = from == null ? null : from.atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant toInstant = to == null ? null : to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        List<OrderEntity> orders = orderRepository.findVisibleOrders(customerId, branchId, status, type, fromInstant, toInstant);
         return toResponses(orders);
     }
 
@@ -171,6 +165,7 @@ public class OrderService {
         order.setStatus(request.status());
         OrderEntity saved = orderRepository.save(order);
         realtimePublisher.publishOrderStatusChanged(saved.getId(), previous, saved.getStatus(), tableToken(saved));
+        notifyReadyForPickup(saved, previous);
         return toResponse(saved);
     }
 
@@ -466,7 +461,6 @@ public class OrderService {
                 order.setBranch(creator.getBranch());
             }
         }
-
         if (request.type() == OrderType.DELIVERY) {
             if (request.deliveryAddress() == null || request.deliveryAddress().isBlank()) {
                 throw new ApiException(400, "deliveryAddress is required for delivery orders");
@@ -861,6 +855,22 @@ public class OrderService {
         return principal != null
                 && (principal.role() == Role.MANAGER || principal.role() == Role.CASHIER)
                 && principal.branchId() != null;
+    }
+
+    private void notifyReadyForPickup(OrderEntity order, OrderStatus previous) {
+        if (order.getType() != OrderType.PICKUP || order.getStatus() != OrderStatus.READY || previous == OrderStatus.READY) {
+            return;
+        }
+        resolveCustomerPhone(order).ifPresent(phone -> whatsAppService.sendStatusUpdate(phone, "READY for pickup"));
+    }
+
+    private Optional<String> resolveCustomerPhone(OrderEntity order) {
+        if (order.getCustomerUserId() == null) {
+            return Optional.empty();
+        }
+        return userRepository.findById(order.getCustomerUserId())
+                .map(UserEntity::getPhone)
+                .filter(phone -> phone != null && !phone.isBlank());
     }
 
     private String generatePickupCode() {

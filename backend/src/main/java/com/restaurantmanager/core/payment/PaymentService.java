@@ -14,12 +14,15 @@ import com.restaurantmanager.core.payment.dto.PaymentInitiateResponse;
 import com.restaurantmanager.core.payment.dto.PaymentResponse;
 import com.restaurantmanager.core.payment.dto.PaymentRetryRequest;
 import com.restaurantmanager.core.payment.dto.ReceiptResponse;
+import com.restaurantmanager.core.phase8.whatsapp.WhatsAppService;
 import com.restaurantmanager.core.security.UserPrincipal;
 import com.restaurantmanager.core.config.CacheConfig;
 import com.restaurantmanager.core.table.RestaurantTableEntity;
 import com.restaurantmanager.core.table.RestaurantTableRepository;
 import com.restaurantmanager.core.table.TableRealtimePublisher;
 import com.restaurantmanager.core.table.TableStatus;
+import com.restaurantmanager.core.user.UserEntity;
+import com.restaurantmanager.core.user.UserRepository;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +36,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -47,6 +51,8 @@ public class PaymentService {
     private final RestaurantTableRepository tableRepository;
     private final TableRealtimePublisher tableRealtimePublisher;
     private final CacheManager cacheManager;
+    private final WhatsAppService whatsAppService;
+    private final UserRepository userRepository;
 
     public PaymentService(PaymentRepository paymentRepository,
                           PaymentWebhookEventRepository paymentWebhookEventRepository,
@@ -57,7 +63,9 @@ public class PaymentService {
                           ObjectMapper objectMapper,
                           RestaurantTableRepository tableRepository,
                           TableRealtimePublisher tableRealtimePublisher,
-                          CacheManager cacheManager) {
+                          CacheManager cacheManager,
+                          WhatsAppService whatsAppService,
+                          UserRepository userRepository) {
         this.paymentRepository = paymentRepository;
         this.paymentWebhookEventRepository = paymentWebhookEventRepository;
         this.orderRepository = orderRepository;
@@ -68,6 +76,8 @@ public class PaymentService {
         this.tableRepository = tableRepository;
         this.tableRealtimePublisher = tableRealtimePublisher;
         this.cacheManager = cacheManager;
+        this.whatsAppService = whatsAppService;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -215,6 +225,7 @@ public class PaymentService {
                     payment.getAmount(), payment.getMethod()
             );
             if (payment.getStatus() == PaymentStatus.FAILED) {
+                notifyPaymentFailed(payment);
                 realtimePublisher.publishPaymentFailed(payment.getId(), payment.getOrder().getId(),
                         payment.getFailureReason() == null ? "Payment failed" : payment.getFailureReason());
             }
@@ -434,6 +445,7 @@ public class PaymentService {
                             payment.getAmount(), payment.getMethod()
                     );
                     if (payment.getStatus() == PaymentStatus.FAILED) {
+                        notifyPaymentFailed(payment);
                         realtimePublisher.publishPaymentFailed(
                                 payment.getId(), payment.getOrder().getId(),
                                 payment.getFailureReason() == null ? "Payment failed" : payment.getFailureReason()
@@ -447,5 +459,23 @@ public class PaymentService {
         }
 
         return processed;
+    }
+
+    private void notifyPaymentFailed(PaymentEntity payment) {
+        resolvePaymentPhone(payment).ifPresent(phone ->
+                whatsAppService.sendStatusUpdate(phone, "Payment failed. Please retry."));
+    }
+
+    private Optional<String> resolvePaymentPhone(PaymentEntity payment) {
+        if (payment.getMomoPhone() != null && !payment.getMomoPhone().isBlank()) {
+            return Optional.of(payment.getMomoPhone().trim());
+        }
+        UUID customerId = payment.getOrder().getCustomerUserId();
+        if (customerId == null) {
+            return Optional.empty();
+        }
+        return userRepository.findById(customerId)
+                .map(UserEntity::getPhone)
+                .filter(phone -> phone != null && !phone.isBlank());
     }
 }

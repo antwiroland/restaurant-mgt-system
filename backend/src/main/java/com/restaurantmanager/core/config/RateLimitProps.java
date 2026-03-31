@@ -9,6 +9,8 @@ public class RateLimitProps {
     private int authWindowSeconds = 60;
     private int pinRequests = 5;
     private int pinWindowSeconds = 300;
+    private int publicRequests = 120;
+    private int publicWindowSeconds = 60;
 
     public boolean isEnabled() {
         return enabled;
@@ -48,5 +50,21 @@ public class RateLimitProps {
 
     public void setPinWindowSeconds(int pinWindowSeconds) {
         this.pinWindowSeconds = pinWindowSeconds;
+    }
+
+    public int getPublicRequests() {
+        return publicRequests;
+    }
+
+    public void setPublicRequests(int publicRequests) {
+        this.publicRequests = publicRequests;
+    }
+
+    public int getPublicWindowSeconds() {
+        return publicWindowSeconds;
+    }
+
+    public void setPublicWindowSeconds(int publicWindowSeconds) {
+        this.publicWindowSeconds = publicWindowSeconds;
     }
 }

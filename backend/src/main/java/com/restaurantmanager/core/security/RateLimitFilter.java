@@ -57,11 +57,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private LimitSpec resolveSpec(HttpServletRequest request) {
         String method = request.getMethod();
+        String path = request.getRequestURI();
+        if ("GET".equalsIgnoreCase(method)
+                && ("/menu/items".equals(path) || "/tables/public".equals(path))) {
+            return new LimitSpec("public", rateLimitProps.getPublicRequests(), rateLimitProps.getPublicWindowSeconds() * 1000L);
+        }
         if (!"POST".equalsIgnoreCase(method)) {
             return null;
         }
-
-        String path = request.getRequestURI();
         if ("/auth/login".equals(path) || "/auth/register".equals(path) || "/auth/refresh".equals(path)) {
             return new LimitSpec("auth", rateLimitProps.getAuthRequests(), rateLimitProps.getAuthWindowSeconds() * 1000L);
         }
@@ -95,7 +98,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (current % 500 != 0) {
             return;
         }
-        long maxWindowMs = Math.max(rateLimitProps.getAuthWindowSeconds(), rateLimitProps.getPinWindowSeconds()) * 1000L;
+        long maxWindowMs = Math.max(
+                Math.max(rateLimitProps.getAuthWindowSeconds(), rateLimitProps.getPinWindowSeconds()),
+                rateLimitProps.getPublicWindowSeconds()) * 1000L;
         counters.entrySet().removeIf(entry -> nowMs - entry.getValue().windowStartMs() > maxWindowMs * 2);
     }
 

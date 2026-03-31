@@ -1,6 +1,7 @@
 package com.restaurantmanager.core.phase8.runtime;
 
 import com.restaurantmanager.core.phase8.common.DiscountType;
+import com.restaurantmanager.core.phase8.promo.PromoCode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -41,6 +42,14 @@ public class Phase8Controller {
                 Instant.now()
         );
         return new PromoApplyResponse(discount, request.subtotal.subtract(discount));
+    }
+
+    @GetMapping("/promo-codes/validate/{code}")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','CUSTOMER')")
+    public PromoValidationResponse validatePromo(@PathVariable String code,
+                                                 @RequestParam @NotNull BigDecimal subtotal) {
+        PromoCode promo = runtimeService.validatePromo(code, subtotal, Instant.now());
+        return new PromoValidationResponse(promo.getCode(), promo.getDiscountType(), promo.getDiscountValue(), true);
     }
 
     @PostMapping("/offer/free-items")
@@ -133,6 +142,13 @@ public class Phase8Controller {
     ) {}
 
     public record PromoApplyResponse(BigDecimal discount, BigDecimal newTotal) {}
+
+    public record PromoValidationResponse(
+            String code,
+            DiscountType discountType,
+            BigDecimal discountValue,
+            boolean valid
+    ) {}
 
     public record FreeItemsRequest(@Min(1) int purchasedQuantity, @Min(1) int buyQty, @Min(1) int getQty) {}
 

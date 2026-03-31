@@ -80,6 +80,31 @@ export type AuditRecord = {
   metadata: string;
 };
 
+export type AnalyticsRevenuePoint = {
+  bucket: string;
+  revenue: string;
+};
+
+export type AnalyticsRevenueRecord = {
+  points: AnalyticsRevenuePoint[];
+};
+
+export type AnalyticsTopItemRecord = {
+  itemName: string;
+  quantitySold: number;
+  revenue: string;
+};
+
+export type AnalyticsPeakHourRecord = {
+  hour: number;
+  orders: number;
+};
+
+export type AnalyticsAverageOrderValueRecord = {
+  averageOrderValue: string;
+  orderCount: number;
+};
+
 export type ReservationStatus = "PENDING" | "CONFIRMED" | "CANCELLED";
 
 export type ReservationRecord = {
@@ -1018,4 +1043,50 @@ export async function getReceiptByPaymentId(session: StaffSession, paymentId: st
 
 export async function getReceiptByOrderId(session: StaffSession, orderId: string): Promise<ReceiptRecord> {
   return apiRequest<ReceiptRecord>(`/payments/orders/${orderId}/receipt`, { token: session.accessToken });
+}
+
+export async function getAnalyticsRevenue(
+  session: StaffSession,
+  params?: { from?: string; to?: string; period?: "DAY" | "WEEK" | "MONTH" },
+): Promise<AnalyticsRevenueRecord> {
+  const query = new URLSearchParams();
+  if (params?.from) query.set("from", params.from);
+  if (params?.to) query.set("to", params.to);
+  if (params?.period) query.set("period", params.period);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return apiRequest<AnalyticsRevenueRecord>(`/phase10/analytics/revenue${suffix}`, { token: session.accessToken });
+}
+
+export async function getAnalyticsTopItems(
+  session: StaffSession,
+  params?: { from?: string; to?: string; limit?: number },
+): Promise<AnalyticsTopItemRecord[]> {
+  const query = new URLSearchParams();
+  if (params?.from) query.set("from", params.from);
+  if (params?.to) query.set("to", params.to);
+  if (params?.limit) query.set("limit", String(params.limit));
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return apiRequest<AnalyticsTopItemRecord[]>(`/phase10/analytics/top-items${suffix}`, { token: session.accessToken });
+}
+
+export async function getAnalyticsPeakHours(
+  session: StaffSession,
+  params?: { from?: string; to?: string },
+): Promise<AnalyticsPeakHourRecord[]> {
+  const query = new URLSearchParams();
+  if (params?.from) query.set("from", params.from);
+  if (params?.to) query.set("to", params.to);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return apiRequest<AnalyticsPeakHourRecord[]>(`/phase10/analytics/peak-hours${suffix}`, { token: session.accessToken });
+}
+
+export async function getAnalyticsAverageOrderValue(
+  session: StaffSession,
+  params?: { from?: string; to?: string },
+): Promise<AnalyticsAverageOrderValueRecord> {
+  const query = new URLSearchParams();
+  if (params?.from) query.set("from", params.from);
+  if (params?.to) query.set("to", params.to);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return apiRequest<AnalyticsAverageOrderValueRecord>(`/phase10/analytics/average-order-value${suffix}`, { token: session.accessToken });
 }

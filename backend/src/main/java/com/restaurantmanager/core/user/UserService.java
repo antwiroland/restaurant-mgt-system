@@ -7,6 +7,9 @@ import com.restaurantmanager.core.common.AuditAction;
 import com.restaurantmanager.core.common.Role;
 import com.restaurantmanager.core.security.UserPrincipal;
 import com.restaurantmanager.core.user.dto.AssignRoleRequest;
+import com.restaurantmanager.core.user.dto.CustomerAddressRequest;
+import com.restaurantmanager.core.user.dto.CustomerAddressResponse;
+import com.restaurantmanager.core.user.dto.CustomerProfileUpdateRequest;
 import com.restaurantmanager.core.user.dto.SetPinRequest;
 import com.restaurantmanager.core.user.dto.UserResponse;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,15 +25,18 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
     private final BranchService branchService;
+    private final CustomerDeliveryAddressRepository customerDeliveryAddressRepository;
 
     public UserService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        AuditService auditService,
-                       BranchService branchService) {
+                       BranchService branchService,
+                       CustomerDeliveryAddressRepository customerDeliveryAddressRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
         this.branchService = branchService;
+        this.customerDeliveryAddressRepository = customerDeliveryAddressRepository;
     }
 
     @Transactional(readOnly = true)
@@ -79,6 +85,74 @@ public class UserService {
         target.setPinFailCount((short) 0);
         target.setPinLockedUntil(null);
         userRepository.save(target);
+    }
+
+    @Transactional(readOnly = true)
+    public UserResponse me(UserPrincipal principal) {
+        return toResponse(requireUser(principal.userId()));
+    }
+
+    @Transactional
+    public UserResponse updateMe(UserPrincipal principal, CustomerProfileUpdateRequest request) {
+        UserEntity user = requireUser(principal.userId());
+        String phone = request.phone().trim();
+        if (!user.getPhone().equals(phone) && userRepository.existsByPhone(phone)) {
+            throw new ApiException(409, "Phone already exists");
+        }
+        String email = request.email() == null || request.email().isBlank() ? null : request.email().trim();
+        if (email != null && userRepository.existsByEmail(email)
+                && (user.getEmail() == null || !user.getEmail().equalsIgnoreCase(email))) {
+            throw new ApiException(409, "Email already exists");
+        }
+        user.setName(request.name().trim());
+        user.setPhone(phone);
+        user.setEmail(email);
+        return toResponse(userRepository.save(user));
+    }
+
+    @Transactional(readOnly = true)
+    public List<CustomerAddressResponse> myAddresses(UserPrincipal principal) {
+        return customerDeliveryAddressRepository.findByUser_IdOrderByDefaultAddressDescCreatedAtAsc(principal.userId()).stream()
+                .map(this::toAddressResponse)
+                .toList();
+    }
+
+    @Transactional
+    public CustomerAddressResponse addAddress(UserPrincipal principal, CustomerAddressRequest request) {
+        UserEntity user = requireUser(principal.userId());
+        if (request.isDefault()) {
+            customerDeliveryAddressRepository.clearDefaultForUser(user.getId());
+        }
+        CustomerDeliveryAddressEntity address = new CustomerDeliveryAddressEntity();
+        address.setUser(user);
+        address.setLabel(request.label().trim());
+        address.setAddressLine(request.addressLine().trim());
+        address.setCity(blankToNull(request.city()));
+        address.setLandmark(blankToNull(request.landmark()));
+        address.setDefaultAddress(request.isDefault());
+        return toAddressResponse(customerDeliveryAddressRepository.save(address));
+    }
+
+    private UserEntity requireUser(UUID userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(404, "User not found"));
+    }
+
+    private CustomerAddressResponse toAddressResponse(CustomerDeliveryAddressEntity address) {
+        return new CustomerAddressResponse(
+                address.getId(),
+                address.getLabel(),
+                address.getAddressLine(),
+                address.getCity(),
+                address.getLandmark(),
+                address.isDefaultAddress());
+    }
+
+    private String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     private UserResponse toResponse(UserEntity user) {

@@ -19,7 +19,11 @@ import {
   type TableRecord,
 } from "@/lib/apiClient";
 
-const ORDER_TYPES = ["DINE_IN", "PICKUP", "DELIVERY"] as const;
+const ORDER_TYPES = [
+  { value: "DINE_IN", label: "DINE IN", available: true },
+  { value: "PICKUP", label: "PICKUP", available: true },
+  { value: "DELIVERY", label: "DELIVERY", available: false, reason: "Delivery ordering is not available yet." },
+] as const;
 const PAYMENT_METHODS: PaymentMethod[] = ["MOBILE_MONEY", "CARD", "CASH"];
 
 export default function PosPage() {
@@ -30,9 +34,8 @@ export default function PosPage() {
   const [menuQuery, setMenuQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
 
-  const [orderType, setOrderType] = useState<(typeof ORDER_TYPES)[number]>("DINE_IN");
+  const [orderType, setOrderType] = useState<(typeof ORDER_TYPES)[number]["value"]>("DINE_IN");
   const [tableId, setTableId] = useState("");
-  const [deliveryAddress, setDeliveryAddress] = useState("");
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [message, setMessage] = useState("");
   const [orderFieldErrors, setOrderFieldErrors] = useState<{
@@ -104,9 +107,12 @@ export default function PosPage() {
   async function handleCreateOrder() {
     if (!session) return;
     const nextFieldErrors: { cart?: string; tableId?: string; deliveryAddress?: string } = {};
+    if (orderType === "DELIVERY") {
+      setMessage("Delivery ordering is not available yet. Use dine-in or pickup.");
+      return;
+    }
     if (cart.length === 0) nextFieldErrors.cart = "Add at least one item";
     if (orderType === "DINE_IN" && !tableId) nextFieldErrors.tableId = "Select a table for dine-in";
-    if (orderType === "DELIVERY" && !deliveryAddress.trim()) nextFieldErrors.deliveryAddress = "Delivery address is required";
 
     if (Object.keys(nextFieldErrors).length > 0) {
       setOrderFieldErrors(nextFieldErrors);
@@ -119,16 +125,12 @@ export default function PosPage() {
 
     try {
       const payload = buildOrderPayload(orderType, cart, tableId || undefined);
-      const created = await authenticatedFetch((activeSession) => createOrder(activeSession, {
-        ...payload,
-        deliveryAddress: orderType === "DELIVERY" ? deliveryAddress.trim() : undefined,
-      }));
+      const created = await authenticatedFetch((activeSession) => createOrder(activeSession, payload));
 
       setCreatedOrderId(created.id);
       setPaymentId("");
       setPaymentRecord(null);
       setCart([]);
-      setDeliveryAddress("");
       if (orderType !== "DINE_IN") setTableId("");
       setMessage(`Order ${created.id.slice(0, 8)} created. Proceed to payment.`);
 
@@ -290,15 +292,27 @@ export default function PosPage() {
             <div className="grid grid-cols-3 gap-2">
               {ORDER_TYPES.map((type) => (
                 <button
-                  key={type}
+                  key={type.value}
                   type="button"
-                  className={`btn btn-md ${orderType === type ? "btn-primary" : "btn-secondary"}`}
-                  onClick={() => setOrderType(type)}
+                  className={`btn btn-md ${orderType === type.value ? "btn-primary" : "btn-secondary"} ${!type.available ? "opacity-60" : ""}`}
+                  onClick={() => {
+                    if (!type.available) {
+                      setMessage(type.reason ?? "This order type is unavailable.");
+                      return;
+                    }
+                    setOrderType(type.value);
+                    setMessage("");
+                  }}
+                  aria-disabled={!type.available}
                 >
-                  {type.replace("_", " ")}
+                  {type.label}
                 </button>
               ))}
             </div>
+            {!ORDER_TYPES.find((type) => type.value === orderType)?.available ? (
+              <p className="alert alert-info">Delivery ordering is currently disabled in the staff web app.</p>
+            ) : null}
+            <p className="text-xs text-ink-soft">Delivery remains visible only as a roadmap item. The web flow is intentionally blocked until the full customer/dispatch experience is ready.</p>
           </div>
 
           {orderType === "DINE_IN" ? (
@@ -311,14 +325,6 @@ export default function PosPage() {
                 ))}
               </select>
               {orderFieldErrors.tableId ? <span className="field-error">{orderFieldErrors.tableId}</span> : null}
-            </label>
-          ) : null}
-
-          {orderType === "DELIVERY" ? (
-            <label className="field">
-              <span className="field-label">Delivery Address</span>
-              <textarea className="textarea" value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} />
-              {orderFieldErrors.deliveryAddress ? <span className="field-error">{orderFieldErrors.deliveryAddress}</span> : null}
             </label>
           ) : null}
 

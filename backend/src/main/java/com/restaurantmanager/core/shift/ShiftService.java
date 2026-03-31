@@ -14,6 +14,7 @@ import com.restaurantmanager.core.shift.dto.ShiftOpenRequest;
 import com.restaurantmanager.core.shift.dto.ShiftResponse;
 import com.restaurantmanager.core.user.UserEntity;
 import com.restaurantmanager.core.user.UserRepository;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,31 +74,35 @@ public class ShiftService {
 
     @Transactional
     public ShiftResponse closeShift(UserPrincipal principal, UUID shiftId, ShiftCloseRequest request) {
-        CashierShiftEntity shift = shiftRepository.findById(shiftId)
-                .orElseThrow(() -> new ApiException(404, "Shift not found"));
-        if (shift.getStatus() != ShiftStatus.OPEN) {
-            throw new ApiException(409, "Shift is already closed");
-        }
+        try {
+            CashierShiftEntity shift = shiftRepository.findById(shiftId)
+                    .orElseThrow(() -> new ApiException(404, "Shift not found"));
+            if (shift.getStatus() != ShiftStatus.OPEN) {
+                throw new ApiException(409, "Shift is already closed");
+            }
 
-        boolean ownShift = shift.getCashier().getId().equals(principal.userId());
-        if (!ownShift && principal.role() != Role.MANAGER && principal.role() != Role.ADMIN) {
-            throw new ApiException(403, "Cannot close another cashier's shift");
-        }
-        if ((principal.role() == Role.MANAGER || principal.role() == Role.CASHIER)
-                && principal.branchId() != null
-                && (shift.getBranch() == null || !principal.branchId().equals(shift.getBranch().getId()))) {
-            throw new ApiException(403, "Forbidden");
-        }
+            boolean ownShift = shift.getCashier().getId().equals(principal.userId());
+            if (!ownShift && principal.role() != Role.MANAGER && principal.role() != Role.ADMIN) {
+                throw new ApiException(403, "Cannot close another cashier's shift");
+            }
+            if ((principal.role() == Role.MANAGER || principal.role() == Role.CASHIER)
+                    && principal.branchId() != null
+                    && (shift.getBranch() == null || !principal.branchId().equals(shift.getBranch().getId()))) {
+                throw new ApiException(403, "Forbidden");
+            }
 
-        BigDecimal expectedCash = computeExpectedCash(shift);
-        BigDecimal closingCash = request.closingCash() == null ? BigDecimal.ZERO : request.closingCash();
-        shift.setExpectedCash(expectedCash);
-        shift.setClosingCash(closingCash);
-        shift.setVariance(closingCash.subtract(expectedCash));
-        shift.setStatus(ShiftStatus.CLOSED);
-        shift.setClosedAt(Instant.now());
-        shift.setNotes(blankToNull(request.notes()));
-        return toResponse(shiftRepository.save(shift));
+            BigDecimal expectedCash = computeExpectedCash(shift);
+            BigDecimal closingCash = request.closingCash() == null ? BigDecimal.ZERO : request.closingCash();
+            shift.setExpectedCash(expectedCash);
+            shift.setClosingCash(closingCash);
+            shift.setVariance(closingCash.subtract(expectedCash));
+            shift.setStatus(ShiftStatus.CLOSED);
+            shift.setClosedAt(Instant.now());
+            shift.setNotes(blankToNull(request.notes()));
+            return toResponse(shiftRepository.saveAndFlush(shift));
+        } catch (ObjectOptimisticLockingFailureException ex) {
+            throw new ApiException(409, "Shift was already closed by another request");
+        }
     }
 
     @Transactional(readOnly = true)

@@ -13,15 +13,17 @@ export default function GroupSessionScreen() {
   const { tableId } = useCartStore();
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, 5000);
+    void load();
+    const interval = setInterval(() => {
+      void load();
+    }, 5000);
     return () => clearInterval(interval);
   }, [code]);
 
   async function load() {
     try {
-      const s = await fetchGroupSession(code);
-      setSession(s);
+      const nextSession = await fetchGroupSession(code);
+      setSession(nextSession);
     } catch {}
     setLoading(false);
   }
@@ -50,10 +52,17 @@ export default function GroupSessionScreen() {
     ]);
   }
 
-  if (loading) return <ActivityIndicator size="large" color="#2563EB" style={{ flex: 1, marginTop: 40 }} />;
-  if (!session) return (
-    <View style={styles.center}><Text style={styles.error}>Session not found</Text></View>
-  );
+  if (loading) {
+    return <ActivityIndicator size="large" color="#2563EB" style={{ flex: 1, marginTop: 40 }} />;
+  }
+
+  if (!session) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.error}>Session not found</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -64,14 +73,14 @@ export default function GroupSessionScreen() {
 
       <FlatList
         data={session.participants}
-        keyExtractor={(p) => p.participantId}
-        renderItem={({ item: p }) => (
+        keyExtractor={(participant) => participant.participantId}
+        renderItem={({ item: participant }) => (
           <View style={styles.participantCard}>
-            <Text style={styles.participantName}>{p.displayName}</Text>
-            <Text style={styles.participantTotal}>GH₵ {p.subtotal}</Text>
-            {p.items.map((item, i) => (
-              <Text key={i} style={styles.participantItem}>
-                • {item.menuItemName} x{item.quantity}
+            <Text style={styles.participantName}>{participant.displayName}</Text>
+            <Text style={styles.participantTotal}>GHS {participant.subtotal}</Text>
+            {participant.items.map((item) => (
+              <Text key={item.id} style={styles.participantItem}>
+                - {item.menuItemName} x{item.quantity}
               </Text>
             ))}
           </View>
@@ -80,16 +89,16 @@ export default function GroupSessionScreen() {
         ListFooterComponent={
           <View style={styles.totalCard}>
             <Text style={styles.totalLabel}>Group Total</Text>
-            <Text style={styles.totalValue}>GH₵ {session.groupTotal}</Text>
+            <Text style={styles.totalValue}>GHS {session.groupTotal}</Text>
           </View>
         }
       />
 
-      {session.status === 'OPEN' && (
+      {session.status === 'OPEN' ? (
         <TouchableOpacity style={styles.finalizeBtn} onPress={handleFinalize} disabled={finalizing}>
           {finalizing ? <ActivityIndicator color="#fff" /> : <Text style={styles.finalizeBtnText}>Finalize & Place Order</Text>}
         </TouchableOpacity>
-      )}
+      ) : null}
     </View>
   );
 }

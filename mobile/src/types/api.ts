@@ -163,16 +163,26 @@ export type CreateReservationRequest = {
 export type GroupSession = {
   sessionId: string;
   sessionCode: string;
-  status: 'OPEN' | 'CLOSED';
+  status: 'OPEN' | 'COMPLETED' | 'CANCELLED';
+};
+
+export type GroupSessionItem = {
+  id: string;
+  menuItemId: string;
+  menuItemName: string;
+  quantity: number;
+  unitPrice: string;
+  totalPrice: string;
+  notes?: string;
 };
 
 export type GroupSessionDetail = {
   sessionCode: string;
-  status: 'OPEN' | 'CLOSED';
+  status: 'OPEN' | 'COMPLETED' | 'CANCELLED';
   participants: {
     participantId: string;
     displayName: string;
-    items: OrderItem[];
+    items: GroupSessionItem[];
     subtotal: string;
   }[];
   groupTotal: string;

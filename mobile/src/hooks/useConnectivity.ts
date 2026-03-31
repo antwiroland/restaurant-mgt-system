@@ -20,6 +20,12 @@ export function useConnectivity() {
     return () => unsubscribe();
   }, [queue]);
 
+  useEffect(() => {
+    if (isOnline && queue.some((entry) => entry.status === 'QUEUED')) {
+      syncQueue();
+    }
+  }, [isOnline, queue]);
+
   async function syncQueue() {
     const pending = queue.filter((e) => e.status === 'QUEUED');
     for (const entry of pending) {

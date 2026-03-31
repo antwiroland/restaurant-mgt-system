@@ -6,10 +6,13 @@ import com.restaurantmanager.core.phase8.loyalty.LoyaltyService;
 import com.restaurantmanager.core.phase8.loyalty.LoyaltyTransaction;
 import com.restaurantmanager.core.phase8.offer.BuyXGetYOfferService;
 import com.restaurantmanager.core.phase8.promo.PromoCode;
+import com.restaurantmanager.core.phase8.promo.PromoCodeEntity;
+import com.restaurantmanager.core.phase8.promo.PromoCodeRepository;
 import com.restaurantmanager.core.phase8.promo.PromoService;
 import com.restaurantmanager.core.phase8.qr.MobileSessionService;
 import com.restaurantmanager.core.phase8.qr.TableQrPdfService;
 import com.restaurantmanager.core.phase8.whatsapp.WhatsAppService;
+import com.restaurantmanager.core.common.ApiException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -21,6 +24,7 @@ import java.util.concurrent.ConcurrentMap;
 
 @Service
 public class Phase8RuntimeService {
+    private final PromoCodeRepository promoCodeRepository;
     private final PromoService promoService = new PromoService();
     private final BuyXGetYOfferService offerService = new BuyXGetYOfferService();
     private final LoyaltyService loyaltyService = new LoyaltyService(1);
@@ -28,6 +32,10 @@ public class Phase8RuntimeService {
     private final TableQrPdfService tableQrPdfService = new TableQrPdfService();
     private final WhatsAppService whatsAppService = new WhatsAppService((phone, message) -> {}, __ -> {});
     private final ConcurrentMap<UUID, LoyaltyAccount> loyaltyAccounts = new ConcurrentHashMap<>();
+
+    public Phase8RuntimeService(PromoCodeRepository promoCodeRepository) {
+        this.promoCodeRepository = promoCodeRepository;
+    }
 
     public BigDecimal applyPromo(String code,
                                  DiscountType discountType,
@@ -50,6 +58,12 @@ public class Phase8RuntimeService {
                 active
         );
         return promoService.applyPromo(promo, subtotal, now);
+    }
+
+    public PromoCode validatePromo(String code, BigDecimal subtotal, Instant now) {
+        PromoCode promo = loadPromo(code);
+        promoService.validatePromo(promo, subtotal, now);
+        return promo;
     }
 
     public int freeItemsFor(int purchasedQuantity, int buyQty, int getQty) {
@@ -102,5 +116,21 @@ public class Phase8RuntimeService {
 
     public boolean sendStatusUpdate(String phone, String status) {
         return whatsAppService.sendStatusUpdate(phone, status);
+    }
+
+    private PromoCode loadPromo(String code) {
+        PromoCodeEntity entity = promoCodeRepository.findByCodeIgnoreCase(code)
+                .orElseThrow(() -> new ApiException(404, "Promo code not found"));
+        return new PromoCode(
+                entity.getCode(),
+                entity.getDiscountType(),
+                entity.getDiscountValue(),
+                entity.getMinOrderAmount(),
+                entity.getMaxDiscount(),
+                entity.getExpiryDate(),
+                entity.getUsageLimit(),
+                entity.getUsageCount(),
+                entity.isActive()
+        );
     }
 }

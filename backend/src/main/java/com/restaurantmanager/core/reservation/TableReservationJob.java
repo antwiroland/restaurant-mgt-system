@@ -1,8 +1,6 @@
 package com.restaurantmanager.core.reservation;
 
 import com.restaurantmanager.core.config.CacheConfig;
-import com.restaurantmanager.core.table.RestaurantTableEntity;
-import com.restaurantmanager.core.table.RestaurantTableRepository;
 import com.restaurantmanager.core.table.TableRealtimePublisher;
 import com.restaurantmanager.core.table.TableStatus;
 import org.slf4j.Logger;
@@ -27,14 +25,11 @@ public class TableReservationJob {
     private static final int LEAD_MINUTES = 15;
 
     private final ReservationRepository reservationRepository;
-    private final RestaurantTableRepository tableRepository;
     private final TableRealtimePublisher realtimePublisher;
 
     public TableReservationJob(ReservationRepository reservationRepository,
-                               RestaurantTableRepository tableRepository,
                                TableRealtimePublisher realtimePublisher) {
         this.reservationRepository = reservationRepository;
-        this.tableRepository = tableRepository;
         this.realtimePublisher = realtimePublisher;
     }
 
@@ -51,13 +46,15 @@ public class TableReservationJob {
         }
 
         for (ReservationEntity reservation : upcoming) {
-            RestaurantTableEntity table = reservation.getTable();
-            if (table.getStatus() != TableStatus.RESERVED) {
-                table.setStatus(TableStatus.RESERVED);
-                tableRepository.save(table);
-                realtimePublisher.publishTableStatusChanged(table.getNumber(), TableStatus.RESERVED);
+            int updated = reservationRepository.reserveTableIfReservationStillActive(
+                    reservation.getId(),
+                    reservation.getTable().getId(),
+                    now,
+                    windowEnd);
+            if (updated > 0) {
+                realtimePublisher.publishTableStatusChanged(reservation.getTable().getNumber(), TableStatus.RESERVED);
                 log.info("Table {} marked RESERVED for reservation {} starting at {}",
-                        table.getNumber(), reservation.getId(), reservation.getReservedAt());
+                        reservation.getTable().getNumber(), reservation.getId(), reservation.getReservedAt());
             }
         }
     }

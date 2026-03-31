@@ -63,6 +63,8 @@ app:
     auth-window-seconds: ${RATE_LIMIT_AUTH_WINDOW_SECONDS:60}
     pin-requests: ${RATE_LIMIT_PIN_REQUESTS:5}
     pin-window-seconds: ${RATE_LIMIT_PIN_WINDOW_SECONDS:300}
+    public-requests: ${RATE_LIMIT_PUBLIC_REQUESTS:120}
+    public-window-seconds: ${RATE_LIMIT_PUBLIC_WINDOW_SECONDS:60}
 
 security:
   jwt:
