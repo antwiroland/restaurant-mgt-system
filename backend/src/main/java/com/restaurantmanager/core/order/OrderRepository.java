@@ -24,8 +24,8 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
               and (:branchId is null or (o.branch is not null and o.branch.id = :branchId))
               and (:status is null or o.status = :status)
               and (:type is null or o.type = :type)
-              and (:from is null or o.createdAt >= :from)
-              and (:to is null or o.createdAt < :to)
+              and o.createdAt >= :from
+              and o.createdAt < :to
             order by o.createdAt desc
             """)
     List<OrderEntity> findVisibleOrders(@Param("customerId") UUID customerId,
@@ -37,12 +37,15 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
 
     @Query(value = """
             select o from OrderEntity o
+            left join fetch o.branch
+            left join fetch o.table
+            left join fetch o.groupSession
             where (:customerId is null or o.customerUserId = :customerId)
               and (:branchId is null or (o.branch is not null and o.branch.id = :branchId))
               and (:status is null or o.status = :status)
               and (:type is null or o.type = :type)
-              and (:from is null or o.createdAt >= :from)
-              and (:to is null or o.createdAt < :to)
+              and o.createdAt >= :from
+              and o.createdAt < :to
             """,
            countQuery = """
             select count(o) from OrderEntity o
@@ -50,8 +53,8 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
               and (:branchId is null or (o.branch is not null and o.branch.id = :branchId))
               and (:status is null or o.status = :status)
               and (:type is null or o.type = :type)
-              and (:from is null or o.createdAt >= :from)
-              and (:to is null or o.createdAt < :to)
+              and o.createdAt >= :from
+              and o.createdAt < :to
             """)
     Page<OrderEntity> findVisibleOrdersPage(@Param("customerId") UUID customerId,
                                             @Param("branchId") UUID branchId,

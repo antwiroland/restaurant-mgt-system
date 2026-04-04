@@ -34,6 +34,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class Phase10RuntimeService {
+    private static final Instant MAX_FILTER_INSTANT = Instant.parse("9999-12-31T23:59:59Z");
+
     private final AnalyticsService analyticsService;
     private final LoadTestService loadTestService;
     private final SecurityGuardService securityGuardService;
@@ -216,7 +218,7 @@ public class Phase10RuntimeService {
 
     private List<OrderEntity> visibleOrders(LocalDate from, LocalDate to, UUID branchId) {
         Instant fromInstant = from == null ? Instant.EPOCH : from.atStartOfDay().toInstant(ZoneOffset.UTC);
-        Instant toInstant = to == null ? null : to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant toInstant = to == null ? MAX_FILTER_INSTANT : to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
         return orderRepository.findVisibleOrders(null, branchId, null, null, fromInstant, toInstant);
     }
 

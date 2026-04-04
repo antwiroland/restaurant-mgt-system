@@ -67,6 +67,9 @@ import java.util.UUID;
 
 @Service
 public class OrderService {
+    private static final Instant MIN_FILTER_INSTANT = Instant.EPOCH;
+    private static final Instant MAX_FILTER_INSTANT = Instant.parse("9999-12-31T23:59:59Z");
+
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -143,8 +146,8 @@ public class OrderService {
                                                              Pagination.Params params) {
         UUID customerId = principal.role() == Role.CUSTOMER ? principal.userId() : null;
         UUID branchId = isBranchScopedStaff(principal) ? principal.branchId() : null;
-        Instant fromInstant = from == null ? null : from.atStartOfDay().toInstant(ZoneOffset.UTC);
-        Instant toInstant = to == null ? null : to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant fromInstant = from == null ? MIN_FILTER_INSTANT : from.atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant toInstant = to == null ? MAX_FILTER_INSTANT : to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
         PageRequest pageable = PageRequest.of(params.page(), params.size(), Sort.by("createdAt").descending());
         org.springframework.data.domain.Page<OrderEntity> page =
                 orderRepository.findVisibleOrdersPage(customerId, branchId, status, type, fromInstant, toInstant, pageable);
