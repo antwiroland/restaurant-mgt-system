@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Order, OrderItem, CreateOrderRequest, Receipt } from '../types/api';
+import type { Order, OrderItem, CreateOrderRequest, Receipt, PublicOrderTracking, TableBill } from '../types/api';
 
 type OrderItemResponse = {
   id: string;
@@ -106,4 +106,14 @@ export async function fetchReceipt(orderId: string): Promise<Receipt> {
     paymentMethod: data.paymentMethod,
     paidAt: data.paidAt,
   };
+}
+
+export async function fetchPublicTableTracking(tableToken: string): Promise<PublicOrderTracking[]> {
+  const { data } = await apiClient.get<PublicOrderTracking[]>(`/orders/public/dine-in/tables/${tableToken}/tracking`);
+  return data;
+}
+
+export async function fetchPublicTableBill(tableToken: string): Promise<TableBill> {
+  const { data } = await apiClient.get<TableBill>(`/orders/public/dine-in/tables/${tableToken}/bill`);
+  return data;
 }

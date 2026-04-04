@@ -23,6 +23,11 @@ export async function fetchPayment(id: string): Promise<Payment> {
   return data;
 }
 
+export async function verifyPayment(id: string): Promise<Payment> {
+  const { data } = await apiClient.get<Payment>(`/payments/${id}/verify`);
+  return data;
+}
+
 export async function retryPayment(id: string, momoPhone: string): Promise<PaymentInitiateResponse> {
   const { data } = await apiClient.post<PaymentInitiateResponse>(`/payments/${id}/retry`, {
     momoPhone,

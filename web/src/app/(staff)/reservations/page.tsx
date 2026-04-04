@@ -145,7 +145,7 @@ export default function ReservationsPage() {
             {tables.map((table) => <option key={table.id} value={table.id}>Table {table.number}</option>)}
           </select>
           <input className="input" placeholder="Customer name" value={form.customerName} onChange={(e) => setForm((s) => ({ ...s, customerName: e.target.value }))} />
-          <input className="input" placeholder="Customer phone" value={form.customerPhone} onChange={(e) => setForm((s) => ({ ...s, customerPhone: e.target.value }))} />
+          <input className="input" inputMode="tel" placeholder="Customer phone" value={form.customerPhone} onChange={(e) => setForm((s) => ({ ...s, customerPhone: e.target.value }))} />
           <input className="input" placeholder="Party size" type="number" min={1} value={form.partySize} onChange={(e) => setForm((s) => ({ ...s, partySize: e.target.value }))} required />
           <input className="input" type="datetime-local" value={form.reservedAt} onChange={(e) => setForm((s) => ({ ...s, reservedAt: e.target.value }))} required />
           <input className="input" placeholder="Duration mins" type="number" min={15} value={form.durationMins} onChange={(e) => setForm((s) => ({ ...s, durationMins: e.target.value }))} />

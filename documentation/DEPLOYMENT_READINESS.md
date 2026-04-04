@@ -79,6 +79,8 @@ Gap:
 
 Recommendation:
 - add a staging or CI path that runs migrations and smoke tests against PostgreSQL
+- the repository now includes a Docker-backed Maven profile for this path:
+  `cd backend && mvn -q -Ppostgres-it -Dtest=PostgresFlywayIntegrationTest test`
 
 ## Security Readiness
 

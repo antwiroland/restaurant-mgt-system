@@ -3,6 +3,8 @@ package com.restaurantmanager.core.reservation;
 import com.restaurantmanager.core.common.ApiException;
 import com.restaurantmanager.core.common.Role;
 import com.restaurantmanager.core.phase8.whatsapp.WhatsAppService;
+import com.restaurantmanager.core.reservation.dto.GuestReservationCancelRequest;
+import com.restaurantmanager.core.reservation.dto.GuestReservationLookupRequest;
 import com.restaurantmanager.core.reservation.dto.ReservationCreateRequest;
 import com.restaurantmanager.core.reservation.dto.ReservationResponse;
 import com.restaurantmanager.core.reservation.dto.ReservationStatusUpdateRequest;
@@ -115,6 +117,15 @@ public class ReservationService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<ReservationResponse> listGuestReservations(GuestReservationLookupRequest request) {
+        String normalizedPhone = normalizePhone(request.phone());
+        return reservationRepository.findAllByCustomerPhoneOrderByReservedAtAsc(normalizedPhone).stream()
+                .filter(reservation -> reservation.getCustomerUserId() == null)
+                .map(this::toResponse)
+                .toList();
+    }
+
     @Transactional
     public ReservationResponse updateStatus(UUID id, ReservationStatusUpdateRequest request) {
         ReservationEntity reservation = reservationRepository.findById(id)
@@ -137,6 +148,23 @@ public class ReservationService {
             if (reservation.getCustomerUserId() == null || !reservation.getCustomerUserId().equals(principal.userId())) {
                 throw new ApiException(403, "You can only cancel your own reservation");
             }
+        }
+
+        reservation.setStatus(ReservationStatus.CANCELLED);
+        reservationRepository.save(reservation);
+    }
+
+    @Transactional
+    public void cancelGuest(UUID id, GuestReservationCancelRequest request) {
+        ReservationEntity reservation = reservationRepository.findById(id)
+                .orElseThrow(() -> new ApiException(404, "Reservation not found"));
+
+        if (reservation.getCustomerUserId() != null) {
+            throw new ApiException(403, "Signed-in reservations must be cancelled by the customer account");
+        }
+
+        if (!normalizePhone(reservation.getCustomerPhone()).equals(normalizePhone(request.phone()))) {
+            throw new ApiException(403, "Phone number does not match this reservation");
         }
 
         reservation.setStatus(ReservationStatus.CANCELLED);
@@ -169,5 +197,9 @@ public class ReservationService {
             return null;
         }
         return value.trim();
+    }
+
+    private String normalizePhone(String phone) {
+        return phone == null ? "" : phone.trim();
     }
 }

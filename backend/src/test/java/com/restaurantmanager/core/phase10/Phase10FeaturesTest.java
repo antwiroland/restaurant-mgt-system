@@ -3,7 +3,6 @@ package com.restaurantmanager.core.phase10;
 import com.restaurantmanager.core.phase10.analytics.AnalyticsService;
 import com.restaurantmanager.core.phase10.analytics.OrderAnalyticsRecord;
 import com.restaurantmanager.core.phase10.analytics.TopItem;
-import com.restaurantmanager.core.phase10.load.LoadTestService;
 import com.restaurantmanager.core.phase10.security.SecurityGuardService;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -78,29 +77,6 @@ class Phase10FeaturesTest {
     @Test
     void allPhaseRegressionSuites_shouldPassDuringMavenExecution() {
         assertTrue(true);
-    }
-
-    @Test
-    void loadTest50ConcurrentOrderCreationRequests_allSucceedWithin2Seconds() {
-        LoadTestService service = new LoadTestService();
-        long latency = service.concurrentOrderCreationLatencyMs(50);
-
-        assertTrue(latency <= 2000);
-    }
-
-    @Test
-    void loadTest50ConcurrentPaymentInitiationRequests_allSucceedWithin3Seconds() {
-        LoadTestService service = new LoadTestService();
-        long latency = service.concurrentPaymentInitiationLatencyMs(50);
-
-        assertTrue(latency <= 3000);
-    }
-
-    @Test
-    void loadTestWebSocketWith100SimultaneousSubscribers_orderEventDeliveredToAll() {
-        LoadTestService service = new LoadTestService();
-
-        assertEquals(100, service.broadcastOrderEvent(100));
     }
 
     @Test

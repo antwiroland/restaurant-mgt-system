@@ -78,7 +78,14 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps) {
         className="relative z-10 grid w-full max-h-[100dvh] gap-4 overflow-y-auto rounded-t-[var(--radius-xl)] bg-surface p-4 shadow-xl
                    animate-[modalIn_var(--duration-base)_var(--ease-out)] sm:max-h-[85dvh] sm:max-w-[480px] sm:rounded-[var(--radius-xl)] sm:p-5"
       >
-        {title ? <h2 className="text-xl font-semibold text-ink">{title}</h2> : null}
+        {title ? (
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-xl font-semibold text-ink">{title}</h2>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close">
+              x
+            </button>
+          </div>
+        ) : null}
         <div>{children}</div>
         {footer ? <div className="flex flex-wrap justify-end gap-2">{footer}</div> : null}
       </div>
@@ -86,4 +93,3 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps) {
     document.body,
   );
 }
-

@@ -3,7 +3,13 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   TextInput, Modal, Alert, ActivityIndicator, ScrollView,
 } from 'react-native';
-import { createReservation as apiCreate, fetchMyReservations, cancelReservation as apiCancel } from '../src/api/reservation';
+import {
+  createReservation as apiCreate,
+  fetchMyReservations,
+  cancelReservation as apiCancel,
+  fetchGuestReservations,
+  cancelGuestReservation,
+} from '../src/api/reservation';
 import { useAuthStore } from '../src/store/auth';
 import type { Reservation } from '../src/types/api';
 
@@ -16,11 +22,12 @@ export default function ReservationScreen() {
     tableId: '', customerName: '', customerPhone: '',
     partySize: '2', reservedAt: '', durationMins: '90', notes: '',
   });
+  const [lookupPhone, setLookupPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
-      load();
+      void load();
     } else {
       setLoading(false);
     }
@@ -29,7 +36,11 @@ export default function ReservationScreen() {
   async function load() {
     setLoading(true);
     try {
-      const data = await fetchMyReservations();
+      const data = isAuthenticated
+        ? await fetchMyReservations()
+        : lookupPhone.trim()
+          ? await fetchGuestReservations({ phone: lookupPhone.trim() })
+          : [];
       setReservations(data);
     } catch {}
     setLoading(false);
@@ -52,6 +63,9 @@ export default function ReservationScreen() {
         notes: form.notes,
       });
       setShowForm(false);
+      if (!isAuthenticated && form.customerPhone.trim()) {
+        setLookupPhone(form.customerPhone.trim());
+      }
       void load();
       Alert.alert('Confirmed', 'Your reservation has been made!');
     } catch (e: any) {
@@ -68,7 +82,11 @@ export default function ReservationScreen() {
         text: 'Yes', style: 'destructive',
         onPress: async () => {
           try {
-            await apiCancel(id);
+            if (isAuthenticated) {
+              await apiCancel(id);
+            } else {
+              await cancelGuestReservation(id, lookupPhone.trim());
+            }
             void load();
           } catch (e: any) {
             Alert.alert('Error', e?.response?.data?.message ?? 'Cannot cancel');
@@ -80,6 +98,22 @@ export default function ReservationScreen() {
 
   return (
     <View style={styles.container}>
+      {!isAuthenticated && (
+        <View style={styles.lookupCard}>
+          <Text style={styles.lookupTitle}>Find Guest Reservation</Text>
+          <TextInput
+            style={styles.lookupInput}
+            placeholder="Phone used for reservation"
+            value={lookupPhone}
+            onChangeText={setLookupPhone}
+            keyboardType="phone-pad"
+          />
+          <TouchableOpacity style={styles.lookupBtn} onPress={() => void load()}>
+            <Text style={styles.lookupBtnText}>Lookup Reservations</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <TouchableOpacity style={styles.addBtn} onPress={() => setShowForm(true)}>
         <Text style={styles.addBtnText}>+ New Reservation</Text>
       </TouchableOpacity>
@@ -154,6 +188,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
   addBtn: { margin: 12, backgroundColor: '#2563EB', borderRadius: 10, padding: 14, alignItems: 'center' },
   addBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  lookupCard: { backgroundColor: '#fff', margin: 12, borderRadius: 12, padding: 16 },
+  lookupTitle: { fontSize: 15, fontWeight: '700', color: '#111827', marginBottom: 10 },
+  lookupInput: {
+    borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8,
+    padding: 12, fontSize: 15, marginBottom: 10,
+  },
+  lookupBtn: { backgroundColor: '#E5E7EB', borderRadius: 10, padding: 12, alignItems: 'center' },
+  lookupBtnText: { color: '#374151', fontWeight: '700', fontSize: 14 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   empty: { color: '#6B7280', fontSize: 16 },
   card: {

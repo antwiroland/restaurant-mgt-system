@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { fetchOrder, cancelOrder, fetchReceipt } from '../../src/api/orders';
+import { fetchPayment, verifyPayment } from '../../src/api/payment';
 import type { Order, Receipt } from '../../src/types/api';
 
 const STATUS_STEPS = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'COMPLETED'];
@@ -16,21 +17,35 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function OrderTrackingScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, paymentId } = useLocalSearchParams<{ id: string; paymentId?: string }>();
   const [order, setOrder] = useState<Order | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [loading, setLoading] = useState(true);
+  const pendingPaymentPollsRef = useRef(0);
 
   useEffect(() => {
     load();
     const interval = setInterval(load, 15000);
     return () => clearInterval(interval);
-  }, [id]);
+  }, [id, paymentId]);
 
   async function load() {
     try {
       const nextOrder = await fetchOrder(id);
       setOrder(nextOrder);
+      if (paymentId && ['PENDING', 'CONFIRMED', 'PREPARING'].includes(nextOrder.status)) {
+        const payment = await fetchPayment(paymentId).catch(() => null);
+        if (payment?.status === 'PENDING') {
+          const nextPendingPolls = pendingPaymentPollsRef.current + 1;
+          pendingPaymentPollsRef.current = nextPendingPolls;
+          if (nextPendingPolls >= 2) {
+            await verifyPayment(paymentId).catch(() => null);
+            pendingPaymentPollsRef.current = 0;
+          }
+        } else {
+          pendingPaymentPollsRef.current = 0;
+        }
+      }
       if (nextOrder.status === 'COMPLETED') {
         fetchReceipt(id).then(setReceipt).catch(() => {});
       }
@@ -124,6 +139,12 @@ export default function OrderTrackingScreen() {
         </View>
       )}
 
+      {paymentId && order.status !== 'COMPLETED' && (
+        <TouchableOpacity style={styles.verifyBtn} onPress={() => verifyPayment(paymentId).then(() => load()).catch(() => {})}>
+          <Text style={styles.verifyText}>Verify Payment Status</Text>
+        </TouchableOpacity>
+      )}
+
       {order.status === 'PENDING' && (
         <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
           <Text style={styles.cancelText}>Cancel Order</Text>
@@ -171,6 +192,8 @@ const styles = StyleSheet.create({
   receiptMeta: { fontSize: 12, color: '#6B7280' },
   cancelBtn: { margin: 12, padding: 14, backgroundColor: '#FEE2E2', borderRadius: 10, alignItems: 'center' },
   cancelText: { color: '#EF4444', fontWeight: '700', fontSize: 15 },
+  verifyBtn: { marginHorizontal: 12, padding: 14, backgroundColor: '#DBEAFE', borderRadius: 10, alignItems: 'center' },
+  verifyText: { color: '#1D4ED8', fontWeight: '700', fontSize: 15 },
   backBtn: { margin: 12, padding: 14, backgroundColor: '#E5E7EB', borderRadius: 10, alignItems: 'center' },
   backBtnText: { color: '#374151', fontWeight: '600', fontSize: 15 },
 });

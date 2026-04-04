@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import NetInfo from '@react-native-community/netinfo';
 import { useOfflineStore, MAX_RETRY_COUNT } from '../store/offline';
 import { createOrder, createPublicTableOrder } from '../api/orders';
@@ -8,69 +8,106 @@ import type { CreateOrderRequest, CreateReservationRequest } from '../types/api'
 import type { QueueEntry } from '../store/offline';
 
 export function useConnectivity() {
-  const { setOnline, queue, markSynced, markFailed, markConflict, cleanupSynced, isOnline } = useOfflineStore();
+  const { setOnline, queue, isOnline } = useOfflineStore();
+  const syncInFlightRef = useRef(false);
+  const lastAttemptedSignatureRef = useRef<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
       const online = !!(state.isConnected && state.isInternetReachable);
       setOnline(online);
       if (online) {
-        syncQueue();
+        void syncQueue();
       }
     });
     return () => unsubscribe();
-  }, [queue]);
+  }, [setOnline]);
 
   useEffect(() => {
-    if (isOnline && queue.some((entry) => entry.status === 'QUEUED')) {
-      syncQueue();
+    if (!isOnline) {
+      lastAttemptedSignatureRef.current = null;
+      return;
     }
+
+    const signature = queueSignature(queue);
+    if (!signature || signature === lastAttemptedSignatureRef.current) {
+      return;
+    }
+
+    lastAttemptedSignatureRef.current = signature;
+    void syncQueue(signature);
   }, [isOnline, queue]);
 
-  async function syncQueue() {
-    const eligible = queue.filter(
+  async function syncQueue(expectedSignature?: string) {
+    if (syncInFlightRef.current) {
+      return;
+    }
+
+    const state = useOfflineStore.getState();
+    const eligible = state.queue.filter(
       (e) => e.status === 'QUEUED' || (e.status === 'FAILED' && e.retryCount < MAX_RETRY_COUNT)
     );
+    const currentSignature = queueSignature(state.queue);
 
-    for (const entry of eligible) {
-      try {
-        if (entry.action === 'CREATE_ORDER') {
-          const orderPayload = entry.payload as CreateOrderRequest;
+    if (!eligible.length || (expectedSignature && currentSignature !== expectedSignature)) {
+      return;
+    }
 
-          if (orderPayload.type === 'DINE_IN') {
+    syncInFlightRef.current = true;
+
+    const { markSynced, markFailed, markConflict, cleanupSynced } = state;
+
+    try {
+      for (const entry of eligible) {
+        try {
+          if (entry.action === 'CREATE_ORDER') {
+            const orderPayload = entry.payload as CreateOrderRequest;
+
+            if (orderPayload.type === 'DINE_IN') {
+              const conflictReason = await resolveTableConflict(entry);
+              if (conflictReason) {
+                await markConflict(entry.id, conflictReason);
+                continue;
+              }
+            }
+
+            await createOrder(orderPayload);
+          } else if (entry.action === 'CREATE_PUBLIC_TABLE_ORDER') {
             const conflictReason = await resolveTableConflict(entry);
             if (conflictReason) {
               await markConflict(entry.id, conflictReason);
               continue;
             }
+            await createPublicTableOrder(entry.payload as { tableToken: string; items: CreateOrderRequest['items']; notes?: string });
+          } else if (entry.action === 'CREATE_RESERVATION') {
+            await createReservation(entry.payload as CreateReservationRequest);
           }
 
-          await createOrder(orderPayload);
-        } else if (entry.action === 'CREATE_PUBLIC_TABLE_ORDER') {
-          const conflictReason = await resolveTableConflict(entry);
-          if (conflictReason) {
-            await markConflict(entry.id, conflictReason);
+          await markSynced(entry.id);
+        } catch (error) {
+          if (isOrderConflictError(error)) {
+            await markConflict(entry.id, extractConflictReason(error));
             continue;
           }
-          await createPublicTableOrder(entry.payload as { tableToken: string; items: CreateOrderRequest['items']; notes?: string });
-        } else if (entry.action === 'CREATE_RESERVATION') {
-          await createReservation(entry.payload as CreateReservationRequest);
+          await markFailed(entry.id);
         }
-
-        await markSynced(entry.id);
-      } catch (error) {
-        if (isOrderConflictError(error)) {
-          await markConflict(entry.id, extractConflictReason(error));
-          continue;
-        }
-        await markFailed(entry.id);
       }
-    }
 
-    await cleanupSynced();
+      await cleanupSynced();
+    } finally {
+      syncInFlightRef.current = false;
+    }
   }
 
   return { isOnline };
+}
+
+function queueSignature(queue: QueueEntry[]): string | null {
+  const eligible = queue
+    .filter((entry) => entry.status === 'QUEUED' || (entry.status === 'FAILED' && entry.retryCount < MAX_RETRY_COUNT))
+    .map((entry) => `${entry.id}:${entry.status}:${entry.retryCount}`);
+
+  return eligible.length ? eligible.join('|') : null;
 }
 
 async function resolveTableConflict(entry: QueueEntry): Promise<string | null> {

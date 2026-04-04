@@ -24,6 +24,7 @@ export default function RootLayout() {
         <Stack.Screen name="checkout" options={{ presentation: 'modal', headerShown: true, title: 'Checkout' }} />
         <Stack.Screen name="qr-scan" options={{ presentation: 'modal', headerShown: true, title: 'Scan QR Code' }} />
         <Stack.Screen name="order/[id]" options={{ headerShown: true, title: 'Order Tracking' }} />
+        <Stack.Screen name="track-table/[token]" options={{ headerShown: true, title: 'Table Tracking' }} />
         <Stack.Screen name="reservation" options={{ headerShown: true, title: 'Reservations' }} />
         <Stack.Screen name="group/[code]" options={{ headerShown: true, title: 'Group Order' }} />
       </Stack>

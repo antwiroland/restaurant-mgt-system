@@ -103,7 +103,7 @@ export default function PaymentsPage() {
             <option value="CARD">CARD</option>
             <option value="CASH">CASH</option>
           </select>
-          <input className="input" placeholder="MoMo Phone" value={momoPhone} onChange={(e) => setMomoPhone(e.target.value)} required />
+          <input className="input" inputMode="tel" placeholder="MoMo Phone" value={momoPhone} onChange={(e) => setMomoPhone(e.target.value)} required />
           <input className="input" placeholder="Idempotency key (optional)" value={idem} onChange={(e) => setIdem(e.target.value)} />
           <button className="btn btn-primary">Initiate</button>
         </form>
@@ -139,5 +139,4 @@ export default function PaymentsPage() {
     </main>
   );
 }
-
 

@@ -163,6 +163,56 @@ class ReservationIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$[0].customerName").value("Kwame"));
     }
 
+    @Test
+    void givenGuestPhone_whenLookupGuestReservations_thenOnlyMatchingGuestReservationsReturned() throws Exception {
+        RestaurantTableEntity table = createTable("R9");
+        createReservation(table, Instant.parse("2026-04-14T18:00:00Z"), null);
+        ReservationEntity other = createReservation(table, Instant.parse("2026-04-15T18:00:00Z"), null);
+        other.setCustomerPhone("+233200300099");
+        reservationRepository.save(other);
+
+        mockMvc.perform(post("/reservations/guest/lookup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"phone":"+233200399999"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].customerPhone").value("+233200399999"));
+    }
+
+    @Test
+    void givenGuestPhone_whenCancelMatchingGuestReservation_then204() throws Exception {
+        ReservationEntity reservation = createReservation(createTable("R10"), Instant.now().plusSeconds(604800), null);
+
+        mockMvc.perform(post("/reservations/" + reservation.getId() + "/guest-cancel")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"phone":"+233200399999"}
+                                """))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/reservations/guest/lookup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"phone":"+233200399999"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("CANCELLED"));
+    }
+
+    @Test
+    void givenWrongGuestPhone_whenCancelGuestReservation_then403() throws Exception {
+        ReservationEntity reservation = createReservation(createTable("R11"), Instant.now().plusSeconds(691200), null);
+
+        mockMvc.perform(post("/reservations/" + reservation.getId() + "/guest-cancel")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"phone":"+233200300123"}
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
     private RestaurantTableEntity createTable(String number) {
         RestaurantTableEntity table = new RestaurantTableEntity();
         table.setNumber(number);

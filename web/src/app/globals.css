@@ -22,38 +22,38 @@
    Naming: --clr-{hue}-{step}  lower = darker, higher = lighter
 ---------------------------------------------------------- */
 :root {
-  /* Forest Green — brand primary */
-  --clr-green-0:  #050e08;
-  --clr-green-1:  #0a1c10;
-  --clr-green-2:  #132018;
-  --clr-green-3:  #1e3426;
-  --clr-green-4:  #2c4a36;
-  --clr-green-5:  #35523d;
-  --clr-green-6:  #4a7055;
-  --clr-green-7:  #6b9976;
-  --clr-green-8:  #9dc4a5;
-  --clr-green-9:  #c5dfca;
-  --clr-green-10: #d6e4ce;
-  --clr-green-11: #eaf2e6;
-  --clr-green-12: #f3f5ec;
-  --clr-green-13: #fbfff7;
+  /* Emerald — brand primary (vibrant, fresh, restaurant-green) */
+  --clr-green-0:  #022c22;
+  --clr-green-1:  #064e3b;
+  --clr-green-2:  #065f46;
+  --clr-green-3:  #047857;
+  --clr-green-4:  #059669;
+  --clr-green-5:  #10b981;
+  --clr-green-6:  #34d399;
+  --clr-green-7:  #6ee7b7;
+  --clr-green-8:  #a7f3d0;
+  --clr-green-9:  #d1fae5;
+  --clr-green-10: #ecfdf5;
+  --clr-green-11: #f0fdf4;
+  --clr-green-12: #f7fffe;
+  --clr-green-13: #ffffff;
 
-  /* Sage — secondary surface */
-  --clr-sage-0: #1a2e1f;
-  --clr-sage-1: #2a4832;
-  --clr-sage-2: #3d6449;
-  --clr-sage-3: #527d5f;
-  --clr-sage-4: #6b9c79;
-  --clr-sage-5: #8ab89a;
-  --clr-sage-6: #aed0b9;
-  --clr-sage-7: #cce3d5;
-  --clr-sage-8: #dbe9d3;
-  --clr-sage-9: #e8f3e4;
-  --clr-sage-10: #f0f8ed;
+  /* Slate — neutral surface (clean, modern grays) */
+  --clr-sage-0: #0f172a;
+  --clr-sage-1: #1e293b;
+  --clr-sage-2: #334155;
+  --clr-sage-3: #475569;
+  --clr-sage-4: #64748b;
+  --clr-sage-5: #94a3b8;
+  --clr-sage-6: #cbd5e1;
+  --clr-sage-7: #e2e8f0;
+  --clr-sage-8: #f1f5f9;
+  --clr-sage-9: #f8fafc;
+  --clr-sage-10: #ffffff;
 
   /* Amber — warnings */
-  --clr-amber-0: #3d1a00;
-  --clr-amber-1: #6b2e00;
+  --clr-amber-0: #451a03;
+  --clr-amber-1: #78350f;
   --clr-amber-2: #92400e;
   --clr-amber-3: #b45309;
   --clr-amber-4: #d97706;
@@ -64,18 +64,18 @@
   --clr-amber-9: #fef3c7;
   --clr-amber-10: #fffbeb;
 
-  /* Terracotta — accent / CTA */
-  --clr-terra-0: #2c0f07;
-  --clr-terra-1: #57200f;
-  --clr-terra-2: #7c2d12;
-  --clr-terra-3: #9a3412;
-  --clr-terra-4: #c7522a;
-  --clr-terra-5: #d97650;
-  --clr-terra-6: #e89872;
-  --clr-terra-7: #f4bca0;
-  --clr-terra-8: #f9d8c8;
-  --clr-terra-9: #fdeee7;
-  --clr-terra-10: #fff7f5;
+  /* Golden Amber — accent / CTA (warm, inviting) */
+  --clr-terra-0: #451a03;
+  --clr-terra-1: #78350f;
+  --clr-terra-2: #92400e;
+  --clr-terra-3: #b45309;
+  --clr-terra-4: #d97706;
+  --clr-terra-5: #f59e0b;
+  --clr-terra-6: #fbbf24;
+  --clr-terra-7: #fcd34d;
+  --clr-terra-8: #fde68a;
+  --clr-terra-9: #fef9e7;
+  --clr-terra-10: #fffbf0;
 
   /* Crimson — errors / danger */
   --clr-red-0: #3b0202;
@@ -116,14 +116,14 @@
   --clr-neutral-9:  #f3f4f6;
   --clr-neutral-10: #f9fafb;
 
-  /* Cream — warm whites */
+  /* Cream — warm accent whites */
   --clr-cream-0: #c8b97a;
   --clr-cream-1: #e2d4a0;
   --clr-cream-2: #f0e8c2;
   --clr-cream-3: #f7f0d4;
   --clr-cream-4: #faf5e4;
   --clr-cream-5: #fdf9ef;
-  --clr-cream-6: #fff9e6;
+  --clr-cream-6: #fffbf0;
 }
 
 
@@ -142,45 +142,45 @@
   --font-mono:    "IBM Plex Mono", monospace;
 
   /* ---- COLORS — Surfaces (bg-canvas, bg-surface …) ---- */
-  --color-canvas:    #f3f5ec;   /* page background           */
-  --color-surface:   #fbfff7;   /* card / panel background   */
-  --color-sunken:    #eaf2e6;   /* recessed section          */
-  --color-muted:     #e8f3e4;   /* muted background          */
-  --color-overlay:   rgba(5, 14, 8, 0.55);
+  --color-canvas:    #f8fafc;   /* page background — clean slate  */
+  --color-surface:   #ffffff;   /* card / panel background        */
+  --color-sunken:    #f1f5f9;   /* recessed section               */
+  --color-muted:     #f0fdf4;   /* muted background — soft green  */
+  --color-overlay:   rgba(15, 23, 42, 0.50);
 
   /* ---- COLORS — Ink / foreground (text-ink …) --------- */
-  --color-ink:          #132018;  /* primary text             */
-  --color-ink-soft:     #35523d;  /* secondary text           */
-  --color-ink-muted:    #6b9976;  /* tertiary / placeholder   */
-  --color-ink-disabled: #9ca3af;  /* disabled label           */
-  --color-ink-inverse:  #fbfff7;  /* text on dark backgrounds */
+  --color-ink:          #0f172a;  /* primary text — deep slate    */
+  --color-ink-soft:     #475569;  /* secondary text               */
+  --color-ink-muted:    #94a3b8;  /* tertiary / placeholder       */
+  --color-ink-disabled: #cbd5e1;  /* disabled label               */
+  --color-ink-inverse:  #ffffff;  /* text on dark backgrounds     */
 
   /* ---- COLORS — Brand (bg-brand, text-brand …) -------- */
-  --color-brand:        #132018;
-  --color-brand-hover:  #1e3426;
-  --color-brand-active: #0a1c10;
-  --color-brand-subtle: #eaf2e6;
-  --color-brand-on:     #fbfff7;  /* text on brand bg         */
+  --color-brand:        #059669;  /* emerald-600 — vibrant green  */
+  --color-brand-hover:  #047857;  /* emerald-700                  */
+  --color-brand-active: #065f46;  /* emerald-800                  */
+  --color-brand-subtle: #ecfdf5;  /* emerald-50                   */
+  --color-brand-on:     #ffffff;  /* text on brand bg             */
 
   /* ---- COLORS — Accent / CTA (bg-accent …) ------------ */
-  --color-accent:        #c7522a;
-  --color-accent-hover:  #9a3412;
-  --color-accent-subtle: #fdeee7;
+  --color-accent:        #d97706;  /* amber-600 — warm golden      */
+  --color-accent-hover:  #b45309;  /* amber-700                    */
+  --color-accent-subtle: #fffbeb;  /* amber-50                     */
   --color-accent-on:     #ffffff;
 
   /* ---- COLORS — Borders (border-line …) --------------- */
-  --color-line:         #d6e4ce;  /* default border           */
-  --color-line-subtle:  #eaf2e6;  /* hairline / ghost border  */
-  --color-line-strong:  #9dc4a5;  /* strong border            */
-  --color-line-input:   #cce3d5;  /* input border             */
-  --color-line-focus:   #35523d;  /* focused input border     */
+  --color-line:         #e2e8f0;  /* slate-200 — clean border     */
+  --color-line-subtle:  #f1f5f9;  /* slate-100 — hairline         */
+  --color-line-strong:  #cbd5e1;  /* slate-300 — strong border    */
+  --color-line-input:   #d1fae5;  /* emerald-100 — input border   */
+  --color-line-focus:   #059669;  /* emerald-600 — focused border */
 
   /* ---- COLORS — Semantic status ----------------------- */
   /* Success */
-  --color-success:        #35523d;
-  --color-success-subtle: #dcfce7;
-  --color-success-border: #9dc4a5;
-  --color-success-on:     #1e3426;
+  --color-success:        #059669;
+  --color-success-subtle: #d1fae5;
+  --color-success-border: #6ee7b7;
+  --color-success-on:     #065f46;
 
   /* Warning */
   --color-warning:        #d97706;
@@ -189,7 +189,7 @@
   --color-warning-on:     #92400e;
 
   /* Danger */
-  --color-danger:        #b91c1c;
+  --color-danger:        #dc2626;
   --color-danger-subtle: #fee2e2;
   --color-danger-border: #fca5a5;
   --color-danger-on:     #991b1b;
@@ -201,39 +201,39 @@
   --color-info-on:     #075985;
 
   /* ---- COLORS — Order status chips -------------------- */
-  --color-pending:        #b45309;
+  --color-pending:        #d97706;
   --color-pending-subtle: #fef3c7;
 
   --color-confirmed:        #0284c7;
   --color-confirmed-subtle: #f0f9ff;
 
-  --color-preparing:        #c7522a;
-  --color-preparing-subtle: #fdeee7;
+  --color-preparing:        #ea580c;
+  --color-preparing-subtle: #fff7ed;
 
   --color-ready:        #0369a1;
   --color-ready-subtle: #e0f2fe;
 
-  --color-completed:        #35523d;
-  --color-completed-subtle: #dcfce7;
+  --color-completed:        #059669;
+  --color-completed-subtle: #d1fae5;
 
-  --color-cancelled:        #b91c1c;
+  --color-cancelled:        #dc2626;
   --color-cancelled-subtle: #fee2e2;
 
-  --color-voided:        #374151;
-  --color-voided-subtle: #f3f4f6;
+  --color-voided:        #64748b;
+  --color-voided-subtle: #f1f5f9;
 
   /* ---- COLORS — Table status -------------------------- */
-  --color-available:        #166534;
-  --color-available-subtle: #dcfce7;
+  --color-available:        #059669;
+  --color-available-subtle: #d1fae5;
 
-  --color-occupied:        #991b1b;
+  --color-occupied:        #dc2626;
   --color-occupied-subtle: #fee2e2;
 
-  --color-reserved:        #92400e;
+  --color-reserved:        #d97706;
   --color-reserved-subtle: #fef3c7;
 
-  --color-closed:        #374151;
-  --color-closed-subtle: #e5e7eb;
+  --color-closed:        #64748b;
+  --color-closed-subtle: #f1f5f9;
 
   /* ---- BORDER RADIUS ---------------------------------- */
   /* Adds rounded-card, rounded-panel, rounded-modal, rounded-pill
@@ -252,15 +252,15 @@
   /* ---- SHADOWS ---------------------------------------- */
   /* Adds shadow-xs … shadow-xl, shadow-focus, shadow-focus-danger
      alongside Tailwind's built-in shadow-sm/md/lg               */
-  --shadow-xs:    0 1px 3px rgba(13, 28, 18, 0.06), 0 1px 2px rgba(13, 28, 18, 0.04);
-  --shadow-sm:    0 2px 6px rgba(13, 28, 18, 0.07), 0 1px 3px rgba(13, 28, 18, 0.05);
-  --shadow-card:  0 4px 14px rgba(13, 28, 18, 0.09), 0 2px 6px rgba(13, 28, 18, 0.06);
-  --shadow-panel: 0 4px 14px rgba(13, 28, 18, 0.09), 0 2px 6px rgba(13, 28, 18, 0.06);
-  --shadow-lg:    0 10px 26px rgba(13, 28, 18, 0.10), 0 4px 12px rgba(13, 28, 18, 0.07);
-  --shadow-xl:    0 20px 48px rgba(13, 28, 18, 0.13), 0 8px 18px rgba(13, 28, 18, 0.08);
-  --shadow-inner: inset 0 2px 6px rgba(13, 28, 18, 0.08);
-  --shadow-focus: 0 0 0 3px rgba(53, 82, 61, 0.30);
-  --shadow-focus-danger: 0 0 0 3px rgba(153, 27, 27, 0.28);
+  --shadow-xs:    0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm:    0 2px 6px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.05);
+  --shadow-card:  0 4px 14px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.05);
+  --shadow-panel: 0 4px 14px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.05);
+  --shadow-lg:    0 10px 26px rgba(15, 23, 42, 0.10), 0 4px 12px rgba(15, 23, 42, 0.06);
+  --shadow-xl:    0 20px 48px rgba(15, 23, 42, 0.12), 0 8px 18px rgba(15, 23, 42, 0.07);
+  --shadow-inner: inset 0 2px 6px rgba(15, 23, 42, 0.06);
+  --shadow-focus: 0 0 0 3px rgba(5, 150, 105, 0.28);
+  --shadow-focus-danger: 0 0 0 3px rgba(220, 38, 38, 0.25);
 
   /* ---- EASING ----------------------------------------- */
   --ease-default: cubic-bezier(0.22, 1, 0.36, 1);
@@ -308,7 +308,7 @@
 
   /* Legacy aliases — keep old code working during migration */
   --bg-0:     var(--color-canvas);
-  --bg-1:     #dbe9d3;
+  --bg-1:     #e2e8f0;
   --ink:      var(--color-ink);
   --ink-soft: var(--color-ink-soft);
   --card:     var(--color-surface);
@@ -335,9 +335,9 @@
     min-height: 100dvh;
     margin: 0;
     background:
-      radial-gradient(circle at 18% 12%, #fff9e6 0%, transparent 28%),
-      radial-gradient(circle at 84% 82%, #e8f3e4 0%, transparent 34%),
-      linear-gradient(140deg, var(--color-canvas), #dbe9d3);
+      radial-gradient(circle at 18% 12%, #ecfdf5 0%, transparent 30%),
+      radial-gradient(circle at 82% 85%, #fffbeb 0%, transparent 30%),
+      linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
     color: var(--color-ink);
     font-family: var(--font-display), sans-serif;
     font-size: 0.9375rem; /* 15px */
@@ -366,8 +366,8 @@
   /* Thin themed scrollbars */
   ::-webkit-scrollbar        { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track  { background: var(--color-sunken); border-radius: var(--radius-pill); }
-  ::-webkit-scrollbar-thumb  { background: #c5dfca; border-radius: var(--radius-pill); }
-  ::-webkit-scrollbar-thumb:hover { background: #9dc4a5; }
+  ::-webkit-scrollbar-thumb  { background: #a7f3d0; border-radius: var(--radius-pill); }
+  ::-webkit-scrollbar-thumb:hover { background: #6ee7b7; }
 
   @keyframes modalIn {
     from {

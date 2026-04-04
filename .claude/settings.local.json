@@ -37,7 +37,10 @@
       "Bash(grep -r \"ensureProviderConfigured\\\\|NotImplementedException\" C:/Users/HP/Desktop/restaurant_manager/backend/src/main/java --include=*.java -A 3)",
       "Bash(ls -la \"C:/Users/HP/Desktop/restaurant_manager/web/src/app/\\(staff\\)/\")",
       "Bash(grep -r \"getOrders\\\\|getTables\\\\|getPayments\" C:/Users/HP/Desktop/restaurant_manager/web/src/lib --include=*.ts --include=*.tsx)",
-      "Bash(grep -r \"throw\\\\|console.error\\\\|catch\" C:/Users/HP/Desktop/restaurant_manager/web/src/app --include=*.tsx)"
+      "Bash(grep -r \"throw\\\\|console.error\\\\|catch\" C:/Users/HP/Desktop/restaurant_manager/web/src/app --include=*.tsx)",
+      "Bash(du -sh /c/Users/HP/Desktop/restaurant_manager/*)",
+      "Bash(ls -la /c/Users/HP/Desktop/restaurant_manager/web/src/app/\\\\\\(staff\\\\\\)/)",
+      "Bash(find /c/Users/HP/Desktop/restaurant_manager/web/src -type f \\\\\\(-name *.tsx -o -name *.css \\\\\\))"
     ]
   }
 }

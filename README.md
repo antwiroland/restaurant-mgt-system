@@ -14,7 +14,10 @@ This repository is organized into four top-level workspaces:
 ```bash
 cd backend
 mvn test -q
+mvn -q -Ppostgres-it -Dtest=PostgresFlywayIntegrationTest test
 ```
+
+The `postgres-it` profile runs the Docker-backed PostgreSQL + Flyway smoke suite.
 
 ### Web
 

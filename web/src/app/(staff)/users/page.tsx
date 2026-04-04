@@ -146,7 +146,7 @@ export default function UsersPage() {
         <h2 className="text-lg font-semibold">Create Staff User</h2>
         <div className="mt-3 grid gap-2 md:grid-cols-3">
           <input className="input text-sm" placeholder="Name" value={newUser.name} onChange={(e) => setNewUser((s) => ({ ...s, name: e.target.value }))} />
-          <input className="input text-sm" placeholder="Phone" value={newUser.phone} onChange={(e) => setNewUser((s) => ({ ...s, phone: e.target.value }))} />
+          <input className="input text-sm" inputMode="tel" placeholder="Phone" value={newUser.phone} onChange={(e) => setNewUser((s) => ({ ...s, phone: e.target.value }))} />
           <input className="input text-sm" placeholder="Email (optional)" value={newUser.email} onChange={(e) => setNewUser((s) => ({ ...s, email: e.target.value }))} />
           <input className="input text-sm" placeholder="Password (min 6 chars)" type="password" value={newUser.password} onChange={(e) => setNewUser((s) => ({ ...s, password: e.target.value }))} />
           <select className="input text-sm" value={newUser.role} onChange={(e) => setNewUser((s) => ({ ...s, role: e.target.value as StaffRole }))}>
@@ -156,7 +156,7 @@ export default function UsersPage() {
             <option value="">No branch</option>
             {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.label}</option>)}
           </select>
-          <input className="input text-sm" placeholder="Optional 4-digit PIN" maxLength={4} value={newUser.pin} onChange={(e) => setNewUser((s) => ({ ...s, pin: e.target.value }))} />
+          <input className="input text-sm" inputMode="numeric" placeholder="Optional 4-digit PIN" maxLength={4} value={newUser.pin} onChange={(e) => setNewUser((s) => ({ ...s, pin: e.target.value }))} />
           <button className="btn btn-secondary btn-sm md:col-span-2" onClick={() => void createStaffUser()}>Create User</button>
         </div>
       </section>
@@ -181,6 +181,7 @@ export default function UsersPage() {
               <div className="mt-2 flex items-center gap-2">
                 <input
                   className="input text-sm"
+                  inputMode="numeric"
                   placeholder="Set 4-digit PIN"
                   value={pinByUserId[user.id] ?? ""}
                   onChange={(e) => setPinByUserId((current) => ({ ...current, [user.id]: e.target.value }))}
@@ -196,5 +197,4 @@ export default function UsersPage() {
     </main>
   );
 }
-
 

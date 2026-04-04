@@ -54,6 +54,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/tables/public").permitAll()
                         .requestMatchers("/orders/public/**").permitAll()
                         .requestMatchers("/reservations").permitAll()
+                        .requestMatchers("/reservations/guest/**").permitAll()
+                        .requestMatchers("/reservations/*/guest-cancel").permitAll()
                         .requestMatchers("/payments/webhook").permitAll()
                         .requestMatchers("/ws/**", "/ws").permitAll()
                         .anyRequest().authenticated()

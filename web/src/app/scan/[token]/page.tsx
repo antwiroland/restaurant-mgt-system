@@ -453,7 +453,7 @@ export default function GuestScanMenuPage() {
 
               <div className="mt-3 grid gap-2">
                 <input className="input" placeholder="Your name (optional)" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-                <input className="input" placeholder="Phone (optional)" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+                <input className="input" inputMode="tel" placeholder="Phone (optional)" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
                 <textarea className="textarea" placeholder="Kitchen note (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
 

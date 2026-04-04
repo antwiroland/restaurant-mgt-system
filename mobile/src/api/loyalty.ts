@@ -1,17 +1,14 @@
 import { apiClient } from './client';
 import type { LoyaltyBalance, LoyaltyTransaction, PromoValidation } from '../types/api';
-
-type CurrentUserResponse = {
-  id: string;
-};
+import { fetchCurrentUser } from './user';
 
 type LoyaltyBalanceResponse = {
   points: number;
 };
 
 async function currentCustomerId(): Promise<string> {
-  const { data } = await apiClient.get<CurrentUserResponse>('/users/me');
-  return data.id;
+  const currentUser = await fetchCurrentUser();
+  return currentUser.id;
 }
 
 export async function fetchLoyaltyBalance(): Promise<LoyaltyBalance> {

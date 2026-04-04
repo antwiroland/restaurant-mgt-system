@@ -52,7 +52,7 @@ export default function FinancialPage() {
         <p className="mt-2 text-sm text-ink-soft">Manager can generate token with PIN, or paste an existing token below.</p>
 
         <div className="mt-3 grid gap-2">
-          <input className="input" placeholder="Manager PIN (4 digits)" value={pin} onChange={(e) => setPin(e.target.value)} maxLength={4} />
+          <input className="input" inputMode="numeric" placeholder="Manager PIN (4 digits)" value={pin} onChange={(e) => setPin(e.target.value)} maxLength={4} />
           <select className="input" value={actionType} onChange={(e) => setActionType(e.target.value as OverrideActionType)}>
             <option value="DISCOUNT">DISCOUNT</option>
             <option value="VOID">VOID</option>

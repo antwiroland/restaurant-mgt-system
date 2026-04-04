@@ -11,6 +11,7 @@ import java.util.UUID;
 
 public interface ReservationRepository extends JpaRepository<ReservationEntity, UUID> {
     List<ReservationEntity> findAllByCustomerUserIdOrderByReservedAtAsc(UUID customerUserId);
+    List<ReservationEntity> findAllByCustomerPhoneOrderByReservedAtAsc(String customerPhone);
 
     /**
      * Find active reservations whose window starts within the next {@code windowEnd} instant

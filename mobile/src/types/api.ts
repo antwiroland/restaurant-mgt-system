@@ -16,6 +16,17 @@ export type LoginResponse = {
   user: { id: string; name: string; role: Role };
 };
 
+export type CurrentUser = {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string | null;
+  role: Role;
+  active: boolean;
+  branchId?: string | null;
+  branchName?: string | null;
+};
+
 export type MenuCategory = {
   id: string;
   name: string;
@@ -115,6 +126,7 @@ export type Payment = {
   amount: string;
   status: PaymentStatus;
   method: PaymentMethod;
+  providerMessage?: string;
   paidAt?: string;
 };
 
@@ -160,6 +172,10 @@ export type CreateReservationRequest = {
   notes?: string;
 };
 
+export type GuestReservationLookupRequest = {
+  phone: string;
+};
+
 export type GroupSession = {
   sessionId: string;
   sessionCode: string;
@@ -199,6 +215,49 @@ export type LoyaltyTransaction = {
   type: 'EARN' | 'REDEEM';
   orderId: string;
   createdAt: string;
+};
+
+export type CustomerAddress = {
+  id: string;
+  label: string;
+  addressLine: string;
+  city?: string;
+  landmark?: string;
+  isDefault: boolean;
+};
+
+export type CustomerProfileUpdateRequest = {
+  name: string;
+  email?: string;
+  phone: string;
+};
+
+export type CustomerAddressRequest = {
+  label: string;
+  addressLine: string;
+  city?: string;
+  landmark?: string;
+  isDefault: boolean;
+};
+
+export type PublicOrderTracking = {
+  orderId: string;
+  tableNumber: string;
+  status: OrderStatus;
+  notes?: string;
+  cancelReason?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TableBill = {
+  tableId: string;
+  tableNumber: string;
+  tableStatus: Table['status'];
+  activeOrderCount: number;
+  totalOrdered: string;
+  totalPaid: string;
+  outstandingTotal: string;
 };
 
 export type PromoValidation = {

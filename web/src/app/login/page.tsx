@@ -57,6 +57,7 @@ export default function LoginPage() {
             <input
               className="input"
               placeholder="+233..."
+              inputMode="tel"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
             />

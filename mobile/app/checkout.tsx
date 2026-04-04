@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -15,17 +15,27 @@ import { useOfflineStore } from '../src/store/offline';
 import { createOrder, createPublicTableOrder } from '../src/api/orders';
 import { initiatePayment } from '../src/api/payment';
 import { useAuthStore } from '../src/store/auth';
-import type { PaymentMethod, OrderType } from '../src/types/api';
+import { fetchMyAddresses, saveMyAddress } from '../src/api/user';
+import { fetchLoyaltyBalance } from '../src/api/loyalty';
+import type { CustomerAddress, LoyaltyBalance, PaymentMethod, OrderType } from '../src/types/api';
 
 export default function CheckoutScreen() {
   const { lines, tableId, tableToken, tableStatus, promoCode, total, clear } = useCartStore();
   const { isOnline, enqueue } = useOfflineStore();
-  const { isGuest } = useAuthStore();
+  const { isGuest, isAuthenticated } = useAuthStore();
   const [method, setMethod] = useState<PaymentMethod>('MOBILE_MONEY');
   const [momoPhone, setMomoPhone] = useState('');
   const [orderType, setOrderType] = useState<OrderType>('DINE_IN');
   const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [loyaltyBalance, setLoyaltyBalance] = useState<LoyaltyBalance | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const selectedAddress = useMemo(
+    () => addresses.find((address) => address.id === selectedAddressId) ?? null,
+    [addresses, selectedAddressId]
+  );
 
   const effectiveOrderType = tableId ? 'DINE_IN' : orderType;
   const orderPayload = {
@@ -41,6 +51,34 @@ export default function CheckoutScreen() {
     promoCode: promoCode ?? undefined,
     deliveryAddress: effectiveOrderType === 'DELIVERY' ? deliveryAddress.trim() : undefined,
   };
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setAddresses([]);
+      setSelectedAddressId(null);
+      setLoyaltyBalance(null);
+      return;
+    }
+
+    fetchLoyaltyBalance().then(setLoyaltyBalance).catch(() => {});
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated || effectiveOrderType !== 'DELIVERY') {
+      return;
+    }
+
+    fetchMyAddresses()
+      .then((items) => {
+        setAddresses(items);
+        const preferred = items.find((item) => item.isDefault) ?? items[0] ?? null;
+        if (preferred) {
+          setSelectedAddressId(preferred.id);
+          setDeliveryAddress(formatAddress(preferred));
+        }
+      })
+      .catch(() => {});
+  }, [effectiveOrderType, isAuthenticated]);
 
   async function handlePlaceOrder() {
     if (lines.length === 0) {
@@ -93,21 +131,56 @@ export default function CheckoutScreen() {
           })
         : await createOrder(orderPayload);
 
+      if (isAuthenticated && effectiveOrderType === 'DELIVERY' && deliveryAddress.trim()) {
+        const normalizedAddress = deliveryAddress.trim().toLowerCase();
+        const exists = addresses.some((address) => formatAddress(address).trim().toLowerCase() === normalizedAddress);
+        if (!exists) {
+          const [addressLine, city] = splitAddress(deliveryAddress);
+          const saved = await saveMyAddress({
+            label: selectedAddress ? selectedAddress.label : 'Delivery Address',
+            addressLine,
+            city,
+            landmark: undefined,
+            isDefault: addresses.length === 0,
+          }).catch(() => null);
+          if (saved) {
+            setAddresses((current) => [...current, saved]);
+          }
+        }
+      }
+
       if (!isGuest) {
         const payment = await initiatePayment(
           order.id,
           method,
           method === 'MOBILE_MONEY' ? momoPhone.trim() : undefined
         );
+        clear();
         Alert.alert('Payment initiated', payment.message, [
-          { text: 'Track Order', onPress: () => router.replace(`/order/${order.id}`) },
+          {
+            text: 'Track Order',
+            onPress: () =>
+              router.replace({
+                pathname: '/order/[id]',
+                params: { id: order.id, paymentId: payment.paymentId },
+              }),
+          },
         ]);
+        return;
       } else {
-        Alert.alert('Order placed', `Your order for table ${order.tableNumber ?? ''} was sent to the kitchen.`);
+        clear();
+        Alert.alert('Order placed', `Your order for table ${order.tableNumber ?? ''} was sent to the kitchen.`, [
+          {
+            text: 'Track Table',
+            onPress: () =>
+              router.replace({
+                pathname: '/track-table/[token]',
+                params: { token: tableToken ?? '' },
+              }),
+          },
+        ]);
+        return;
       }
-
-      clear();
-      router.replace('/(tabs)/menu');
     } catch (e: any) {
       Alert.alert('Error', e?.response?.data?.message ?? 'Could not place order. Please try again.');
     } finally {
@@ -136,6 +209,26 @@ export default function CheckoutScreen() {
       {effectiveOrderType === 'DELIVERY' && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Delivery Address</Text>
+          {addresses.length > 0 && (
+            <View style={styles.addressList}>
+              {addresses.map((address) => {
+                const active = selectedAddressId === address.id;
+                return (
+                  <TouchableOpacity
+                    key={address.id}
+                    style={[styles.addressCard, active && styles.addressCardActive]}
+                    onPress={() => {
+                      setSelectedAddressId(address.id);
+                      setDeliveryAddress(formatAddress(address));
+                    }}
+                  >
+                    <Text style={[styles.addressLabel, active && styles.addressLabelActive]}>{address.label}</Text>
+                    <Text style={[styles.addressText, active && styles.addressTextActive]}>{formatAddress(address)}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
           <TextInput
             style={styles.input}
             placeholder="Enter delivery address"
@@ -175,6 +268,9 @@ export default function CheckoutScreen() {
       )}
 
       <View style={styles.section}>
+        {loyaltyBalance && isAuthenticated && (
+          <Text style={styles.loyaltyHint}>Available loyalty points: {loyaltyBalance.points}</Text>
+        )}
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Items</Text>
           <Text style={styles.summaryValue}>{lines.length}</Text>
@@ -244,4 +340,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   placeBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  addressList: { gap: 8, marginBottom: 12 },
+  addressCard: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12 },
+  addressCardActive: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
+  addressLabel: { fontSize: 13, fontWeight: '700', color: '#111827', marginBottom: 4 },
+  addressLabelActive: { color: '#1D4ED8' },
+  addressText: { fontSize: 13, color: '#4B5563' },
+  addressTextActive: { color: '#1E40AF' },
+  loyaltyHint: { fontSize: 13, color: '#1D4ED8', marginBottom: 8, fontWeight: '600' },
 });
+
+function formatAddress(address: CustomerAddress): string {
+  return [address.addressLine, address.city, address.landmark].filter(Boolean).join(', ');
+}
+
+function splitAddress(address: string): [string, string | undefined] {
+  const parts = address.split(',').map((part) => part.trim()).filter(Boolean);
+  const [addressLine = address.trim(), city] = parts;
+  return [addressLine, city];
+}

@@ -1,6 +1,8 @@
 package com.restaurantmanager.core.reservation;
 
 import com.restaurantmanager.core.reservation.dto.ReservationCreateRequest;
+import com.restaurantmanager.core.reservation.dto.GuestReservationCancelRequest;
+import com.restaurantmanager.core.reservation.dto.GuestReservationLookupRequest;
 import com.restaurantmanager.core.reservation.dto.ReservationResponse;
 import com.restaurantmanager.core.reservation.dto.ReservationStatusUpdateRequest;
 import com.restaurantmanager.core.common.Pagination;
@@ -63,6 +65,11 @@ public class ReservationController {
         return reservationService.listMine(principal);
     }
 
+    @PostMapping("/guest/lookup")
+    public List<ReservationResponse> guestLookup(@Valid @RequestBody GuestReservationLookupRequest request) {
+        return reservationService.listGuestReservations(request);
+    }
+
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
     public ReservationResponse updateStatus(@PathVariable UUID id,
@@ -76,5 +83,12 @@ public class ReservationController {
     public void cancel(@PathVariable UUID id,
                        @AuthenticationPrincipal UserPrincipal principal) {
         reservationService.cancel(id, principal);
+    }
+
+    @PostMapping("/{id}/guest-cancel")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void guestCancel(@PathVariable UUID id,
+                            @Valid @RequestBody GuestReservationCancelRequest request) {
+        reservationService.cancelGuest(id, request);
     }
 }
