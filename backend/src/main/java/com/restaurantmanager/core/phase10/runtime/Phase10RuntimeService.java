@@ -16,6 +16,7 @@ import com.restaurantmanager.core.payment.PaymentEntity;
 import com.restaurantmanager.core.payment.PaymentRepository;
 import com.restaurantmanager.core.payment.PaymentStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -79,6 +80,7 @@ public class Phase10RuntimeService {
         return securityGuardService.canCustomerAccessOrder(requesterId, orderOwnerId);
     }
 
+    @Transactional(readOnly = true)
     public RevenueResponse revenue(LocalDate from, LocalDate to, UUID branchId, RevenuePeriod period) {
         List<OrderAnalyticsRecord> records = analyticsRecords(from, to, branchId);
         Function<OrderAnalyticsRecord, String> bucket = switch (period) {
@@ -102,10 +104,12 @@ public class Phase10RuntimeService {
         return new RevenueResponse(points);
     }
 
+    @Transactional(readOnly = true)
     public List<TopItem> topItems(LocalDate from, LocalDate to, UUID branchId, int limit) {
         return analyticsService.topItems(analyticsRecords(from, to, branchId), limit);
     }
 
+    @Transactional(readOnly = true)
     public List<PeakHourPoint> peakHours(LocalDate from, LocalDate to, UUID branchId) {
         return analyticsRecords(from, to, branchId).stream()
                 .collect(Collectors.groupingBy(OrderAnalyticsRecord::orderHour, Collectors.summingInt(OrderAnalyticsRecord::quantity)))
@@ -115,6 +119,7 @@ public class Phase10RuntimeService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public AverageOrderValueResponse averageOrderValue(LocalDate from, LocalDate to, UUID branchId) {
         List<OrderEntity> orders = successfulOrders(from, to, branchId);
         BigDecimal total = orders.stream().map(OrderEntity::getTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -124,6 +129,7 @@ public class Phase10RuntimeService {
         return new AverageOrderValueResponse(average, orders.size());
     }
 
+    @Transactional(readOnly = true)
     public AnalyticsOverview overview(LocalDate from, LocalDate to, UUID branchId, RevenuePeriod period) {
         List<OrderEntity> paidOrders = successfulOrders(from, to, branchId);
         List<OrderEntity> visibleOrders = visibleOrders(from, to, branchId);

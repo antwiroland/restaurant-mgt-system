@@ -293,19 +293,19 @@ export default function PosPage() {
                   <p className="text-base font-semibold text-ink">{filteredMenuItems.length} items</p>
                 </div>
               </div>
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="flex flex-col gap-3">
                 <input
                   className="input"
                   placeholder="Search menu, category, or description"
                   value={menuQuery}
                   onChange={(event) => setMenuQuery(event.target.value)}
                 />
-                <div className="flex gap-2 overflow-x-auto pb-1">
+                <div className="flex flex-wrap gap-2">
                   {categories.map((category) => (
                     <button
                       key={category}
                       type="button"
-                      className={`btn btn-sm ${categoryFilter === category ? "btn-primary" : "btn-secondary"}`}
+                      className={`btn btn-sm shrink-0 ${categoryFilter === category ? "btn-primary" : "btn-secondary"}`}
                       onClick={() => setCategoryFilter(category)}
                     >
                       {category}
@@ -395,12 +395,12 @@ export default function PosPage() {
                   <span className="badge badge-neutral">{cartCount} item{cartCount === 1 ? "" : "s"}</span>
                 </div>
 
-                <div className="mt-4 grid gap-2 sm:grid-cols-1 lg:grid-cols-3">
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
                   {ORDER_TYPES.map((type) => (
                     <button
                       key={type.value}
                       type="button"
-                      className={`card text-left ${orderType === type.value ? "border-brand bg-brand-subtle" : "border-line bg-surface"} ${!type.available ? "opacity-60" : ""}`}
+                      className={`card min-w-0 text-left ${orderType === type.value ? "border-brand bg-brand-subtle ring-1 ring-brand/30" : "border-line bg-surface"} ${!type.available ? "opacity-60" : ""}`}
                       onClick={() => {
                         if (!type.available) {
                           setMessage(type.note);
@@ -411,8 +411,16 @@ export default function PosPage() {
                       }}
                       aria-disabled={!type.available}
                     >
-                      <p className="text-base font-semibold text-ink">{type.label}</p>
-                      <p className="mt-1 text-sm text-ink-soft">{type.note}</p>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-base font-semibold text-ink">{type.label}</p>
+                          <p className="mt-1 text-sm text-ink-soft">{type.note}</p>
+                        </div>
+                        <span
+                          className={`mt-1 h-4 w-4 shrink-0 rounded-full border ${orderType === type.value ? "border-brand bg-brand" : "border-line-strong bg-white"}`}
+                          aria-hidden="true"
+                        />
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -482,27 +490,29 @@ export default function PosPage() {
                             <p className="text-lg font-semibold text-ink">GHS {(line.item.price * line.quantity).toFixed(2)}</p>
                           </div>
                         </div>
-                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <div className="mt-4 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-lg w-11 text-lg"
+                              onClick={() => setCart((current) => setQuantity(current, line.item.id, line.quantity - 1))}
+                            >
+                              -
+                            </button>
+                            <span className="w-10 rounded-xl border border-line bg-sunken py-3 text-center text-lg font-semibold text-ink">
+                              {line.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-lg w-11 text-lg"
+                              onClick={() => setCart((current) => setQuantity(current, line.item.id, line.quantity + 1))}
+                            >
+                              +
+                            </button>
+                          </div>
                           <button
                             type="button"
-                            className="btn btn-secondary btn-lg min-w-14 text-lg"
-                            onClick={() => setCart((current) => setQuantity(current, line.item.id, line.quantity - 1))}
-                          >
-                            -
-                          </button>
-                          <span className="min-w-12 rounded-xl border border-line bg-sunken px-4 py-3 text-center text-lg font-semibold text-ink">
-                            {line.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-lg min-w-14 text-lg"
-                            onClick={() => setCart((current) => setQuantity(current, line.item.id, line.quantity + 1))}
-                          >
-                            +
-                          </button>
-                          <button
-                            type="button"
-                            className="ml-auto btn btn-danger btn-sm"
+                            className="btn btn-danger btn-sm"
                             onClick={() => setCart((current) => removeFromCart(current, line.item.id))}
                           >
                             Remove
@@ -518,21 +528,21 @@ export default function PosPage() {
           </div>
 
           <div className="border-t border-line bg-[linear-gradient(180deg,#ffffff,rgba(236,253,245,0.8))] px-5 py-4">
-            <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <InfoTile label="Service" value={activeOrderType.label} />
-                <InfoTile label="Table" value={orderType === "DINE_IN" ? selectedTable?.number ?? "Not selected" : "Not required"} />
-              </div>
-              <div className="flex flex-col items-start gap-3 sm:items-end">
-                <div className="text-left sm:text-right">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-end justify-between gap-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <InfoTile label="Service" value={activeOrderType.label} />
+                  <InfoTile label="Table" value={orderType === "DINE_IN" ? selectedTable?.number ?? "Not selected" : "Not required"} />
+                </div>
+                <div className="text-right">
                   <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">Ticket total</p>
                   <p className="text-3xl font-semibold tracking-tight text-ink">GHS {total.toFixed(2)}</p>
                 </div>
-                <button className="btn btn-accent btn-lg" disabled={submittingOrder} onClick={() => void handleCreateOrder()}>
-                  {submittingOrder ? <Spinner className="text-current" /> : null}
-                  Create Order
-                </button>
               </div>
+              <button className="btn btn-accent btn-lg w-full" disabled={submittingOrder} onClick={() => void handleCreateOrder()}>
+                {submittingOrder ? <Spinner className="text-current" /> : null}
+                Create Order
+              </button>
             </div>
           </div>
         </section>
@@ -696,9 +706,9 @@ function SummaryCard({
 
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-line bg-white px-3 py-3">
+    <div className="min-w-0 rounded-xl border border-line bg-white px-3 py-3">
       <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-ink">{value}</p>
     </div>
   );
 }

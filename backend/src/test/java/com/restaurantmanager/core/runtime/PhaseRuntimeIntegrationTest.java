@@ -2,16 +2,31 @@ package com.restaurantmanager.core.runtime;
 
 import com.restaurantmanager.core.BaseIntegrationTest;
 import com.restaurantmanager.core.auth.dto.PinVerifyRequest;
+import com.restaurantmanager.core.branch.BranchEntity;
+import com.restaurantmanager.core.branch.BranchRepository;
 import com.restaurantmanager.core.common.OverrideActionType;
 import com.restaurantmanager.core.common.Role;
+import com.restaurantmanager.core.menu.CategoryEntity;
+import com.restaurantmanager.core.menu.MenuItemEntity;
+import com.restaurantmanager.core.order.OrderEntity;
+import com.restaurantmanager.core.order.OrderItemEntity;
+import com.restaurantmanager.core.order.OrderStatus;
+import com.restaurantmanager.core.order.OrderType;
+import com.restaurantmanager.core.payment.PaymentEntity;
+import com.restaurantmanager.core.payment.PaymentMethod;
+import com.restaurantmanager.core.payment.PaymentStatus;
 import com.restaurantmanager.core.phase8.common.DiscountType;
 import com.restaurantmanager.core.phase8.promo.PromoCodeEntity;
 import com.restaurantmanager.core.user.UserEntity;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.TestPropertySource;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -22,7 +37,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@TestPropertySource(properties = "spring.jpa.open-in-view=false")
 class PhaseRuntimeIntegrationTest extends BaseIntegrationTest {
+    @Autowired
+    private BranchRepository branchRepository;
 
     @Test
     void givenCustomer_whenApplyPromoViaPhase8_thenDiscountReturned() throws Exception {
@@ -247,6 +265,88 @@ class PhaseRuntimeIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.peakHour").value(12))
                 .andExpect(jsonPath("$.repeatCustomers").value(1))
                 .andExpect(jsonPath("$.topItems[0].name").value("Jollof"));
+    }
+
+    @Test
+    void givenAdmin_whenRequestPhase10AnalyticsOverview_thenOverviewReturned() throws Exception {
+        UserEntity admin = createUser("Admin", "+233220000006", "admin2@x.com", "secret123", Role.ADMIN);
+
+        BranchEntity branch = new BranchEntity();
+        branch.setCode("HQ");
+        branch.setName("Headquarters");
+        branch.setActive(true);
+        branch = branchRepository.save(branch);
+
+        CategoryEntity category = new CategoryEntity();
+        category.setName("Rice");
+        category.setDescription("Rice dishes");
+        category.setDisplayOrder(1);
+        category.setActive(true);
+        category = categoryRepository.save(category);
+
+        MenuItemEntity menuItem = new MenuItemEntity();
+        menuItem.setCategory(category);
+        menuItem.setName("Jollof");
+        menuItem.setDescription("Smoky jollof rice");
+        menuItem.setPrice(new BigDecimal("25.00"));
+        menuItem.setAvailable(true);
+        menuItem.setActive(true);
+        menuItem = menuItemRepository.save(menuItem);
+
+        Instant createdAt = LocalDate.of(2026, 3, 20).atTime(12, 15).toInstant(ZoneOffset.UTC);
+        Instant paidAt = createdAt.plusSeconds(900);
+
+        OrderEntity order = new OrderEntity();
+        order.setCustomerUserId(UUID.randomUUID());
+        order.setCreatedByUserId(admin.getId());
+        order.setType(OrderType.DINE_IN);
+        order.setStatus(OrderStatus.COMPLETED);
+        order.setBranch(branch);
+        order.setSubtotal(new BigDecimal("50.00"));
+        order.setTotal(new BigDecimal("50.00"));
+        order = orderRepository.save(order);
+        order.setCreatedAt(createdAt);
+        order.setUpdatedAt(createdAt);
+        order = orderRepository.save(order);
+
+        OrderItemEntity item = new OrderItemEntity();
+        item.setOrder(order);
+        item.setMenuItem(menuItem);
+        item.setNameSnapshot("Jollof");
+        item.setPriceSnapshot(new BigDecimal("25.00"));
+        item.setQuantity(2);
+        orderItemRepository.save(item);
+
+        PaymentEntity payment = new PaymentEntity();
+        payment.setOrder(order);
+        payment.setAmount(new BigDecimal("50.00"));
+        payment.setCurrency("GHS");
+        payment.setMethod(PaymentMethod.CARD);
+        payment.setStatus(PaymentStatus.SUCCESS);
+        payment.setPaystackReference("ref-phase10-overview");
+        payment.setIdempotencyKey("idem-phase10-overview");
+        payment.setPaidAt(paidAt);
+        payment = paymentRepository.save(payment);
+        payment.setCreatedAt(paidAt);
+        payment.setUpdatedAt(paidAt);
+        paymentRepository.save(payment);
+
+        mockMvc.perform(get("/phase10/analytics/overview")
+                        .header("Authorization", "Bearer " + accessToken(admin))
+                        .param("from", "2026-03-06")
+                        .param("to", "2026-04-04")
+                        .param("period", "DAY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalRevenue").value(50.0))
+                .andExpect(jsonPath("$.paidOrderCount").value(1))
+                .andExpect(jsonPath("$.averageOrderValue").value(50.0))
+                .andExpect(jsonPath("$.revenue.points[0].bucket").value("2026-03-20"))
+                .andExpect(jsonPath("$.revenue.points[0].revenue").value(50.0))
+                .andExpect(jsonPath("$.topItems[0].name").value("Jollof"))
+                .andExpect(jsonPath("$.paymentMethods[0].method").value("CARD"))
+                .andExpect(jsonPath("$.branches[0].branchCode").value("HQ"))
+                .andExpect(jsonPath("$.orderTypes[0].type").value("DINE_IN"))
+                .andExpect(jsonPath("$.orderStatuses[0].status").value("COMPLETED"));
     }
 
     @Test
