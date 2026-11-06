@@ -19,7 +19,7 @@ public class StompPaymentRealtimePublisher implements PaymentRealtimePublisher {
     @Override
     public void publishPaymentStatusChanged(UUID paymentId, UUID orderId, PaymentStatus previous, PaymentStatus current,
                                             BigDecimal amount, PaymentMethod method) {
-        messagingTemplate.convertAndSend("/topic/payments.status", Map.of(
+        Map<String, Object> payload = Map.of(
                 "event", "PAYMENT_STATUS_CHANGED",
                 "paymentId", paymentId,
                 "orderId", orderId,
@@ -28,17 +28,21 @@ public class StompPaymentRealtimePublisher implements PaymentRealtimePublisher {
                 "amount", amount,
                 "method", method.name(),
                 "updatedAt", Instant.now().toString()
-        ));
+        );
+        messagingTemplate.convertAndSend("/topic/payments.status", payload);
+        messagingTemplate.convertAndSend("/topic/orders." + orderId + ".payments", payload);
     }
 
     @Override
     public void publishPaymentFailed(UUID paymentId, UUID orderId, String reason) {
-        messagingTemplate.convertAndSend("/topic/payments.failed", Map.of(
+        Map<String, Object> payload = Map.of(
                 "event", "PAYMENT_FAILED",
                 "paymentId", paymentId,
                 "orderId", orderId,
                 "reason", reason,
                 "updatedAt", Instant.now().toString()
-        ));
+        );
+        messagingTemplate.convertAndSend("/topic/payments.failed", payload);
+        messagingTemplate.convertAndSend("/topic/orders." + orderId + ".payments", payload);
     }
 }

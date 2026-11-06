@@ -4,6 +4,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { fetchOrder, cancelOrder, fetchReceipt } from '../../src/api/orders';
 import { fetchPayment, verifyPayment } from '../../src/api/payment';
 import type { Order, Receipt } from '../../src/types/api';
+import { fallbackPollMs, useRealtimeTopics } from '../../src/realtime/realtime';
 
 const STATUS_STEPS = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'COMPLETED'];
 const STATUS_COLORS: Record<string, string> = {
@@ -23,11 +24,17 @@ export default function OrderTrackingScreen() {
   const [loading, setLoading] = useState(true);
   const pendingPaymentPollsRef = useRef(0);
 
+  // Live order and payment updates; polling remains as a slower fallback.
+  const live = useRealtimeTopics(
+    id ? [`/topic/orders.${id}`, `/topic/orders.${id}.payments`] : [],
+    () => void load(),
+  );
+
   useEffect(() => {
     load();
-    const interval = setInterval(load, 15000);
+    const interval = setInterval(load, fallbackPollMs(live, 15000));
     return () => clearInterval(interval);
-  }, [id, paymentId]);
+  }, [id, paymentId, live]);
 
   async function load() {
     try {

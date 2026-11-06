@@ -42,6 +42,8 @@ public class StompOrderRealtimePublisher implements OrderRealtimePublisher {
                 "updatedAt", Instant.now().toString()
         );
         messagingTemplate.convertAndSend("/topic/orders.status", payload);
+        // Per-order topic (order IDs are unguessable UUIDs) so customer apps only receive their own updates.
+        messagingTemplate.convertAndSend("/topic/orders." + orderId, payload);
         if (tableToken != null && !tableToken.isBlank()) {
             messagingTemplate.convertAndSend("/topic/public.tables." + tableToken + ".orders", payload);
         }

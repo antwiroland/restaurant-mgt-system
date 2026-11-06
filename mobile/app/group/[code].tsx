@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndi
 import { useLocalSearchParams, router } from 'expo-router';
 import { fetchGroupSession, finalizeGroupSession } from '../../src/api/group';
 import { useCartStore } from '../../src/store/cart';
+import { fallbackPollMs, useRealtimeTopics } from '../../src/realtime/realtime';
 import type { GroupSessionDetail } from '../../src/types/api';
 
 export default function GroupSessionScreen() {
@@ -12,13 +13,15 @@ export default function GroupSessionScreen() {
   const [finalizing, setFinalizing] = useState(false);
   const { tableId } = useCartStore();
 
+  const live = useRealtimeTopics(code ? [`/topic/group.${code}`] : [], () => void load());
+
   useEffect(() => {
     void load();
     const interval = setInterval(() => {
       void load();
-    }, 5000);
+    }, fallbackPollMs(live, 5000));
     return () => clearInterval(interval);
-  }, [code]);
+  }, [code, live]);
 
   async function load() {
     try {
