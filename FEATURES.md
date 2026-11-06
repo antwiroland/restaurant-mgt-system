@@ -6,7 +6,9 @@ This file is based on the source code, not just the docs. The first analysis (co
 
 **Stack:** Spring Boot + PostgreSQL/Flyway + Redis (`backend/`) · Next.js staff console (`web/`) · Expo/React Native customer app (`mobile/`) · Docker Compose with Prometheus, Grafana and Zipkin (`docker/`) · k6 load tests (`loadtest/`).
 
-Legend: ✅ Implemented · ⚠️ Implemented but not yet verified in a real environment · ❌ Not implemented
+Legend: ✅ Implemented · ❌ Not implemented
+
+Pre-launch checks (sandbox provider tests, the Postgres migration check, device testing) are listed in `documentation/DEPLOYMENT_READINESS.md`.
 
 ---
 
@@ -93,7 +95,7 @@ Legend: ✅ Implemented · ⚠️ Implemented but not yet verified in a real env
 - **Paystack**: a live HTTP client (transaction initialize, verify, refund) when `PAYSTACK_MODE=live`; a stub client otherwise. Startup fails if live mode has no `sk_` key
 - Paystack webhook with signature verification and deduplication of repeated events
 - A successful payment moves the order from `PENDING` to `CONFIRMED`, refreshes table occupancy and awards loyalty points once the order is fully paid
-- Partial and full refunds tracked per payment (`refunded_amount`, `payment_refunds`)
+- Full and part-amount refunds tracked per payment (`refunded_amount`, `payment_refunds`)
 - `PendingPaymentReconciliationJob` re-checks payments stuck in pending
 - Receipts by payment ID or order ID (web `/receipts`, `/payments`)
 - Real-time payment events, including per-order topics
@@ -102,7 +104,7 @@ Legend: ✅ Implemented · ⚠️ Implemented but not yet verified in a real env
 - Every action needs a manager override token for the matching action, and is recorded in the audit log
 - **Discount**: a flat or percentage manual discount that recalculates the order total. Blocked once a payment is in progress
 - **Void**: cancels an unpaid order, voids open payments, releases the table, and returns the promo use and loyalty points
-- **Refund**: full or partial, through the payment provider (cash refunds are recorded directly). Loyalty points are clawed back proportionally
+- **Refund**: full or part-amount, through the payment provider (cash refunds are recorded directly). Loyalty points are clawed back proportionally
 - **Daily reconciliation**: gross sales, refunds, voids, discounts, net sales, expected cash, totals per payment method, and closed-shift cash
 - **Sign-off**: saved once per date and branch, with cash variance (`reconciliation_signoffs`)
 - Web `/financial` page with manager PIN approval, discount, void and refund forms, the reconciliation report, sign-off and the audit trail
@@ -173,21 +175,7 @@ Legend: ✅ Implemented · ⚠️ Implemented but not yet verified in a real env
 
 ---
 
-## 2. Implemented, Needs Verification ⚠️
-
-| Item | What is still needed |
-|---|---|
-| **Migrations V9–V12 on PostgreSQL** | Tests run on H2 with schema generated from entities. Run `mvn -Ppostgres-it -Dtest=PostgresFlywayIntegrationTest test` (needs Docker) before deploying |
-| **Paystack live mode** | Tested only against a mock HTTP server. Try it with `sk_test_` keys and a real MoMo test number, including the webhook and refunds |
-| **WhatsApp Cloud API** | Tested only against a mock server. Needs a Meta test number and an approved template for messages outside the 24-hour window |
-| **Hubtel / Arkesel SMS** | Not called for real yet. Needs a registered sender ID |
-| **Web and mobile screens** | The new pages (financial, offers, delivery, rider, QR PDF download) and the mobile flows (OTP sign-up, live updates, delivery tracking) pass typechecks and tests but have not been tried in a browser or on a device |
-| **Rider location sharing** | Uses browser geolocation, which needs HTTPS (or localhost) and permission on the rider's phone |
-| **k6 scripts** | Written but not yet run against a live stack |
-
----
-
-## 3. Not Yet Implemented ❌
+## 2. Not Yet Implemented ❌
 
 ### Business features
 - **Split payments** for group orders: separate MoMo payments per participant, and tracking who has paid
@@ -224,7 +212,7 @@ Legend: ✅ Implemented · ⚠️ Implemented but not yet verified in a real env
 
 ---
 
-## 4. Suggested Priority
+## 3. Suggested Priority
 
 1. **Verify before merging**: the Postgres Flyway check for V9–V12, then a click-through of the new web pages and mobile flows
 2. **Sandbox the providers**: Paystack test keys, a WhatsApp Cloud API test number, a Hubtel or Arkesel sender ID

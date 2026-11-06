@@ -126,6 +126,20 @@ Missing:
 - incident/runbook detail beyond basic setup
 - retention and cost-control guidance
 
+## Pre-launch Verification
+
+These features are implemented and covered by automated tests, but have not yet been exercised against real services or devices.
+
+| Item | What is still needed |
+|---|---|
+| **Migrations V9–V12 on PostgreSQL** | Tests run on H2 with schema generated from entities. Run `mvn -Ppostgres-it -Dtest=PostgresFlywayIntegrationTest test` (needs Docker) before deploying |
+| **Paystack live mode** | Tested only against a mock HTTP server. Try it with `sk_test_` keys and a real MoMo test number, including the webhook and refunds |
+| **WhatsApp Cloud API** | Tested only against a mock server. Needs a Meta test number and an approved template for messages outside the 24-hour window |
+| **Hubtel / Arkesel SMS** | Not called for real yet. Needs a registered sender ID |
+| **Web and mobile screens** | The new pages (financial, offers, delivery, rider, QR PDF download) and the mobile flows (OTP sign-up, live updates, delivery tracking) pass typechecks and tests but have not been tried in a browser or on a device |
+| **Rider location sharing** | Uses browser geolocation, which needs HTTPS (or localhost) and permission on the rider's phone |
+| **k6 scripts** | Written but not yet run against a live stack |
+
 ## Release Checklist
 
 1. Replace all default secrets and passwords.
