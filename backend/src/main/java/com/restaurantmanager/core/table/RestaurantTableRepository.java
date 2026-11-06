@@ -12,6 +12,8 @@ public interface RestaurantTableRepository extends JpaRepository<RestaurantTable
 
     Optional<RestaurantTableEntity> findByQrToken(String qrToken);
 
+    Optional<RestaurantTableEntity> findByNumber(String number);
+
     List<RestaurantTableEntity> findByBranch_IdOrderByNumberAsc(UUID branchId);
 
     @Query("select t from RestaurantTableEntity t order by lower(t.number) asc")

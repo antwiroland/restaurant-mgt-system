@@ -6,6 +6,7 @@ import com.restaurantmanager.core.common.ApiException;
 import com.restaurantmanager.core.common.Role;
 import com.restaurantmanager.core.config.PaymentProps;
 import com.restaurantmanager.core.loyalty.LoyaltyAccountService;
+import com.restaurantmanager.core.table.qr.TableSessionService;
 import com.restaurantmanager.core.order.OrderEntity;
 import com.restaurantmanager.core.order.OrderType;
 import com.restaurantmanager.core.order.OrderRepository;
@@ -57,6 +58,7 @@ public class PaymentService {
     private final UserRepository userRepository;
     private final PaymentRefundRepository refundRepository;
     private final LoyaltyAccountService loyaltyAccountService;
+    private final TableSessionService tableSessionService;
 
     public PaymentService(PaymentRepository paymentRepository,
                           PaymentWebhookEventRepository paymentWebhookEventRepository,
@@ -71,7 +73,8 @@ public class PaymentService {
                           WhatsAppService whatsAppService,
                           UserRepository userRepository,
                           PaymentRefundRepository refundRepository,
-                          LoyaltyAccountService loyaltyAccountService) {
+                          LoyaltyAccountService loyaltyAccountService,
+                          TableSessionService tableSessionService) {
         this.paymentRepository = paymentRepository;
         this.paymentWebhookEventRepository = paymentWebhookEventRepository;
         this.orderRepository = orderRepository;
@@ -86,6 +89,7 @@ public class PaymentService {
         this.userRepository = userRepository;
         this.refundRepository = refundRepository;
         this.loyaltyAccountService = loyaltyAccountService;
+        this.tableSessionService = tableSessionService;
     }
 
     @Transactional
@@ -420,6 +424,9 @@ public class PaymentService {
         TableStatus newStatus = hasOutstanding ? TableStatus.OCCUPIED : TableStatus.AVAILABLE;
         table.setStatus(newStatus);
         tableRepository.save(table);
+        if (newStatus == TableStatus.AVAILABLE) {
+            tableSessionService.closeAll(table.getId());
+        }
         evictTableCache();
         tableRealtimePublisher.publishTableStatusChanged(table.getNumber(), newStatus);
     }

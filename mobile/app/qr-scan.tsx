@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
-import { scanQrToken } from '../src/api/tables';
+import { linkTableSession, scanQrToken } from '../src/api/tables';
 import { useCartStore } from '../src/store/cart';
 import { useOfflineStore } from '../src/store/offline';
 
@@ -69,6 +69,7 @@ export default function QrScanScreen() {
       }
       const result = await scanQrToken(token);
       setTable(result.tableId, result.tableNumber, token, result.status);
+      linkTableSession(token).catch(() => undefined);
       Alert.alert(
         'Table linked',
         `Table ${result.tableNumber} linked to your cart.`,

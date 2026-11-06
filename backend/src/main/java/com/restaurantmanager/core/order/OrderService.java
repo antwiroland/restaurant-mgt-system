@@ -42,6 +42,7 @@ import com.restaurantmanager.core.security.UserPrincipal;
 import com.restaurantmanager.core.table.RestaurantTableEntity;
 import com.restaurantmanager.core.table.RestaurantTableRepository;
 import com.restaurantmanager.core.table.TableStatus;
+import com.restaurantmanager.core.table.qr.TableSessionService;
 import com.restaurantmanager.core.user.UserEntity;
 import com.restaurantmanager.core.user.UserRepository;
 import io.jsonwebtoken.Claims;
@@ -87,6 +88,7 @@ public class OrderService {
     private final PaymentRepository paymentRepository;
     private final WhatsAppService whatsAppService;
     private final OrderPricingService pricingService;
+    private final TableSessionService tableSessionService;
 
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
@@ -103,7 +105,8 @@ public class OrderService {
                         OrderRealtimePublisher realtimePublisher,
                         PaymentRepository paymentRepository,
                         WhatsAppService whatsAppService,
-                        OrderPricingService pricingService) {
+                        OrderPricingService pricingService,
+                        TableSessionService tableSessionService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderItemModifierRepository = orderItemModifierRepository;
@@ -120,6 +123,7 @@ public class OrderService {
         this.paymentRepository = paymentRepository;
         this.whatsAppService = whatsAppService;
         this.pricingService = pricingService;
+        this.tableSessionService = tableSessionService;
     }
 
     @Transactional
@@ -232,6 +236,7 @@ public class OrderService {
         }
         table.setStatus(TableStatus.AVAILABLE);
         tableRepository.save(table);
+        tableSessionService.closeAll(tableId);
     }
 
     @Transactional
@@ -262,6 +267,7 @@ public class OrderService {
 
         table.setStatus(TableStatus.AVAILABLE);
         tableRepository.save(table);
+        tableSessionService.closeAll(tableId);
     }
 
     @Transactional(readOnly = true)

@@ -52,6 +52,8 @@ management:
       endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
 
 app:
+  public-web-url: ${PUBLIC_WEB_URL:http://localhost:3000}
+  venue-name: ${VENUE_NAME:Restaurant}
   cache:
     redis-enabled: ${CACHE_REDIS_ENABLED:false}
     default-ttl-seconds: ${CACHE_DEFAULT_TTL_SECONDS:300}

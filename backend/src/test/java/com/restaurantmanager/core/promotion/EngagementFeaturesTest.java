@@ -7,7 +7,6 @@ import com.restaurantmanager.core.loyalty.LoyaltyService;
 import com.restaurantmanager.core.promotion.BuyXGetYOfferService;
 import com.restaurantmanager.core.promotion.PromoCode;
 import com.restaurantmanager.core.promotion.PromoService;
-import com.restaurantmanager.core.table.qr.MobileSessionService;
 import com.restaurantmanager.core.table.qr.TableQrPdfService;
 import com.restaurantmanager.core.notification.whatsapp.WhatsAppGateway;
 import com.restaurantmanager.core.notification.whatsapp.WhatsAppService;
@@ -75,31 +74,17 @@ class EngagementFeaturesTest {
     }
 
     @Test
-    void givenTableQrCode_whenExportedAsPdf_thenPdfContainsCorrectTableNumber() {
+    void givenTableQrCode_whenExportedAsPdf_thenValidPdfWithTableNumberAndQrImage() {
         TableQrPdfService service = new TableQrPdfService();
 
-        String content = new String(service.exportTableQrPdf("T9"), StandardCharsets.UTF_8);
+        String content = new String(service.exportTableQrPdf("T9", "https://example.com/scan/abc", "Test Venue"),
+                StandardCharsets.ISO_8859_1);
 
-        assertTrue(content.contains("TABLE:T9"));
-    }
-
-    @Test
-    void givenMobileQrScan_whenTableLinked_thenStaffViewShowsTableHasActiveMobileSession() {
-        MobileSessionService service = new MobileSessionService();
-
-        service.linkSession("T2", "SESSION-2");
-
-        assertTrue(service.hasActiveSession("T2"));
-    }
-
-    @Test
-    void givenTableSessionClosed_whenStaffViews_thenActiveMobileSessionBadgeRemoved() {
-        MobileSessionService service = new MobileSessionService();
-        service.linkSession("T3", "SESSION-3");
-
-        service.closeSession("T3");
-
-        assertFalse(service.hasActiveSession("T3"));
+        assertTrue(content.startsWith("%PDF-1.4"));
+        assertTrue(content.contains("(Table T9) Tj"));
+        assertTrue(content.contains("/Subtype /Image"));
+        assertTrue(content.contains("https://example.com/scan/abc"));
+        assertTrue(content.trim().endsWith("%%EOF"));
     }
 
     @Test

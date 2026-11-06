@@ -1390,3 +1390,39 @@ export async function getAnalyticsOverview(
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return apiRequest<AnalyticsOverviewRecord>(`/analytics/overview${suffix}`, { token: session.accessToken });
 }
+
+export type TableSessionRecord = {
+  tableId: string;
+  tableNumber: string;
+  active: boolean;
+  sessionCount: number;
+  lastSeenAt?: string | null;
+};
+
+/** Public: called when a guest opens a table QR link so staff can see who is ordering at the table. */
+export async function linkTableSession(tableToken: string, sessionId: string): Promise<TableSessionRecord> {
+  return apiRequest<TableSessionRecord>("/qr/sessions/link", { method: "POST", body: { tableToken, sessionId } });
+}
+
+export async function getActiveTableSessions(session: StaffSession): Promise<TableSessionRecord[]> {
+  return apiRequest<TableSessionRecord[]>("/qr/sessions/active", { token: session.accessToken });
+}
+
+export async function getTableSession(session: StaffSession, tableNumber: string): Promise<TableSessionRecord> {
+  return apiRequest<TableSessionRecord>(`/qr/sessions/${encodeURIComponent(tableNumber)}/active`, { token: session.accessToken });
+}
+
+export async function closeTableSessions(session: StaffSession, tableNumber: string): Promise<void> {
+  await apiRequest<void>(`/qr/sessions/${encodeURIComponent(tableNumber)}`, { method: "DELETE", token: session.accessToken });
+}
+
+export async function downloadTableQrPdf(session: StaffSession, tableNumber: string): Promise<Blob> {
+  const response = await fetch(`${API_PREFIX}/qr/tables/${encodeURIComponent(tableNumber)}/pdf`, {
+    headers: { Authorization: `Bearer ${session.accessToken}` },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Could not download QR card (status ${response.status})`);
+  }
+  return response.blob();
+}

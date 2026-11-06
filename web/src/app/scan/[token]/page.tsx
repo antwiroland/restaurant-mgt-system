@@ -16,6 +16,7 @@ import {
   type MenuModifierGroupRecord,
   type PublicOrderTrackingRecord,
   type TableScanRecord,
+  linkTableSession,
 } from "@/lib/apiClient";
 
 type CartLine = {
@@ -88,6 +89,17 @@ export default function GuestScanMenuPage() {
     }
     setToken(params.token);
   }, [params]);
+
+  useEffect(() => {
+    if (!token) return;
+    // Register this browser as an ordering session at the table (best effort).
+    let sessionId = window.localStorage.getItem("rm-table-session-id");
+    if (!sessionId) {
+      sessionId = window.crypto?.randomUUID?.() ?? `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      window.localStorage.setItem("rm-table-session-id", sessionId);
+    }
+    void linkTableSession(token, sessionId).catch(() => undefined);
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;

@@ -14,6 +14,7 @@ import {
   updateTable,
   type TableQrRecord,
   type TableRecord,
+  downloadTableQrPdf,
 } from "@/lib/apiClient";
 
 export default function TableQrDetailPage() {
@@ -187,6 +188,23 @@ export default function TableQrDetailPage() {
           <div className="flex flex-wrap gap-2">
             <button className="btn btn-primary btn-sm" onClick={() => window.print()}>
               Print QR
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => {
+                authenticatedFetch((activeSession) => downloadTableQrPdf(activeSession, table.number))
+                  .then((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = `table-${table.number}-qr.pdf`;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  })
+                  .catch((err) => setError(err instanceof Error ? err.message : "Could not download QR card"));
+              }}
+            >
+              Download PDF card
             </button>
             <Link className="btn btn-secondary btn-sm" href="/tables/qr">Back to QR Studio</Link>
           </div>
