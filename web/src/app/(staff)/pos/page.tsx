@@ -48,6 +48,7 @@ export default function PosPage() {
 
   const [orderType, setOrderType] = useState<(typeof ORDER_TYPES)[number]["value"]>("DINE_IN");
   const [tableId, setTableId] = useState("");
+  const [promoCode, setPromoCode] = useState("");
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [message, setMessage] = useState("");
   const [orderFieldErrors, setOrderFieldErrors] = useState<{
@@ -153,15 +154,21 @@ export default function PosPage() {
     setOrderFieldErrors({});
 
     try {
-      const payload = buildOrderPayload(orderType, cart, tableId || undefined);
+      const payload = buildOrderPayload(orderType, cart, tableId || undefined, promoCode);
       const created = await authenticatedFetch((activeSession) => createOrder(activeSession, payload));
 
       setCreatedOrderId(created.id);
       setPaymentId("");
       setPaymentRecord(null);
       setCart([]);
+      setPromoCode("");
       if (orderType !== "DINE_IN") setTableId("");
-      setMessage(`Order ${created.id.slice(0, 8)} created. Proceed to payment.`);
+      const discount = Number(created.discountTotal ?? 0);
+      setMessage(
+        discount > 0
+          ? `Order ${created.id.slice(0, 8)} created with GHS ${discount.toFixed(2)} off. Total GHS ${Number(created.total).toFixed(2)}. Proceed to payment.`
+          : `Order ${created.id.slice(0, 8)} created. Proceed to payment.`,
+      );
 
       setPaymentHighlight(true);
       window.setTimeout(() => setPaymentHighlight(false), 1400);
@@ -539,6 +546,17 @@ export default function PosPage() {
                   <p className="text-3xl font-semibold tracking-tight text-ink">GHS {total.toFixed(2)}</p>
                 </div>
               </div>
+              <label className="grid gap-1 text-sm">
+                <span className="text-xs uppercase tracking-[0.18em] text-ink-soft">Promo code (optional)</span>
+                <input
+                  className="input"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. SAVE10"
+                  autoCapitalize="characters"
+                  maxLength={30}
+                />
+              </label>
               <button className="btn btn-accent btn-lg w-full" disabled={submittingOrder} onClick={() => void handleCreateOrder()}>
                 {submittingOrder ? <Spinner className="text-current" /> : null}
                 Create Order

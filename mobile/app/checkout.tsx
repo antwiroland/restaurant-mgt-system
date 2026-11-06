@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Switch,
   View,
   Text,
   TextInput,
@@ -30,6 +31,7 @@ export default function CheckoutScreen() {
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [loyaltyBalance, setLoyaltyBalance] = useState<LoyaltyBalance | null>(null);
+  const [usePoints, setUsePoints] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const selectedAddress = useMemo(
@@ -49,6 +51,7 @@ export default function CheckoutScreen() {
       modifierOptionIds: line.modifierOptionIds,
     })),
     promoCode: promoCode ?? undefined,
+    loyaltyPointsToRedeem: usePoints && loyaltyBalance && loyaltyBalance.points > 0 ? loyaltyBalance.points : undefined,
     deliveryAddress: effectiveOrderType === 'DELIVERY' ? deliveryAddress.trim() : undefined,
   };
 
@@ -128,6 +131,7 @@ export default function CheckoutScreen() {
         ? await createPublicTableOrder({
             tableToken: tableToken ?? '',
             items: orderPayload.items,
+            promoCode: orderPayload.promoCode,
           })
         : await createOrder(orderPayload);
 
@@ -156,7 +160,11 @@ export default function CheckoutScreen() {
           method === 'MOBILE_MONEY' ? momoPhone.trim() : undefined
         );
         clear();
-        Alert.alert('Payment initiated', payment.message, [
+        const savings = Number(order.discountTotal ?? 0);
+        const summary = savings > 0
+          ? `You saved GHS ${savings.toFixed(2)}. Total GHS ${Number(order.total).toFixed(2)}.\n${payment.message}`
+          : payment.message;
+        Alert.alert('Payment initiated', summary, [
           {
             text: 'Track Order',
             onPress: () =>
@@ -269,8 +277,21 @@ export default function CheckoutScreen() {
 
       <View style={styles.section}>
         {loyaltyBalance && isAuthenticated && (
-          <Text style={styles.loyaltyHint}>Available loyalty points: {loyaltyBalance.points}</Text>
+          <View style={styles.loyaltyRow}>
+            <Text style={styles.loyaltyHint}>
+              Use {loyaltyBalance.points} loyalty points (up to half of the order)
+            </Text>
+            <Switch
+              value={usePoints}
+              onValueChange={setUsePoints}
+              disabled={loyaltyBalance.points <= 0}
+              accessibilityLabel="Redeem loyalty points"
+            />
+          </View>
         )}
+        {promoCode ? (
+          <Text style={styles.hint}>Promo {promoCode} will be applied when the order is placed.</Text>
+        ) : null}
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Items</Text>
           <Text style={styles.summaryValue}>{lines.length}</Text>
@@ -347,7 +368,8 @@ const styles = StyleSheet.create({
   addressLabelActive: { color: '#1D4ED8' },
   addressText: { fontSize: 13, color: '#4B5563' },
   addressTextActive: { color: '#1E40AF' },
-  loyaltyHint: { fontSize: 13, color: '#1D4ED8', marginBottom: 8, fontWeight: '600' },
+  loyaltyHint: { fontSize: 13, color: '#1D4ED8', marginBottom: 8, fontWeight: '600', flex: 1 },
+  loyaltyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
 });
 
 function formatAddress(address: CustomerAddress): string {

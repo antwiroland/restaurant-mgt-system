@@ -340,6 +340,15 @@ export type OrderRecord = {
   items: OrderItemRecord[];
   branchId?: string;
   branchName?: string;
+  promoCode?: string | null;
+  promoDiscount?: string;
+  offerDiscount?: string;
+  loyaltyPointsRedeemed?: number;
+  loyaltyDiscount?: string;
+  manualDiscount?: string;
+  deliveryFee?: string;
+  discountTotal?: string;
+  voidedAt?: string | null;
 };
 
 export type GroupParticipantRecord = {
@@ -924,6 +933,7 @@ export async function createOrder(
     tableId?: string;
     deliveryAddress?: string;
     notes?: string;
+    promoCode?: string;
     items: { menuItemId: string; quantity: number; modifierOptionIds?: string[] }[];
   },
 ): Promise<OrderRecord> {
@@ -1060,16 +1070,174 @@ export async function verifyManagerPin(
   });
 }
 
-export async function applyFinancialAction(
+export type DiscountMode = "FLAT" | "PERCENTAGE";
+
+export type FinancialActionResult = {
+  status: string;
+  actionType: OverrideActionType;
+  approverUserId: string;
+};
+
+export type DiscountResult = FinancialActionResult & {
+  orderId: string;
+  discountAmount: string;
+  subtotal: string;
+  newTotal: string;
+};
+
+export type VoidResult = FinancialActionResult & {
+  orderId: string;
+  voidedAmount: string;
+  paymentsVoided: number;
+  voidedAt: string;
+};
+
+export type RefundResult = FinancialActionResult & {
+  refundId: string;
+  paymentId: string;
+  orderId: string;
+  amount: string;
+  totalRefunded: string;
+  remainingRefundable: string;
+  paymentStatus: string;
+  providerStatus: string;
+};
+
+export async function applyOrderDiscount(
   session: StaffSession,
-  action: "discount" | "void" | "refund",
-  overrideToken: string,
-): Promise<{ ok?: boolean; actionType?: OverrideActionType; approverRole?: string; approverUserId?: string }> {
-  return apiRequest<{ ok?: boolean; actionType?: OverrideActionType; approverRole?: string; approverUserId?: string }>(`/financial/${action}`, {
+  payload: { overrideToken: string; orderId: string; mode: DiscountMode; value: number; reason?: string },
+): Promise<DiscountResult> {
+  return apiRequest<DiscountResult>("/financial/discount", { method: "POST", token: session.accessToken, body: payload });
+}
+
+export async function voidOrder(
+  session: StaffSession,
+  payload: { overrideToken: string; orderId: string; reason?: string },
+): Promise<VoidResult> {
+  return apiRequest<VoidResult>("/financial/void", { method: "POST", token: session.accessToken, body: payload });
+}
+
+export async function refundPayment(
+  session: StaffSession,
+  payload: { overrideToken: string; paymentId: string; amount?: number; reason?: string },
+): Promise<RefundResult> {
+  return apiRequest<RefundResult>("/financial/refund", { method: "POST", token: session.accessToken, body: payload });
+}
+
+export type ReconciliationReport = {
+  businessDate: string;
+  branchId?: string | null;
+  grossSales: string;
+  totalRefunds: string;
+  totalVoids: string;
+  totalDiscounts: string;
+  netSales: string;
+  expectedCash: string;
+  paidOrders: number;
+  voidedOrders: number;
+  refundCount: number;
+  byMethod: { method: string; amount: string; count: number }[];
+  shifts: { closedShifts: number; countedCash: string; expectedCash: string; variance: string };
+  signOff?: {
+    id: string;
+    signedBy: string;
+    signedAt: string;
+    countedCash?: string | null;
+    cashVariance?: string | null;
+    notes?: string | null;
+  } | null;
+};
+
+export async function getReconciliation(session: StaffSession, businessDate: string, branchId?: string): Promise<ReconciliationReport> {
+  const suffix = branchId ? `?branchId=${encodeURIComponent(branchId)}` : "";
+  return apiRequest<ReconciliationReport>(`/financial/reconciliation/${businessDate}${suffix}`, { token: session.accessToken });
+}
+
+export async function signOffReconciliation(
+  session: StaffSession,
+  businessDate: string,
+  payload: { overrideToken: string; branchId?: string; countedCash?: number; notes?: string },
+): Promise<ReconciliationReport> {
+  return apiRequest<ReconciliationReport>(`/financial/reconciliation/${businessDate}/sign-off`, {
     method: "POST",
     token: session.accessToken,
-    body: { overrideToken },
+    body: payload,
   });
+}
+
+export type FinancialAuditRecord = {
+  id: string;
+  action: "DISCOUNT_APPLIED" | "ORDER_VOIDED" | "PAYMENT_REFUNDED" | "RECONCILIATION_SIGNED_OFF";
+  actorId?: string | null;
+  actorName?: string | null;
+  entityType?: string | null;
+  entityId?: string | null;
+  metadata?: string | null;
+  createdAt: string;
+};
+
+export async function getFinancialAudit(session: StaffSession, action?: string): Promise<FinancialAuditRecord[]> {
+  const suffix = action ? `?action=${encodeURIComponent(action)}` : "";
+  return apiRequest<FinancialAuditRecord[]>(`/financial/audit${suffix}`, { token: session.accessToken });
+}
+
+export type MenuOfferRecord = {
+  id: string;
+  name: string;
+  description?: string | null;
+  menuItemId: string;
+  menuItemName: string;
+  buyQuantity: number;
+  freeQuantity: number;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  active: boolean;
+  running: boolean;
+  createdAt: string;
+};
+
+export type MenuOfferUpsertRequest = {
+  name: string;
+  description?: string;
+  menuItemId: string;
+  buyQuantity: number;
+  freeQuantity: number;
+  startsAt?: string;
+  endsAt?: string;
+  active?: boolean;
+};
+
+export async function getMenuOffers(session: StaffSession): Promise<MenuOfferRecord[]> {
+  return apiRequest<MenuOfferRecord[]>("/promotions/offers", { token: session.accessToken });
+}
+
+export async function createMenuOffer(session: StaffSession, payload: MenuOfferUpsertRequest): Promise<MenuOfferRecord> {
+  return apiRequest<MenuOfferRecord>("/promotions/offers", { method: "POST", token: session.accessToken, body: payload });
+}
+
+export async function updateMenuOffer(session: StaffSession, id: string, payload: MenuOfferUpsertRequest): Promise<MenuOfferRecord> {
+  return apiRequest<MenuOfferRecord>(`/promotions/offers/${id}`, { method: "PUT", token: session.accessToken, body: payload });
+}
+
+export async function setMenuOfferActive(session: StaffSession, id: string, active: boolean): Promise<MenuOfferRecord> {
+  return apiRequest<MenuOfferRecord>(`/promotions/offers/${id}/status`, {
+    method: "PATCH",
+    token: session.accessToken,
+    body: { active },
+  });
+}
+
+export async function deleteMenuOffer(session: StaffSession, id: string): Promise<void> {
+  await apiRequest<void>(`/promotions/offers/${id}`, { method: "DELETE", token: session.accessToken });
+}
+
+export type PromoValidationRecord = { code: string; discountType: "FLAT" | "PERCENTAGE"; discountValue: string; valid: boolean };
+
+export async function validatePromoCode(session: StaffSession, code: string, subtotal: number): Promise<PromoValidationRecord> {
+  return apiRequest<PromoValidationRecord>(
+    `/promotions/codes/validate/${encodeURIComponent(code.trim().toUpperCase())}?subtotal=${subtotal.toFixed(2)}`,
+    { token: session.accessToken },
+  );
 }
 
 export async function createReservation(

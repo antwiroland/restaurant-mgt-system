@@ -97,11 +97,26 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected PromoCodeRepository promoCodeRepository;
     @Autowired
+    protected com.restaurantmanager.core.payment.PaymentRefundRepository paymentRefundRepository;
+    @Autowired
+    protected com.restaurantmanager.core.promotion.MenuOfferRepository menuOfferRepository;
+    @Autowired
+    protected com.restaurantmanager.core.financial.ReconciliationSignOffRepository reconciliationSignOffRepository;
+    @Autowired
+    protected com.restaurantmanager.core.loyalty.LoyaltyBalanceRepository loyaltyBalanceRepository;
+    @Autowired
+    protected com.restaurantmanager.core.loyalty.LoyaltyTransactionRepository loyaltyTransactionRepository;
+    @Autowired
     protected SecurityGuardService securityGuardService;
 
     @BeforeEach
     void cleanupDb() {
         promoCodeRepository.deleteAll();
+        paymentRefundRepository.deleteAll();
+        menuOfferRepository.deleteAll();
+        reconciliationSignOffRepository.deleteAll();
+        loyaltyTransactionRepository.deleteAll();
+        loyaltyBalanceRepository.deleteAll();
         paymentWebhookEventRepository.deleteAll();
         paymentRepository.deleteAll();
         orderItemRepository.deleteAll();

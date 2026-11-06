@@ -29,15 +29,20 @@ export type OrderPayload = {
   type: OrderType;
   items: { menuItemId: string; quantity: number }[];
   tableId?: string;
+  promoCode?: string;
 };
 
-export function buildOrderPayload(type: OrderType, cart: CartLine[], tableId?: string): OrderPayload {
+export function buildOrderPayload(type: OrderType, cart: CartLine[], tableId?: string, promoCode?: string): OrderPayload {
   const payload: OrderPayload = {
     type,
     items: cart.map((line) => ({ menuItemId: line.item.id, quantity: line.quantity })),
   };
   if (type === "DINE_IN" && tableId) {
     payload.tableId = tableId;
+  }
+  const code = promoCode?.trim().toUpperCase();
+  if (code) {
+    payload.promoCode = code;
   }
   return payload;
 }

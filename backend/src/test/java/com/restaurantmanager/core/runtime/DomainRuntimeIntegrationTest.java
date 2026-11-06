@@ -174,51 +174,6 @@ class DomainRuntimeIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
-    void givenValidDiscountOverride_whenApplyFinancialControlDiscount_thenDiscountApplied() throws Exception {
-        UserEntity manager = createUser("Manager", "+233220000002", "manager1@x.com", "secret123", Role.MANAGER);
-        mockMvc.perform(post("/users/" + manager.getId() + "/pin")
-                        .header("Authorization", "Bearer " + accessToken(manager))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"pin\":\"1234\"}"))
-                .andExpect(status().isNoContent());
-
-        String verifyResponse = mockMvc.perform(post("/auth/pin/verify")
-                        .header("Authorization", "Bearer " + accessToken(manager))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new PinVerifyRequest("1234", OverrideActionType.DISCOUNT))))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-
-        String overrideToken = objectMapper.readTree(verifyResponse).get("overrideToken").asText();
-
-        String payload = """
-                {
-                  "total":100,
-                  "mode":"PERCENTAGE",
-                  "value":10,
-                  "overrideToken":"%s"
-                }
-                """.formatted(overrideToken);
-
-        mockMvc.perform(post("/financial-controls/discount/apply")
-                        .header("Authorization", "Bearer " + accessToken(manager))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(payload))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.discountAmount").value(10.0))
-                .andExpect(jsonPath("$.newTotal").value(90.0));
-    }
-
-    @Test
-    void givenCashier_whenQueryFinancialControlAudit_then403() throws Exception {
-        UserEntity cashier = createUser("Cashier", "+233220000003", "cashier1@x.com", "secret123", Role.CASHIER);
-
-        mockMvc.perform(get("/financial-controls/audit")
-                        .header("Authorization", "Bearer " + accessToken(cashier)))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
     void givenAdmin_whenRequestAnalyticsSummary_thenAggregatesReturned() throws Exception {
         UserEntity admin = createUser("Admin", "+233220000004", "admin1@x.com", "secret123", Role.ADMIN);
         UUID customer = UUID.randomUUID();

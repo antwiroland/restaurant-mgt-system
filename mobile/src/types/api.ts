@@ -104,6 +104,11 @@ export type Order = {
   notes?: string;
   createdAt: string;
   pickupCode?: string;
+  promoCode?: string | null;
+  discountTotal?: string;
+  loyaltyPointsRedeemed?: number;
+  loyaltyDiscount?: string;
+  deliveryFee?: string;
 };
 
 export type CreateOrderRequest = {
@@ -112,6 +117,7 @@ export type CreateOrderRequest = {
   tableToken?: string;
   items: { menuItemId: string; quantity: number; notes?: string; modifierOptionIds?: string[] }[];
   promoCode?: string;
+  loyaltyPointsToRedeem?: number;
   groupSessionId?: string;
   deliveryAddress?: string;
   notes?: string;

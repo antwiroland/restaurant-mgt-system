@@ -79,6 +79,39 @@ public class OrderEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "promo_code", length = 30)
+    private String promoCode;
+
+    @Column(name = "promo_discount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal promoDiscount = BigDecimal.ZERO;
+
+    @Column(name = "offer_discount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal offerDiscount = BigDecimal.ZERO;
+
+    @Column(name = "loyalty_points_redeemed", nullable = false)
+    private int loyaltyPointsRedeemed;
+
+    @Column(name = "loyalty_discount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal loyaltyDiscount = BigDecimal.ZERO;
+
+    @Column(name = "loyalty_points_awarded", nullable = false)
+    private int loyaltyPointsAwarded;
+
+    @Column(name = "manual_discount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal manualDiscount = BigDecimal.ZERO;
+
+    @Column(name = "manual_discount_reason", length = 500)
+    private String manualDiscountReason;
+
+    @Column(name = "delivery_fee", nullable = false, precision = 12, scale = 2)
+    private BigDecimal deliveryFee = BigDecimal.ZERO;
+
+    @Column(name = "voided_at")
+    private Instant voidedAt;
+
+    @Column(name = "voided_by")
+    private UUID voidedBy;
+
     @PrePersist
     public void prePersist() {
         Instant now = Instant.now();
@@ -234,5 +267,104 @@ public class OrderEntity {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getPromoCode() {
+        return promoCode;
+    }
+
+    public void setPromoCode(String promoCode) {
+        this.promoCode = promoCode;
+    }
+
+    public BigDecimal getPromoDiscount() {
+        return promoDiscount;
+    }
+
+    public void setPromoDiscount(BigDecimal promoDiscount) {
+        this.promoDiscount = promoDiscount;
+    }
+
+    public BigDecimal getOfferDiscount() {
+        return offerDiscount;
+    }
+
+    public void setOfferDiscount(BigDecimal offerDiscount) {
+        this.offerDiscount = offerDiscount;
+    }
+
+    public int getLoyaltyPointsRedeemed() {
+        return loyaltyPointsRedeemed;
+    }
+
+    public void setLoyaltyPointsRedeemed(int loyaltyPointsRedeemed) {
+        this.loyaltyPointsRedeemed = loyaltyPointsRedeemed;
+    }
+
+    public BigDecimal getLoyaltyDiscount() {
+        return loyaltyDiscount;
+    }
+
+    public void setLoyaltyDiscount(BigDecimal loyaltyDiscount) {
+        this.loyaltyDiscount = loyaltyDiscount;
+    }
+
+    public int getLoyaltyPointsAwarded() {
+        return loyaltyPointsAwarded;
+    }
+
+    public void setLoyaltyPointsAwarded(int loyaltyPointsAwarded) {
+        this.loyaltyPointsAwarded = loyaltyPointsAwarded;
+    }
+
+    public BigDecimal getManualDiscount() {
+        return manualDiscount;
+    }
+
+    public void setManualDiscount(BigDecimal manualDiscount) {
+        this.manualDiscount = manualDiscount;
+    }
+
+    public String getManualDiscountReason() {
+        return manualDiscountReason;
+    }
+
+    public void setManualDiscountReason(String manualDiscountReason) {
+        this.manualDiscountReason = manualDiscountReason;
+    }
+
+    public BigDecimal getDeliveryFee() {
+        return deliveryFee;
+    }
+
+    public void setDeliveryFee(BigDecimal deliveryFee) {
+        this.deliveryFee = deliveryFee;
+    }
+
+    public Instant getVoidedAt() {
+        return voidedAt;
+    }
+
+    public void setVoidedAt(Instant voidedAt) {
+        this.voidedAt = voidedAt;
+    }
+
+    public UUID getVoidedBy() {
+        return voidedBy;
+    }
+
+    public void setVoidedBy(UUID voidedBy) {
+        this.voidedBy = voidedBy;
+    }
+
+    public BigDecimal totalDiscount() {
+        return promoDiscount.add(offerDiscount).add(loyaltyDiscount).add(manualDiscount);
+    }
+
+    /** total = subtotal + deliveryFee - all discounts, never below zero. */
+    public void recalculateTotal() {
+        BigDecimal base = subtotal == null ? BigDecimal.ZERO : subtotal;
+        BigDecimal computed = base.add(deliveryFee).subtract(totalDiscount());
+        total = (computed.signum() < 0 ? BigDecimal.ZERO : computed).setScale(2, java.math.RoundingMode.HALF_UP);
     }
 }

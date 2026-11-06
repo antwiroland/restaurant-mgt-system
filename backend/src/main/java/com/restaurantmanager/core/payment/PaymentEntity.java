@@ -68,6 +68,12 @@ public class PaymentEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "refunded_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal refundedAmount = BigDecimal.ZERO;
+
+    @Column(name = "refunded_at")
+    private Instant refundedAt;
+
     @PrePersist
     public void prePersist() {
         Instant now = Instant.now();
@@ -204,5 +210,25 @@ public class PaymentEntity {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public BigDecimal getRefundedAmount() {
+        return refundedAmount;
+    }
+
+    public void setRefundedAmount(BigDecimal refundedAmount) {
+        this.refundedAmount = refundedAmount;
+    }
+
+    public Instant getRefundedAt() {
+        return refundedAt;
+    }
+
+    public void setRefundedAt(Instant refundedAt) {
+        this.refundedAt = refundedAt;
+    }
+
+    public BigDecimal refundableAmount() {
+        return amount.subtract(refundedAmount);
     }
 }

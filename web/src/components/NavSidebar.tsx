@@ -38,6 +38,7 @@ const groups: NavGroup[] = [
       { label: "Financial", href: "/financial", short: "FI" },
       { label: "Receipts", href: "/receipts", short: "RC" },
       { label: "Shifts", href: "/shifts", short: "SH" },
+      { label: "Offers", href: "/offers", short: "OF", roles: ["ADMIN", "MANAGER"] },
     ],
   },
   {

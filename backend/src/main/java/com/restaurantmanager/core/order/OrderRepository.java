@@ -79,4 +79,8 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
     List<OrderEntity> findForKdsBoard(@Param("types") List<OrderType> types,
                                       @Param("statuses") List<OrderStatus> statuses,
                                       @Param("branchId") UUID branchId);
+
+    List<OrderEntity> findByVoidedAtGreaterThanEqualAndVoidedAtLessThan(Instant from, Instant to);
+
+    List<OrderEntity> findByCreatedAtGreaterThanEqualAndCreatedAtLessThanAndStatusNot(Instant from, Instant to, OrderStatus status);
 }

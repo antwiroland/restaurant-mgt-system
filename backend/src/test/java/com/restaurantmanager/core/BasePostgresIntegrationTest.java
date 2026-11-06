@@ -114,6 +114,16 @@ public abstract class BasePostgresIntegrationTest {
     @Autowired
     protected PromoCodeRepository promoCodeRepository;
     @Autowired
+    protected com.restaurantmanager.core.payment.PaymentRefundRepository paymentRefundRepository;
+    @Autowired
+    protected com.restaurantmanager.core.promotion.MenuOfferRepository menuOfferRepository;
+    @Autowired
+    protected com.restaurantmanager.core.financial.ReconciliationSignOffRepository reconciliationSignOffRepository;
+    @Autowired
+    protected com.restaurantmanager.core.loyalty.LoyaltyBalanceRepository loyaltyBalanceRepository;
+    @Autowired
+    protected com.restaurantmanager.core.loyalty.LoyaltyTransactionRepository loyaltyTransactionRepository;
+    @Autowired
     protected SecurityGuardService securityGuardService;
 
     @BeforeEach
@@ -132,6 +142,11 @@ public abstract class BasePostgresIntegrationTest {
         menuItemRepository.deleteAll();
         categoryRepository.deleteAll();
         promoCodeRepository.deleteAll();
+        paymentRefundRepository.deleteAll();
+        menuOfferRepository.deleteAll();
+        reconciliationSignOffRepository.deleteAll();
+        loyaltyTransactionRepository.deleteAll();
+        loyaltyBalanceRepository.deleteAll();
         auditLogRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();

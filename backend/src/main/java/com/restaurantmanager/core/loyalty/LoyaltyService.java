@@ -8,11 +8,21 @@ import java.time.Instant;
 import java.util.List;
 
 public class LoyaltyService {
-    private static final BigDecimal POINT_VALUE = new BigDecimal("0.01");
+    private static final BigDecimal DEFAULT_POINT_VALUE = new BigDecimal("0.01");
     private final int pointsPerCedi;
+    private final BigDecimal pointValue;
 
     public LoyaltyService(int pointsPerCedi) {
+        this(pointsPerCedi, DEFAULT_POINT_VALUE);
+    }
+
+    public LoyaltyService(int pointsPerCedi, BigDecimal pointValue) {
         this.pointsPerCedi = pointsPerCedi;
+        this.pointValue = pointValue;
+    }
+
+    public BigDecimal pointValue() {
+        return pointValue;
     }
 
     public int accrue(LoyaltyAccount account, BigDecimal paymentAmount, String orderId) {
@@ -28,9 +38,9 @@ public class LoyaltyService {
         if (pointsToRedeem > account.getPoints()) {
             throw new ApiException(400, "Insufficient loyalty points");
         }
-        BigDecimal maxDiscount = POINT_VALUE.multiply(BigDecimal.valueOf(pointsToRedeem));
+        BigDecimal maxDiscount = pointValue.multiply(BigDecimal.valueOf(pointsToRedeem));
         BigDecimal appliedDiscount = maxDiscount.min(orderTotal);
-        int appliedPoints = appliedDiscount.divide(POINT_VALUE, RoundingMode.DOWN).intValue();
+        int appliedPoints = appliedDiscount.divide(pointValue, RoundingMode.DOWN).intValue();
 
         account.setPoints(account.getPoints() - appliedPoints);
         account.addTransaction(new LoyaltyTransaction(appliedPoints, LoyaltyTransactionType.REDEEM, orderId, Instant.now()));

@@ -25,6 +25,11 @@ type OrderResponse = {
   notes?: string;
   createdAt: string;
   pickupCode?: string;
+  promoCode?: string | null;
+  discountTotal?: string;
+  loyaltyPointsRedeemed?: number;
+  loyaltyDiscount?: string;
+  deliveryFee?: string;
 };
 
 type ReceiptResponse = {
@@ -67,6 +72,11 @@ function toOrder(order: OrderResponse): Order {
     notes: order.notes,
     createdAt: order.createdAt,
     pickupCode: order.pickupCode,
+    promoCode: order.promoCode,
+    discountTotal: order.discountTotal === undefined ? undefined : String(order.discountTotal),
+    loyaltyPointsRedeemed: order.loyaltyPointsRedeemed,
+    loyaltyDiscount: order.loyaltyDiscount === undefined ? undefined : String(order.loyaltyDiscount),
+    deliveryFee: order.deliveryFee === undefined ? undefined : String(order.deliveryFee),
   };
 }
 
@@ -75,7 +85,7 @@ export async function createOrder(req: CreateOrderRequest): Promise<Order> {
   return toOrder(data);
 }
 
-export async function createPublicTableOrder(req: { tableToken: string; items: CreateOrderRequest['items']; notes?: string }): Promise<Order> {
+export async function createPublicTableOrder(req: { tableToken: string; items: CreateOrderRequest['items']; notes?: string; promoCode?: string }): Promise<Order> {
   const { data } = await apiClient.post<OrderResponse>('/orders/public/dine-in', req);
   return toOrder(data);
 }

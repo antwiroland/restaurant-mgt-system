@@ -86,6 +86,7 @@ public class OrderService {
     private final OrderRealtimePublisher realtimePublisher;
     private final PaymentRepository paymentRepository;
     private final WhatsAppService whatsAppService;
+    private final OrderPricingService pricingService;
 
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
@@ -101,7 +102,8 @@ public class OrderService {
                         UserRepository userRepository,
                         OrderRealtimePublisher realtimePublisher,
                         PaymentRepository paymentRepository,
-                        WhatsAppService whatsAppService) {
+                        WhatsAppService whatsAppService,
+                        OrderPricingService pricingService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderItemModifierRepository = orderItemModifierRepository;
@@ -117,6 +119,7 @@ public class OrderService {
         this.realtimePublisher = realtimePublisher;
         this.paymentRepository = paymentRepository;
         this.whatsAppService = whatsAppService;
+        this.pricingService = pricingService;
     }
 
     @Transactional
@@ -135,7 +138,9 @@ public class OrderService {
                 null,
                 null,
                 null,
-                request.notes()
+                request.notes(),
+                request.promoCode(),
+                null
         );
         return createOrderInternal(internalRequest, null, null);
     }
@@ -199,6 +204,9 @@ public class OrderService {
         OrderStatus previous = order.getStatus();
         order.setStatus(OrderStatus.CANCELLED);
         order.setCancelReason(request == null ? null : blankToNull(request.reason()));
+        if (!hasSuccessfulPayment(order.getId())) {
+            pricingService.releaseDiscounts(order);
+        }
         OrderEntity saved = orderRepository.save(order);
         realtimePublisher.publishOrderStatusChanged(saved.getId(), previous, saved.getStatus(), tableToken(saved));
 
@@ -245,6 +253,9 @@ public class OrderService {
             OrderStatus previous = order.getStatus();
             order.setStatus(OrderStatus.CANCELLED);
             order.setCancelReason("Reversed by manager");
+            if (paidByOrderId.getOrDefault(order.getId(), BigDecimal.ZERO).signum() == 0) {
+                pricingService.releaseDiscounts(order);
+            }
             OrderEntity savedOrder = orderRepository.save(order);
             realtimePublisher.publishOrderStatusChanged(savedOrder.getId(), previous, savedOrder.getStatus(), tableToken(savedOrder));
         }
@@ -424,7 +435,9 @@ public class OrderService {
                 request.pickupTime(),
                 request.estimatedDeliveryTime(),
                 session.getId(),
-                request.notes()
+                request.notes(),
+                request.promoCode(),
+                null
         );
 
         Map<Integer, UUID> participantByIndex = new HashMap<>();
@@ -515,7 +528,7 @@ public class OrderService {
             items.add(item);
         }
         order.setSubtotal(subtotal);
-        order.setTotal(subtotal);
+        order.recalculateTotal();
         OrderEntity saved = orderRepository.save(order);
 
         for (OrderItemEntity item : items) {
@@ -539,6 +552,13 @@ public class OrderService {
         }
         if (!modifierRows.isEmpty()) {
             orderItemModifierRepository.saveAll(modifierRows);
+        }
+
+        boolean hasDiscountRequest = (request.promoCode() != null && !request.promoCode().isBlank())
+                || (request.loyaltyPointsToRedeem() != null && request.loyaltyPointsToRedeem() > 0);
+        pricingService.applyDiscounts(saved, savedItems, request.promoCode(), request.loyaltyPointsToRedeem());
+        if (hasDiscountRequest || saved.getOfferDiscount().signum() > 0 || saved.getDeliveryFee().signum() > 0) {
+            saved = orderRepository.save(saved);
         }
 
         realtimePublisher.publishOrderCreated(saved.getId(), saved.getType(), saved.getStatus(), saved.getTotal(), tableToken(saved));
@@ -633,6 +653,10 @@ public class OrderService {
     private boolean isOrderSettled(OrderEntity order) {
         BigDecimal paid = paymentTotalsByOrderIds(List.of(order.getId())).getOrDefault(order.getId(), BigDecimal.ZERO);
         return isOrderSettled(order, paid);
+    }
+
+    private boolean hasSuccessfulPayment(UUID orderId) {
+        return !paymentRepository.findByOrderIdAndStatus(orderId, PaymentStatus.SUCCESS).isEmpty();
     }
 
     private boolean isOrderSettled(OrderEntity order, BigDecimal paidTotal) {
@@ -778,7 +802,16 @@ public class OrderService {
                     order.getSubtotal(),
                     order.getTotal(),
                     order.getCreatedAt(),
-                    itemResponses
+                    itemResponses,
+                    order.getPromoCode(),
+                    order.getPromoDiscount(),
+                    order.getOfferDiscount(),
+                    order.getLoyaltyPointsRedeemed(),
+                    order.getLoyaltyDiscount(),
+                    order.getManualDiscount(),
+                    order.getDeliveryFee(),
+                    order.totalDiscount(),
+                    order.getVoidedAt()
             );
         }).toList();
     }

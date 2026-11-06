@@ -23,4 +23,14 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, UUID> {
     List<PaymentEntity> findByMethodAndStatusAndPaidAtBetween(PaymentMethod method, PaymentStatus status, Instant from, Instant to);
 
     Optional<PaymentEntity> findFirstByOrderIdAndStatusOrderByCreatedAtDesc(UUID orderId, PaymentStatus status);
+
+    @org.springframework.data.jpa.repository.Query("""
+            select p from PaymentEntity p join fetch p.order o left join fetch o.branch
+            where p.status in :statuses and p.paidAt >= :from and p.paidAt < :to
+            """)
+    List<PaymentEntity> findPaidBetween(@org.springframework.data.repository.query.Param("statuses") List<PaymentStatus> statuses,
+                                        @org.springframework.data.repository.query.Param("from") Instant from,
+                                        @org.springframework.data.repository.query.Param("to") Instant to);
+
+    List<PaymentEntity> findByOrderIdAndStatusIn(UUID orderId, List<PaymentStatus> statuses);
 }
