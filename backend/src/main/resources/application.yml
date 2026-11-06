@@ -92,6 +92,22 @@ payments:
     batch-size: ${PAYMENTS_RECONCILIATION_BATCH_SIZE:200}
     fixed-delay-ms: ${PAYMENTS_RECONCILIATION_FIXED_DELAY_MS:60000}
 
+auth:
+  otp:
+    required-for-registration: ${OTP_REQUIRED_FOR_REGISTRATION:true}
+    code-length: ${OTP_CODE_LENGTH:6}
+    ttl-seconds: ${OTP_TTL_SECONDS:300}
+    resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
+    max-requests-per-hour: ${OTP_MAX_REQUESTS_PER_HOUR:5}
+    max-attempts: ${OTP_MAX_ATTEMPTS:5}
+    app-name: ${VENUE_NAME:Restaurant}
+
+loyalty:
+  auto-accrue: ${LOYALTY_AUTO_ACCRUE:true}
+  points-per-cedi: ${LOYALTY_POINTS_PER_CEDI:1}
+  point-value: ${LOYALTY_POINT_VALUE:0.01}
+  max-redeem-percent: ${LOYALTY_MAX_REDEEM_PERCENT:50}
+
 notifications:
   default-country-code: ${NOTIFICATIONS_DEFAULT_COUNTRY_CODE:233}
   whatsapp:

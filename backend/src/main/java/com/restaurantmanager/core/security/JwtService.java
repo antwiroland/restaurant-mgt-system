@@ -77,6 +77,22 @@ public class JwtService {
                 .compact();
     }
 
+    public String generatePhoneVerificationToken(String phone, Duration ttl) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject("phone-verification")
+                .claim("tokenType", TokenType.PHONE_VERIFICATION.name())
+                .claim("phone", phone)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plus(ttl)))
+                .signWith(key)
+                .compact();
+    }
+
+    public String phone(Claims claims) {
+        return claims.get("phone", String.class);
+    }
+
     public Claims parse(String token) {
         return Jwts.parser()
                 .verifyWith(key)

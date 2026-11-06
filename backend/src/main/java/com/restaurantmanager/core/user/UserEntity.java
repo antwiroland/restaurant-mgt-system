@@ -45,6 +45,9 @@ public class UserEntity {
     @Column(nullable = false)
     private boolean active = true;
 
+    @Column(name = "phone_verified_at")
+    private Instant phoneVerifiedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -147,5 +150,13 @@ public class UserEntity {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public Instant getPhoneVerifiedAt() {
+        return phoneVerifiedAt;
+    }
+
+    public void setPhoneVerifiedAt(Instant phoneVerifiedAt) {
+        this.phoneVerifiedAt = phoneVerifiedAt;
     }
 }

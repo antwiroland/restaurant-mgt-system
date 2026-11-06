@@ -3,6 +3,8 @@ package com.restaurantmanager.core.auth;
 import com.restaurantmanager.core.audit.AuditService;
 import com.restaurantmanager.core.auth.dto.*;
 import com.restaurantmanager.core.common.*;
+import com.restaurantmanager.core.auth.otp.OtpPurpose;
+import com.restaurantmanager.core.auth.otp.OtpService;
 import com.restaurantmanager.core.config.SecurityProps;
 import com.restaurantmanager.core.security.SecurityGuardService;
 import com.restaurantmanager.core.security.JwtService;
@@ -30,6 +32,7 @@ public class AuthService {
     private final SecurityProps securityProps;
     private final AuditService auditService;
     private final SecurityGuardService securityGuardService;
+    private final OtpService otpService;
 
     public AuthService(UserRepository userRepository,
                        RefreshTokenRepository refreshTokenRepository,
@@ -37,7 +40,8 @@ public class AuthService {
                        JwtService jwtService,
                        SecurityProps securityProps,
                        AuditService auditService,
-                       SecurityGuardService securityGuardService) {
+                       SecurityGuardService securityGuardService,
+                       OtpService otpService) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
@@ -45,6 +49,50 @@ public class AuthService {
         this.securityProps = securityProps;
         this.auditService = auditService;
         this.securityGuardService = securityGuardService;
+        this.otpService = otpService;
+    }
+
+    /** Verifies a registration OTP and returns a short-lived token proving ownership of the phone. */
+    public PhoneVerificationResponse verifyPhoneForRegistration(OtpVerifyRequest request) {
+        String phone = otpService.verify(request.phone(), request.code(), OtpPurpose.REGISTER);
+        long ttl = otpService.props().getVerificationTokenTtlSeconds();
+        return new PhoneVerificationResponse(phone,
+                jwtService.generatePhoneVerificationToken(phone, java.time.Duration.ofSeconds(ttl)), ttl);
+    }
+
+    /** Passwordless customer login with an SMS code. */
+    @Transactional
+    public AuthResponse loginWithOtp(OtpVerifyRequest request, String ipAddress) {
+        String phone = otpService.verify(request.phone(), request.code(), OtpPurpose.LOGIN);
+        UserEntity user = userRepository.findByPhone(phone)
+                .filter(UserEntity::isActive)
+                .orElseThrow(() -> new ApiException(401, "Invalid or expired code"));
+        if (user.getPhoneVerifiedAt() == null) {
+            user.setPhoneVerifiedAt(Instant.now());
+            userRepository.save(user);
+        }
+        UUID branchId = user.getBranch() == null ? null : user.getBranch().getId();
+        String access = jwtService.generateAccessToken(user.getId(), user.getRole(), branchId);
+        String refresh = jwtService.generateRefreshToken(user.getId(), user.getRole(), branchId);
+        storeRefresh(user, refresh);
+        auditService.log(user, AuditAction.USER_LOGIN, "User", user.getId(), "{\"result\":\"SUCCESS\",\"method\":\"OTP\"}", ipAddress);
+        return new AuthResponse(access, refresh, securityProps.getJwt().getAccessTtlSeconds(),
+                new UserView(user.getId(), user.getName(), user.getRole().name(),
+                        user.getBranch() == null ? null : user.getBranch().getId(),
+                        user.getBranch() == null ? null : user.getBranch().getName()));
+    }
+
+    private boolean phoneVerifiedBy(String verificationToken, String phone) {
+        if (verificationToken == null || verificationToken.isBlank()) {
+            return false;
+        }
+        try {
+            Claims claims = jwtService.parse(verificationToken);
+            return jwtService.tokenType(claims) == TokenType.PHONE_VERIFICATION
+                    && OtpService.normalize(phone).equals(jwtService.phone(claims));
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     @Transactional
@@ -55,9 +103,14 @@ public class AuthService {
         if (request.email() != null && !request.email().isBlank() && userRepository.existsByEmail(request.email())) {
             throw new ApiException(409, "Email already exists");
         }
+        boolean verified = phoneVerifiedBy(request.verificationToken(), request.phone());
+        if (otpService.props().isRequiredForRegistration() && !verified) {
+            throw new ApiException(400, "Phone verification required. Request and verify an SMS code first");
+        }
         UserEntity user = new UserEntity();
         user.setName(request.name());
         user.setPhone(request.phone());
+        user.setPhoneVerifiedAt(verified ? Instant.now() : null);
         user.setEmail((request.email() == null || request.email().isBlank()) ? null : request.email());
         user.setRole(Role.CUSTOMER);
         user.setPasswordHash(passwordEncoder.encode(request.password()));

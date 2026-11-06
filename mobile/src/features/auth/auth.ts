@@ -1,18 +1,22 @@
-export type RegistrationResult = { otpSent: boolean; pending: boolean };
+export type OtpPurpose = 'REGISTER' | 'LOGIN';
 
-export function registerPhone(phone: string): RegistrationResult {
-  const normalized = phone.trim();
-  if (!normalized.startsWith("+")) {
-    throw new Error("Invalid phone");
+/** Normalises a phone number for the API; throws when it cannot be a valid mobile number. */
+export function normalizePhone(phone: string): string {
+  const compact = phone.trim().replace(/[\s-]/g, '');
+  if (!/^\+?[0-9]{9,15}$/.test(compact)) {
+    throw new Error('Enter a valid phone number, e.g. +233201234567');
   }
-  return { otpSent: true, pending: true };
+  return compact;
 }
 
-export function verifyOtp(code: string, expected: string): { tokenIssued: boolean; loggedIn: boolean } {
-  if (code !== expected) {
-    return { tokenIssued: false, loggedIn: false };
-  }
-  return { tokenIssued: true, loggedIn: true };
+export function isValidOtpCode(code: string): boolean {
+  return /^[0-9]{4,8}$/.test(code.trim());
+}
+
+/** Seconds left before another code may be requested. */
+export function resendSecondsLeft(requestedAtMs: number | null, cooldownSeconds: number, nowMs = Date.now()): number {
+  if (requestedAtMs === null) return 0;
+  return Math.max(0, Math.ceil(cooldownSeconds - (nowMs - requestedAtMs) / 1000));
 }
 
 export function createGuestSessionToken(): { sessionTokenUsed: boolean; role: null } {

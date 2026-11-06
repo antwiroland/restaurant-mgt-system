@@ -52,6 +52,7 @@ public abstract class BaseIntegrationTest {
         registry.add("security.jwt.override-ttl-seconds", () -> "5");
         registry.add("payments.paystack.secret-key", () -> "test_paystack_secret");
         registry.add("payments.reconciliation.enabled", () -> "false");
+        registry.add("auth.otp.required-for-registration", () -> "false");
     }
 
     @Autowired
@@ -101,6 +102,8 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected com.restaurantmanager.core.promotion.MenuOfferRepository menuOfferRepository;
     @Autowired
+    protected com.restaurantmanager.core.auth.otp.OtpChallengeRepository otpChallengeRepository;
+    @Autowired
     protected com.restaurantmanager.core.table.qr.TableMobileSessionRepository tableMobileSessionRepository;
     @Autowired
     protected com.restaurantmanager.core.financial.ReconciliationSignOffRepository reconciliationSignOffRepository;
@@ -116,6 +119,7 @@ public abstract class BaseIntegrationTest {
         promoCodeRepository.deleteAll();
         paymentRefundRepository.deleteAll();
         menuOfferRepository.deleteAll();
+        otpChallengeRepository.deleteAll();
         tableMobileSessionRepository.deleteAll();
         reconciliationSignOffRepository.deleteAll();
         loyaltyTransactionRepository.deleteAll();
