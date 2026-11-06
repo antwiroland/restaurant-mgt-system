@@ -108,6 +108,8 @@ export function NavSidebar({ role, collapsed = false, onNavigate, mobile = false
                         : "border-l-transparent text-ink-soft hover:bg-sunken hover:text-ink",
                     ].join(" ")}
                     title={collapsed ? item.label : undefined}
+                    aria-label={collapsed ? item.label : undefined}
+                    aria-current={isActive ? "page" : undefined}
                   >
                     {collapsed ? item.short : item.label}
                   </Link>

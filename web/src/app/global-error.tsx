@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import "./globals.css";
 
 export default function GlobalError({
   error,
@@ -17,15 +18,15 @@ export default function GlobalError({
     <html lang="en">
       <body>
         <main className="shell">
-          <section className="panel">
+          <section className="panel" role="alert">
             <p className="kicker">Fatal Error</p>
             <h1 className="text-2xl font-semibold">Application error</h1>
-            <p className="mt-2 text-sm text-[#35523d]">
+            <p className="mt-2 text-sm text-ink-soft">
               {error.message || "The app encountered a fatal error."}
             </p>
             <button
               type="button"
-              className="mt-4 rounded-full bg-[#132018] px-4 py-2 text-white"
+              className="mt-4 btn btn-primary"
               onClick={() => reset()}
             >
               Reload

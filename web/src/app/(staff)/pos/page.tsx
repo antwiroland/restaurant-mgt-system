@@ -455,6 +455,8 @@ export default function PosPage() {
                         value={deliveryAddress}
                         onChange={(event) => setDeliveryAddress(event.target.value)}
                         placeholder="House number, street, landmark"
+                        aria-invalid={orderFieldErrors.deliveryAddress ? true : undefined}
+                        aria-describedby={orderFieldErrors.deliveryAddress ? "pos-delivery-error" : undefined}
                       />
                     </label>
                     {deliveryZones.length > 0 ? (
@@ -470,7 +472,7 @@ export default function PosPage() {
                         </select>
                       </label>
                     ) : null}
-                    {orderFieldErrors.deliveryAddress ? <span className="field-error">{orderFieldErrors.deliveryAddress}</span> : null}
+                    {orderFieldErrors.deliveryAddress ? <span id="pos-delivery-error" className="field-error" role="alert">{orderFieldErrors.deliveryAddress}</span> : null}
                   </div>
                 ) : null}
               </div>
@@ -488,7 +490,13 @@ export default function PosPage() {
                   </div>
                   <label className="field mt-4">
                     <span className="field-label">Table</span>
-                    <select className="select" value={tableId} onChange={(event) => setTableId(event.target.value)}>
+                    <select
+                      className="select"
+                      value={tableId}
+                      onChange={(event) => setTableId(event.target.value)}
+                      aria-invalid={orderFieldErrors.tableId ? true : undefined}
+                      aria-describedby={orderFieldErrors.tableId ? "pos-table-error" : undefined}
+                    >
                       <option value="">Select a table</option>
                       {dineInTables.map((table) => (
                         <option key={table.id} value={table.id}>
@@ -496,7 +504,7 @@ export default function PosPage() {
                         </option>
                       ))}
                     </select>
-                    {orderFieldErrors.tableId ? <span className="field-error">{orderFieldErrors.tableId}</span> : null}
+                    {orderFieldErrors.tableId ? <span id="pos-table-error" className="field-error" role="alert">{orderFieldErrors.tableId}</span> : null}
                   </label>
                   {selectedTable ? (
                     <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -567,7 +575,7 @@ export default function PosPage() {
                     ))}
                   </div>
                 )}
-                {orderFieldErrors.cart ? <span className="field-error">{orderFieldErrors.cart}</span> : null}
+                {orderFieldErrors.cart ? <span className="field-error" role="alert">{orderFieldErrors.cart}</span> : null}
               </div>
             </div>
           </div>
@@ -630,8 +638,10 @@ export default function PosPage() {
                       value={createdOrderId}
                       onChange={(event) => setCreatedOrderId(event.target.value)}
                       placeholder="Order ID from Create Order"
+                      aria-invalid={paymentFieldErrors.createdOrderId ? true : undefined}
+                      aria-describedby={paymentFieldErrors.createdOrderId ? "pos-order-id-error" : undefined}
                     />
-                    {paymentFieldErrors.createdOrderId ? <span className="field-error">{paymentFieldErrors.createdOrderId}</span> : null}
+                    {paymentFieldErrors.createdOrderId ? <span id="pos-order-id-error" className="field-error" role="alert">{paymentFieldErrors.createdOrderId}</span> : null}
                   </label>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <InfoTile label="Linked order" value={createdOrderId ? createdOrderId.slice(0, 8) : "Not set"} />
@@ -674,9 +684,11 @@ export default function PosPage() {
                     value={momoPhone}
                     onChange={(event) => setMomoPhone(event.target.value)}
                     placeholder="+233..."
+                    aria-invalid={paymentFieldErrors.momoPhone ? true : undefined}
+                    aria-describedby={paymentFieldErrors.momoPhone ? "pos-momo-hint pos-momo-error" : "pos-momo-hint"}
                   />
-                  <span className="field-hint">Use the payer's mobile money number.</span>
-                  {paymentFieldErrors.momoPhone ? <span className="field-error">{paymentFieldErrors.momoPhone}</span> : null}
+                  <span id="pos-momo-hint" className="field-hint">Use the payer's mobile money number.</span>
+                  {paymentFieldErrors.momoPhone ? <span id="pos-momo-error" className="field-error" role="alert">{paymentFieldErrors.momoPhone}</span> : null}
                 </label>
               ) : null}
 
