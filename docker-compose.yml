@@ -47,8 +47,23 @@ services:
       CACHE_REDIS_ENABLED: "true"
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      PAYSTACK_SECRET_KEY: test_paystack_secret
+      PAYSTACK_MODE: ${PAYSTACK_MODE:-stub}
+      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-test_paystack_secret}
       PAYSTACK_BASE_URL: https://api.paystack.co
+      PAYSTACK_CALLBACK_URL: ${PAYSTACK_CALLBACK_URL:-}
+      WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-log}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_TEMPLATE_NAME: ${WHATSAPP_TEMPLATE_NAME:-}
+      SMS_PROVIDER: ${SMS_PROVIDER:-log}
+      SMS_SENDER_ID: ${SMS_SENDER_ID:-RestoMgr}
+      HUBTEL_CLIENT_ID: ${HUBTEL_CLIENT_ID:-}
+      HUBTEL_CLIENT_SECRET: ${HUBTEL_CLIENT_SECRET:-}
+      ARKESEL_API_KEY: ${ARKESEL_API_KEY:-}
+      OTP_REQUIRED_FOR_REGISTRATION: ${OTP_REQUIRED_FOR_REGISTRATION:-true}
+      PUBLIC_WEB_URL: ${PUBLIC_WEB_URL:-http://localhost:3000}
+      VENUE_NAME: ${VENUE_NAME:-Restaurant}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
       ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
       WEBSOCKET_ALLOWED_ORIGIN_PATTERNS: http://localhost:3000,http://localhost:19006,http://localhost:8080
     ports:
@@ -115,6 +130,18 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+
+  k6:
+    image: grafana/k6:0.54.0
+    profiles: ["loadtest"]
+    environment:
+      BASE_URL: http://backend:8080
+      STAFF_PHONE: ${STAFF_PHONE:-}
+      STAFF_PASSWORD: ${STAFF_PASSWORD:-}
+    volumes:
+      - ./loadtest/k6:/scripts:ro
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:
