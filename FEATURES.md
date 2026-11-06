@@ -1,8 +1,8 @@
 # Restaurant Manager — Feature Status
 
-_Last analyzed: 2026-11-06 (commit `1d93de5`)_
+_Last updated: 2026-11-06 (branch `refactor/domain-packages-and-feature-completion`)_
 
-This file is based on the source code, not just the docs. `documentation/PROJECT_PROGRESS.md` lists all 10 phases as "Complete", but several of those features exist only as standalone services, simulations or stubs. They are not wired into the real order/payment flow. Those gaps are listed under **Partially implemented** and **Not yet implemented**.
+This file is based on the source code, not just the docs. The first analysis (commit `1d93de5`) found 16 features that were stubbed or not wired into the real order and payment flow. All 16 have since been finished on this branch. Section 2 lists what was done for each, and which settings switch on the external providers.
 
 **Stack:** Spring Boot + PostgreSQL/Flyway + Redis (`backend/`) · Next.js staff console (`web/`) · Expo/React Native customer app (`mobile/`) · Docker Compose with Prometheus, Grafana and Zipkin (`docker/`).
 
@@ -109,28 +109,28 @@ Legend: ✅ Implemented & wired end-to-end · 🟡 Partial / stubbed / not integ
 
 ---
 
-## 2. Partially Implemented 🟡
+## 2. Previously Partial, Now Completed ✅
 
-| Feature | Current state | What's missing |
-|---|---|---|
-| **Paystack integration** | `PaymentConfig` always registers `StubPaystackClient` | A real HTTP Paystack client chosen by profile or config, plus sandbox and live keys |
-| **WhatsApp notifications** | `WhatsAppGateway` bean only **logs** the message | A real provider (WhatsApp Cloud API, Twilio, etc.), templates, and retry/queueing |
-| **Financial actions: refund / void / discount** | `/financial/{action}` only **checks the override token** and returns `OK`. `/financial-controls/*` refund/void/discount run on objects built from the request, not on real payments or orders | Apply them to real `PaymentEntity`/`OrderEntity` (change status, call the Paystack refund API, release the table, recalculate totals), and persist the result |
-| **Financial audit trail (Phase 9)** | Kept in an **in-memory list**, so it is lost on restart | Write to `audit_logs` through `AuditService`, using the `PAYMENT_REFUNDED`, `ORDER_VOIDED` and `DISCOUNT_APPLIED` actions |
-| **Daily reconciliation & sign-off** | Summaries are built from entries sent by the client and kept in a `ConcurrentHashMap` | Compute totals from the payments and shifts tables, and store sign-offs in a new table |
-| **Promo codes at checkout** | Mobile sends `promoCode` in the order payload, but `OrderCreateRequest` has **no promo field**, so the discount is never applied | Add the promo to the order DTO and entity, apply the discount to the order total, increment usage, and support promos on POS |
-| **Loyalty accrual / redemption** | Endpoints exist but nothing calls them automatically | Accrue points when a payment succeeds, allow redemption at checkout, and add earn/burn rules configuration |
-| **Buy-X-Get-Y offers** | Pure calculation service (`/promotions/offers/free-items`) | Persisted offer definitions, admin UI, and automatic application to orders |
-| **QR mobile sessions (Phase 8)** | `MobileSessionService` uses an in-memory `HashMap` | Persist the sessions, or merge them with the table session logic that already works |
-| **Table QR PDF export** | Generates a payload for the PDF | Check that it produces a real printable PDF and that the web QR page uses it |
-| **Customer OTP registration** | Mobile `verifyOtp` compares against a local expected code, and the backend has **no OTP endpoints** | An SMS provider (e.g. Hubtel, Arkesel, Twilio), OTP issue and verify endpoints, and expiry and rate limiting |
-| **Mobile real-time updates** | Order, table and group screens poll every 15 s | STOMP or SSE subscriptions (the SSE fallback is described in `WEBSOCKET_EVENTS.md`) |
-| **Delivery orders** | Delivery type, address and sub-statuses exist | Rider assignment, rider app or view, delivery fee, zones, and live location |
-| **Load testing** | `LoadTestService` calls mocked methods | Real load tests (k6, Gatling or JMeter) against a running stack |
-| **Accessibility (web)** | Tokens and focus styles exist | The `REDESIGN_ROADMAP.md` accessibility checklist is not ticked: aria-live on KDS, focus traps, `aria-describedby` |
-| **Token migration** | Done on most pages | `error.tsx` and `global-error.tsx` still use hard-coded hex colors |
+External providers (Paystack, WhatsApp, SMS) ship with stub/log defaults. They only send real charges or messages once their environment variables are set (see `documentation/DEPLOYMENT_READINESS.md`). The live HTTP calls were tested against mocked servers, not against the real provider APIs.
 
----
+| Feature | Now |
+|---|---|
+| **Paystack integration** | `HttpPaystackClient` (transaction initialize, verify, refund) runs when `PAYSTACK_MODE=live`; startup fails if live mode has no `sk_` key |
+| **WhatsApp notifications** | WhatsApp Cloud API gateway (text or approved template), delivered off the request thread; `WHATSAPP_PROVIDER=meta` |
+| **Refund / void / discount** | `/financial/*` changes real orders and payments: manual discount recalculates the total; void cancels unpaid orders, voids open payments and releases the table, promo use and points; refund goes through the provider (full or partial) and is recorded in `payment_refunds` |
+| **Financial audit trail** | Written to `audit_logs`, queryable at `/financial/audit` |
+| **Daily reconciliation & sign-off** | Computed from payments, refunds, voids, discounts and closed shifts; sign-off with cash variance persisted in `reconciliation_signoffs` |
+| **Promo codes at checkout** | Applied at order creation (POS, mobile, QR, group) with atomic usage limits; released when an unpaid order is cancelled |
+| **Loyalty accrual / redemption** | Points awarded automatically when an order is fully paid, redeemable at checkout (capped), clawed back on refunds; rules are configurable |
+| **Buy-X-Get-Y offers** | `menu_offers` table, admin page (`/offers`), applied automatically to orders |
+| **QR mobile sessions** | Persisted in `table_mobile_sessions`, linked from the web scan page and the mobile app, closed automatically when the table is released; staff see guest phones on the tables page |
+| **Table QR PDF export** | Real A6 PDF card with the scan QR (`/qr/tables/{n}/pdf`), downloadable from the web QR page |
+| **Customer OTP registration** | `/auth/otp/request`, `/auth/otp/verify`, `/auth/otp/login` with hashed codes, expiry, cooldown and lockout; Hubtel/Arkesel SMS; registration requires a verified phone by default |
+| **Mobile real-time updates** | Shared STOMP client; order, table and group screens update live, with polling as a fallback |
+| **Delivery orders** | Zones with fees, minimum order and ETA; `RIDER` role; dispatch board; rider page with live location; customer tracking with map link |
+| **Load testing** | k6 scenarios in `loadtest/` (checkout, browse, realtime) replace the mocked endpoint |
+| **Accessibility (web)** | Roadmap checklist complete: focus return, error linkage, nav labels, live regions |
+| **Token migration** | Error pages use design tokens; no hard-coded hex colours remain |
 
 ## 3. Not Yet Implemented ❌
 
@@ -138,7 +138,7 @@ Legend: ✅ Implemented & wired end-to-end · 🟡 Partial / stubbed / not integ
 - **Split payments** for group orders: separate MoMo payments per participant and tracking who has paid. This is listed in the user stories, but there is no backend or schema support
 - **Inventory / stock management**: ingredients, stock levels, auto-86 when stock runs out, low-stock alerts
 - **Push notifications** for the mobile app (Expo push or FCM) for order status changes
-- **Delivery fee calculation / delivery zones / third-party delivery integration**
+- **Third-party delivery integration** (e.g. Bolt Food or Glovo); in-house delivery zones, fees and riders are done
 - **Tips / service charge and tax (VAT/NHIL/GETFund) configuration** on bills and receipts
 - **Printable / thermal receipts** (ESC/POS) and kitchen ticket printing
 - **Staff scheduling / timesheets** (beyond cash shifts)
@@ -156,21 +156,21 @@ Legend: ✅ Implemented & wired end-to-end · 🟡 Partial / stubbed / not integ
 - **Lock down `/actuator/prometheus`** and admin tools (pgAdmin, Grafana) in compose
 - **Prometheus alert rules**, Grafana dashboards and runbooks
 - **Distributed rate limiting**: `RateLimitFilter` keeps its counts in memory, so they are not shared across instances
+- **Live provider verification**: run Paystack, WhatsApp and SMS against their sandbox accounts before going live
 - **Mobile app build/release**: EAS config, app icons and splash screens, store builds
 - **End-to-end tests** (Playwright for web, Detox or Maestro for mobile)
 
 ### Technical debt
-- ~~Rename the `phase8`/`phase9`/`phase10` packages and endpoints to domain names~~ ✅ Done: `/promotions`, `/loyalty`, `/qr`, `/notifications/whatsapp`, `/financial-controls`, `/analytics`, `/load-tests`, `/security`
-- Merge the two financial-control paths (`/financial/*` and `/financial-controls/*`) into one real implementation
+- ~~Rename the `phase8`/`phase9`/`phase10` packages and endpoints to domain names~~ ✅ Done: `/promotions`, `/loyalty`, `/qr`, `/notifications/whatsapp`, `/financial`, `/analytics`, `/security`
+- ~~Merge the two financial-control paths into one real implementation~~ ✅ Done: `/financial/*`
 - Have the default backend tests run against PostgreSQL (Testcontainers) instead of H2 `create-drop`
 
 ---
 
 ## 4. Suggested Priority
 
-1. **Make money flows real**: real Paystack client, real refund/void/discount on stored entities, and a persisted audit trail and reconciliation
-2. **Wire promos and loyalty into orders and payments** (the mobile app already sends `promoCode`)
-3. **OTP auth plus SMS provider**, and a **real WhatsApp gateway**
-4. **Split payments for group orders**
-5. **Production hardening and CI/CD**
-6. Mobile real-time updates and push notifications, then delivery and inventory
+1. **Verify the providers in sandbox**: Paystack test keys, a WhatsApp Cloud API test number, and a Hubtel or Arkesel sender ID
+2. **Split payments for group orders**
+3. **Production hardening and CI/CD**: secrets, TLS, lock down admin tools, a pipeline running backend, web and mobile tests plus the Postgres Flyway check
+4. **Push notifications** for the mobile app
+5. **Tax / service charge, receipt printing, inventory**

@@ -18,8 +18,17 @@
 
 ## 1. Authentication
 
+### POST `/auth/otp/request`
+`{phone, purpose: REGISTER|LOGIN}`. Sends a 6-digit SMS code (expires in 5 minutes, 60 s resend cooldown, 5 per hour). LOGIN requests never reveal whether the phone is registered.
+
+### POST `/auth/otp/verify`
+`{phone, code}` for a REGISTER code. Returns `{phone, verificationToken, expiresIn}`; 5 wrong attempts lock the code.
+
+### POST `/auth/otp/login`
+`{phone, code}` for a LOGIN code. Passwordless customer sign-in returning the same payload as `/auth/login`.
+
 ### POST `/auth/register`
-Register a customer account.
+Register a customer account. Requires `verificationToken` from `/auth/otp/verify` unless `OTP_REQUIRED_FOR_REGISTRATION=false`.
 
 ### POST `/auth/login`
 Returns access token, refresh token, expiry, and user payload.
@@ -215,13 +224,15 @@ Receipt by payment ID.
 ### GET `/payments/orders/{orderId}/receipt`
 Receipt by order ID.
 
-## 9. Promotions, Loyalty, QR Sessions & WhatsApp
+## 9. Promotions, Offers, Loyalty, QR Sessions & WhatsApp
+
+Discounts are applied automatically when an order is created (`POST /orders`): active Buy-X-Get-Y offers first, then `promoCode` (on the post-offer amount), then `loyaltyPointsToRedeem` (signed-in customers, capped at `LOYALTY_MAX_REDEEM_PERCENT` of the payable amount). Order responses include `promoCode`, `promoDiscount`, `offerDiscount`, `loyaltyPointsRedeemed`, `loyaltyDiscount`, `manualDiscount`, `deliveryFee` and `discountTotal`. Cancelling or voiding an unpaid order releases the promo use and returns the points.
 
 ### GET `/promotions/codes/validate/{code}?subtotal=50.00`
-Validate a persisted promo code for the given subtotal.
+Validate a persisted promo code for the given subtotal (preview only; does not consume a use).
 
 ### POST `/promotions/apply`
-Low-level promo runtime endpoint using an explicit promo payload.
+Low-level promo calculation using an explicit promo payload.
 
 ### GET `/promotions/codes`
 ### POST `/promotions/codes`
@@ -229,76 +240,115 @@ Low-level promo runtime endpoint using an explicit promo payload.
 ### PATCH `/promotions/codes/{id}/status`
 Promo code management (admin/manager).
 
+### GET `/promotions/offers`
+### POST `/promotions/offers`
+### PUT `/promotions/offers/{id}`
+### PATCH `/promotions/offers/{id}/status`
+### DELETE `/promotions/offers/{id}`
+Buy-X-Get-Y offer management: `{name, menuItemId, buyQuantity, freeQuantity, startsAt?, endsAt?, active?}`. Running offers apply automatically: buy 2 get 1 makes every third unit of the item free.
+
 ### POST `/promotions/offers/free-items`
-Buy-X-get-Y runtime helper.
+Calculation helper for free items earned.
 
 ### POST `/loyalty/accrue`
-Staff accrual endpoint.
+Manual staff accrual. Points are also awarded automatically once a customer's order is fully paid (`LOYALTY_POINTS_PER_CEDI`), and clawed back proportionally on refunds.
 
 ### POST `/loyalty/redeem`
-Loyalty redemption endpoint.
+Stand-alone redemption endpoint.
 
 ### GET `/loyalty/{customerId}/balance`
-Loyalty balance lookup.
-
 ### GET `/loyalty/{customerId}/history`
-Loyalty history lookup.
+Balance and transaction history (`EARN`, `REDEEM`, `ADJUST`).
 
-### POST `/qr/sessions/link`
-Link mobile QR session.
+### POST `/qr/sessions/link` (public)
+`{tableToken | tableNumber, sessionId}`. Called by the web scan page and the mobile app when a guest scans a table QR. Sessions are persisted and close automatically when the table is settled, closed or reversed.
+
+### GET `/qr/sessions/active`
+Open guest sessions per table (staff).
 
 ### GET `/qr/sessions/{tableNumber}/active`
-Check active QR session.
-
 ### DELETE `/qr/sessions/{tableNumber}`
-Close QR session.
+Inspect or close a table's guest sessions (staff).
 
 ### GET `/qr/tables/{tableNumber}/pdf`
-Export QR PDF payload.
+Printable A6 table card (`application/pdf`) containing the QR code for `{PUBLIC_WEB_URL}/scan/{qrToken}`.
 
 ### POST `/notifications/whatsapp/order-confirmation`
 ### POST `/notifications/whatsapp/receipt`
 ### POST `/notifications/whatsapp/status`
-WhatsApp runtime endpoints.
+Send WhatsApp messages via the configured provider (`WHATSAPP_PROVIDER=meta` for the WhatsApp Cloud API).
 
 ## 10. Financial Controls
 
-### POST `/financial-controls/discount/apply`
-### POST `/financial-controls/refund/apply`
-### POST `/financial-controls/void/apply`
-Financial control endpoints.
+All actions need a manager override token (`POST /auth/pin/verify`) for the matching action type. Token errors return 401/403 before the request body is checked. Every action is written to `audit_logs`.
 
-### POST `/financial-controls/reconciliation/summarize`
-### POST `/financial-controls/reconciliation/{businessDate}/sign-off`
-Reconciliation endpoints.
+### POST `/financial/discount`
+`{overrideToken, orderId, mode: FLAT|PERCENTAGE, value, reason?}`. Sets the order's manual discount and recalculates the total. Rejected (409) once the order has a payment in progress or completed.
 
-### GET `/financial-controls/audit`
-Financial-controls audit review endpoint.
+### POST `/financial/void`
+`{overrideToken, orderId, reason?}`. Cancels an unpaid order, voids open payments, releases the table, promo use and loyalty points. Paid orders must be refunded instead (409); completed orders return 400.
 
-## 11. Analytics, Load Tests & Security Guards
+### POST `/financial/refund`
+`{overrideToken, paymentId, amount?, reason?}`. Full (default) or partial refund through the payment provider; tracked in `payment_refunds`. The payment becomes `REFUNDED` once nothing is refundable.
+
+### GET `/financial/reconciliation/{businessDate}?branchId=`
+Day report computed from the ledger: gross sales, refunds, voids, discounts, net sales, expected cash, totals by payment method, closed-shift cash and sign-off.
+
+### POST `/financial/reconciliation/{businessDate}/sign-off`
+`{overrideToken, branchId?, countedCash?, notes?}`. Persists the sign-off with cash variance; one per date and branch (409 on repeat).
+
+### GET `/financial/reconciliation/sign-offs?from=&to=`
+### GET `/financial/audit?action=&from=&to=`
+Sign-off history and the financial audit trail (admin/manager).
+
+## 11. Analytics & Security Guards
 
 ### POST `/analytics/summary`
-Synthetic analytics summary endpoint.
+Analytics summary for supplied records.
 
 ### GET `/analytics/revenue`
-Revenue points by period.
-
 ### GET `/analytics/top-items`
-Top-selling items.
-
 ### GET `/analytics/peak-hours`
-Peak-hour report.
-
 ### GET `/analytics/average-order-value`
-Average order value report.
-
-### POST `/load-tests/run`
-Synthetic load report.
+### GET `/analytics/overview`
+Reports computed from orders and payments.
 
 ### POST `/security/sanitize-search`
 ### POST `/security/escape-notes`
 ### GET `/security/order-access/{ownerId}`
-Security/runtime guard endpoints.
+Security guard helpers.
+
+Load testing is done with k6 against a running stack. See `loadtest/README.md`.
+
+## 11a. Delivery
+
+### GET `/delivery/zones` (public)
+Active delivery zones with `fee`, `minOrderAmount` and `estimatedMinutes`. When zones exist, `POST /orders` with `type: DELIVERY` requires `deliveryZoneId`; the zone fee is added to the total.
+
+### GET `/delivery/zones/all`
+### POST `/delivery/zones`
+### PUT `/delivery/zones/{id}`
+### PATCH `/delivery/zones/{id}/status`
+Zone management (admin/manager).
+
+### GET `/delivery/riders`
+Active users with the `RIDER` role and their open delivery counts.
+
+### POST `/delivery/orders/{orderId}/assign`
+`{riderId}`: assign or reassign a rider before the order leaves the kitchen.
+
+### GET `/delivery/rider/orders`
+The signed-in rider's open deliveries.
+
+### POST `/delivery/orders/{orderId}/pickup`
+### POST `/delivery/orders/{orderId}/delivered`
+Rider workflow: `READY` → `OUT_FOR_DELIVERY` → `DELIVERED`. The customer is notified on WhatsApp.
+
+### POST `/delivery/orders/{orderId}/location`
+`{latitude, longitude}` from the assigned rider; broadcast on `/topic/orders.{orderId}.delivery`.
+
+### GET `/delivery/orders/{orderId}/tracking`
+Rider, ETA and last location for the ordering customer, staff or the assigned rider.
 
 ## 12. Audit
 

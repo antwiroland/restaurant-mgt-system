@@ -303,8 +303,8 @@
 ### Deliverables produced
 - Runtime API controllers/services added for previously isolated phase modules:
   - Phase 8 endpoints under `/promotions/**`, `/loyalty/**`, `/qr/**`, `/notifications/whatsapp/**` (originally `/phase8/**`)
-  - Phase 9 endpoints under `/financial-controls/**` (originally `/phase9/**`)
-  - Phase 10 endpoints under `/analytics/**`, `/load-tests/**`, `/security/**` (originally `/phase10/**`)
+  - Phase 9 financial controls merged into `/financial/**` (originally `/phase9/**`)
+  - Phase 10 endpoints under `/analytics/**`, `/security/**`; load testing moved to k6 in `loadtest/` (originally `/phase10/**`)
 - Security hardening updates:
   - login brute-force rate limiting (`429` after repeated failed logins)
   - secure random generation for pickup/session codes
