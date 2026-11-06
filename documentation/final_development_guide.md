@@ -92,9 +92,13 @@
 
 ## Code Footprint
 - Backend core modules: `backend/src/main/java/com/restaurantmanager/core/**`
-- Phase 8 modules: `backend/src/main/java/com/restaurantmanager/core/phase8/**`
-- Phase 9 modules: `backend/src/main/java/com/restaurantmanager/core/phase9/**`
-- Phase 10 modules: `backend/src/main/java/com/restaurantmanager/core/phase10/**`
+- Promotions & offers: `backend/src/main/java/com/restaurantmanager/core/promotion/**`
+- Loyalty: `backend/src/main/java/com/restaurantmanager/core/loyalty/**`
+- Table QR sessions: `backend/src/main/java/com/restaurantmanager/core/table/qr/**`
+- WhatsApp notifications: `backend/src/main/java/com/restaurantmanager/core/notification/whatsapp/**`
+- Financial controls: `backend/src/main/java/com/restaurantmanager/core/financial/controls/**`
+- Analytics: `backend/src/main/java/com/restaurantmanager/core/analytics/**`
+- Load tests: `backend/src/main/java/com/restaurantmanager/core/loadtest/**`
 - Backend tests: `backend/src/test/java/com/restaurantmanager/core/**`
 - Staff app tests: `web/src/features/phase6.test.tsx`
 - Mobile app tests: `mobile/src/features/phase7.test.ts`

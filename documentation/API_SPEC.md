@@ -215,83 +215,89 @@ Receipt by payment ID.
 ### GET `/payments/orders/{orderId}/receipt`
 Receipt by order ID.
 
-## 9. Phase 8 Runtime
+## 9. Promotions, Loyalty, QR Sessions & WhatsApp
 
-### GET `/phase8/promo-codes/validate/{code}?subtotal=50.00`
+### GET `/promotions/codes/validate/{code}?subtotal=50.00`
 Validate a persisted promo code for the given subtotal.
 
-### POST `/phase8/promo/apply`
+### POST `/promotions/apply`
 Low-level promo runtime endpoint using an explicit promo payload.
 
-### POST `/phase8/offer/free-items`
+### GET `/promotions/codes`
+### POST `/promotions/codes`
+### PUT `/promotions/codes/{id}`
+### PATCH `/promotions/codes/{id}/status`
+Promo code management (admin/manager).
+
+### POST `/promotions/offers/free-items`
 Buy-X-get-Y runtime helper.
 
-### POST `/phase8/loyalty/accrue`
+### POST `/loyalty/accrue`
 Staff accrual endpoint.
 
-### POST `/phase8/loyalty/redeem`
+### POST `/loyalty/redeem`
 Loyalty redemption endpoint.
 
-### GET `/phase8/loyalty/{customerId}/balance`
+### GET `/loyalty/{customerId}/balance`
 Loyalty balance lookup.
 
-### GET `/phase8/loyalty/{customerId}/history`
+### GET `/loyalty/{customerId}/history`
 Loyalty history lookup.
 
-### POST `/phase8/qr/sessions/link`
+### POST `/qr/sessions/link`
 Link mobile QR session.
 
-### GET `/phase8/qr/sessions/{tableNumber}/active`
+### GET `/qr/sessions/{tableNumber}/active`
 Check active QR session.
 
-### DELETE `/phase8/qr/sessions/{tableNumber}`
+### DELETE `/qr/sessions/{tableNumber}`
 Close QR session.
 
-### GET `/phase8/qr/tables/{tableNumber}/pdf`
+### GET `/qr/tables/{tableNumber}/pdf`
 Export QR PDF payload.
 
-### POST `/phase8/whatsapp/order-confirmation`
-### POST `/phase8/whatsapp/receipt`
-### POST `/phase8/whatsapp/status`
+### POST `/notifications/whatsapp/order-confirmation`
+### POST `/notifications/whatsapp/receipt`
+### POST `/notifications/whatsapp/status`
 WhatsApp runtime endpoints.
 
-## 10. Phase 9 Runtime
+## 10. Financial Controls
 
-### POST `/phase9/discount/apply`
-### POST `/phase9/refund/apply`
-### POST `/phase9/void/apply`
+### POST `/financial-controls/discount/apply`
+### POST `/financial-controls/refund/apply`
+### POST `/financial-controls/void/apply`
 Financial control endpoints.
 
-### POST `/phase9/reconciliation/summarize`
-### POST `/phase9/reconciliation/{businessDate}/sign-off`
+### POST `/financial-controls/reconciliation/summarize`
+### POST `/financial-controls/reconciliation/{businessDate}/sign-off`
 Reconciliation endpoints.
 
-### GET `/phase9/audit`
-Phase 9 audit review endpoint.
+### GET `/financial-controls/audit`
+Financial-controls audit review endpoint.
 
-## 11. Phase 10 Runtime
+## 11. Analytics, Load Tests & Security Guards
 
-### POST `/phase10/analytics/summary`
+### POST `/analytics/summary`
 Synthetic analytics summary endpoint.
 
-### GET `/phase10/analytics/revenue`
+### GET `/analytics/revenue`
 Revenue points by period.
 
-### GET `/phase10/analytics/top-items`
+### GET `/analytics/top-items`
 Top-selling items.
 
-### GET `/phase10/analytics/peak-hours`
+### GET `/analytics/peak-hours`
 Peak-hour report.
 
-### GET `/phase10/analytics/average-order-value`
+### GET `/analytics/average-order-value`
 Average order value report.
 
-### POST `/phase10/load/run`
+### POST `/load-tests/run`
 Synthetic load report.
 
-### POST `/phase10/security/sanitize-search`
-### POST `/phase10/security/escape-notes`
-### GET `/phase10/security/order-access/{ownerId}`
+### POST `/security/sanitize-search`
+### POST `/security/escape-notes`
+### GET `/security/order-access/{ownerId}`
 Security/runtime guard endpoints.
 
 ## 12. Audit

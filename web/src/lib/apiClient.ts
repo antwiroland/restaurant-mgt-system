@@ -774,14 +774,14 @@ export async function deleteMenuModifierOption(
 }
 
 export async function getPromoCodes(session: StaffSession): Promise<PromoCodeRecord[]> {
-  return apiRequest<PromoCodeRecord[]>("/phase8/promo-codes", { token: session.accessToken });
+  return apiRequest<PromoCodeRecord[]>("/promotions/codes", { token: session.accessToken });
 }
 
 export async function createPromoCode(
   session: StaffSession,
   payload: PromoCodeUpsertRequest,
 ): Promise<PromoCodeRecord> {
-  return apiRequest<PromoCodeRecord>("/phase8/promo-codes", {
+  return apiRequest<PromoCodeRecord>("/promotions/codes", {
     method: "POST",
     token: session.accessToken,
     body: payload,
@@ -793,7 +793,7 @@ export async function updatePromoCode(
   id: string,
   payload: PromoCodeUpsertRequest,
 ): Promise<PromoCodeRecord> {
-  return apiRequest<PromoCodeRecord>(`/phase8/promo-codes/${id}`, {
+  return apiRequest<PromoCodeRecord>(`/promotions/codes/${id}`, {
     method: "PUT",
     token: session.accessToken,
     body: payload,
@@ -805,7 +805,7 @@ export async function updatePromoCodeStatus(
   id: string,
   active: boolean,
 ): Promise<PromoCodeRecord> {
-  return apiRequest<PromoCodeRecord>(`/phase8/promo-codes/${id}/status`, {
+  return apiRequest<PromoCodeRecord>(`/promotions/codes/${id}/status`, {
     method: "PATCH",
     token: session.accessToken,
     body: { active },
@@ -1170,7 +1170,7 @@ export async function getAnalyticsRevenue(
   if (params?.branchId) query.set("branchId", params.branchId);
   if (params?.period) query.set("period", params.period);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<AnalyticsRevenueRecord>(`/phase10/analytics/revenue${suffix}`, { token: session.accessToken });
+  return apiRequest<AnalyticsRevenueRecord>(`/analytics/revenue${suffix}`, { token: session.accessToken });
 }
 
 export async function getAnalyticsTopItems(
@@ -1183,7 +1183,7 @@ export async function getAnalyticsTopItems(
   if (params?.branchId) query.set("branchId", params.branchId);
   if (params?.limit) query.set("limit", String(params.limit));
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<AnalyticsTopItemRecord[]>(`/phase10/analytics/top-items${suffix}`, { token: session.accessToken });
+  return apiRequest<AnalyticsTopItemRecord[]>(`/analytics/top-items${suffix}`, { token: session.accessToken });
 }
 
 export async function getAnalyticsPeakHours(
@@ -1195,7 +1195,7 @@ export async function getAnalyticsPeakHours(
   if (params?.to) query.set("to", params.to);
   if (params?.branchId) query.set("branchId", params.branchId);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<AnalyticsPeakHourRecord[]>(`/phase10/analytics/peak-hours${suffix}`, { token: session.accessToken });
+  return apiRequest<AnalyticsPeakHourRecord[]>(`/analytics/peak-hours${suffix}`, { token: session.accessToken });
 }
 
 export async function getAnalyticsAverageOrderValue(
@@ -1207,7 +1207,7 @@ export async function getAnalyticsAverageOrderValue(
   if (params?.to) query.set("to", params.to);
   if (params?.branchId) query.set("branchId", params.branchId);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<AnalyticsAverageOrderValueRecord>(`/phase10/analytics/average-order-value${suffix}`, { token: session.accessToken });
+  return apiRequest<AnalyticsAverageOrderValueRecord>(`/analytics/average-order-value${suffix}`, { token: session.accessToken });
 }
 
 export async function getAnalyticsOverview(
@@ -1220,5 +1220,5 @@ export async function getAnalyticsOverview(
   if (params?.branchId) query.set("branchId", params.branchId);
   if (params?.period) query.set("period", params.period);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<AnalyticsOverviewRecord>(`/phase10/analytics/overview${suffix}`, { token: session.accessToken });
+  return apiRequest<AnalyticsOverviewRecord>(`/analytics/overview${suffix}`, { token: session.accessToken });
 }

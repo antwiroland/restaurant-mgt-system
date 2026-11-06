@@ -36,7 +36,7 @@ import com.restaurantmanager.core.order.dto.PublicTableOrderCreateRequest;
 import com.restaurantmanager.core.order.dto.TableBillResponse;
 import com.restaurantmanager.core.payment.PaymentRepository;
 import com.restaurantmanager.core.payment.PaymentStatus;
-import com.restaurantmanager.core.phase8.whatsapp.WhatsAppService;
+import com.restaurantmanager.core.notification.whatsapp.WhatsAppService;
 import com.restaurantmanager.core.security.JwtService;
 import com.restaurantmanager.core.security.UserPrincipal;
 import com.restaurantmanager.core.table.RestaurantTableEntity;

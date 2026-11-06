@@ -1,7 +1,7 @@
 package com.restaurantmanager.core.config;
 
-import com.restaurantmanager.core.phase8.whatsapp.WhatsAppGateway;
-import com.restaurantmanager.core.phase8.whatsapp.WhatsAppService;
+import com.restaurantmanager.core.notification.whatsapp.WhatsAppGateway;
+import com.restaurantmanager.core.notification.whatsapp.WhatsAppService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;

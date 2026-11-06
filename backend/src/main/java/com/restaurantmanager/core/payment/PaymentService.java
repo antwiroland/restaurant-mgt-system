@@ -14,7 +14,7 @@ import com.restaurantmanager.core.payment.dto.PaymentInitiateResponse;
 import com.restaurantmanager.core.payment.dto.PaymentResponse;
 import com.restaurantmanager.core.payment.dto.PaymentRetryRequest;
 import com.restaurantmanager.core.payment.dto.ReceiptResponse;
-import com.restaurantmanager.core.phase8.whatsapp.WhatsAppService;
+import com.restaurantmanager.core.notification.whatsapp.WhatsAppService;
 import com.restaurantmanager.core.security.UserPrincipal;
 import com.restaurantmanager.core.config.CacheConfig;
 import com.restaurantmanager.core.table.RestaurantTableEntity;

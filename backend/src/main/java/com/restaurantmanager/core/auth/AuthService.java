@@ -4,7 +4,7 @@ import com.restaurantmanager.core.audit.AuditService;
 import com.restaurantmanager.core.auth.dto.*;
 import com.restaurantmanager.core.common.*;
 import com.restaurantmanager.core.config.SecurityProps;
-import com.restaurantmanager.core.phase10.security.SecurityGuardService;
+import com.restaurantmanager.core.security.SecurityGuardService;
 import com.restaurantmanager.core.security.JwtService;
 import com.restaurantmanager.core.security.UserPrincipal;
 import com.restaurantmanager.core.user.UserEntity;
