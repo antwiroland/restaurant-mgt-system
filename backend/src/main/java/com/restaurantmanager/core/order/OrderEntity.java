@@ -133,6 +133,21 @@ public class OrderEntity {
     @Column(name = "rider_location_at")
     private Instant riderLocationAt;
 
+    @Column(name = "service_charge", nullable = false, precision = 12, scale = 2)
+    private BigDecimal serviceCharge = BigDecimal.ZERO;
+
+    @Column(name = "tax_total", nullable = false, precision = 12, scale = 2)
+    private BigDecimal taxTotal = BigDecimal.ZERO;
+
+    @Column(name = "tax_inclusive", nullable = false)
+    private boolean taxInclusive;
+
+    @Column(name = "tip_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal tipAmount = BigDecimal.ZERO;
+
+    @Column(name = "stock_deducted", nullable = false)
+    private boolean stockDeducted;
+
     @PrePersist
     public void prePersist() {
         Instant now = Instant.now();
@@ -382,11 +397,24 @@ public class OrderEntity {
         return promoDiscount.add(offerDiscount).add(loyaltyDiscount).add(manualDiscount);
     }
 
-    /** total = subtotal + deliveryFee - all discounts, never below zero. */
-    public void recalculateTotal() {
+    /** Item subtotal after discounts, never below zero. */
+    public BigDecimal discountedSubtotal() {
         BigDecimal base = subtotal == null ? BigDecimal.ZERO : subtotal;
-        BigDecimal computed = base.add(deliveryFee).subtract(totalDiscount());
-        total = (computed.signum() < 0 ? BigDecimal.ZERO : computed).setScale(2, java.math.RoundingMode.HALF_UP);
+        BigDecimal net = base.subtract(totalDiscount());
+        return net.signum() < 0 ? BigDecimal.ZERO : net;
+    }
+
+    /**
+     * total = discounted subtotal + service charge + delivery fee + taxes (unless prices include tax) + tip.
+     * Service charge and taxes are computed by BillingService; this only sums the components.
+     */
+    public void recalculateTotal() {
+        BigDecimal computed = discountedSubtotal()
+                .add(serviceCharge)
+                .add(deliveryFee)
+                .add(taxInclusive ? BigDecimal.ZERO : taxTotal)
+                .add(tipAmount);
+        total = computed.setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     public UUID getDeliveryZoneId() {
@@ -443,5 +471,45 @@ public class OrderEntity {
 
     public void setRiderLocationAt(Instant riderLocationAt) {
         this.riderLocationAt = riderLocationAt;
+    }
+
+    public BigDecimal getServiceCharge() {
+        return serviceCharge;
+    }
+
+    public void setServiceCharge(BigDecimal serviceCharge) {
+        this.serviceCharge = serviceCharge;
+    }
+
+    public BigDecimal getTaxTotal() {
+        return taxTotal;
+    }
+
+    public void setTaxTotal(BigDecimal taxTotal) {
+        this.taxTotal = taxTotal;
+    }
+
+    public boolean isTaxInclusive() {
+        return taxInclusive;
+    }
+
+    public void setTaxInclusive(boolean taxInclusive) {
+        this.taxInclusive = taxInclusive;
+    }
+
+    public BigDecimal getTipAmount() {
+        return tipAmount;
+    }
+
+    public void setTipAmount(BigDecimal tipAmount) {
+        this.tipAmount = tipAmount;
+    }
+
+    public boolean isStockDeducted() {
+        return stockDeducted;
+    }
+
+    public void setStockDeducted(boolean stockDeducted) {
+        this.stockDeducted = stockDeducted;
     }
 }

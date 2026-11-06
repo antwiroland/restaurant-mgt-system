@@ -91,6 +91,7 @@ public class OrderService {
     private final OrderPricingService pricingService;
     private final TableSessionService tableSessionService;
     private final DeliveryService deliveryService;
+    private final com.restaurantmanager.core.inventory.InventoryService inventoryService;
 
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
@@ -109,7 +110,8 @@ public class OrderService {
                         WhatsAppService whatsAppService,
                         OrderPricingService pricingService,
                         TableSessionService tableSessionService,
-                        DeliveryService deliveryService) {
+                        DeliveryService deliveryService,
+                        com.restaurantmanager.core.inventory.InventoryService inventoryService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderItemModifierRepository = orderItemModifierRepository;
@@ -128,6 +130,7 @@ public class OrderService {
         this.pricingService = pricingService;
         this.tableSessionService = tableSessionService;
         this.deliveryService = deliveryService;
+        this.inventoryService = inventoryService;
     }
 
     @Transactional
@@ -215,11 +218,75 @@ public class OrderService {
         if (!hasSuccessfulPayment(order.getId())) {
             pricingService.releaseDiscounts(order);
         }
+        inventoryService.restoreForOrder(order, previous);
         OrderEntity saved = orderRepository.save(order);
         realtimePublisher.publishOrderStatusChanged(saved.getId(), previous, saved.getStatus(), tableToken(saved));
 
         boolean returnBody = previous != OrderStatus.PENDING;
         return new CancelResult(returnBody, toResponse(saved));
+    }
+
+    /** Adds or changes the tip before the order is paid. */
+    @Transactional
+    public OrderResponse updateTip(UUID id, java.math.BigDecimal amount, java.math.BigDecimal percent, UserPrincipal principal) {
+        OrderEntity order = orderRepository.findById(id)
+                .orElseThrow(() -> new ApiException(404, "Order not found"));
+        assertOrderAccess(order, principal);
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            throw new ApiException(409, "Order is cancelled");
+        }
+        boolean paymentStarted = !paymentRepository.findByOrderIdAndStatusIn(order.getId(),
+                List.of(PaymentStatus.INITIATED, PaymentStatus.PENDING, PaymentStatus.SUCCESS)).isEmpty();
+        if (paymentStarted) {
+            throw new ApiException(409, "Tip must be set before payment starts");
+        }
+        pricingService.setTip(order, amount, percent);
+        pricingService.reprice(order);
+        return toResponse(orderRepository.save(order));
+    }
+
+    /** Price estimate for a cart without creating an order or consuming promo uses / points. */
+    @Transactional(readOnly = true)
+    public OrderQuoteResponse quote(OrderCreateRequest request, UserPrincipal principal) {
+        OrderEntity draft = new OrderEntity();
+        draft.setType(request.type());
+        if (principal != null && principal.role() == Role.CUSTOMER) {
+            draft.setCustomerUserId(principal.userId());
+        }
+        BigDecimal subtotal = BigDecimal.ZERO;
+        List<OrderItemEntity> items = new ArrayList<>();
+        for (OrderCreateItemRequest itemRequest : request.items()) {
+            MenuItemEntity menuItem = menuItemRepository.findById(itemRequest.menuItemId())
+                    .orElseThrow(() -> new ApiException(404, "Menu item not found"));
+            BigDecimal delta = validateAndResolveModifiers(menuItem, itemRequest.modifierOptionIds()).stream()
+                    .map(MenuModifierOptionEntity::getPriceDelta)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            OrderItemEntity item = new OrderItemEntity();
+            item.setMenuItem(menuItem);
+            item.setPriceSnapshot(menuItem.getPrice().add(delta));
+            item.setQuantity(itemRequest.quantity());
+            items.add(item);
+            subtotal = subtotal.add(item.getPriceSnapshot().multiply(BigDecimal.valueOf(itemRequest.quantity())));
+        }
+        draft.setSubtotal(subtotal);
+        if (request.type() == OrderType.DELIVERY) {
+            deliveryService.applyZone(draft, request.deliveryZoneId());
+        }
+        if (request.tipAmount() != null && request.tipAmount().signum() > 0) {
+            pricingService.setTip(draft, request.tipAmount(), null);
+        }
+        var breakdown = pricingService.quote(draft, items, request.promoCode(), request.loyaltyPointsToRedeem());
+        return new OrderQuoteResponse(draft.getSubtotal(), draft.getOfferDiscount(), draft.getPromoCode(), draft.getPromoDiscount(),
+                draft.getLoyaltyPointsRedeemed(), draft.getLoyaltyDiscount(), draft.getDeliveryFee(), draft.getServiceCharge(),
+                draft.getTaxTotal(), draft.isTaxInclusive(), breakdown.taxLines(), draft.getTipAmount(), draft.totalDiscount(),
+                draft.getTotal());
+    }
+
+    public record OrderQuoteResponse(BigDecimal subtotal, BigDecimal offerDiscount, String promoCode, BigDecimal promoDiscount,
+                                     int loyaltyPointsRedeemed, BigDecimal loyaltyDiscount, BigDecimal deliveryFee,
+                                     BigDecimal serviceCharge, BigDecimal taxTotal, boolean taxInclusive,
+                                     List<com.restaurantmanager.core.billing.BillingService.TaxLine> taxLines,
+                                     BigDecimal tipAmount, BigDecimal discountTotal, BigDecimal total) {
     }
 
     @Transactional(readOnly = true)
@@ -265,6 +332,7 @@ public class OrderService {
             if (paidByOrderId.getOrDefault(order.getId(), BigDecimal.ZERO).signum() == 0) {
                 pricingService.releaseDiscounts(order);
             }
+            inventoryService.restoreForOrder(order, previous);
             OrderEntity savedOrder = orderRepository.save(order);
             realtimePublisher.publishOrderStatusChanged(savedOrder.getId(), previous, savedOrder.getStatus(), tableToken(savedOrder));
         }
@@ -566,12 +634,12 @@ public class OrderService {
             orderItemModifierRepository.saveAll(modifierRows);
         }
 
-        boolean hasDiscountRequest = (request.promoCode() != null && !request.promoCode().isBlank())
-                || (request.loyaltyPointsToRedeem() != null && request.loyaltyPointsToRedeem() > 0);
-        pricingService.applyDiscounts(saved, savedItems, request.promoCode(), request.loyaltyPointsToRedeem());
-        if (hasDiscountRequest || saved.getOfferDiscount().signum() > 0 || saved.getDeliveryFee().signum() > 0) {
-            saved = orderRepository.save(saved);
+        inventoryService.deductForOrder(saved, savedItems);
+        if (request.tipAmount() != null && request.tipAmount().signum() > 0) {
+            pricingService.setTip(saved, request.tipAmount(), null);
         }
+        pricingService.applyDiscounts(saved, savedItems, request.promoCode(), request.loyaltyPointsToRedeem());
+        saved = orderRepository.save(saved);
 
         realtimePublisher.publishOrderCreated(saved.getId(), saved.getType(), saved.getStatus(), saved.getTotal(), tableToken(saved));
         return toResponse(saved);
@@ -761,6 +829,7 @@ public class OrderService {
 
         List<UUID> orderIds = orders.stream().map(OrderEntity::getId).toList();
         List<OrderItemEntity> allItems = orderItemRepository.findByOrderIdIn(orderIds);
+        Map<UUID, List<com.restaurantmanager.core.billing.BillingService.TaxLine>> taxLinesByOrder = pricingService.taxLines(orderIds);
         Map<UUID, List<OrderItemEntity>> itemsByOrderId = new HashMap<>();
         for (OrderItemEntity item : allItems) {
             itemsByOrderId.computeIfAbsent(item.getOrder().getId(), ignored -> new ArrayList<>()).add(item);
@@ -825,7 +894,12 @@ public class OrderService {
                     order.totalDiscount(),
                     order.getVoidedAt(),
                     order.getDeliveryZoneId(),
-                    order.getRiderUserId()
+                    order.getRiderUserId(),
+                    order.getServiceCharge(),
+                    order.getTaxTotal(),
+                    order.isTaxInclusive(),
+                    order.getTipAmount(),
+                    taxLinesByOrder.getOrDefault(order.getId(), List.of())
             );
         }).toList();
     }
@@ -874,7 +948,8 @@ public class OrderService {
                 session.getSessionCode(),
                 session.getStatus(),
                 groupTotal,
-                participantResponses
+                participantResponses,
+                orderRepository.findFirstByGroupSession_IdOrderByCreatedAtDesc(session.getId()).map(OrderEntity::getId).orElse(null)
         );
     }
 

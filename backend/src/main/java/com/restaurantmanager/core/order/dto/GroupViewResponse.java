@@ -11,6 +11,7 @@ public record GroupViewResponse(
         String sessionCode,
         GroupSessionStatus status,
         BigDecimal groupTotal,
-        List<GroupParticipantCartResponse> participants
+        List<GroupParticipantCartResponse> participants,
+        UUID orderId
 ) {
 }

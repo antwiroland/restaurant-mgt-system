@@ -16,6 +16,20 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  servlet:
+    multipart:
+      max-file-size: ${MEDIA_MAX_FILE_SIZE:5MB}
+      max-request-size: ${MEDIA_MAX_FILE_SIZE:5MB}
+  mail:
+    # Set SPRING_MAIL_HOST (and EMAIL_PROVIDER=smtp) to enable SMTP; leaving the host unset keeps mail disabled.
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:true}
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS:true}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 10000
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -107,6 +121,23 @@ loyalty:
   points-per-cedi: ${LOYALTY_POINTS_PER_CEDI:1}
   point-value: ${LOYALTY_POINT_VALUE:0.01}
   max-redeem-percent: ${LOYALTY_MAX_REDEEM_PERCENT:50}
+
+media:
+  provider: ${MEDIA_PROVIDER:local}
+  local-dir: ${MEDIA_LOCAL_DIR:uploads}
+  local-public-base-url: ${MEDIA_PUBLIC_BASE_URL:}
+  cloudinary:
+    cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+    api-key: ${CLOUDINARY_API_KEY:}
+    api-secret: ${CLOUDINARY_API_SECRET:}
+    folder: ${CLOUDINARY_FOLDER:restaurant-menu}
+
+inventory:
+  block-when-insufficient: ${INVENTORY_BLOCK_WHEN_INSUFFICIENT:true}
+
+email:
+  provider: ${EMAIL_PROVIDER:log}
+  from: ${EMAIL_FROM:no-reply@restaurant.local}
 
 notifications:
   default-country-code: ${NOTIFICATIONS_DEFAULT_COUNTRY_CODE:233}

@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -54,6 +55,28 @@ public class OrderController {
                                      @AuthenticationPrincipal UserPrincipal principal) {
         return orderService.createOrder(request, principal);
     }
+
+    @PostMapping("/quote")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','CUSTOMER')")
+    public OrderService.OrderQuoteResponse quote(@Valid @RequestBody OrderCreateRequest request,
+                                                 @AuthenticationPrincipal UserPrincipal principal) {
+        return orderService.quote(request, principal);
+    }
+
+    /** Public cart estimate (guests ordering from the web or a table QR). */
+    @PostMapping("/public/quote")
+    public OrderService.OrderQuoteResponse publicQuote(@Valid @RequestBody OrderCreateRequest request) {
+        return orderService.quote(request, null);
+    }
+
+    @PutMapping("/{id}/tip")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','CUSTOMER')")
+    public OrderResponse updateTip(@PathVariable UUID id, @RequestBody TipRequest request,
+                                   @AuthenticationPrincipal UserPrincipal principal) {
+        return orderService.updateTip(id, request.amount(), request.percent(), principal);
+    }
+
+    public record TipRequest(java.math.BigDecimal amount, java.math.BigDecimal percent) {}
 
     @GetMapping("/public/status")
     public List<OrderPublicStatusView> listPublicOrders() {

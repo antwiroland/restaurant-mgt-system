@@ -33,6 +33,7 @@ public class AuthService {
     private final AuditService auditService;
     private final SecurityGuardService securityGuardService;
     private final OtpService otpService;
+    private final com.restaurantmanager.core.auth.account.AccountRecoveryService accountRecoveryService;
 
     public AuthService(UserRepository userRepository,
                        RefreshTokenRepository refreshTokenRepository,
@@ -41,7 +42,8 @@ public class AuthService {
                        SecurityProps securityProps,
                        AuditService auditService,
                        SecurityGuardService securityGuardService,
-                       OtpService otpService) {
+                       OtpService otpService,
+                       @org.springframework.context.annotation.Lazy com.restaurantmanager.core.auth.account.AccountRecoveryService accountRecoveryService) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
@@ -50,6 +52,7 @@ public class AuthService {
         this.auditService = auditService;
         this.securityGuardService = securityGuardService;
         this.otpService = otpService;
+        this.accountRecoveryService = accountRecoveryService;
     }
 
     /** Verifies a registration OTP and returns a short-lived token proving ownership of the phone. */
@@ -115,6 +118,7 @@ public class AuthService {
         user.setRole(Role.CUSTOMER);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         UserEntity saved = userRepository.save(user);
+        accountRecoveryService.sendVerificationIfNeeded(saved);
 
         UUID branchId = saved.getBranch() == null ? null : saved.getBranch().getId();
         String access = jwtService.generateAccessToken(saved.getId(), saved.getRole(), branchId);

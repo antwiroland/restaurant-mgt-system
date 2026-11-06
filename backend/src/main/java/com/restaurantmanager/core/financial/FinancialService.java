@@ -83,6 +83,7 @@ public class FinancialService {
     private final AuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final com.restaurantmanager.core.inventory.InventoryService inventoryService;
 
     public FinancialService(JwtService jwtService,
                             OrderRepository orderRepository,
@@ -96,7 +97,8 @@ public class FinancialService {
                             AuditService auditService,
                             AuditLogRepository auditLogRepository,
                             UserRepository userRepository,
-                            ObjectMapper objectMapper) {
+                            ObjectMapper objectMapper,
+                            com.restaurantmanager.core.inventory.InventoryService inventoryService) {
         this.jwtService = jwtService;
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
@@ -110,6 +112,7 @@ public class FinancialService {
         this.auditLogRepository = auditLogRepository;
         this.userRepository = userRepository;
         this.objectMapper = objectMapper;
+        this.inventoryService = inventoryService;
     }
 
     // ---------------------------------------------------------------- discount
@@ -150,7 +153,7 @@ public class FinancialService {
         BigDecimal previousTotal = order.getTotal();
         order.setManualDiscount(discount);
         order.setManualDiscountReason(blankToNull(request.reason()));
-        order.recalculateTotal();
+        pricingService.reprice(order);
         orderRepository.save(order);
 
         audit(approverId, AuditAction.DISCOUNT_APPLIED, "ORDER", order.getId(), ipAddress, mapOf(
@@ -188,6 +191,7 @@ public class FinancialService {
         pricingService.releaseDiscounts(order);
 
         OrderStatus previous = order.getStatus();
+        inventoryService.restoreForOrder(order, previous);
         Instant now = Instant.now();
         String reason = blankToNull(request.reason());
         order.setStatus(OrderStatus.CANCELLED);

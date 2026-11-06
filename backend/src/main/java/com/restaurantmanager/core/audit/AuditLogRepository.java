@@ -18,4 +18,8 @@ public interface AuditLogRepository extends JpaRepository<AuditLogEntity, UUID> 
     List<AuditLogEntity> findByActionsBetween(@org.springframework.data.repository.query.Param("actions") java.util.Collection<AuditAction> actions,
                                               @org.springframework.data.repository.query.Param("from") java.time.Instant from,
                                               @org.springframework.data.repository.query.Param("to") java.time.Instant to);
+
+    @Query("select a from AuditLogEntity a left join fetch a.actor where a.createdAt >= :from and a.createdAt < :to order by a.createdAt desc")
+    List<AuditLogEntity> findAllBetween(@org.springframework.data.repository.query.Param("from") java.time.Instant from,
+                                        @org.springframework.data.repository.query.Param("to") java.time.Instant to);
 }

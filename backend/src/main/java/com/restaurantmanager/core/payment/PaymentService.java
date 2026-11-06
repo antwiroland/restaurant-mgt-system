@@ -59,6 +59,8 @@ public class PaymentService {
     private final PaymentRefundRepository refundRepository;
     private final LoyaltyAccountService loyaltyAccountService;
     private final TableSessionService tableSessionService;
+    private final com.restaurantmanager.core.billing.BillingService billingService;
+    private final com.restaurantmanager.core.payment.split.SplitService splitService;
 
     public PaymentService(PaymentRepository paymentRepository,
                           PaymentWebhookEventRepository paymentWebhookEventRepository,
@@ -74,7 +76,9 @@ public class PaymentService {
                           UserRepository userRepository,
                           PaymentRefundRepository refundRepository,
                           LoyaltyAccountService loyaltyAccountService,
-                          TableSessionService tableSessionService) {
+                          TableSessionService tableSessionService,
+                          com.restaurantmanager.core.billing.BillingService billingService,
+                          com.restaurantmanager.core.payment.split.SplitService splitService) {
         this.paymentRepository = paymentRepository;
         this.paymentWebhookEventRepository = paymentWebhookEventRepository;
         this.orderRepository = orderRepository;
@@ -90,6 +94,8 @@ public class PaymentService {
         this.refundRepository = refundRepository;
         this.loyaltyAccountService = loyaltyAccountService;
         this.tableSessionService = tableSessionService;
+        this.billingService = billingService;
+        this.splitService = splitService;
     }
 
     @Transactional
@@ -107,15 +113,40 @@ public class PaymentService {
 
         OrderEntity order = orderRepository.findById(request.orderId())
                 .orElseThrow(() -> new ApiException(404, "Order not found"));
-        assertOrderAccess(order, principal);
+        BigDecimal amount = order.getTotal();
+        UUID splitId = null;
+        var splits = splitService.activeSplits(order.getId());
+        if (!splits.isEmpty()) {
+            if (request.splitId() == null) {
+                throw new ApiException(409, "This bill is split; choose the share to pay");
+            }
+            var split = splits.stream().filter(s -> s.getId().equals(request.splitId())).findFirst()
+                    .orElseThrow(() -> new ApiException(404, "Split not found for this order"));
+            if (split.getStatus() == com.restaurantmanager.core.payment.split.PaymentSplitEntity.Status.PAID) {
+                throw new ApiException(409, "This share has already been paid");
+            }
+            if (principal.role() == Role.CUSTOMER
+                    && !principal.userId().equals(split.getUserId())
+                    && !principal.userId().equals(order.getCustomerUserId())) {
+                throw new ApiException(403, "Forbidden");
+            }
+            amount = split.getAmount();
+            splitId = split.getId();
+        } else {
+            if (request.splitId() != null) {
+                throw new ApiException(404, "Split not found for this order");
+            }
+            assertOrderAccess(order, principal);
+        }
 
         PaystackClient.InitiateResult result = paystackClient.initiate(
-                key, order.getTotal(), paymentProps.getDefaultCurrency(), request.momoPhone().trim()
+                key, amount, paymentProps.getDefaultCurrency(), request.momoPhone().trim()
         );
 
         PaymentEntity payment = new PaymentEntity();
         payment.setOrder(order);
-        payment.setAmount(order.getTotal());
+        payment.setSplitId(splitId);
+        payment.setAmount(amount);
         payment.setCurrency(paymentProps.getDefaultCurrency());
         payment.setMethod(request.method());
         payment.setStatus(PaymentStatus.INITIATED);
@@ -170,6 +201,7 @@ public class PaymentService {
 
         PaymentEntity retry = new PaymentEntity();
         retry.setOrder(existing.getOrder());
+        retry.setSplitId(existing.getSplitId());
         retry.setAmount(existing.getAmount());
         retry.setCurrency(existing.getCurrency());
         retry.setMethod(existing.getMethod());
@@ -274,8 +306,11 @@ public class PaymentService {
 
         if (mapped == PaymentStatus.SUCCESS && payment.getPaidAt() == null) {
             payment.setPaidAt(Instant.now());
+            if (payment.getSplitId() != null) {
+                splitService.markPaid(payment.getSplitId(), payment.getId());
+            }
             OrderEntity order = payment.getOrder();
-            if (order.getStatus() == OrderStatus.PENDING) {
+            if (order.getStatus() == OrderStatus.PENDING && paidTotal(order, payment).compareTo(order.getTotal()) >= 0) {
                 order.setStatus(OrderStatus.CONFIRMED);
                 orderRepository.save(order);
             }
@@ -477,10 +512,22 @@ public class PaymentService {
     private void assertPaymentAccess(PaymentEntity payment, UserPrincipal principal) {
         if (principal.role() == Role.CUSTOMER) {
             UUID customerId = payment.getOrder().getCustomerUserId();
-            if (customerId == null || !customerId.equals(principal.userId())) {
+            boolean owner = customerId != null && customerId.equals(principal.userId());
+            boolean splitPayer = payment.getSplitId() != null
+                    && principal.userId().equals(splitService.require(payment.getSplitId()).getUserId());
+            if (!owner && !splitPayer) {
                 throw new ApiException(403, "Forbidden");
             }
         }
+    }
+
+    /** Sum of successful payments for the order, counting the payment being confirmed even if not yet flushed. */
+    private BigDecimal paidTotal(OrderEntity order, PaymentEntity confirmed) {
+        return paymentRepository.findByOrderIdAndStatus(order.getId(), PaymentStatus.SUCCESS).stream()
+                .filter(p -> !p.getId().equals(confirmed.getId()))
+                .map(PaymentEntity::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .add(confirmed.getAmount());
     }
 
     private void assertOrderAccess(OrderEntity order, UserPrincipal principal) {
@@ -530,7 +577,16 @@ public class PaymentService {
                 order.getTotal(),
                 payment.getCurrency(),
                 payment.getMethod(),
-                payment.getPaidAt()
+                payment.getPaidAt(),
+                order.totalDiscount(),
+                order.getDeliveryFee(),
+                order.getServiceCharge(),
+                order.getTaxTotal(),
+                order.isTaxInclusive(),
+                billingService.taxLines(order.getId()),
+                order.getTipAmount(),
+                payment.getAmount(),
+                payment.getRefundedAmount()
         );
     }
 

@@ -102,6 +102,28 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected com.restaurantmanager.core.promotion.MenuOfferRepository menuOfferRepository;
     @Autowired
+    protected com.restaurantmanager.core.auth.account.AccountTokenRepository accountTokenRepository;
+    @Autowired
+    protected com.restaurantmanager.core.workforce.TimeEntryRepository timeEntryRepository;
+    @Autowired
+    protected com.restaurantmanager.core.workforce.WorkScheduleRepository workScheduleRepository;
+    @Autowired
+    protected com.restaurantmanager.core.feedback.OrderFeedbackRepository orderFeedbackRepository;
+    @Autowired
+    protected com.restaurantmanager.core.inventory.StockMovementRepository stockMovementRepository;
+    @Autowired
+    protected com.restaurantmanager.core.inventory.RecipeLineRepository recipeLineRepository;
+    @Autowired
+    protected com.restaurantmanager.core.inventory.IngredientRepository ingredientRepositoryForCleanup;
+    @Autowired
+    protected com.restaurantmanager.core.payment.split.PaymentSplitRepository paymentSplitRepository;
+    @Autowired
+    protected com.restaurantmanager.core.billing.TaxRateRepository taxRateRepositoryForCleanup;
+    @Autowired
+    protected com.restaurantmanager.core.billing.BillingSettingsRepository billingSettingsRepositoryForCleanup;
+    @Autowired
+    protected com.restaurantmanager.core.billing.OrderTaxLineRepository orderTaxLineRepository;
+    @Autowired
     protected com.restaurantmanager.core.delivery.DeliveryZoneRepository deliveryZoneRepository;
     @Autowired
     protected com.restaurantmanager.core.auth.otp.OtpChallengeRepository otpChallengeRepository;
@@ -121,6 +143,16 @@ public abstract class BaseIntegrationTest {
         promoCodeRepository.deleteAll();
         paymentRefundRepository.deleteAll();
         menuOfferRepository.deleteAll();
+        accountTokenRepository.deleteAll();
+        timeEntryRepository.deleteAll();
+        workScheduleRepository.deleteAll();
+        orderFeedbackRepository.deleteAll();
+        stockMovementRepository.deleteAll();
+        recipeLineRepository.deleteAll();
+        ingredientRepositoryForCleanup.deleteAll();
+        orderTaxLineRepository.deleteAll();
+        taxRateRepositoryForCleanup.deleteAll();
+        billingSettingsRepositoryForCleanup.deleteAll();
         otpChallengeRepository.deleteAll();
         tableMobileSessionRepository.deleteAll();
         reconciliationSignOffRepository.deleteAll();
@@ -128,6 +160,7 @@ public abstract class BaseIntegrationTest {
         loyaltyBalanceRepository.deleteAll();
         paymentWebhookEventRepository.deleteAll();
         paymentRepository.deleteAll();
+        paymentSplitRepository.deleteAll();
         orderItemRepository.deleteAll();
         orderRepository.deleteAll();
         deliveryZoneRepository.deleteAll();

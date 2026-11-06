@@ -28,14 +28,17 @@ public class OrderPricingService {
     private final MenuOfferRepository menuOfferRepository;
     private final PromoCodeRepository promoCodeRepository;
     private final LoyaltyAccountService loyaltyAccountService;
+    private final com.restaurantmanager.core.billing.BillingService billingService;
     private final PromoService promoService = new PromoService();
 
     public OrderPricingService(MenuOfferRepository menuOfferRepository,
                                PromoCodeRepository promoCodeRepository,
-                               LoyaltyAccountService loyaltyAccountService) {
+                               LoyaltyAccountService loyaltyAccountService,
+                               com.restaurantmanager.core.billing.BillingService billingService) {
         this.menuOfferRepository = menuOfferRepository;
         this.promoCodeRepository = promoCodeRepository;
         this.loyaltyAccountService = loyaltyAccountService;
+        this.billingService = billingService;
     }
 
     @Transactional
@@ -71,7 +74,62 @@ public class OrderPricingService {
             order.setLoyaltyDiscount(redemption.discount());
         }
 
+        billingService.apply(order);
+    }
+
+    @Transactional
+    public void setTip(OrderEntity order, BigDecimal amount, BigDecimal percent) {
+        billingService.setTip(order, amount, percent);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.Map<java.util.UUID, List<com.restaurantmanager.core.billing.BillingService.TaxLine>> taxLines(
+            java.util.Collection<java.util.UUID> orderIds) {
+        return billingService.taxLines(orderIds);
+    }
+
+    /** Recomputes service charge, taxes and total after any change to discounts, fees or tip. */
+    @Transactional
+    public void reprice(OrderEntity order) {
+        billingService.apply(order);
+    }
+
+    /**
+     * Side-effect free estimate for a cart: offers, promo (validated, not consumed), loyalty (capped by the
+     * customer's balance), then service charge and taxes. Fills the given transient order.
+     */
+    @Transactional(readOnly = true)
+    public com.restaurantmanager.core.billing.BillingService.Breakdown quote(OrderEntity order, List<OrderItemEntity> items,
+                                                                            String promoCode, Integer loyaltyPointsToRedeem) {
+        BigDecimal subtotal = order.getSubtotal();
+        Instant now = Instant.now();
+        BigDecimal offer = offerDiscount(items, now).min(subtotal);
+        order.setOfferDiscount(offer);
+        BigDecimal afterOffers = subtotal.subtract(offer);
+        if (promoCode != null && !promoCode.isBlank()) {
+            PromoCodeEntity promo = promoCodeRepository.findByCodeIgnoreCase(promoCode.trim())
+                    .orElseThrow(() -> new ApiException(400, "Invalid promo code"));
+            order.setPromoCode(promo.getCode());
+            order.setPromoDiscount(promoService.applyPromo(toDomain(promo), afterOffers, now).min(afterOffers));
+        }
+        int points = loyaltyPointsToRedeem == null ? 0 : loyaltyPointsToRedeem;
+        if (points > 0 && order.getCustomerUserId() != null) {
+            BigDecimal payable = afterOffers.subtract(order.getPromoDiscount()).add(order.getDeliveryFee());
+            var props = loyaltyAccountService.props();
+            BigDecimal cap = payable.multiply(BigDecimal.valueOf(props.getMaxRedeemPercent()))
+                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.DOWN);
+            int usable = Math.min(points, loyaltyAccountService.balance(order.getCustomerUserId()));
+            BigDecimal discount = props.getPointValue().multiply(BigDecimal.valueOf(usable)).min(cap).setScale(2, RoundingMode.DOWN);
+            order.setLoyaltyDiscount(discount);
+            order.setLoyaltyPointsRedeemed(discount.divide(props.getPointValue(), 0, RoundingMode.DOWN).intValue());
+        }
         order.recalculateTotal();
+        var breakdown = billingService.preview(order.getType(), order.discountedSubtotal(), order.getDeliveryFee());
+        order.setServiceCharge(breakdown.serviceCharge());
+        order.setTaxTotal(breakdown.taxTotal());
+        order.setTaxInclusive(breakdown.taxInclusive());
+        order.recalculateTotal();
+        return breakdown;
     }
 
     /** Releases promo usage and returns redeemed loyalty points for an order cancelled/voided before payment. */

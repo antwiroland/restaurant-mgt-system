@@ -87,4 +87,6 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
     long countByRiderUserIdAndStatusIn(UUID riderUserId, java.util.Collection<OrderStatus> statuses);
 
     List<OrderEntity> findByRiderUserIdAndStatusInOrderByCreatedAtAsc(UUID riderUserId, java.util.Collection<OrderStatus> statuses);
+
+    Optional<OrderEntity> findFirstByGroupSession_IdOrderByCreatedAtDesc(UUID groupSessionId);
 }

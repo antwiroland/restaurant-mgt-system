@@ -68,6 +68,9 @@ public class PaymentEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "split_id")
+    private UUID splitId;
+
     @Column(name = "refunded_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal refundedAmount = BigDecimal.ZERO;
 
@@ -230,5 +233,13 @@ public class PaymentEntity {
 
     public BigDecimal refundableAmount() {
         return amount.subtract(refundedAmount);
+    }
+
+    public UUID getSplitId() {
+        return splitId;
+    }
+
+    public void setSplitId(UUID splitId) {
+        this.splitId = splitId;
     }
 }

@@ -38,6 +38,11 @@ public record OrderResponse(
         BigDecimal discountTotal,
         Instant voidedAt,
         UUID deliveryZoneId,
-        UUID riderUserId
+        UUID riderUserId,
+        BigDecimal serviceCharge,
+        BigDecimal taxTotal,
+        boolean taxInclusive,
+        BigDecimal tipAmount,
+        List<com.restaurantmanager.core.billing.BillingService.TaxLine> taxLines
 ) {
 }

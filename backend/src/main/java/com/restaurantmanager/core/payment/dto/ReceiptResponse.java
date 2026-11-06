@@ -14,6 +14,15 @@ public record ReceiptResponse(
         BigDecimal total,
         String currency,
         PaymentMethod paymentMethod,
-        Instant paidAt
+        Instant paidAt,
+        BigDecimal discountTotal,
+        BigDecimal deliveryFee,
+        BigDecimal serviceCharge,
+        BigDecimal taxTotal,
+        boolean taxInclusive,
+        java.util.List<com.restaurantmanager.core.billing.BillingService.TaxLine> taxLines,
+        BigDecimal tipAmount,
+        BigDecimal amountPaid,
+        BigDecimal refundedAmount
 ) {
 }
