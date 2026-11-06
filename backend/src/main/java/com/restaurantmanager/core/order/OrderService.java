@@ -43,6 +43,7 @@ import com.restaurantmanager.core.table.RestaurantTableEntity;
 import com.restaurantmanager.core.table.RestaurantTableRepository;
 import com.restaurantmanager.core.table.TableStatus;
 import com.restaurantmanager.core.table.qr.TableSessionService;
+import com.restaurantmanager.core.delivery.DeliveryService;
 import com.restaurantmanager.core.user.UserEntity;
 import com.restaurantmanager.core.user.UserRepository;
 import io.jsonwebtoken.Claims;
@@ -89,6 +90,7 @@ public class OrderService {
     private final WhatsAppService whatsAppService;
     private final OrderPricingService pricingService;
     private final TableSessionService tableSessionService;
+    private final DeliveryService deliveryService;
 
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
@@ -106,7 +108,8 @@ public class OrderService {
                         PaymentRepository paymentRepository,
                         WhatsAppService whatsAppService,
                         OrderPricingService pricingService,
-                        TableSessionService tableSessionService) {
+                        TableSessionService tableSessionService,
+                        DeliveryService deliveryService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderItemModifierRepository = orderItemModifierRepository;
@@ -124,6 +127,7 @@ public class OrderService {
         this.whatsAppService = whatsAppService;
         this.pricingService = pricingService;
         this.tableSessionService = tableSessionService;
+        this.deliveryService = deliveryService;
     }
 
     @Transactional
@@ -443,7 +447,8 @@ public class OrderService {
                 session.getId(),
                 request.notes(),
                 request.promoCode(),
-                null
+                null,
+                request.deliveryZoneId()
         );
 
         Map<Integer, UUID> participantByIndex = new HashMap<>();
@@ -534,6 +539,7 @@ public class OrderService {
             items.add(item);
         }
         order.setSubtotal(subtotal);
+        deliveryService.applyZone(order, request.deliveryZoneId());
         order.recalculateTotal();
         OrderEntity saved = orderRepository.save(order);
 
@@ -817,7 +823,9 @@ public class OrderService {
                     order.getManualDiscount(),
                     order.getDeliveryFee(),
                     order.totalDiscount(),
-                    order.getVoidedAt()
+                    order.getVoidedAt(),
+                    order.getDeliveryZoneId(),
+                    order.getRiderUserId()
             );
         }).toList();
     }

@@ -21,12 +21,20 @@ public record OrderCreateRequest(
         UUID groupSessionId,
         String notes,
         String promoCode,
-        @Min(0) Integer loyaltyPointsToRedeem
+        @Min(0) Integer loyaltyPointsToRedeem,
+        UUID deliveryZoneId
 ) {
+    public OrderCreateRequest(OrderType type, UUID tableId, String tableToken, List<OrderCreateItemRequest> items,
+                              String deliveryAddress, Instant pickupTime, Instant estimatedDeliveryTime,
+                              UUID groupSessionId, String notes, String promoCode, Integer loyaltyPointsToRedeem) {
+        this(type, tableId, tableToken, items, deliveryAddress, pickupTime, estimatedDeliveryTime, groupSessionId, notes,
+                promoCode, loyaltyPointsToRedeem, null);
+    }
+
     public OrderCreateRequest(OrderType type, UUID tableId, String tableToken, List<OrderCreateItemRequest> items,
                               String deliveryAddress, Instant pickupTime, Instant estimatedDeliveryTime,
                               UUID groupSessionId, String notes) {
         this(type, tableId, tableToken, items, deliveryAddress, pickupTime, estimatedDeliveryTime, groupSessionId, notes,
-                null, null);
+                null, null, null);
     }
 }

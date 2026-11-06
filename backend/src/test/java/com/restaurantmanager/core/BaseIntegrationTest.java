@@ -102,6 +102,8 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected com.restaurantmanager.core.promotion.MenuOfferRepository menuOfferRepository;
     @Autowired
+    protected com.restaurantmanager.core.delivery.DeliveryZoneRepository deliveryZoneRepository;
+    @Autowired
     protected com.restaurantmanager.core.auth.otp.OtpChallengeRepository otpChallengeRepository;
     @Autowired
     protected com.restaurantmanager.core.table.qr.TableMobileSessionRepository tableMobileSessionRepository;
@@ -128,6 +130,7 @@ public abstract class BaseIntegrationTest {
         paymentRepository.deleteAll();
         orderItemRepository.deleteAll();
         orderRepository.deleteAll();
+        deliveryZoneRepository.deleteAll();
         groupSessionItemRepository.deleteAll();
         groupSessionParticipantRepository.deleteAll();
         groupOrderSessionRepository.deleteAll();

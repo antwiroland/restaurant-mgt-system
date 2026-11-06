@@ -12,6 +12,8 @@ const STATUS_BADGE: Record<PublicOrderTrackingRecord["status"], string> = {
   CONFIRMED: "badge-confirmed",
   PREPARING: "badge-preparing",
   READY: "badge-ready",
+  OUT_FOR_DELIVERY: "badge-info",
+  DELIVERED: "badge-completed",
   COMPLETED: "badge-completed",
   CANCELLED: "badge-cancelled",
   VOIDED: "badge-voided",

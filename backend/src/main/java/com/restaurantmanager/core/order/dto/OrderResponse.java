@@ -36,6 +36,8 @@ public record OrderResponse(
         BigDecimal manualDiscount,
         BigDecimal deliveryFee,
         BigDecimal discountTotal,
-        Instant voidedAt
+        Instant voidedAt,
+        UUID deliveryZoneId,
+        UUID riderUserId
 ) {
 }

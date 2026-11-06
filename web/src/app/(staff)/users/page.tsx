@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/Skeleton";
 import { hasStaffRole, useStaffSession } from "@/components/SessionProvider";
 import { assignUserRole, getBranches, getUsers, registerUser, setUserPin, type BranchRecord, type StaffRole, type UserRecord } from "@/lib/apiClient";
 
-const STAFF_ROLES: StaffRole[] = ["ADMIN", "MANAGER", "CASHIER", "CUSTOMER"];
+const STAFF_ROLES: StaffRole[] = ["ADMIN", "MANAGER", "CASHIER", "RIDER", "CUSTOMER"];
 
 export default function UsersPage() {
   const { session, loading, authenticatedFetch } = useStaffSession();

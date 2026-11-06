@@ -83,4 +83,8 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
     List<OrderEntity> findByVoidedAtGreaterThanEqualAndVoidedAtLessThan(Instant from, Instant to);
 
     List<OrderEntity> findByCreatedAtGreaterThanEqualAndCreatedAtLessThanAndStatusNot(Instant from, Instant to, OrderStatus status);
+
+    long countByRiderUserIdAndStatusIn(UUID riderUserId, java.util.Collection<OrderStatus> statuses);
+
+    List<OrderEntity> findByRiderUserIdAndStatusInOrderByCreatedAtAsc(UUID riderUserId, java.util.Collection<OrderStatus> statuses);
 }

@@ -1,17 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity, Alert, Linking } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { fetchOrder, cancelOrder, fetchReceipt } from '../../src/api/orders';
 import { fetchPayment, verifyPayment } from '../../src/api/payment';
 import type { Order, Receipt } from '../../src/types/api';
 import { fallbackPollMs, useRealtimeTopics } from '../../src/realtime/realtime';
+import { fetchDeliveryTracking, mapUrl, type DeliveryTracking } from '../../src/api/delivery';
 
 const STATUS_STEPS = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'COMPLETED'];
+const DELIVERY_STEPS = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED'];
 const STATUS_COLORS: Record<string, string> = {
   PENDING: '#F59E0B',
   CONFIRMED: '#3B82F6',
   PREPARING: '#8B5CF6',
   READY: '#10B981',
+  OUT_FOR_DELIVERY: '#0EA5E9',
+  DELIVERED: '#059669',
   COMPLETED: '#6B7280',
   CANCELLED: '#EF4444',
   VOIDED: '#EF4444',
@@ -23,10 +27,11 @@ export default function OrderTrackingScreen() {
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [loading, setLoading] = useState(true);
   const pendingPaymentPollsRef = useRef(0);
+  const [delivery, setDelivery] = useState<DeliveryTracking | null>(null);
 
   // Live order and payment updates; polling remains as a slower fallback.
   const live = useRealtimeTopics(
-    id ? [`/topic/orders.${id}`, `/topic/orders.${id}.payments`] : [],
+    id ? [`/topic/orders.${id}`, `/topic/orders.${id}.payments`, `/topic/orders.${id}.delivery`] : [],
     () => void load(),
   );
 
@@ -40,6 +45,9 @@ export default function OrderTrackingScreen() {
     try {
       const nextOrder = await fetchOrder(id);
       setOrder(nextOrder);
+      if (nextOrder.type === 'DELIVERY') {
+        fetchDeliveryTracking(nextOrder.id).then(setDelivery).catch(() => undefined);
+      }
       if (paymentId && ['PENDING', 'CONFIRMED', 'PREPARING'].includes(nextOrder.status)) {
         const payment = await fetchPayment(paymentId).catch(() => null);
         if (payment?.status === 'PENDING') {
@@ -91,7 +99,11 @@ export default function OrderTrackingScreen() {
     );
   }
 
-  const stepIdx = STATUS_STEPS.indexOf(order.status);
+  const steps = order.type === 'DELIVERY' ? DELIVERY_STEPS : STATUS_STEPS;
+  const stepIdx = steps.indexOf(order.status);
+  const riderLocation = delivery?.riderLatitude != null && delivery?.riderLongitude != null
+    ? { lat: delivery.riderLatitude, lng: delivery.riderLongitude }
+    : null;
 
   return (
     <ScrollView style={styles.container}>
@@ -104,16 +116,58 @@ export default function OrderTrackingScreen() {
 
       {stepIdx >= 0 && (
         <View style={styles.progressContainer}>
-          {STATUS_STEPS.map((step, index) => (
+          {steps.map((step, index) => (
             <View key={step} style={styles.progressStep}>
               <View style={[styles.dot, index <= stepIdx && styles.dotActive]} />
               <Text style={[styles.stepLabel, index <= stepIdx && styles.stepLabelActive]}>
-                {step}
+                {step.replace(/_/g, ' ')}
               </Text>
             </View>
           ))}
         </View>
       )}
+
+      {order.type === 'DELIVERY' && delivery ? (
+        <View style={styles.section} accessibilityLiveRegion="polite">
+          <Text style={styles.sectionTitle}>Delivery</Text>
+          {delivery.deliveryAddress ? <Text style={styles.deliveryLine}>To: {delivery.deliveryAddress}</Text> : null}
+          {delivery.estimatedDeliveryTime ? (
+            <Text style={styles.deliveryLine}>
+              Estimated arrival: {new Date(delivery.estimatedDeliveryTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          ) : null}
+          {delivery.riderName ? (
+            <Text style={styles.deliveryLine}>Rider: {delivery.riderName}</Text>
+          ) : (
+            <Text style={styles.deliveryLine}>A rider will be assigned soon.</Text>
+          )}
+          {riderLocation ? (
+            <Text style={styles.deliveryHint}>
+              Rider location updated {delivery.riderLocationAt ? new Date(delivery.riderLocationAt).toLocaleTimeString() : 'recently'}
+            </Text>
+          ) : null}
+          <View style={styles.deliveryActions}>
+            {riderLocation ? (
+              <TouchableOpacity
+                style={styles.deliveryButton}
+                accessibilityRole="link"
+                onPress={() => void Linking.openURL(mapUrl(riderLocation.lat, riderLocation.lng))}
+              >
+                <Text style={styles.deliveryButtonText}>Track rider on map</Text>
+              </TouchableOpacity>
+            ) : null}
+            {delivery.riderPhone ? (
+              <TouchableOpacity
+                style={styles.deliveryButton}
+                accessibilityRole="button"
+                onPress={() => void Linking.openURL(`tel:${delivery.riderPhone}`)}
+              >
+                <Text style={styles.deliveryButtonText}>Call rider</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Items</Text>
@@ -203,4 +257,9 @@ const styles = StyleSheet.create({
   verifyText: { color: '#1D4ED8', fontWeight: '700', fontSize: 15 },
   backBtn: { margin: 12, padding: 14, backgroundColor: '#E5E7EB', borderRadius: 10, alignItems: 'center' },
   backBtnText: { color: '#374151', fontWeight: '600', fontSize: 15 },
+  deliveryLine: { fontSize: 14, color: '#374151', marginBottom: 4 },
+  deliveryHint: { fontSize: 12, color: '#6B7280', marginBottom: 8 },
+  deliveryActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  deliveryButton: { backgroundColor: '#EFF6FF', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 14, minHeight: 44 },
+  deliveryButtonText: { color: '#1D4ED8', fontWeight: '600' },
 });

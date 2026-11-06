@@ -18,6 +18,7 @@ import { initiatePayment } from '../src/api/payment';
 import { useAuthStore } from '../src/store/auth';
 import { fetchMyAddresses, saveMyAddress } from '../src/api/user';
 import { fetchLoyaltyBalance } from '../src/api/loyalty';
+import { fetchDeliveryZones, type DeliveryZone } from '../src/api/delivery';
 import type { CustomerAddress, LoyaltyBalance, PaymentMethod, OrderType } from '../src/types/api';
 
 export default function CheckoutScreen() {
@@ -32,6 +33,8 @@ export default function CheckoutScreen() {
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [loyaltyBalance, setLoyaltyBalance] = useState<LoyaltyBalance | null>(null);
   const [usePoints, setUsePoints] = useState(false);
+  const [zones, setZones] = useState<DeliveryZone[]>([]);
+  const [zoneId, setZoneId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const selectedAddress = useMemo(
@@ -53,7 +56,10 @@ export default function CheckoutScreen() {
     promoCode: promoCode ?? undefined,
     loyaltyPointsToRedeem: usePoints && loyaltyBalance && loyaltyBalance.points > 0 ? loyaltyBalance.points : undefined,
     deliveryAddress: effectiveOrderType === 'DELIVERY' ? deliveryAddress.trim() : undefined,
+    deliveryZoneId: effectiveOrderType === 'DELIVERY' && zoneId ? zoneId : undefined,
   };
+  const selectedZone = zones.find((zone) => zone.id === zoneId) ?? null;
+  const deliveryFee = effectiveOrderType === 'DELIVERY' && selectedZone ? Number(selectedZone.fee) : 0;
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -65,6 +71,11 @@ export default function CheckoutScreen() {
 
     fetchLoyaltyBalance().then(setLoyaltyBalance).catch(() => {});
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (effectiveOrderType !== 'DELIVERY') return;
+    fetchDeliveryZones().then(setZones).catch(() => setZones([]));
+  }, [effectiveOrderType]);
 
   useEffect(() => {
     if (!isAuthenticated || effectiveOrderType !== 'DELIVERY') {
@@ -91,6 +102,11 @@ export default function CheckoutScreen() {
 
     if (effectiveOrderType === 'DELIVERY' && !deliveryAddress.trim()) {
       Alert.alert('Missing address', 'Enter a delivery address before placing the order.');
+      return;
+    }
+
+    if (effectiveOrderType === 'DELIVERY' && zones.length > 0 && !zoneId) {
+      Alert.alert('Choose your area', 'Select the delivery zone closest to your address.');
       return;
     }
 
@@ -244,6 +260,30 @@ export default function CheckoutScreen() {
             onChangeText={setDeliveryAddress}
             multiline
           />
+          {zones.length > 0 && (
+            <View style={styles.addressList}>
+              <Text style={[styles.sectionTitle, { marginTop: 12 }]}>Delivery area</Text>
+              {zones.map((zone) => {
+                const active = zoneId === zone.id;
+                return (
+                  <TouchableOpacity
+                    key={zone.id}
+                    style={[styles.addressCard, active && styles.addressCardActive]}
+                    onPress={() => setZoneId(zone.id)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.addressLabel, active && styles.addressLabelActive]}>
+                      {zone.name} · GHS {Number(zone.fee).toFixed(2)}
+                    </Text>
+                    <Text style={[styles.addressText, active && styles.addressTextActive]}>
+                      About {zone.estimatedMinutes} min{Number(zone.minOrderAmount) > 0 ? ` · min order GHS ${Number(zone.minOrderAmount).toFixed(2)}` : ''}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
         </View>
       )}
 
@@ -296,9 +336,15 @@ export default function CheckoutScreen() {
           <Text style={styles.summaryLabel}>Items</Text>
           <Text style={styles.summaryValue}>{lines.length}</Text>
         </View>
+        {deliveryFee > 0 && (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Delivery fee</Text>
+            <Text style={styles.summaryValue}>GHS {deliveryFee.toFixed(2)}</Text>
+          </View>
+        )}
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabelBold}>Total</Text>
-          <Text style={styles.summaryValueBold}>GHS {total().toFixed(2)}</Text>
+          <Text style={styles.summaryValueBold}>GHS {(total() + deliveryFee).toFixed(2)}</Text>
         </View>
       </View>
 

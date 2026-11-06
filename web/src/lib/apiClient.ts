@@ -1,6 +1,6 @@
 export type TokenPair = { accessToken: string; refreshToken: string; expiresAtEpochMs: number };
 
-export type StaffRole = "ADMIN" | "MANAGER" | "CASHIER" | "CUSTOMER";
+export type StaffRole = "ADMIN" | "MANAGER" | "CASHIER" | "CUSTOMER" | "RIDER";
 
 export type StaffUser = {
   id: string;
@@ -327,7 +327,7 @@ export type OrderRecord = {
   id: string;
   customerUserId?: string;
   type: "DINE_IN" | "PICKUP" | "DELIVERY";
-  status: "PENDING" | "CONFIRMED" | "PREPARING" | "READY" | "COMPLETED" | "CANCELLED" | "VOIDED";
+  status: "PENDING" | "CONFIRMED" | "PREPARING" | "READY" | "OUT_FOR_DELIVERY" | "DELIVERED" | "COMPLETED" | "CANCELLED" | "VOIDED";
   tableId?: string;
   tableNumber?: string;
   deliveryAddress?: string;
@@ -349,6 +349,8 @@ export type OrderRecord = {
   deliveryFee?: string;
   discountTotal?: string;
   voidedAt?: string | null;
+  deliveryZoneId?: string | null;
+  riderUserId?: string | null;
 };
 
 export type GroupParticipantRecord = {
@@ -934,6 +936,7 @@ export async function createOrder(
     deliveryAddress?: string;
     notes?: string;
     promoCode?: string;
+    deliveryZoneId?: string;
     items: { menuItemId: string; quantity: number; modifierOptionIds?: string[] }[];
   },
 ): Promise<OrderRecord> {
@@ -1425,4 +1428,100 @@ export async function downloadTableQrPdf(session: StaffSession, tableNumber: str
     throw new Error(`Could not download QR card (status ${response.status})`);
   }
   return response.blob();
+}
+
+export type DeliveryZoneRecord = {
+  id: string;
+  name: string;
+  description?: string | null;
+  branchId?: string | null;
+  fee: string;
+  minOrderAmount: string;
+  estimatedMinutes: number;
+  active: boolean;
+};
+
+export type DeliveryZoneUpsertRequest = {
+  name: string;
+  description?: string;
+  branchId?: string;
+  fee: number;
+  minOrderAmount?: number;
+  estimatedMinutes?: number;
+  active?: boolean;
+};
+
+export type RiderRecord = { id: string; name: string; phone: string; activeDeliveries: number };
+
+export type DeliveryRecord = {
+  orderId: string;
+  status: OrderRecord["status"];
+  deliveryAddress?: string | null;
+  total: string;
+  deliveryFee: string;
+  deliveryZoneId?: string | null;
+  estimatedDeliveryTime?: string | null;
+  riderId?: string | null;
+  riderName?: string | null;
+  riderPhone?: string | null;
+  riderAssignedAt?: string | null;
+  riderLatitude?: number | null;
+  riderLongitude?: number | null;
+  riderLocationAt?: string | null;
+  deliveredAt?: string | null;
+  customerPhone?: string | null;
+  notes?: string | null;
+  createdAt: string;
+};
+
+export async function getDeliveryZones(): Promise<DeliveryZoneRecord[]> {
+  return apiRequest<DeliveryZoneRecord[]>("/delivery/zones");
+}
+
+export async function getAllDeliveryZones(session: StaffSession): Promise<DeliveryZoneRecord[]> {
+  return apiRequest<DeliveryZoneRecord[]>("/delivery/zones/all", { token: session.accessToken });
+}
+
+export async function createDeliveryZone(session: StaffSession, payload: DeliveryZoneUpsertRequest): Promise<DeliveryZoneRecord> {
+  return apiRequest<DeliveryZoneRecord>("/delivery/zones", { method: "POST", token: session.accessToken, body: payload });
+}
+
+export async function updateDeliveryZone(session: StaffSession, id: string, payload: DeliveryZoneUpsertRequest): Promise<DeliveryZoneRecord> {
+  return apiRequest<DeliveryZoneRecord>(`/delivery/zones/${id}`, { method: "PUT", token: session.accessToken, body: payload });
+}
+
+export async function setDeliveryZoneActive(session: StaffSession, id: string, active: boolean): Promise<DeliveryZoneRecord> {
+  return apiRequest<DeliveryZoneRecord>(`/delivery/zones/${id}/status`, { method: "PATCH", token: session.accessToken, body: { active } });
+}
+
+export async function getRiders(session: StaffSession): Promise<RiderRecord[]> {
+  return apiRequest<RiderRecord[]>("/delivery/riders", { token: session.accessToken });
+}
+
+export async function assignRider(session: StaffSession, orderId: string, riderId: string): Promise<DeliveryRecord> {
+  return apiRequest<DeliveryRecord>(`/delivery/orders/${orderId}/assign`, { method: "POST", token: session.accessToken, body: { riderId } });
+}
+
+export async function getRiderQueue(session: StaffSession): Promise<DeliveryRecord[]> {
+  return apiRequest<DeliveryRecord[]>("/delivery/rider/orders", { token: session.accessToken });
+}
+
+export async function markDeliveryPickedUp(session: StaffSession, orderId: string): Promise<DeliveryRecord> {
+  return apiRequest<DeliveryRecord>(`/delivery/orders/${orderId}/pickup`, { method: "POST", token: session.accessToken });
+}
+
+export async function markDeliveryDelivered(session: StaffSession, orderId: string): Promise<DeliveryRecord> {
+  return apiRequest<DeliveryRecord>(`/delivery/orders/${orderId}/delivered`, { method: "POST", token: session.accessToken });
+}
+
+export async function sendRiderLocation(session: StaffSession, orderId: string, latitude: number, longitude: number): Promise<DeliveryRecord> {
+  return apiRequest<DeliveryRecord>(`/delivery/orders/${orderId}/location`, {
+    method: "POST",
+    token: session.accessToken,
+    body: { latitude, longitude },
+  });
+}
+
+export async function getDeliveryTracking(session: StaffSession, orderId: string): Promise<DeliveryRecord> {
+  return apiRequest<DeliveryRecord>(`/delivery/orders/${orderId}/tracking`, { token: session.accessToken });
 }

@@ -11,4 +11,6 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     boolean existsByEmail(String email);
 
     Optional<UserEntity> findByPhone(String phone);
+
+    java.util.List<UserEntity> findByRoleAndActiveTrueOrderByNameAsc(com.restaurantmanager.core.common.Role role);
 }

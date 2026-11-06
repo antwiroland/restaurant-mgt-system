@@ -15,11 +15,13 @@ import {
 import { useStaffSession } from "@/components/SessionProvider";
 import {
   createOrder,
+  getDeliveryZones,
   getMenuItems,
   getPayment,
   getTables,
   initiatePayment,
   verifyPayment,
+  type DeliveryZoneRecord,
   type MenuItemRecord,
   type PaymentMethod,
   type PaymentRecord,
@@ -29,7 +31,7 @@ import {
 const ORDER_TYPES = [
   { value: "DINE_IN", label: "Dine In", available: true, note: "Assign ticket to a live table." },
   { value: "PICKUP", label: "Pickup", available: true, note: "Quick counter handoff." },
-  { value: "DELIVERY", label: "Delivery", available: false, note: "Dispatch workflow not enabled yet." },
+  { value: "DELIVERY", label: "Delivery", available: true, note: "Send to an address; assign a rider on the Delivery board." },
 ] as const;
 
 const PAYMENT_METHODS: Array<{ value: PaymentMethod; label: string; hint: string }> = [
@@ -49,6 +51,9 @@ export default function PosPage() {
   const [orderType, setOrderType] = useState<(typeof ORDER_TYPES)[number]["value"]>("DINE_IN");
   const [tableId, setTableId] = useState("");
   const [promoCode, setPromoCode] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [deliveryZoneId, setDeliveryZoneId] = useState("");
+  const [deliveryZones, setDeliveryZones] = useState<DeliveryZoneRecord[]>([]);
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [message, setMessage] = useState("");
   const [orderFieldErrors, setOrderFieldErrors] = useState<{
@@ -79,6 +84,7 @@ export default function PosPage() {
       ]);
       setMenuItems(nextMenuItems.filter((item) => item.active && item.available));
       setTables(nextTables);
+      setDeliveryZones(await getDeliveryZones().catch(() => []));
     }).catch((err) => {
       setMessage(err instanceof Error ? err.message : "Could not load POS data");
     });
@@ -138,8 +144,8 @@ export default function PosPage() {
     if (!session) return;
     const nextFieldErrors: { cart?: string; tableId?: string; deliveryAddress?: string } = {};
     if (orderType === "DELIVERY") {
-      setMessage("Delivery ordering is not available yet. Use dine-in or pickup.");
-      return;
+      if (!deliveryAddress.trim()) nextFieldErrors.deliveryAddress = "Delivery address is required";
+      if (deliveryZones.length > 0 && !deliveryZoneId) nextFieldErrors.deliveryAddress = "Choose a delivery zone";
     }
     if (cart.length === 0) nextFieldErrors.cart = "Add at least one item";
     if (orderType === "DINE_IN" && !tableId) nextFieldErrors.tableId = "Select a table for dine-in";
@@ -154,7 +160,12 @@ export default function PosPage() {
     setOrderFieldErrors({});
 
     try {
-      const payload = buildOrderPayload(orderType, cart, tableId || undefined, promoCode);
+      const payload = {
+        ...buildOrderPayload(orderType, cart, tableId || undefined, promoCode),
+        ...(orderType === "DELIVERY"
+          ? { deliveryAddress: deliveryAddress.trim(), deliveryZoneId: deliveryZoneId || undefined }
+          : {}),
+      };
       const created = await authenticatedFetch((activeSession) => createOrder(activeSession, payload));
 
       setCreatedOrderId(created.id);
@@ -162,6 +173,8 @@ export default function PosPage() {
       setPaymentRecord(null);
       setCart([]);
       setPromoCode("");
+      setDeliveryAddress("");
+      setDeliveryZoneId("");
       if (orderType !== "DINE_IN") setTableId("");
       const discount = Number(created.discountTotal ?? 0);
       setMessage(
@@ -432,8 +445,33 @@ export default function PosPage() {
                   ))}
                 </div>
 
-                {!activeOrderType.available ? (
-                  <p className="alert alert-info mt-4">Delivery remains visible as a roadmap item. Staff checkout is intentionally blocked for now.</p>
+                {orderType === "DELIVERY" ? (
+                  <div className="mt-4 grid gap-3">
+                    <label className="field">
+                      <span className="field-label">Delivery address</span>
+                      <textarea
+                        className="input"
+                        rows={2}
+                        value={deliveryAddress}
+                        onChange={(event) => setDeliveryAddress(event.target.value)}
+                        placeholder="House number, street, landmark"
+                      />
+                    </label>
+                    {deliveryZones.length > 0 ? (
+                      <label className="field">
+                        <span className="field-label">Delivery zone</span>
+                        <select className="select" value={deliveryZoneId} onChange={(event) => setDeliveryZoneId(event.target.value)}>
+                          <option value="">Select a zone</option>
+                          {deliveryZones.map((zone) => (
+                            <option key={zone.id} value={zone.id}>
+                              {`${zone.name} | GHS ${Number(zone.fee).toFixed(2)} | ~${zone.estimatedMinutes} min`}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
+                    {orderFieldErrors.deliveryAddress ? <span className="field-error">{orderFieldErrors.deliveryAddress}</span> : null}
+                  </div>
                 ) : null}
               </div>
 

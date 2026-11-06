@@ -112,6 +112,27 @@ public class OrderEntity {
     @Column(name = "voided_by")
     private UUID voidedBy;
 
+    @Column(name = "delivery_zone_id")
+    private UUID deliveryZoneId;
+
+    @Column(name = "rider_user_id")
+    private UUID riderUserId;
+
+    @Column(name = "rider_assigned_at")
+    private Instant riderAssignedAt;
+
+    @Column(name = "delivered_at")
+    private Instant deliveredAt;
+
+    @Column(name = "rider_latitude")
+    private Double riderLatitude;
+
+    @Column(name = "rider_longitude")
+    private Double riderLongitude;
+
+    @Column(name = "rider_location_at")
+    private Instant riderLocationAt;
+
     @PrePersist
     public void prePersist() {
         Instant now = Instant.now();
@@ -366,5 +387,61 @@ public class OrderEntity {
         BigDecimal base = subtotal == null ? BigDecimal.ZERO : subtotal;
         BigDecimal computed = base.add(deliveryFee).subtract(totalDiscount());
         total = (computed.signum() < 0 ? BigDecimal.ZERO : computed).setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
+    public UUID getDeliveryZoneId() {
+        return deliveryZoneId;
+    }
+
+    public void setDeliveryZoneId(UUID deliveryZoneId) {
+        this.deliveryZoneId = deliveryZoneId;
+    }
+
+    public UUID getRiderUserId() {
+        return riderUserId;
+    }
+
+    public void setRiderUserId(UUID riderUserId) {
+        this.riderUserId = riderUserId;
+    }
+
+    public Instant getRiderAssignedAt() {
+        return riderAssignedAt;
+    }
+
+    public void setRiderAssignedAt(Instant riderAssignedAt) {
+        this.riderAssignedAt = riderAssignedAt;
+    }
+
+    public Instant getDeliveredAt() {
+        return deliveredAt;
+    }
+
+    public void setDeliveredAt(Instant deliveredAt) {
+        this.deliveredAt = deliveredAt;
+    }
+
+    public Double getRiderLatitude() {
+        return riderLatitude;
+    }
+
+    public void setRiderLatitude(Double riderLatitude) {
+        this.riderLatitude = riderLatitude;
+    }
+
+    public Double getRiderLongitude() {
+        return riderLongitude;
+    }
+
+    public void setRiderLongitude(Double riderLongitude) {
+        this.riderLongitude = riderLongitude;
+    }
+
+    public Instant getRiderLocationAt() {
+        return riderLocationAt;
+    }
+
+    public void setRiderLocationAt(Instant riderLocationAt) {
+        this.riderLocationAt = riderLocationAt;
     }
 }

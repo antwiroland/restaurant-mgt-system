@@ -119,6 +119,8 @@ public abstract class BasePostgresIntegrationTest {
     @Autowired
     protected com.restaurantmanager.core.promotion.MenuOfferRepository menuOfferRepository;
     @Autowired
+    protected com.restaurantmanager.core.delivery.DeliveryZoneRepository deliveryZoneRepository;
+    @Autowired
     protected com.restaurantmanager.core.auth.otp.OtpChallengeRepository otpChallengeRepository;
     @Autowired
     protected com.restaurantmanager.core.table.qr.TableMobileSessionRepository tableMobileSessionRepository;
@@ -137,6 +139,7 @@ public abstract class BasePostgresIntegrationTest {
         paymentRepository.deleteAll();
         orderItemRepository.deleteAll();
         orderRepository.deleteAll();
+        deliveryZoneRepository.deleteAll();
         groupSessionItemRepository.deleteAll();
         groupSessionParticipantRepository.deleteAll();
         groupOrderSessionRepository.deleteAll();
