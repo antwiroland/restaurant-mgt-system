@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { createGuestSessionToken, registerPhone, verifyOtp } from "./auth/auth";
+import { createGuestSessionToken, isValidOtpCode, normalizePhone, resendSecondsLeft } from "./auth/auth";
 import { addItem, itemsForCategory, setCartQty } from "./menu/menu";
 import { canAttemptPaymentOffline, openMenuOffline, queueOrderWhenOffline, shouldRetryEntry, MAX_RETRY_COUNT } from "./offline/offline";
 import { scanQr } from "./qr/qr";
@@ -9,16 +9,25 @@ import { appearsInHistory, applyStatusUpdate, reorderFromHistory } from "./track
 import { cancelReservation, createReservation } from "./reservation/reservation";
 
 describe("Phase 7 scenarios", () => {
-  test("givenValidPhone_whenRegister_thenOtpSentAndRegistrationPending", () => {
-    const result = registerPhone("+233201234567");
-    expect(result.otpSent).toBe(true);
-    expect(result.pending).toBe(true);
+  test("givenValidPhone_whenNormalized_thenSpacesRemovedAndAccepted", () => {
+    expect(normalizePhone(" +233 20-123 4567 ")).toBe("+233201234567");
+    expect(normalizePhone("0201234567")).toBe("0201234567");
   });
 
-  test("givenCorrectOtp_whenVerified_thenTokenIssuedAndUserLoggedIn", () => {
-    const result = verifyOtp("123456", "123456");
-    expect(result.tokenIssued).toBe(true);
-    expect(result.loggedIn).toBe(true);
+  test("givenInvalidPhone_whenNormalized_thenRejected", () => {
+    expect(() => normalizePhone("12ab")).toThrow();
+  });
+
+  test("givenOtpCode_whenValidated_thenOnlyNumericCodesAccepted", () => {
+    expect(isValidOtpCode("123456")).toBe(true);
+    expect(isValidOtpCode("12a456")).toBe(false);
+    expect(isValidOtpCode("12")).toBe(false);
+  });
+
+  test("givenRecentCodeRequest_whenCheckingResend_thenCooldownRemaining", () => {
+    expect(resendSecondsLeft(1_000, 60, 31_000)).toBe(30);
+    expect(resendSecondsLeft(1_000, 60, 61_000)).toBe(0);
+    expect(resendSecondsLeft(null, 60)).toBe(0);
   });
 
   test("givenGuestCheckout_whenOrderCreated_thenSessionTokenUsedWithNoRole", () => {

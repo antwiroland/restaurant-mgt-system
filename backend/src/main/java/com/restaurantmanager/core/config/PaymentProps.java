@@ -25,8 +25,58 @@ public class PaymentProps {
     }
 
     public static class Paystack {
+        /** stub = offline fake provider, live = real Paystack HTTP API */
+        private String mode = "stub";
         private String secretKey;
         private String baseUrl = "https://api.paystack.co";
+        private String callbackUrl;
+        private String customerEmailDomain = "customers.restaurant.local";
+        private int connectTimeoutMs = 5000;
+        private int readTimeoutMs = 15000;
+
+        public String getMode() {
+            return mode;
+        }
+
+        public void setMode(String mode) {
+            this.mode = mode;
+        }
+
+        public boolean isLive() {
+            return "live".equalsIgnoreCase(mode);
+        }
+
+        public String getCallbackUrl() {
+            return callbackUrl;
+        }
+
+        public void setCallbackUrl(String callbackUrl) {
+            this.callbackUrl = callbackUrl;
+        }
+
+        public String getCustomerEmailDomain() {
+            return customerEmailDomain;
+        }
+
+        public void setCustomerEmailDomain(String customerEmailDomain) {
+            this.customerEmailDomain = customerEmailDomain;
+        }
+
+        public int getConnectTimeoutMs() {
+            return connectTimeoutMs;
+        }
+
+        public void setConnectTimeoutMs(int connectTimeoutMs) {
+            this.connectTimeoutMs = connectTimeoutMs;
+        }
+
+        public int getReadTimeoutMs() {
+            return readTimeoutMs;
+        }
+
+        public void setReadTimeoutMs(int readTimeoutMs) {
+            this.readTimeoutMs = readTimeoutMs;
+        }
 
         public String getSecretKey() {
             return secretKey;

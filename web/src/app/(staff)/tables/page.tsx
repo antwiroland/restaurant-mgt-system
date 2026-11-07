@@ -8,6 +8,7 @@ import { Spinner } from "@/components/Spinner";
 import { useStaffSession } from "@/components/SessionProvider";
 import {
   createTable,
+  getActiveTableSessions,
   getOrders,
   getTables,
   updateTable,
@@ -49,6 +50,7 @@ export default function TablesPage() {
   const [savingCreate, setSavingCreate] = useState(false);
   const [statusBusy, setStatusBusy] = useState<TableRecord["status"] | null>(null);
   const [copied, setCopied] = useState(false);
+  const [guestSessions, setGuestSessions] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (typeof window !== "undefined") setOrigin(window.location.origin);
@@ -62,6 +64,8 @@ export default function TablesPage() {
     });
     setTables(nextTables);
     setOrders(nextOrders);
+    const sessions = await authenticatedFetch((activeSession) => getActiveTableSessions(activeSession)).catch(() => []);
+    setGuestSessions(Object.fromEntries(sessions.map((entry) => [entry.tableId, entry.sessionCount])));
   }
 
   useEffect(() => {
@@ -257,6 +261,11 @@ export default function TablesPage() {
                   <p className="mt-1 text-sm">{table.capacity} seats</p>
                   <p className="mt-1 text-xs font-semibold uppercase tracking-wide">{table.status}</p>
                   <p className="mt-1 text-xs opacity-80">{hasOrders ? "Has active orders" : "No active orders"}</p>
+                  {guestSessions[table.id] ? (
+                    <span className="badge badge-info mt-2">
+                      {guestSessions[table.id]} guest phone{guestSessions[table.id] > 1 ? "s" : ""} ordering
+                    </span>
+                  ) : null}
                 </button>
               );
             })}

@@ -79,6 +79,75 @@ public class OrderEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "promo_code", length = 30)
+    private String promoCode;
+
+    @Column(name = "promo_discount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal promoDiscount = BigDecimal.ZERO;
+
+    @Column(name = "offer_discount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal offerDiscount = BigDecimal.ZERO;
+
+    @Column(name = "loyalty_points_redeemed", nullable = false)
+    private int loyaltyPointsRedeemed;
+
+    @Column(name = "loyalty_discount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal loyaltyDiscount = BigDecimal.ZERO;
+
+    @Column(name = "loyalty_points_awarded", nullable = false)
+    private int loyaltyPointsAwarded;
+
+    @Column(name = "manual_discount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal manualDiscount = BigDecimal.ZERO;
+
+    @Column(name = "manual_discount_reason", length = 500)
+    private String manualDiscountReason;
+
+    @Column(name = "delivery_fee", nullable = false, precision = 12, scale = 2)
+    private BigDecimal deliveryFee = BigDecimal.ZERO;
+
+    @Column(name = "voided_at")
+    private Instant voidedAt;
+
+    @Column(name = "voided_by")
+    private UUID voidedBy;
+
+    @Column(name = "delivery_zone_id")
+    private UUID deliveryZoneId;
+
+    @Column(name = "rider_user_id")
+    private UUID riderUserId;
+
+    @Column(name = "rider_assigned_at")
+    private Instant riderAssignedAt;
+
+    @Column(name = "delivered_at")
+    private Instant deliveredAt;
+
+    @Column(name = "rider_latitude")
+    private Double riderLatitude;
+
+    @Column(name = "rider_longitude")
+    private Double riderLongitude;
+
+    @Column(name = "rider_location_at")
+    private Instant riderLocationAt;
+
+    @Column(name = "service_charge", nullable = false, precision = 12, scale = 2)
+    private BigDecimal serviceCharge = BigDecimal.ZERO;
+
+    @Column(name = "tax_total", nullable = false, precision = 12, scale = 2)
+    private BigDecimal taxTotal = BigDecimal.ZERO;
+
+    @Column(name = "tax_inclusive", nullable = false)
+    private boolean taxInclusive;
+
+    @Column(name = "tip_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal tipAmount = BigDecimal.ZERO;
+
+    @Column(name = "stock_deducted", nullable = false)
+    private boolean stockDeducted;
+
     @PrePersist
     public void prePersist() {
         Instant now = Instant.now();
@@ -234,5 +303,213 @@ public class OrderEntity {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getPromoCode() {
+        return promoCode;
+    }
+
+    public void setPromoCode(String promoCode) {
+        this.promoCode = promoCode;
+    }
+
+    public BigDecimal getPromoDiscount() {
+        return promoDiscount;
+    }
+
+    public void setPromoDiscount(BigDecimal promoDiscount) {
+        this.promoDiscount = promoDiscount;
+    }
+
+    public BigDecimal getOfferDiscount() {
+        return offerDiscount;
+    }
+
+    public void setOfferDiscount(BigDecimal offerDiscount) {
+        this.offerDiscount = offerDiscount;
+    }
+
+    public int getLoyaltyPointsRedeemed() {
+        return loyaltyPointsRedeemed;
+    }
+
+    public void setLoyaltyPointsRedeemed(int loyaltyPointsRedeemed) {
+        this.loyaltyPointsRedeemed = loyaltyPointsRedeemed;
+    }
+
+    public BigDecimal getLoyaltyDiscount() {
+        return loyaltyDiscount;
+    }
+
+    public void setLoyaltyDiscount(BigDecimal loyaltyDiscount) {
+        this.loyaltyDiscount = loyaltyDiscount;
+    }
+
+    public int getLoyaltyPointsAwarded() {
+        return loyaltyPointsAwarded;
+    }
+
+    public void setLoyaltyPointsAwarded(int loyaltyPointsAwarded) {
+        this.loyaltyPointsAwarded = loyaltyPointsAwarded;
+    }
+
+    public BigDecimal getManualDiscount() {
+        return manualDiscount;
+    }
+
+    public void setManualDiscount(BigDecimal manualDiscount) {
+        this.manualDiscount = manualDiscount;
+    }
+
+    public String getManualDiscountReason() {
+        return manualDiscountReason;
+    }
+
+    public void setManualDiscountReason(String manualDiscountReason) {
+        this.manualDiscountReason = manualDiscountReason;
+    }
+
+    public BigDecimal getDeliveryFee() {
+        return deliveryFee;
+    }
+
+    public void setDeliveryFee(BigDecimal deliveryFee) {
+        this.deliveryFee = deliveryFee;
+    }
+
+    public Instant getVoidedAt() {
+        return voidedAt;
+    }
+
+    public void setVoidedAt(Instant voidedAt) {
+        this.voidedAt = voidedAt;
+    }
+
+    public UUID getVoidedBy() {
+        return voidedBy;
+    }
+
+    public void setVoidedBy(UUID voidedBy) {
+        this.voidedBy = voidedBy;
+    }
+
+    public BigDecimal totalDiscount() {
+        return promoDiscount.add(offerDiscount).add(loyaltyDiscount).add(manualDiscount);
+    }
+
+    /** Item subtotal after discounts, never below zero. */
+    public BigDecimal discountedSubtotal() {
+        BigDecimal base = subtotal == null ? BigDecimal.ZERO : subtotal;
+        BigDecimal net = base.subtract(totalDiscount());
+        return net.signum() < 0 ? BigDecimal.ZERO : net;
+    }
+
+    /**
+     * total = discounted subtotal + service charge + delivery fee + taxes (unless prices include tax) + tip.
+     * Service charge and taxes are computed by BillingService; this only sums the components.
+     */
+    public void recalculateTotal() {
+        BigDecimal computed = discountedSubtotal()
+                .add(serviceCharge)
+                .add(deliveryFee)
+                .add(taxInclusive ? BigDecimal.ZERO : taxTotal)
+                .add(tipAmount);
+        total = computed.setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
+    public UUID getDeliveryZoneId() {
+        return deliveryZoneId;
+    }
+
+    public void setDeliveryZoneId(UUID deliveryZoneId) {
+        this.deliveryZoneId = deliveryZoneId;
+    }
+
+    public UUID getRiderUserId() {
+        return riderUserId;
+    }
+
+    public void setRiderUserId(UUID riderUserId) {
+        this.riderUserId = riderUserId;
+    }
+
+    public Instant getRiderAssignedAt() {
+        return riderAssignedAt;
+    }
+
+    public void setRiderAssignedAt(Instant riderAssignedAt) {
+        this.riderAssignedAt = riderAssignedAt;
+    }
+
+    public Instant getDeliveredAt() {
+        return deliveredAt;
+    }
+
+    public void setDeliveredAt(Instant deliveredAt) {
+        this.deliveredAt = deliveredAt;
+    }
+
+    public Double getRiderLatitude() {
+        return riderLatitude;
+    }
+
+    public void setRiderLatitude(Double riderLatitude) {
+        this.riderLatitude = riderLatitude;
+    }
+
+    public Double getRiderLongitude() {
+        return riderLongitude;
+    }
+
+    public void setRiderLongitude(Double riderLongitude) {
+        this.riderLongitude = riderLongitude;
+    }
+
+    public Instant getRiderLocationAt() {
+        return riderLocationAt;
+    }
+
+    public void setRiderLocationAt(Instant riderLocationAt) {
+        this.riderLocationAt = riderLocationAt;
+    }
+
+    public BigDecimal getServiceCharge() {
+        return serviceCharge;
+    }
+
+    public void setServiceCharge(BigDecimal serviceCharge) {
+        this.serviceCharge = serviceCharge;
+    }
+
+    public BigDecimal getTaxTotal() {
+        return taxTotal;
+    }
+
+    public void setTaxTotal(BigDecimal taxTotal) {
+        this.taxTotal = taxTotal;
+    }
+
+    public boolean isTaxInclusive() {
+        return taxInclusive;
+    }
+
+    public void setTaxInclusive(boolean taxInclusive) {
+        this.taxInclusive = taxInclusive;
+    }
+
+    public BigDecimal getTipAmount() {
+        return tipAmount;
+    }
+
+    public void setTipAmount(BigDecimal tipAmount) {
+        this.tipAmount = tipAmount;
+    }
+
+    public boolean isStockDeducted() {
+        return stockDeducted;
+    }
+
+    public void setStockDeducted(boolean stockDeducted) {
+        this.stockDeducted = stockDeducted;
     }
 }

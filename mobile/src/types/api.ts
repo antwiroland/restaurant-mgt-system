@@ -89,7 +89,7 @@ export type OrderItem = {
 };
 
 export type OrderType = 'DINE_IN' | 'PICKUP' | 'DELIVERY';
-export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'READY' | 'COMPLETED' | 'CANCELLED' | 'VOIDED';
+export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'READY' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'COMPLETED' | 'CANCELLED' | 'VOIDED';
 
 export type Order = {
   id: string;
@@ -104,6 +104,11 @@ export type Order = {
   notes?: string;
   createdAt: string;
   pickupCode?: string;
+  promoCode?: string | null;
+  discountTotal?: string;
+  loyaltyPointsRedeemed?: number;
+  loyaltyDiscount?: string;
+  deliveryFee?: string;
 };
 
 export type CreateOrderRequest = {
@@ -112,6 +117,8 @@ export type CreateOrderRequest = {
   tableToken?: string;
   items: { menuItemId: string; quantity: number; notes?: string; modifierOptionIds?: string[] }[];
   promoCode?: string;
+  loyaltyPointsToRedeem?: number;
+  deliveryZoneId?: string;
   groupSessionId?: string;
   deliveryAddress?: string;
   notes?: string;

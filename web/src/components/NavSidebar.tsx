@@ -28,6 +28,8 @@ const groups: NavGroup[] = [
       { label: "Reservations", href: "/reservations", short: "RS" },
       { label: "Group Ordering", href: "/group-ordering", short: "GO" },
       { label: "Pickup", href: "/orders/pickup", short: "PK" },
+      { label: "Delivery", href: "/delivery", short: "DL", roles: ["ADMIN", "MANAGER", "CASHIER"] },
+      { label: "My Deliveries", href: "/rider", short: "RD", roles: ["RIDER"] },
     ],
   },
   {
@@ -38,6 +40,7 @@ const groups: NavGroup[] = [
       { label: "Financial", href: "/financial", short: "FI" },
       { label: "Receipts", href: "/receipts", short: "RC" },
       { label: "Shifts", href: "/shifts", short: "SH" },
+      { label: "Offers", href: "/offers", short: "OF", roles: ["ADMIN", "MANAGER"] },
     ],
   },
   {
@@ -52,6 +55,8 @@ const groups: NavGroup[] = [
 ];
 
 function allowed(item: NavItem, role: StaffRole | undefined) {
+  // Riders only see pages explicitly opened to them.
+  if (role === "RIDER") return !!item.roles?.includes("RIDER");
   if (!item.roles) return true;
   return !!role && item.roles.includes(role);
 }
@@ -103,6 +108,8 @@ export function NavSidebar({ role, collapsed = false, onNavigate, mobile = false
                         : "border-l-transparent text-ink-soft hover:bg-sunken hover:text-ink",
                     ].join(" ")}
                     title={collapsed ? item.label : undefined}
+                    aria-label={collapsed ? item.label : undefined}
+                    aria-current={isActive ? "page" : undefined}
                   >
                     {collapsed ? item.short : item.label}
                   </Link>

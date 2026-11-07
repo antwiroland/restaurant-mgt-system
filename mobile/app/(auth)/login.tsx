@@ -4,7 +4,8 @@ import {
   StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
-import { loginCustomer } from '../../src/api/auth';
+import { loginCustomer, loginWithOtp, requestOtp } from '../../src/api/auth';
+import { isValidOtpCode, normalizePhone } from '../../src/features/auth/auth';
 import { useAuthStore } from '../../src/store/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -12,7 +13,54 @@ export default function LoginScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<'password' | 'otp'>('password');
+  const [code, setCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
   const { setUser, setGuest } = useAuthStore();
+
+  async function finishLogin(res: { user: { id: string; name: string; role: string } }) {
+    await AsyncStorage.setItem('userId', res.user.id);
+    await AsyncStorage.setItem('userName', res.user.name);
+    await AsyncStorage.setItem('userRole', res.user.role);
+    setUser(res.user.id, res.user.name, res.user.role);
+    router.replace('/(tabs)/menu');
+  }
+
+  async function handleSendCode() {
+    let normalized: string;
+    try {
+      normalized = normalizePhone(phone);
+    } catch (e: any) {
+      Alert.alert('Invalid phone', e.message);
+      return;
+    }
+    setLoading(true);
+    try {
+      await requestOtp(normalized, 'LOGIN');
+      setPhone(normalized);
+      setCodeSent(true);
+      Alert.alert('Code sent', 'If this number has an account, you will receive an SMS code shortly.');
+    } catch (e: any) {
+      Alert.alert('Could not send code', e?.response?.data?.message ?? 'Please try again');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleOtpLogin() {
+    if (!isValidOtpCode(code)) {
+      Alert.alert('Invalid code', 'Enter the code from the SMS.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await finishLogin(await loginWithOtp(phone, code.trim()));
+    } catch (e: any) {
+      Alert.alert('Login failed', e?.response?.data?.message ?? 'Invalid or expired code');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleLogin() {
     if (!phone || !password) {
@@ -21,12 +69,7 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      const res = await loginCustomer(phone, password);
-      await AsyncStorage.setItem('userId', res.user.id);
-      await AsyncStorage.setItem('userName', res.user.name);
-      await AsyncStorage.setItem('userRole', res.user.role);
-      setUser(res.user.id, res.user.name, res.user.role);
-      router.replace('/(tabs)/menu');
+      await finishLogin(await loginCustomer(phone, password));
     } catch (e: any) {
       Alert.alert('Login failed', e?.response?.data?.message ?? 'Check your credentials');
     } finally {
@@ -55,16 +98,49 @@ export default function LoginScreen() {
         keyboardType="phone-pad"
         autoCapitalize="none"
       />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+      {mode === 'password' ? (
+        <>
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            accessibilityLabel="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+          <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading} accessibilityRole="button">
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign In</Text>}
+          </TouchableOpacity>
+        </>
+      ) : codeSent ? (
+        <>
+          <TextInput
+            style={styles.input}
+            placeholder="SMS code"
+            accessibilityLabel="SMS code"
+            value={code}
+            onChangeText={setCode}
+            keyboardType="number-pad"
+            maxLength={8}
+            textContentType="oneTimeCode"
+            autoComplete="sms-otp"
+          />
+          <TouchableOpacity style={styles.button} onPress={handleOtpLogin} disabled={loading} accessibilityRole="button">
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify & Sign In</Text>}
+          </TouchableOpacity>
+        </>
+      ) : (
+        <TouchableOpacity style={styles.button} onPress={handleSendCode} disabled={loading} accessibilityRole="button">
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Send SMS code</Text>}
+        </TouchableOpacity>
+      )}
 
-      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign In</Text>}
+      <TouchableOpacity
+        style={styles.registerLink}
+        onPress={() => { setMode(mode === 'password' ? 'otp' : 'password'); setCodeSent(false); setCode(''); }}
+        accessibilityRole="button"
+      >
+        <Text style={styles.linkText}>{mode === 'password' ? 'Sign in with an SMS code instead' : 'Sign in with password instead'}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.registerLink} onPress={() => router.push('/(auth)/register')}>
@@ -88,7 +164,7 @@ const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: '#2563EB', borderRadius: 8, padding: 16,
-    alignItems: 'center', marginBottom: 12,
+    alignItems: 'center', marginBottom: 12, minHeight: 48,
   },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   registerLink: { alignItems: 'center', marginBottom: 8 },

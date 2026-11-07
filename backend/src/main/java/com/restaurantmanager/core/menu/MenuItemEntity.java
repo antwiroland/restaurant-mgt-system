@@ -47,6 +47,12 @@ public class MenuItemEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "auto_86", nullable = false)
+    private boolean auto86;
+
+    @Column(name = "image_public_id", length = 255)
+    private String imagePublicId;
+
     @PrePersist
     public void prePersist() {
         Instant now = Instant.now();
@@ -135,5 +141,21 @@ public class MenuItemEntity {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public boolean isAuto86() {
+        return auto86;
+    }
+
+    public void setAuto86(boolean auto86) {
+        this.auto86 = auto86;
+    }
+
+    public String getImagePublicId() {
+        return imagePublicId;
+    }
+
+    public void setImagePublicId(String imagePublicId) {
+        this.imagePublicId = imagePublicId;
     }
 }

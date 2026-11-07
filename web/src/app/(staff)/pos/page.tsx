@@ -15,11 +15,13 @@ import {
 import { useStaffSession } from "@/components/SessionProvider";
 import {
   createOrder,
+  getDeliveryZones,
   getMenuItems,
   getPayment,
   getTables,
   initiatePayment,
   verifyPayment,
+  type DeliveryZoneRecord,
   type MenuItemRecord,
   type PaymentMethod,
   type PaymentRecord,
@@ -29,7 +31,7 @@ import {
 const ORDER_TYPES = [
   { value: "DINE_IN", label: "Dine In", available: true, note: "Assign ticket to a live table." },
   { value: "PICKUP", label: "Pickup", available: true, note: "Quick counter handoff." },
-  { value: "DELIVERY", label: "Delivery", available: false, note: "Dispatch workflow not enabled yet." },
+  { value: "DELIVERY", label: "Delivery", available: true, note: "Send to an address; assign a rider on the Delivery board." },
 ] as const;
 
 const PAYMENT_METHODS: Array<{ value: PaymentMethod; label: string; hint: string }> = [
@@ -48,6 +50,10 @@ export default function PosPage() {
 
   const [orderType, setOrderType] = useState<(typeof ORDER_TYPES)[number]["value"]>("DINE_IN");
   const [tableId, setTableId] = useState("");
+  const [promoCode, setPromoCode] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [deliveryZoneId, setDeliveryZoneId] = useState("");
+  const [deliveryZones, setDeliveryZones] = useState<DeliveryZoneRecord[]>([]);
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [message, setMessage] = useState("");
   const [orderFieldErrors, setOrderFieldErrors] = useState<{
@@ -78,6 +84,7 @@ export default function PosPage() {
       ]);
       setMenuItems(nextMenuItems.filter((item) => item.active && item.available));
       setTables(nextTables);
+      setDeliveryZones(await getDeliveryZones().catch(() => []));
     }).catch((err) => {
       setMessage(err instanceof Error ? err.message : "Could not load POS data");
     });
@@ -137,8 +144,8 @@ export default function PosPage() {
     if (!session) return;
     const nextFieldErrors: { cart?: string; tableId?: string; deliveryAddress?: string } = {};
     if (orderType === "DELIVERY") {
-      setMessage("Delivery ordering is not available yet. Use dine-in or pickup.");
-      return;
+      if (!deliveryAddress.trim()) nextFieldErrors.deliveryAddress = "Delivery address is required";
+      if (deliveryZones.length > 0 && !deliveryZoneId) nextFieldErrors.deliveryAddress = "Choose a delivery zone";
     }
     if (cart.length === 0) nextFieldErrors.cart = "Add at least one item";
     if (orderType === "DINE_IN" && !tableId) nextFieldErrors.tableId = "Select a table for dine-in";
@@ -153,15 +160,28 @@ export default function PosPage() {
     setOrderFieldErrors({});
 
     try {
-      const payload = buildOrderPayload(orderType, cart, tableId || undefined);
+      const payload = {
+        ...buildOrderPayload(orderType, cart, tableId || undefined, promoCode),
+        ...(orderType === "DELIVERY"
+          ? { deliveryAddress: deliveryAddress.trim(), deliveryZoneId: deliveryZoneId || undefined }
+          : {}),
+      };
       const created = await authenticatedFetch((activeSession) => createOrder(activeSession, payload));
 
       setCreatedOrderId(created.id);
       setPaymentId("");
       setPaymentRecord(null);
       setCart([]);
+      setPromoCode("");
+      setDeliveryAddress("");
+      setDeliveryZoneId("");
       if (orderType !== "DINE_IN") setTableId("");
-      setMessage(`Order ${created.id.slice(0, 8)} created. Proceed to payment.`);
+      const discount = Number(created.discountTotal ?? 0);
+      setMessage(
+        discount > 0
+          ? `Order ${created.id.slice(0, 8)} created with GHS ${discount.toFixed(2)} off. Total GHS ${Number(created.total).toFixed(2)}. Proceed to payment.`
+          : `Order ${created.id.slice(0, 8)} created. Proceed to payment.`,
+      );
 
       setPaymentHighlight(true);
       window.setTimeout(() => setPaymentHighlight(false), 1400);
@@ -425,8 +445,35 @@ export default function PosPage() {
                   ))}
                 </div>
 
-                {!activeOrderType.available ? (
-                  <p className="alert alert-info mt-4">Delivery remains visible as a roadmap item. Staff checkout is intentionally blocked for now.</p>
+                {orderType === "DELIVERY" ? (
+                  <div className="mt-4 grid gap-3">
+                    <label className="field">
+                      <span className="field-label">Delivery address</span>
+                      <textarea
+                        className="input"
+                        rows={2}
+                        value={deliveryAddress}
+                        onChange={(event) => setDeliveryAddress(event.target.value)}
+                        placeholder="House number, street, landmark"
+                        aria-invalid={orderFieldErrors.deliveryAddress ? true : undefined}
+                        aria-describedby={orderFieldErrors.deliveryAddress ? "pos-delivery-error" : undefined}
+                      />
+                    </label>
+                    {deliveryZones.length > 0 ? (
+                      <label className="field">
+                        <span className="field-label">Delivery zone</span>
+                        <select className="select" value={deliveryZoneId} onChange={(event) => setDeliveryZoneId(event.target.value)}>
+                          <option value="">Select a zone</option>
+                          {deliveryZones.map((zone) => (
+                            <option key={zone.id} value={zone.id}>
+                              {`${zone.name} | GHS ${Number(zone.fee).toFixed(2)} | ~${zone.estimatedMinutes} min`}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
+                    {orderFieldErrors.deliveryAddress ? <span id="pos-delivery-error" className="field-error" role="alert">{orderFieldErrors.deliveryAddress}</span> : null}
+                  </div>
                 ) : null}
               </div>
 
@@ -443,7 +490,13 @@ export default function PosPage() {
                   </div>
                   <label className="field mt-4">
                     <span className="field-label">Table</span>
-                    <select className="select" value={tableId} onChange={(event) => setTableId(event.target.value)}>
+                    <select
+                      className="select"
+                      value={tableId}
+                      onChange={(event) => setTableId(event.target.value)}
+                      aria-invalid={orderFieldErrors.tableId ? true : undefined}
+                      aria-describedby={orderFieldErrors.tableId ? "pos-table-error" : undefined}
+                    >
                       <option value="">Select a table</option>
                       {dineInTables.map((table) => (
                         <option key={table.id} value={table.id}>
@@ -451,7 +504,7 @@ export default function PosPage() {
                         </option>
                       ))}
                     </select>
-                    {orderFieldErrors.tableId ? <span className="field-error">{orderFieldErrors.tableId}</span> : null}
+                    {orderFieldErrors.tableId ? <span id="pos-table-error" className="field-error" role="alert">{orderFieldErrors.tableId}</span> : null}
                   </label>
                   {selectedTable ? (
                     <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -522,7 +575,7 @@ export default function PosPage() {
                     ))}
                   </div>
                 )}
-                {orderFieldErrors.cart ? <span className="field-error">{orderFieldErrors.cart}</span> : null}
+                {orderFieldErrors.cart ? <span className="field-error" role="alert">{orderFieldErrors.cart}</span> : null}
               </div>
             </div>
           </div>
@@ -539,6 +592,17 @@ export default function PosPage() {
                   <p className="text-3xl font-semibold tracking-tight text-ink">GHS {total.toFixed(2)}</p>
                 </div>
               </div>
+              <label className="grid gap-1 text-sm">
+                <span className="text-xs uppercase tracking-[0.18em] text-ink-soft">Promo code (optional)</span>
+                <input
+                  className="input"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. SAVE10"
+                  autoCapitalize="characters"
+                  maxLength={30}
+                />
+              </label>
               <button className="btn btn-accent btn-lg w-full" disabled={submittingOrder} onClick={() => void handleCreateOrder()}>
                 {submittingOrder ? <Spinner className="text-current" /> : null}
                 Create Order
@@ -574,8 +638,10 @@ export default function PosPage() {
                       value={createdOrderId}
                       onChange={(event) => setCreatedOrderId(event.target.value)}
                       placeholder="Order ID from Create Order"
+                      aria-invalid={paymentFieldErrors.createdOrderId ? true : undefined}
+                      aria-describedby={paymentFieldErrors.createdOrderId ? "pos-order-id-error" : undefined}
                     />
-                    {paymentFieldErrors.createdOrderId ? <span className="field-error">{paymentFieldErrors.createdOrderId}</span> : null}
+                    {paymentFieldErrors.createdOrderId ? <span id="pos-order-id-error" className="field-error" role="alert">{paymentFieldErrors.createdOrderId}</span> : null}
                   </label>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <InfoTile label="Linked order" value={createdOrderId ? createdOrderId.slice(0, 8) : "Not set"} />
@@ -618,9 +684,11 @@ export default function PosPage() {
                     value={momoPhone}
                     onChange={(event) => setMomoPhone(event.target.value)}
                     placeholder="+233..."
+                    aria-invalid={paymentFieldErrors.momoPhone ? true : undefined}
+                    aria-describedby={paymentFieldErrors.momoPhone ? "pos-momo-hint pos-momo-error" : "pos-momo-hint"}
                   />
-                  <span className="field-hint">Use the payer's mobile money number.</span>
-                  {paymentFieldErrors.momoPhone ? <span className="field-error">{paymentFieldErrors.momoPhone}</span> : null}
+                  <span id="pos-momo-hint" className="field-hint">Use the payer's mobile money number.</span>
+                  {paymentFieldErrors.momoPhone ? <span id="pos-momo-error" className="field-error" role="alert">{paymentFieldErrors.momoPhone}</span> : null}
                 </label>
               ) : null}
 

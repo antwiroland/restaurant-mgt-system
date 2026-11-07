@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.restaurantmanager.core.common.ApiException;
 import com.restaurantmanager.core.common.Role;
 import com.restaurantmanager.core.config.PaymentProps;
+import com.restaurantmanager.core.loyalty.LoyaltyAccountService;
+import com.restaurantmanager.core.table.qr.TableSessionService;
 import com.restaurantmanager.core.order.OrderEntity;
 import com.restaurantmanager.core.order.OrderType;
 import com.restaurantmanager.core.order.OrderRepository;
@@ -14,7 +16,7 @@ import com.restaurantmanager.core.payment.dto.PaymentInitiateResponse;
 import com.restaurantmanager.core.payment.dto.PaymentResponse;
 import com.restaurantmanager.core.payment.dto.PaymentRetryRequest;
 import com.restaurantmanager.core.payment.dto.ReceiptResponse;
-import com.restaurantmanager.core.phase8.whatsapp.WhatsAppService;
+import com.restaurantmanager.core.notification.whatsapp.WhatsAppService;
 import com.restaurantmanager.core.security.UserPrincipal;
 import com.restaurantmanager.core.config.CacheConfig;
 import com.restaurantmanager.core.table.RestaurantTableEntity;
@@ -30,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -53,6 +56,11 @@ public class PaymentService {
     private final CacheManager cacheManager;
     private final WhatsAppService whatsAppService;
     private final UserRepository userRepository;
+    private final PaymentRefundRepository refundRepository;
+    private final LoyaltyAccountService loyaltyAccountService;
+    private final TableSessionService tableSessionService;
+    private final com.restaurantmanager.core.billing.BillingService billingService;
+    private final com.restaurantmanager.core.payment.split.SplitService splitService;
 
     public PaymentService(PaymentRepository paymentRepository,
                           PaymentWebhookEventRepository paymentWebhookEventRepository,
@@ -65,7 +73,12 @@ public class PaymentService {
                           TableRealtimePublisher tableRealtimePublisher,
                           CacheManager cacheManager,
                           WhatsAppService whatsAppService,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          PaymentRefundRepository refundRepository,
+                          LoyaltyAccountService loyaltyAccountService,
+                          TableSessionService tableSessionService,
+                          com.restaurantmanager.core.billing.BillingService billingService,
+                          com.restaurantmanager.core.payment.split.SplitService splitService) {
         this.paymentRepository = paymentRepository;
         this.paymentWebhookEventRepository = paymentWebhookEventRepository;
         this.orderRepository = orderRepository;
@@ -78,6 +91,11 @@ public class PaymentService {
         this.cacheManager = cacheManager;
         this.whatsAppService = whatsAppService;
         this.userRepository = userRepository;
+        this.refundRepository = refundRepository;
+        this.loyaltyAccountService = loyaltyAccountService;
+        this.tableSessionService = tableSessionService;
+        this.billingService = billingService;
+        this.splitService = splitService;
     }
 
     @Transactional
@@ -95,15 +113,40 @@ public class PaymentService {
 
         OrderEntity order = orderRepository.findById(request.orderId())
                 .orElseThrow(() -> new ApiException(404, "Order not found"));
-        assertOrderAccess(order, principal);
+        BigDecimal amount = order.getTotal();
+        UUID splitId = null;
+        var splits = splitService.activeSplits(order.getId());
+        if (!splits.isEmpty()) {
+            if (request.splitId() == null) {
+                throw new ApiException(409, "This bill is split; choose the share to pay");
+            }
+            var split = splits.stream().filter(s -> s.getId().equals(request.splitId())).findFirst()
+                    .orElseThrow(() -> new ApiException(404, "Split not found for this order"));
+            if (split.getStatus() == com.restaurantmanager.core.payment.split.PaymentSplitEntity.Status.PAID) {
+                throw new ApiException(409, "This share has already been paid");
+            }
+            if (principal.role() == Role.CUSTOMER
+                    && !principal.userId().equals(split.getUserId())
+                    && !principal.userId().equals(order.getCustomerUserId())) {
+                throw new ApiException(403, "Forbidden");
+            }
+            amount = split.getAmount();
+            splitId = split.getId();
+        } else {
+            if (request.splitId() != null) {
+                throw new ApiException(404, "Split not found for this order");
+            }
+            assertOrderAccess(order, principal);
+        }
 
         PaystackClient.InitiateResult result = paystackClient.initiate(
-                key, order.getTotal(), paymentProps.getDefaultCurrency(), request.momoPhone().trim()
+                key, amount, paymentProps.getDefaultCurrency(), request.momoPhone().trim()
         );
 
         PaymentEntity payment = new PaymentEntity();
         payment.setOrder(order);
-        payment.setAmount(order.getTotal());
+        payment.setSplitId(splitId);
+        payment.setAmount(amount);
         payment.setCurrency(paymentProps.getDefaultCurrency());
         payment.setMethod(request.method());
         payment.setStatus(PaymentStatus.INITIATED);
@@ -158,6 +201,7 @@ public class PaymentService {
 
         PaymentEntity retry = new PaymentEntity();
         retry.setOrder(existing.getOrder());
+        retry.setSplitId(existing.getSplitId());
         retry.setAmount(existing.getAmount());
         retry.setCurrency(existing.getCurrency());
         retry.setMethod(existing.getMethod());
@@ -262,12 +306,16 @@ public class PaymentService {
 
         if (mapped == PaymentStatus.SUCCESS && payment.getPaidAt() == null) {
             payment.setPaidAt(Instant.now());
+            if (payment.getSplitId() != null) {
+                splitService.markPaid(payment.getSplitId(), payment.getId());
+            }
             OrderEntity order = payment.getOrder();
-            if (order.getStatus() == OrderStatus.PENDING) {
+            if (order.getStatus() == OrderStatus.PENDING && paidTotal(order, payment).compareTo(order.getTotal()) >= 0) {
                 order.setStatus(OrderStatus.CONFIRMED);
                 orderRepository.save(order);
             }
-            updateTableOccupancy(order);
+            refreshTableOccupancy(order);
+            awardLoyaltyIfFullyPaid(order, payment);
         } else if (mapped == PaymentStatus.FAILED) {
             payment.setFailureReason(providerMessage == null || providerMessage.isBlank() ? "Payment failed" : providerMessage.trim());
         }
@@ -277,7 +325,116 @@ public class PaymentService {
         }
     }
 
-    private void updateTableOccupancy(OrderEntity paidOrder) {
+    /**
+     * Refunds a successful payment (fully or partially) through the payment provider and records the refund.
+     * Loyalty points awarded for the order are clawed back proportionally.
+     */
+    @Transactional
+    public RefundOutcome refund(UUID paymentId, BigDecimal requestedAmount, String reason, UUID requestedBy, UUID approvedBy) {
+        PaymentEntity payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ApiException(404, "Payment not found"));
+        if (payment.getStatus() == PaymentStatus.REFUNDED) {
+            throw new ApiException(400, "Payment already fully refunded");
+        }
+        if (payment.getStatus() != PaymentStatus.SUCCESS) {
+            throw new ApiException(409, "Only successful payments can be refunded");
+        }
+        BigDecimal refundable = payment.refundableAmount();
+        BigDecimal amount = requestedAmount == null ? refundable : requestedAmount.setScale(2, RoundingMode.HALF_UP);
+        if (amount.signum() <= 0) {
+            throw new ApiException(400, "Refund amount must be positive");
+        }
+        if (amount.compareTo(refundable) > 0) {
+            throw new ApiException(400, "Refund amount exceeds refundable balance of " + refundable);
+        }
+
+        PaystackClient.RefundResult result = payment.getMethod() == PaymentMethod.CASH
+                ? new PaystackClient.RefundResult(null, "processed", "Cash refund recorded")
+                : paystackClient.refund(payment.getPaystackReference(), amount, payment.getCurrency());
+        if (result.failed()) {
+            throw new ApiException(502, "Payment provider rejected refund: " + result.message());
+        }
+
+        PaymentRefundEntity refund = new PaymentRefundEntity();
+        refund.setPayment(payment);
+        refund.setAmount(amount);
+        refund.setProviderReference(result.providerReference());
+        refund.setProviderStatus(result.providerStatus());
+        refund.setReason(reason);
+        refund.setRequestedBy(requestedBy);
+        refund.setApprovedBy(approvedBy);
+        refundRepository.save(refund);
+
+        PaymentStatus previous = payment.getStatus();
+        payment.setRefundedAmount(payment.getRefundedAmount().add(amount));
+        payment.setRefundedAt(Instant.now());
+        if (payment.refundableAmount().signum() == 0) {
+            payment.setStatus(PaymentStatus.REFUNDED);
+        }
+        paymentRepository.save(payment);
+
+        clawBackLoyalty(payment.getOrder(), amount);
+
+        if (previous != payment.getStatus()) {
+            realtimePublisher.publishPaymentStatusChanged(payment.getId(), payment.getOrder().getId(), previous,
+                    payment.getStatus(), payment.getAmount(), payment.getMethod());
+        }
+        return new RefundOutcome(refund.getId(), payment.getId(), payment.getOrder().getId(), amount,
+                payment.getRefundedAmount(), payment.refundableAmount(), payment.getStatus(), result.providerStatus());
+    }
+
+    /** Marks open (initiated/pending) payments of an order as voided. */
+    @Transactional
+    public int voidOpenPayments(UUID orderId) {
+        List<PaymentEntity> open = paymentRepository.findByOrderIdAndStatusIn(orderId,
+                List.of(PaymentStatus.INITIATED, PaymentStatus.PENDING));
+        for (PaymentEntity payment : open) {
+            PaymentStatus previous = payment.getStatus();
+            payment.setStatus(PaymentStatus.VOIDED);
+            paymentRepository.save(payment);
+            realtimePublisher.publishPaymentStatusChanged(payment.getId(), orderId, previous, PaymentStatus.VOIDED,
+                    payment.getAmount(), payment.getMethod());
+        }
+        return open.size();
+    }
+
+    private void awardLoyaltyIfFullyPaid(OrderEntity order, PaymentEntity confirmedPayment) {
+        if (order.getCustomerUserId() == null || order.getLoyaltyPointsAwarded() > 0) {
+            return;
+        }
+        BigDecimal paid = paymentRepository.findByOrderIdAndStatus(order.getId(), PaymentStatus.SUCCESS).stream()
+                .filter(p -> !p.getId().equals(confirmedPayment.getId()))
+                .map(PaymentEntity::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .add(confirmedPayment.getAmount());
+        if (paid.compareTo(order.getTotal()) < 0) {
+            return;
+        }
+        int awarded = loyaltyAccountService.accrueForOrder(order.getCustomerUserId(), order.getTotal(), order.getId().toString());
+        if (awarded > 0) {
+            order.setLoyaltyPointsAwarded(awarded);
+            orderRepository.save(order);
+        }
+    }
+
+    private void clawBackLoyalty(OrderEntity order, BigDecimal refundedAmount) {
+        if (order.getCustomerUserId() == null || order.getLoyaltyPointsAwarded() <= 0 || order.getTotal().signum() <= 0) {
+            return;
+        }
+        int points = BigDecimal.valueOf(order.getLoyaltyPointsAwarded())
+                .multiply(refundedAmount)
+                .divide(order.getTotal(), 0, RoundingMode.HALF_UP)
+                .intValue();
+        int deducted = loyaltyAccountService.reverseAccrual(order.getCustomerUserId(), points, order.getId().toString());
+        order.setLoyaltyPointsAwarded(Math.max(0, order.getLoyaltyPointsAwarded() - deducted));
+        orderRepository.save(order);
+    }
+
+    public record RefundOutcome(UUID refundId, UUID paymentId, UUID orderId, BigDecimal amount, BigDecimal totalRefunded,
+                                BigDecimal remainingRefundable, PaymentStatus paymentStatus, String providerStatus) {
+    }
+
+    public void refreshTableOccupancy(OrderEntity paidOrder) {
         if (paidOrder.getType() != OrderType.DINE_IN || paidOrder.getTable() == null) {
             return;
         }
@@ -291,6 +448,7 @@ public class PaymentService {
         boolean hasOutstanding = orderRepository.findByTableIdOrderByCreatedAtAsc(table.getId()).stream()
                 .filter(order -> order.getType() == OrderType.DINE_IN)
                 .filter(order -> order.getStatus() != OrderStatus.CANCELLED)
+                .filter(order -> order.getTotal().signum() > 0)
                 .anyMatch(order -> {
                     BigDecimal paid = paymentRepository.findByOrderIdAndStatus(order.getId(), PaymentStatus.SUCCESS).stream()
                             .map(PaymentEntity::getAmount)
@@ -301,6 +459,9 @@ public class PaymentService {
         TableStatus newStatus = hasOutstanding ? TableStatus.OCCUPIED : TableStatus.AVAILABLE;
         table.setStatus(newStatus);
         tableRepository.save(table);
+        if (newStatus == TableStatus.AVAILABLE) {
+            tableSessionService.closeAll(table.getId());
+        }
         evictTableCache();
         tableRealtimePublisher.publishTableStatusChanged(table.getNumber(), newStatus);
     }
@@ -351,10 +512,22 @@ public class PaymentService {
     private void assertPaymentAccess(PaymentEntity payment, UserPrincipal principal) {
         if (principal.role() == Role.CUSTOMER) {
             UUID customerId = payment.getOrder().getCustomerUserId();
-            if (customerId == null || !customerId.equals(principal.userId())) {
+            boolean owner = customerId != null && customerId.equals(principal.userId());
+            boolean splitPayer = payment.getSplitId() != null
+                    && principal.userId().equals(splitService.require(payment.getSplitId()).getUserId());
+            if (!owner && !splitPayer) {
                 throw new ApiException(403, "Forbidden");
             }
         }
+    }
+
+    /** Sum of successful payments for the order, counting the payment being confirmed even if not yet flushed. */
+    private BigDecimal paidTotal(OrderEntity order, PaymentEntity confirmed) {
+        return paymentRepository.findByOrderIdAndStatus(order.getId(), PaymentStatus.SUCCESS).stream()
+                .filter(p -> !p.getId().equals(confirmed.getId()))
+                .map(PaymentEntity::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .add(confirmed.getAmount());
     }
 
     private void assertOrderAccess(OrderEntity order, UserPrincipal principal) {
@@ -404,7 +577,16 @@ public class PaymentService {
                 order.getTotal(),
                 payment.getCurrency(),
                 payment.getMethod(),
-                payment.getPaidAt()
+                payment.getPaidAt(),
+                order.totalDiscount(),
+                order.getDeliveryFee(),
+                order.getServiceCharge(),
+                order.getTaxTotal(),
+                order.isTaxInclusive(),
+                billingService.taxLines(order.getId()),
+                order.getTipAmount(),
+                payment.getAmount(),
+                payment.getRefundedAmount()
         );
     }
 

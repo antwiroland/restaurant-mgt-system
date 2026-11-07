@@ -2,7 +2,7 @@ package com.restaurantmanager.core.reservation;
 
 import com.restaurantmanager.core.common.ApiException;
 import com.restaurantmanager.core.common.Role;
-import com.restaurantmanager.core.phase8.whatsapp.WhatsAppService;
+import com.restaurantmanager.core.notification.whatsapp.WhatsAppService;
 import com.restaurantmanager.core.reservation.dto.GuestReservationCancelRequest;
 import com.restaurantmanager.core.reservation.dto.GuestReservationLookupRequest;
 import com.restaurantmanager.core.reservation.dto.ReservationCreateRequest;

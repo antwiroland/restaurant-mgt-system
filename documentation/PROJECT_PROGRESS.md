@@ -217,7 +217,7 @@
   - flat and percentage discount modes
 - Buy-X-Get-Y offer service for free-item allocation when criteria are satisfied
 - Phase 8 scenario tests:
-  - `backend/src/test/java/com/restaurantmanager/core/phase8/Phase8FeaturesTest.java`
+  - `backend/src/test/java/com/restaurantmanager/core/promotion/EngagementFeaturesTest.java`
 - `documentation/reports/phase-8-report.md`
 
 ### Notes
@@ -258,7 +258,7 @@
   - cashier-forbidden audit query guard
 - Added financial audit actions: `PAYMENT_REFUNDED`, `ORDER_VOIDED`, `DISCOUNT_APPLIED`
 - Phase 9 scenario tests:
-  - `backend/src/test/java/com/restaurantmanager/core/phase9/Phase9FeaturesTest.java`
+  - `backend/src/test/java/com/restaurantmanager/core/financial/FinancialControlsFeaturesTest.java`
 - `documentation/reports/phase-9-report.md`
 
 ### Notes
@@ -288,7 +288,7 @@
   - brute-force login rate-limit checks
   - webhook signature-header presence checks
 - Phase 10 scenario tests:
-  - `backend/src/test/java/com/restaurantmanager/core/phase10/Phase10FeaturesTest.java`
+  - `backend/src/test/java/com/restaurantmanager/core/analytics/AnalyticsSecurityFeaturesTest.java`
 - `documentation/reports/phase-10-report.md`
 
 ### Notes
@@ -302,9 +302,9 @@
 
 ### Deliverables produced
 - Runtime API controllers/services added for previously isolated phase modules:
-  - Phase 8 endpoints under `/phase8/**`
-  - Phase 9 endpoints under `/phase9/**`
-  - Phase 10 endpoints under `/phase10/**`
+  - Phase 8 endpoints under `/promotions/**`, `/loyalty/**`, `/qr/**`, `/notifications/whatsapp/**` (originally `/phase8/**`)
+  - Phase 9 financial controls merged into `/financial/**` (originally `/phase9/**`)
+  - Phase 10 endpoints under `/analytics/**`, `/security/**`; load testing moved to k6 in `loadtest/` (originally `/phase10/**`)
 - Security hardening updates:
   - login brute-force rate limiting (`429` after repeated failed logins)
   - secure random generation for pickup/session codes
@@ -313,7 +313,7 @@
 - Repository hygiene:
   - root `.gitignore` added for Maven/Node/IDE artifacts
 - New integration test coverage:
-  - `backend/src/test/java/com/restaurantmanager/core/runtime/PhaseRuntimeIntegrationTest.java`
+  - `backend/src/test/java/com/restaurantmanager/core/runtime/DomainRuntimeIntegrationTest.java`
 
 ### Verification
 - `cd backend && mvn test -q` -> PASS

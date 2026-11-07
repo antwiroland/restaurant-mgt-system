@@ -9,6 +9,10 @@ import java.util.List;
 public record PublicTableOrderCreateRequest(
         @NotBlank String tableToken,
         @NotEmpty List<@Valid OrderCreateItemRequest> items,
-        String notes
+        String notes,
+        String promoCode
 ) {
+    public PublicTableOrderCreateRequest(String tableToken, List<OrderCreateItemRequest> items, String notes) {
+        this(tableToken, items, notes, null);
+    }
 }

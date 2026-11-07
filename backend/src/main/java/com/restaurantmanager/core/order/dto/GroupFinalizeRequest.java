@@ -13,6 +13,8 @@ public record GroupFinalizeRequest(
         String deliveryAddress,
         Instant pickupTime,
         Instant estimatedDeliveryTime,
-        String notes
+        String notes,
+        String promoCode,
+        UUID deliveryZoneId
 ) {
 }

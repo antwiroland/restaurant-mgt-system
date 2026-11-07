@@ -27,6 +27,22 @@ public record OrderResponse(
         BigDecimal subtotal,
         BigDecimal total,
         Instant createdAt,
-        List<OrderItemResponse> items
+        List<OrderItemResponse> items,
+        String promoCode,
+        BigDecimal promoDiscount,
+        BigDecimal offerDiscount,
+        int loyaltyPointsRedeemed,
+        BigDecimal loyaltyDiscount,
+        BigDecimal manualDiscount,
+        BigDecimal deliveryFee,
+        BigDecimal discountTotal,
+        Instant voidedAt,
+        UUID deliveryZoneId,
+        UUID riderUserId,
+        BigDecimal serviceCharge,
+        BigDecimal taxTotal,
+        boolean taxInclusive,
+        BigDecimal tipAmount,
+        List<com.restaurantmanager.core.billing.BillingService.TaxLine> taxLines
 ) {
 }

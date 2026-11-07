@@ -19,11 +19,16 @@ Both channels require a valid JWT. The token is passed as a query parameter on c
 |--------------------------------------|-----------------------|------------------------------------------|
 | `/topic/orders.new`                  | Kitchen, Cashier      | New order created                        |
 | `/topic/orders.status`               | Kitchen, Cashier      | Any order status change                  |
-| `/topic/tables`                      | Cashier, Manager      | Table status changes                     |
-| `/user/queue/order.{orderId}`        | Customer (own order)  | Status updates for a specific order      |
-| `/user/queue/group.{sessionCode}`    | Group participants    | Group cart updates (item added/removed)  |
-| `/user/queue/payment.{paymentId}`    | Customer              | Payment status updates                   |
-| `/topic/kitchen`                     | Kitchen display       | All order events for kitchen view        |
+| `/topic/tables.status`               | Cashier, Manager      | Table status changes                     |
+| `/topic/orders.{orderId}`            | Customer (own order)  | Status updates for a specific order      |
+| `/topic/orders.{orderId}.payments`   | Customer (own order)  | Payment status / failure for the order   |
+| `/topic/orders.{orderId}.delivery`   | Customer (own order)  | Rider assignment, status and live location |
+| `/topic/deliveries`                  | Dispatch staff        | All delivery updates                     |
+| `/topic/public.tables.{qrToken}.orders` | Guests at a table  | Orders created / updated for the table   |
+| `/topic/group.{sessionCode}`         | Group participants    | Group cart updates                       |
+| `/topic/payments.status`, `/topic/payments.failed` | Cashier | All payment events               |
+
+Per-order topics are keyed by unguessable order UUIDs. The STOMP endpoint is plain WebSocket at `/ws`, which both the web app and the mobile app (`@stomp/stompjs`) use.
 
 ### Publish destinations (client → server)
 
@@ -135,7 +140,7 @@ data: {"event":"ORDER_STATUS_CHANGED","orderId":"uuid","newStatus":"PREPARING"}
 data: {"event":"ORDER_STATUS_CHANGED","orderId":"uuid","newStatus":"READY"}
 ```
 
-The mobile app attempts WebSocket first; falls back to SSE polling every 10 seconds if the WebSocket connection fails.
+The mobile app uses a shared STOMP connection (`mobile/src/realtime/realtime.ts`). While it is disconnected, screens fall back to REST polling every 5–15 seconds; while connected, they poll only every 60 seconds or more. The SSE endpoint above is not implemented: the polling fallback replaces it.
 
 ---
 

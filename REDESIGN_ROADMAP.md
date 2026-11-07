@@ -520,14 +520,14 @@ web/src/components/
 
 ## Accessibility Checklist
 
-- [ ] All interactive elements have `aria-label` or visible text
-- [ ] Color is never the only indicator (status badges have text + color)
-- [ ] Focus ring visible on keyboard navigation (`--shadow-focus` token)
-- [ ] Modal traps focus and returns focus on close
-- [ ] Spinners have `aria-busy="true"` and `aria-label="Loading"`
-- [ ] Error messages linked to inputs with `aria-describedby`
-- [ ] KDS columns have `aria-live="polite"` for screen reader updates
-- [ ] Touch targets meet 44×44 px minimum
+- [x] All interactive elements have `aria-label` or visible text
+- [x] Color is never the only indicator (status badges have text + color)
+- [x] Focus ring visible on keyboard navigation (`--shadow-focus` token)
+- [x] Modal traps focus and returns focus on close
+- [x] Spinners have `aria-busy="true"` and `aria-label="Loading"`
+- [x] Error messages linked to inputs with `aria-describedby`
+- [x] KDS columns have `aria-live="polite"` for screen reader updates
+- [x] Touch targets meet 44×44 px minimum
 
 ---
 

@@ -65,7 +65,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (!"POST".equalsIgnoreCase(method)) {
             return null;
         }
-        if ("/auth/login".equals(path) || "/auth/register".equals(path) || "/auth/refresh".equals(path)) {
+        if ("/qr/sessions/link".equals(path) || (path.startsWith("/orders/public/") && path.endsWith("/feedback"))) {
+            return new LimitSpec("public", rateLimitProps.getPublicRequests(), rateLimitProps.getPublicWindowSeconds() * 1000L);
+        }
+        if ("/auth/login".equals(path) || "/auth/register".equals(path) || "/auth/refresh".equals(path)
+                || "/auth/otp/request".equals(path) || "/auth/otp/verify".equals(path) || "/auth/otp/login".equals(path)
+                || "/auth/password/forgot".equals(path) || "/auth/password/reset".equals(path)
+                || "/auth/email/verify".equals(path)) {
             return new LimitSpec("auth", rateLimitProps.getAuthRequests(), rateLimitProps.getAuthWindowSeconds() * 1000L);
         }
         if ("/auth/pin/verify".equals(path) || USER_PIN_PATH.matcher(path).matches()) {

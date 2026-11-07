@@ -1,6 +1,6 @@
 export type TokenPair = { accessToken: string; refreshToken: string; expiresAtEpochMs: number };
 
-export type StaffRole = "ADMIN" | "MANAGER" | "CASHIER" | "CUSTOMER";
+export type StaffRole = "ADMIN" | "MANAGER" | "CASHIER" | "CUSTOMER" | "RIDER";
 
 export type StaffUser = {
   id: string;
@@ -327,7 +327,7 @@ export type OrderRecord = {
   id: string;
   customerUserId?: string;
   type: "DINE_IN" | "PICKUP" | "DELIVERY";
-  status: "PENDING" | "CONFIRMED" | "PREPARING" | "READY" | "COMPLETED" | "CANCELLED" | "VOIDED";
+  status: "PENDING" | "CONFIRMED" | "PREPARING" | "READY" | "OUT_FOR_DELIVERY" | "DELIVERED" | "COMPLETED" | "CANCELLED" | "VOIDED";
   tableId?: string;
   tableNumber?: string;
   deliveryAddress?: string;
@@ -340,6 +340,17 @@ export type OrderRecord = {
   items: OrderItemRecord[];
   branchId?: string;
   branchName?: string;
+  promoCode?: string | null;
+  promoDiscount?: string;
+  offerDiscount?: string;
+  loyaltyPointsRedeemed?: number;
+  loyaltyDiscount?: string;
+  manualDiscount?: string;
+  deliveryFee?: string;
+  discountTotal?: string;
+  voidedAt?: string | null;
+  deliveryZoneId?: string | null;
+  riderUserId?: string | null;
 };
 
 export type GroupParticipantRecord = {
@@ -774,14 +785,14 @@ export async function deleteMenuModifierOption(
 }
 
 export async function getPromoCodes(session: StaffSession): Promise<PromoCodeRecord[]> {
-  return apiRequest<PromoCodeRecord[]>("/phase8/promo-codes", { token: session.accessToken });
+  return apiRequest<PromoCodeRecord[]>("/promotions/codes", { token: session.accessToken });
 }
 
 export async function createPromoCode(
   session: StaffSession,
   payload: PromoCodeUpsertRequest,
 ): Promise<PromoCodeRecord> {
-  return apiRequest<PromoCodeRecord>("/phase8/promo-codes", {
+  return apiRequest<PromoCodeRecord>("/promotions/codes", {
     method: "POST",
     token: session.accessToken,
     body: payload,
@@ -793,7 +804,7 @@ export async function updatePromoCode(
   id: string,
   payload: PromoCodeUpsertRequest,
 ): Promise<PromoCodeRecord> {
-  return apiRequest<PromoCodeRecord>(`/phase8/promo-codes/${id}`, {
+  return apiRequest<PromoCodeRecord>(`/promotions/codes/${id}`, {
     method: "PUT",
     token: session.accessToken,
     body: payload,
@@ -805,7 +816,7 @@ export async function updatePromoCodeStatus(
   id: string,
   active: boolean,
 ): Promise<PromoCodeRecord> {
-  return apiRequest<PromoCodeRecord>(`/phase8/promo-codes/${id}/status`, {
+  return apiRequest<PromoCodeRecord>(`/promotions/codes/${id}/status`, {
     method: "PATCH",
     token: session.accessToken,
     body: { active },
@@ -924,6 +935,8 @@ export async function createOrder(
     tableId?: string;
     deliveryAddress?: string;
     notes?: string;
+    promoCode?: string;
+    deliveryZoneId?: string;
     items: { menuItemId: string; quantity: number; modifierOptionIds?: string[] }[];
   },
 ): Promise<OrderRecord> {
@@ -1060,16 +1073,174 @@ export async function verifyManagerPin(
   });
 }
 
-export async function applyFinancialAction(
+export type DiscountMode = "FLAT" | "PERCENTAGE";
+
+export type FinancialActionResult = {
+  status: string;
+  actionType: OverrideActionType;
+  approverUserId: string;
+};
+
+export type DiscountResult = FinancialActionResult & {
+  orderId: string;
+  discountAmount: string;
+  subtotal: string;
+  newTotal: string;
+};
+
+export type VoidResult = FinancialActionResult & {
+  orderId: string;
+  voidedAmount: string;
+  paymentsVoided: number;
+  voidedAt: string;
+};
+
+export type RefundResult = FinancialActionResult & {
+  refundId: string;
+  paymentId: string;
+  orderId: string;
+  amount: string;
+  totalRefunded: string;
+  remainingRefundable: string;
+  paymentStatus: string;
+  providerStatus: string;
+};
+
+export async function applyOrderDiscount(
   session: StaffSession,
-  action: "discount" | "void" | "refund",
-  overrideToken: string,
-): Promise<{ ok?: boolean; actionType?: OverrideActionType; approverRole?: string; approverUserId?: string }> {
-  return apiRequest<{ ok?: boolean; actionType?: OverrideActionType; approverRole?: string; approverUserId?: string }>(`/financial/${action}`, {
+  payload: { overrideToken: string; orderId: string; mode: DiscountMode; value: number; reason?: string },
+): Promise<DiscountResult> {
+  return apiRequest<DiscountResult>("/financial/discount", { method: "POST", token: session.accessToken, body: payload });
+}
+
+export async function voidOrder(
+  session: StaffSession,
+  payload: { overrideToken: string; orderId: string; reason?: string },
+): Promise<VoidResult> {
+  return apiRequest<VoidResult>("/financial/void", { method: "POST", token: session.accessToken, body: payload });
+}
+
+export async function refundPayment(
+  session: StaffSession,
+  payload: { overrideToken: string; paymentId: string; amount?: number; reason?: string },
+): Promise<RefundResult> {
+  return apiRequest<RefundResult>("/financial/refund", { method: "POST", token: session.accessToken, body: payload });
+}
+
+export type ReconciliationReport = {
+  businessDate: string;
+  branchId?: string | null;
+  grossSales: string;
+  totalRefunds: string;
+  totalVoids: string;
+  totalDiscounts: string;
+  netSales: string;
+  expectedCash: string;
+  paidOrders: number;
+  voidedOrders: number;
+  refundCount: number;
+  byMethod: { method: string; amount: string; count: number }[];
+  shifts: { closedShifts: number; countedCash: string; expectedCash: string; variance: string };
+  signOff?: {
+    id: string;
+    signedBy: string;
+    signedAt: string;
+    countedCash?: string | null;
+    cashVariance?: string | null;
+    notes?: string | null;
+  } | null;
+};
+
+export async function getReconciliation(session: StaffSession, businessDate: string, branchId?: string): Promise<ReconciliationReport> {
+  const suffix = branchId ? `?branchId=${encodeURIComponent(branchId)}` : "";
+  return apiRequest<ReconciliationReport>(`/financial/reconciliation/${businessDate}${suffix}`, { token: session.accessToken });
+}
+
+export async function signOffReconciliation(
+  session: StaffSession,
+  businessDate: string,
+  payload: { overrideToken: string; branchId?: string; countedCash?: number; notes?: string },
+): Promise<ReconciliationReport> {
+  return apiRequest<ReconciliationReport>(`/financial/reconciliation/${businessDate}/sign-off`, {
     method: "POST",
     token: session.accessToken,
-    body: { overrideToken },
+    body: payload,
   });
+}
+
+export type FinancialAuditRecord = {
+  id: string;
+  action: "DISCOUNT_APPLIED" | "ORDER_VOIDED" | "PAYMENT_REFUNDED" | "RECONCILIATION_SIGNED_OFF";
+  actorId?: string | null;
+  actorName?: string | null;
+  entityType?: string | null;
+  entityId?: string | null;
+  metadata?: string | null;
+  createdAt: string;
+};
+
+export async function getFinancialAudit(session: StaffSession, action?: string): Promise<FinancialAuditRecord[]> {
+  const suffix = action ? `?action=${encodeURIComponent(action)}` : "";
+  return apiRequest<FinancialAuditRecord[]>(`/financial/audit${suffix}`, { token: session.accessToken });
+}
+
+export type MenuOfferRecord = {
+  id: string;
+  name: string;
+  description?: string | null;
+  menuItemId: string;
+  menuItemName: string;
+  buyQuantity: number;
+  freeQuantity: number;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  active: boolean;
+  running: boolean;
+  createdAt: string;
+};
+
+export type MenuOfferUpsertRequest = {
+  name: string;
+  description?: string;
+  menuItemId: string;
+  buyQuantity: number;
+  freeQuantity: number;
+  startsAt?: string;
+  endsAt?: string;
+  active?: boolean;
+};
+
+export async function getMenuOffers(session: StaffSession): Promise<MenuOfferRecord[]> {
+  return apiRequest<MenuOfferRecord[]>("/promotions/offers", { token: session.accessToken });
+}
+
+export async function createMenuOffer(session: StaffSession, payload: MenuOfferUpsertRequest): Promise<MenuOfferRecord> {
+  return apiRequest<MenuOfferRecord>("/promotions/offers", { method: "POST", token: session.accessToken, body: payload });
+}
+
+export async function updateMenuOffer(session: StaffSession, id: string, payload: MenuOfferUpsertRequest): Promise<MenuOfferRecord> {
+  return apiRequest<MenuOfferRecord>(`/promotions/offers/${id}`, { method: "PUT", token: session.accessToken, body: payload });
+}
+
+export async function setMenuOfferActive(session: StaffSession, id: string, active: boolean): Promise<MenuOfferRecord> {
+  return apiRequest<MenuOfferRecord>(`/promotions/offers/${id}/status`, {
+    method: "PATCH",
+    token: session.accessToken,
+    body: { active },
+  });
+}
+
+export async function deleteMenuOffer(session: StaffSession, id: string): Promise<void> {
+  await apiRequest<void>(`/promotions/offers/${id}`, { method: "DELETE", token: session.accessToken });
+}
+
+export type PromoValidationRecord = { code: string; discountType: "FLAT" | "PERCENTAGE"; discountValue: string; valid: boolean };
+
+export async function validatePromoCode(session: StaffSession, code: string, subtotal: number): Promise<PromoValidationRecord> {
+  return apiRequest<PromoValidationRecord>(
+    `/promotions/codes/validate/${encodeURIComponent(code.trim().toUpperCase())}?subtotal=${subtotal.toFixed(2)}`,
+    { token: session.accessToken },
+  );
 }
 
 export async function createReservation(
@@ -1170,7 +1341,7 @@ export async function getAnalyticsRevenue(
   if (params?.branchId) query.set("branchId", params.branchId);
   if (params?.period) query.set("period", params.period);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<AnalyticsRevenueRecord>(`/phase10/analytics/revenue${suffix}`, { token: session.accessToken });
+  return apiRequest<AnalyticsRevenueRecord>(`/analytics/revenue${suffix}`, { token: session.accessToken });
 }
 
 export async function getAnalyticsTopItems(
@@ -1183,7 +1354,7 @@ export async function getAnalyticsTopItems(
   if (params?.branchId) query.set("branchId", params.branchId);
   if (params?.limit) query.set("limit", String(params.limit));
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<AnalyticsTopItemRecord[]>(`/phase10/analytics/top-items${suffix}`, { token: session.accessToken });
+  return apiRequest<AnalyticsTopItemRecord[]>(`/analytics/top-items${suffix}`, { token: session.accessToken });
 }
 
 export async function getAnalyticsPeakHours(
@@ -1195,7 +1366,7 @@ export async function getAnalyticsPeakHours(
   if (params?.to) query.set("to", params.to);
   if (params?.branchId) query.set("branchId", params.branchId);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<AnalyticsPeakHourRecord[]>(`/phase10/analytics/peak-hours${suffix}`, { token: session.accessToken });
+  return apiRequest<AnalyticsPeakHourRecord[]>(`/analytics/peak-hours${suffix}`, { token: session.accessToken });
 }
 
 export async function getAnalyticsAverageOrderValue(
@@ -1207,7 +1378,7 @@ export async function getAnalyticsAverageOrderValue(
   if (params?.to) query.set("to", params.to);
   if (params?.branchId) query.set("branchId", params.branchId);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<AnalyticsAverageOrderValueRecord>(`/phase10/analytics/average-order-value${suffix}`, { token: session.accessToken });
+  return apiRequest<AnalyticsAverageOrderValueRecord>(`/analytics/average-order-value${suffix}`, { token: session.accessToken });
 }
 
 export async function getAnalyticsOverview(
@@ -1220,5 +1391,137 @@ export async function getAnalyticsOverview(
   if (params?.branchId) query.set("branchId", params.branchId);
   if (params?.period) query.set("period", params.period);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<AnalyticsOverviewRecord>(`/phase10/analytics/overview${suffix}`, { token: session.accessToken });
+  return apiRequest<AnalyticsOverviewRecord>(`/analytics/overview${suffix}`, { token: session.accessToken });
+}
+
+export type TableSessionRecord = {
+  tableId: string;
+  tableNumber: string;
+  active: boolean;
+  sessionCount: number;
+  lastSeenAt?: string | null;
+};
+
+/** Public: called when a guest opens a table QR link so staff can see who is ordering at the table. */
+export async function linkTableSession(tableToken: string, sessionId: string): Promise<TableSessionRecord> {
+  return apiRequest<TableSessionRecord>("/qr/sessions/link", { method: "POST", body: { tableToken, sessionId } });
+}
+
+export async function getActiveTableSessions(session: StaffSession): Promise<TableSessionRecord[]> {
+  return apiRequest<TableSessionRecord[]>("/qr/sessions/active", { token: session.accessToken });
+}
+
+export async function getTableSession(session: StaffSession, tableNumber: string): Promise<TableSessionRecord> {
+  return apiRequest<TableSessionRecord>(`/qr/sessions/${encodeURIComponent(tableNumber)}/active`, { token: session.accessToken });
+}
+
+export async function closeTableSessions(session: StaffSession, tableNumber: string): Promise<void> {
+  await apiRequest<void>(`/qr/sessions/${encodeURIComponent(tableNumber)}`, { method: "DELETE", token: session.accessToken });
+}
+
+export async function downloadTableQrPdf(session: StaffSession, tableNumber: string): Promise<Blob> {
+  const response = await fetch(`${API_PREFIX}/qr/tables/${encodeURIComponent(tableNumber)}/pdf`, {
+    headers: { Authorization: `Bearer ${session.accessToken}` },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Could not download QR card (status ${response.status})`);
+  }
+  return response.blob();
+}
+
+export type DeliveryZoneRecord = {
+  id: string;
+  name: string;
+  description?: string | null;
+  branchId?: string | null;
+  fee: string;
+  minOrderAmount: string;
+  estimatedMinutes: number;
+  active: boolean;
+};
+
+export type DeliveryZoneUpsertRequest = {
+  name: string;
+  description?: string;
+  branchId?: string;
+  fee: number;
+  minOrderAmount?: number;
+  estimatedMinutes?: number;
+  active?: boolean;
+};
+
+export type RiderRecord = { id: string; name: string; phone: string; activeDeliveries: number };
+
+export type DeliveryRecord = {
+  orderId: string;
+  status: OrderRecord["status"];
+  deliveryAddress?: string | null;
+  total: string;
+  deliveryFee: string;
+  deliveryZoneId?: string | null;
+  estimatedDeliveryTime?: string | null;
+  riderId?: string | null;
+  riderName?: string | null;
+  riderPhone?: string | null;
+  riderAssignedAt?: string | null;
+  riderLatitude?: number | null;
+  riderLongitude?: number | null;
+  riderLocationAt?: string | null;
+  deliveredAt?: string | null;
+  customerPhone?: string | null;
+  notes?: string | null;
+  createdAt: string;
+};
+
+export async function getDeliveryZones(): Promise<DeliveryZoneRecord[]> {
+  return apiRequest<DeliveryZoneRecord[]>("/delivery/zones");
+}
+
+export async function getAllDeliveryZones(session: StaffSession): Promise<DeliveryZoneRecord[]> {
+  return apiRequest<DeliveryZoneRecord[]>("/delivery/zones/all", { token: session.accessToken });
+}
+
+export async function createDeliveryZone(session: StaffSession, payload: DeliveryZoneUpsertRequest): Promise<DeliveryZoneRecord> {
+  return apiRequest<DeliveryZoneRecord>("/delivery/zones", { method: "POST", token: session.accessToken, body: payload });
+}
+
+export async function updateDeliveryZone(session: StaffSession, id: string, payload: DeliveryZoneUpsertRequest): Promise<DeliveryZoneRecord> {
+  return apiRequest<DeliveryZoneRecord>(`/delivery/zones/${id}`, { method: "PUT", token: session.accessToken, body: payload });
+}
+
+export async function setDeliveryZoneActive(session: StaffSession, id: string, active: boolean): Promise<DeliveryZoneRecord> {
+  return apiRequest<DeliveryZoneRecord>(`/delivery/zones/${id}/status`, { method: "PATCH", token: session.accessToken, body: { active } });
+}
+
+export async function getRiders(session: StaffSession): Promise<RiderRecord[]> {
+  return apiRequest<RiderRecord[]>("/delivery/riders", { token: session.accessToken });
+}
+
+export async function assignRider(session: StaffSession, orderId: string, riderId: string): Promise<DeliveryRecord> {
+  return apiRequest<DeliveryRecord>(`/delivery/orders/${orderId}/assign`, { method: "POST", token: session.accessToken, body: { riderId } });
+}
+
+export async function getRiderQueue(session: StaffSession): Promise<DeliveryRecord[]> {
+  return apiRequest<DeliveryRecord[]>("/delivery/rider/orders", { token: session.accessToken });
+}
+
+export async function markDeliveryPickedUp(session: StaffSession, orderId: string): Promise<DeliveryRecord> {
+  return apiRequest<DeliveryRecord>(`/delivery/orders/${orderId}/pickup`, { method: "POST", token: session.accessToken });
+}
+
+export async function markDeliveryDelivered(session: StaffSession, orderId: string): Promise<DeliveryRecord> {
+  return apiRequest<DeliveryRecord>(`/delivery/orders/${orderId}/delivered`, { method: "POST", token: session.accessToken });
+}
+
+export async function sendRiderLocation(session: StaffSession, orderId: string, latitude: number, longitude: number): Promise<DeliveryRecord> {
+  return apiRequest<DeliveryRecord>(`/delivery/orders/${orderId}/location`, {
+    method: "POST",
+    token: session.accessToken,
+    body: { latitude, longitude },
+  });
+}
+
+export async function getDeliveryTracking(session: StaffSession, orderId: string): Promise<DeliveryRecord> {
+  return apiRequest<DeliveryRecord>(`/delivery/orders/${orderId}/tracking`, { token: session.accessToken });
 }

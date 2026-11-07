@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { fetchPublicTableBill, fetchPublicTableTracking } from '../../src/api/orders';
+import { fallbackPollMs, useRealtimeTopics } from '../../src/realtime/realtime';
 import type { PublicOrderTracking, TableBill } from '../../src/types/api';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -21,11 +22,16 @@ export default function PublicTableTrackingScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const live = useRealtimeTopics(
+    token ? [`/topic/public.tables.${token}.orders`] : [],
+    () => void load(true),
+  );
+
   useEffect(() => {
     void load();
-    const interval = setInterval(() => void load(true), 15000);
+    const interval = setInterval(() => void load(true), fallbackPollMs(live, 15000));
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, live]);
 
   async function load(silent = false) {
     if (!token) {

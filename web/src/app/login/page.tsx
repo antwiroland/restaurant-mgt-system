@@ -58,10 +58,13 @@ export default function LoginPage() {
               className="input"
               placeholder="+233..."
               inputMode="tel"
+              autoComplete="tel"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
+              aria-invalid={fieldErrors.phone ? true : undefined}
+              aria-describedby={fieldErrors.phone ? "login-phone-error" : undefined}
             />
-            {fieldErrors.phone ? <span className="field-error">{fieldErrors.phone}</span> : null}
+            {fieldErrors.phone ? <span id="login-phone-error" className="field-error" role="alert">{fieldErrors.phone}</span> : null}
           </label>
           <label className="field">
             <span className="field-label">Password</span>
@@ -69,10 +72,13 @@ export default function LoginPage() {
               className="input"
               placeholder="Password"
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
+              aria-invalid={fieldErrors.password ? true : undefined}
+              aria-describedby={fieldErrors.password ? "login-password-error" : undefined}
             />
-            {fieldErrors.password ? <span className="field-error">{fieldErrors.password}</span> : null}
+            {fieldErrors.password ? <span id="login-password-error" className="field-error" role="alert">{fieldErrors.password}</span> : null}
           </label>
           {error ? <p className="alert alert-danger">{error}</p> : null}
           {session ? <p className="text-sm text-ink-soft">Signed in as {session.user.name} ({session.user.role}).</p> : null}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Switch,
   View,
   Text,
   TextInput,
@@ -17,6 +18,7 @@ import { initiatePayment } from '../src/api/payment';
 import { useAuthStore } from '../src/store/auth';
 import { fetchMyAddresses, saveMyAddress } from '../src/api/user';
 import { fetchLoyaltyBalance } from '../src/api/loyalty';
+import { fetchDeliveryZones, type DeliveryZone } from '../src/api/delivery';
 import type { CustomerAddress, LoyaltyBalance, PaymentMethod, OrderType } from '../src/types/api';
 
 export default function CheckoutScreen() {
@@ -30,6 +32,9 @@ export default function CheckoutScreen() {
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [loyaltyBalance, setLoyaltyBalance] = useState<LoyaltyBalance | null>(null);
+  const [usePoints, setUsePoints] = useState(false);
+  const [zones, setZones] = useState<DeliveryZone[]>([]);
+  const [zoneId, setZoneId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const selectedAddress = useMemo(
@@ -49,8 +54,12 @@ export default function CheckoutScreen() {
       modifierOptionIds: line.modifierOptionIds,
     })),
     promoCode: promoCode ?? undefined,
+    loyaltyPointsToRedeem: usePoints && loyaltyBalance && loyaltyBalance.points > 0 ? loyaltyBalance.points : undefined,
     deliveryAddress: effectiveOrderType === 'DELIVERY' ? deliveryAddress.trim() : undefined,
+    deliveryZoneId: effectiveOrderType === 'DELIVERY' && zoneId ? zoneId : undefined,
   };
+  const selectedZone = zones.find((zone) => zone.id === zoneId) ?? null;
+  const deliveryFee = effectiveOrderType === 'DELIVERY' && selectedZone ? Number(selectedZone.fee) : 0;
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -62,6 +71,11 @@ export default function CheckoutScreen() {
 
     fetchLoyaltyBalance().then(setLoyaltyBalance).catch(() => {});
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (effectiveOrderType !== 'DELIVERY') return;
+    fetchDeliveryZones().then(setZones).catch(() => setZones([]));
+  }, [effectiveOrderType]);
 
   useEffect(() => {
     if (!isAuthenticated || effectiveOrderType !== 'DELIVERY') {
@@ -88,6 +102,11 @@ export default function CheckoutScreen() {
 
     if (effectiveOrderType === 'DELIVERY' && !deliveryAddress.trim()) {
       Alert.alert('Missing address', 'Enter a delivery address before placing the order.');
+      return;
+    }
+
+    if (effectiveOrderType === 'DELIVERY' && zones.length > 0 && !zoneId) {
+      Alert.alert('Choose your area', 'Select the delivery zone closest to your address.');
       return;
     }
 
@@ -128,6 +147,7 @@ export default function CheckoutScreen() {
         ? await createPublicTableOrder({
             tableToken: tableToken ?? '',
             items: orderPayload.items,
+            promoCode: orderPayload.promoCode,
           })
         : await createOrder(orderPayload);
 
@@ -156,7 +176,11 @@ export default function CheckoutScreen() {
           method === 'MOBILE_MONEY' ? momoPhone.trim() : undefined
         );
         clear();
-        Alert.alert('Payment initiated', payment.message, [
+        const savings = Number(order.discountTotal ?? 0);
+        const summary = savings > 0
+          ? `You saved GHS ${savings.toFixed(2)}. Total GHS ${Number(order.total).toFixed(2)}.\n${payment.message}`
+          : payment.message;
+        Alert.alert('Payment initiated', summary, [
           {
             text: 'Track Order',
             onPress: () =>
@@ -236,6 +260,30 @@ export default function CheckoutScreen() {
             onChangeText={setDeliveryAddress}
             multiline
           />
+          {zones.length > 0 && (
+            <View style={styles.addressList}>
+              <Text style={[styles.sectionTitle, { marginTop: 12 }]}>Delivery area</Text>
+              {zones.map((zone) => {
+                const active = zoneId === zone.id;
+                return (
+                  <TouchableOpacity
+                    key={zone.id}
+                    style={[styles.addressCard, active && styles.addressCardActive]}
+                    onPress={() => setZoneId(zone.id)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.addressLabel, active && styles.addressLabelActive]}>
+                      {zone.name} · GHS {Number(zone.fee).toFixed(2)}
+                    </Text>
+                    <Text style={[styles.addressText, active && styles.addressTextActive]}>
+                      About {zone.estimatedMinutes} min{Number(zone.minOrderAmount) > 0 ? ` · min order GHS ${Number(zone.minOrderAmount).toFixed(2)}` : ''}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
         </View>
       )}
 
@@ -269,15 +317,34 @@ export default function CheckoutScreen() {
 
       <View style={styles.section}>
         {loyaltyBalance && isAuthenticated && (
-          <Text style={styles.loyaltyHint}>Available loyalty points: {loyaltyBalance.points}</Text>
+          <View style={styles.loyaltyRow}>
+            <Text style={styles.loyaltyHint}>
+              Use {loyaltyBalance.points} loyalty points (up to half of the order)
+            </Text>
+            <Switch
+              value={usePoints}
+              onValueChange={setUsePoints}
+              disabled={loyaltyBalance.points <= 0}
+              accessibilityLabel="Redeem loyalty points"
+            />
+          </View>
         )}
+        {promoCode ? (
+          <Text style={styles.hint}>Promo {promoCode} will be applied when the order is placed.</Text>
+        ) : null}
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Items</Text>
           <Text style={styles.summaryValue}>{lines.length}</Text>
         </View>
+        {deliveryFee > 0 && (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Delivery fee</Text>
+            <Text style={styles.summaryValue}>GHS {deliveryFee.toFixed(2)}</Text>
+          </View>
+        )}
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabelBold}>Total</Text>
-          <Text style={styles.summaryValueBold}>GHS {total().toFixed(2)}</Text>
+          <Text style={styles.summaryValueBold}>GHS {(total() + deliveryFee).toFixed(2)}</Text>
         </View>
       </View>
 
@@ -347,7 +414,8 @@ const styles = StyleSheet.create({
   addressLabelActive: { color: '#1D4ED8' },
   addressText: { fontSize: 13, color: '#4B5563' },
   addressTextActive: { color: '#1E40AF' },
-  loyaltyHint: { fontSize: 13, color: '#1D4ED8', marginBottom: 8, fontWeight: '600' },
+  loyaltyHint: { fontSize: 13, color: '#1D4ED8', marginBottom: 8, fontWeight: '600', flex: 1 },
+  loyaltyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
 });
 
 function formatAddress(address: CustomerAddress): string {

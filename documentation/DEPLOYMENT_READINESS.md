@@ -37,6 +37,23 @@ Defined in [application.yml](/C:/Users/HP/Desktop/restaurant_manager/backend/src
 - `ZIPKIN_ENDPOINT`
 - `TRACING_SAMPLING_PROBABILITY`
 
+### Integrations (stub/log by default, so no real money or messages move until configured)
+
+| Variable | Purpose |
+|---|---|
+| `PAYSTACK_MODE` | `stub` (default) or `live`. Live requires an `sk_test_...`/`sk_live_...` key and fails at startup otherwise |
+| `PAYSTACK_CALLBACK_URL` | Optional redirect after Paystack checkout |
+| `WHATSAPP_PROVIDER` | `log` (default) or `meta` (WhatsApp Cloud API) |
+| `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | Required for `meta` |
+| `WHATSAPP_TEMPLATE_NAME`, `WHATSAPP_TEMPLATE_LANGUAGE` | Approved template for business-initiated messages (outside the 24 h window) |
+| `SMS_PROVIDER` | `log` (default), `hubtel` or `arkesel`. Used for OTP codes |
+| `SMS_SENDER_ID`, `HUBTEL_CLIENT_ID`, `HUBTEL_CLIENT_SECRET`, `ARKESEL_API_KEY` | SMS provider credentials |
+| `OTP_REQUIRED_FOR_REGISTRATION` | `true` by default. Customers must verify their phone by SMS before registering |
+| `PUBLIC_WEB_URL`, `VENUE_NAME` | Used in printed table QR cards and SMS text |
+| `LOYALTY_POINTS_PER_CEDI`, `LOYALTY_POINT_VALUE`, `LOYALTY_MAX_REDEEM_PERCENT`, `LOYALTY_AUTO_ACCRUE` | Loyalty rules |
+
+With `SMS_PROVIDER=log`, OTP codes are only written to the backend log. Set a real provider before you enable customer registration in production.
+
 ## Production Hardening Required
 
 Replace immediately:
@@ -108,6 +125,20 @@ Missing:
 - alert rules
 - incident/runbook detail beyond basic setup
 - retention and cost-control guidance
+
+## Pre-launch Verification
+
+These features are implemented and covered by automated tests, but have not yet been exercised against real services or devices.
+
+| Item | What is still needed |
+|---|---|
+| **Migrations V9–V12 on PostgreSQL** | Tests run on H2 with schema generated from entities. Run `mvn -Ppostgres-it -Dtest=PostgresFlywayIntegrationTest test` (needs Docker) before deploying |
+| **Paystack live mode** | Tested only against a mock HTTP server. Try it with `sk_test_` keys and a real MoMo test number, including the webhook and refunds |
+| **WhatsApp Cloud API** | Tested only against a mock server. Needs a Meta test number and an approved template for messages outside the 24-hour window |
+| **Hubtel / Arkesel SMS** | Not called for real yet. Needs a registered sender ID |
+| **Web and mobile screens** | The new pages (financial, offers, delivery, rider, QR PDF download) and the mobile flows (OTP sign-up, live updates, delivery tracking) pass typechecks and tests but have not been tried in a browser or on a device |
+| **Rider location sharing** | Uses browser geolocation, which needs HTTPS (or localhost) and permission on the rider's phone |
+| **k6 scripts** | Written but not yet run against a live stack |
 
 ## Release Checklist
 

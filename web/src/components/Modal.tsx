@@ -25,6 +25,7 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps) {
   useEffect(() => {
     if (!open) return;
 
+    const previouslyFocused = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
@@ -57,6 +58,8 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps) {
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
+      // Return focus to the control that opened the dialog.
+      if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus();
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [open, onClose]);

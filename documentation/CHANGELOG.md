@@ -378,3 +378,25 @@ Format: [Phase N - Title] followed by Added / Changed / Decisions.
 ### Verified
 - `cd backend && mvn test -q` passes after caching changes.
 
+---
+
+## [Domain Refactor & Feature Completion] - 2026-11-06
+
+### Changed
+- `phase8`/`phase9`/`phase10` packages and routes renamed to domain names: `/promotions`, `/loyalty`, `/qr`, `/notifications/whatsapp`, `/financial`, `/analytics`, `/security`.
+- The in-memory `/financial-controls` simulation was merged into the persisted `/financial/*` API.
+- The mocked `/load-tests/run` endpoint was replaced by k6 scripts in `loadtest/`.
+
+### Added
+- Live Paystack client (initialize, verify, refund), WhatsApp Cloud API gateway, and Hubtel/Arkesel SMS gateways. All are selected by environment variables, with stub/log defaults.
+- Real discount, void and refund on orders and payments; `payment_refunds`; reconciliation computed from the ledger with persisted sign-off; financial audit trail in `audit_logs`.
+- Promo codes applied at order creation with atomic usage limits; Buy-X-Get-Y offers (`menu_offers`) managed and applied automatically; loyalty redemption at checkout and automatic accrual on full payment.
+- Persisted table QR sessions (`table_mobile_sessions`) and printable PDF table cards.
+- SMS OTP phone verification for registration, and passwordless customer login.
+- Live STOMP updates in the mobile app, with per-order topics.
+- Delivery zones and fees, `RIDER` role, dispatch board, rider page with live location, and customer delivery tracking.
+- Accessibility fixes (focus return, error linkage, nav labels) and token-only error pages.
+
+### Migrations
+- `V9__order_pricing_financial_controls.sql`, `V10__table_mobile_sessions.sql`, `V11__otp_verification.sql`, `V12__delivery.sql`
+

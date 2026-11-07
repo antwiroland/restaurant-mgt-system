@@ -15,8 +15,8 @@ import com.restaurantmanager.core.order.OrderItemRepository;
 import com.restaurantmanager.core.order.OrderRepository;
 import com.restaurantmanager.core.payment.PaymentRepository;
 import com.restaurantmanager.core.payment.PaymentWebhookEventRepository;
-import com.restaurantmanager.core.phase8.promo.PromoCodeRepository;
-import com.restaurantmanager.core.phase10.security.SecurityGuardService;
+import com.restaurantmanager.core.promotion.PromoCodeRepository;
+import com.restaurantmanager.core.security.SecurityGuardService;
 import com.restaurantmanager.core.reservation.ReservationRepository;
 import com.restaurantmanager.core.security.JwtService;
 import com.restaurantmanager.core.table.RestaurantTableRepository;
@@ -52,6 +52,7 @@ public abstract class BaseIntegrationTest {
         registry.add("security.jwt.override-ttl-seconds", () -> "5");
         registry.add("payments.paystack.secret-key", () -> "test_paystack_secret");
         registry.add("payments.reconciliation.enabled", () -> "false");
+        registry.add("auth.otp.required-for-registration", () -> "false");
     }
 
     @Autowired
@@ -97,15 +98,72 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected PromoCodeRepository promoCodeRepository;
     @Autowired
+    protected com.restaurantmanager.core.payment.PaymentRefundRepository paymentRefundRepository;
+    @Autowired
+    protected com.restaurantmanager.core.promotion.MenuOfferRepository menuOfferRepository;
+    @Autowired
+    protected com.restaurantmanager.core.auth.account.AccountTokenRepository accountTokenRepository;
+    @Autowired
+    protected com.restaurantmanager.core.workforce.TimeEntryRepository timeEntryRepository;
+    @Autowired
+    protected com.restaurantmanager.core.workforce.WorkScheduleRepository workScheduleRepository;
+    @Autowired
+    protected com.restaurantmanager.core.feedback.OrderFeedbackRepository orderFeedbackRepository;
+    @Autowired
+    protected com.restaurantmanager.core.inventory.StockMovementRepository stockMovementRepository;
+    @Autowired
+    protected com.restaurantmanager.core.inventory.RecipeLineRepository recipeLineRepository;
+    @Autowired
+    protected com.restaurantmanager.core.inventory.IngredientRepository ingredientRepositoryForCleanup;
+    @Autowired
+    protected com.restaurantmanager.core.payment.split.PaymentSplitRepository paymentSplitRepository;
+    @Autowired
+    protected com.restaurantmanager.core.billing.TaxRateRepository taxRateRepositoryForCleanup;
+    @Autowired
+    protected com.restaurantmanager.core.billing.BillingSettingsRepository billingSettingsRepositoryForCleanup;
+    @Autowired
+    protected com.restaurantmanager.core.billing.OrderTaxLineRepository orderTaxLineRepository;
+    @Autowired
+    protected com.restaurantmanager.core.delivery.DeliveryZoneRepository deliveryZoneRepository;
+    @Autowired
+    protected com.restaurantmanager.core.auth.otp.OtpChallengeRepository otpChallengeRepository;
+    @Autowired
+    protected com.restaurantmanager.core.table.qr.TableMobileSessionRepository tableMobileSessionRepository;
+    @Autowired
+    protected com.restaurantmanager.core.financial.ReconciliationSignOffRepository reconciliationSignOffRepository;
+    @Autowired
+    protected com.restaurantmanager.core.loyalty.LoyaltyBalanceRepository loyaltyBalanceRepository;
+    @Autowired
+    protected com.restaurantmanager.core.loyalty.LoyaltyTransactionRepository loyaltyTransactionRepository;
+    @Autowired
     protected SecurityGuardService securityGuardService;
 
     @BeforeEach
     void cleanupDb() {
         promoCodeRepository.deleteAll();
+        paymentRefundRepository.deleteAll();
+        menuOfferRepository.deleteAll();
+        accountTokenRepository.deleteAll();
+        timeEntryRepository.deleteAll();
+        workScheduleRepository.deleteAll();
+        orderFeedbackRepository.deleteAll();
+        stockMovementRepository.deleteAll();
+        recipeLineRepository.deleteAll();
+        ingredientRepositoryForCleanup.deleteAll();
+        orderTaxLineRepository.deleteAll();
+        taxRateRepositoryForCleanup.deleteAll();
+        billingSettingsRepositoryForCleanup.deleteAll();
+        otpChallengeRepository.deleteAll();
+        tableMobileSessionRepository.deleteAll();
+        reconciliationSignOffRepository.deleteAll();
+        loyaltyTransactionRepository.deleteAll();
+        loyaltyBalanceRepository.deleteAll();
         paymentWebhookEventRepository.deleteAll();
         paymentRepository.deleteAll();
+        paymentSplitRepository.deleteAll();
         orderItemRepository.deleteAll();
         orderRepository.deleteAll();
+        deliveryZoneRepository.deleteAll();
         groupSessionItemRepository.deleteAll();
         groupSessionParticipantRepository.deleteAll();
         groupOrderSessionRepository.deleteAll();
