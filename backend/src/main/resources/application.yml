@@ -68,6 +68,10 @@ management:
 app:
   public-web-url: ${PUBLIC_WEB_URL:http://localhost:3000}
   venue-name: ${VENUE_NAME:Restaurant}
+  orders:
+    # Branch for customer/guest orders that don't get one from a table, the staff creator,
+    # the request or the delivery zone. Leave empty to use the only active branch (if there is one).
+    default-branch-code: ${ORDER_DEFAULT_BRANCH_CODE:}
   cache:
     redis-enabled: ${CACHE_REDIS_ENABLED:false}
     default-ttl-seconds: ${CACHE_DEFAULT_TTL_SECONDS:300}

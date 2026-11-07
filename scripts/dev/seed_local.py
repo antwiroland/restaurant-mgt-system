@@ -433,14 +433,14 @@ def main():
                 body.update({"deliveryAddress": f"{10 + c_index} Ring Road, Accra", "deliveryZoneId": zones[c_index % 3]["id"]})
             order = api.call("POST", "/orders", body, ctoken)
             pay(order, ctoken, "MOBILE_MONEY")
-            # App orders carry no branch, so branch-scoped staff get 403 on them; process as the (unscoped) admin.
-            advance(order["id"], A, ["PREPARING", "READY"])
+            # App orders get a branch from their delivery zone (or are a shared queue), so the cashier can process them.
+            advance(order["id"], C1, ["PREPARING", "READY"])
             if kind == "DELIVERY":
-                api.call("POST", f"/delivery/orders/{order['id']}/assign", {"riderId": riders[0]}, A)
+                api.call("POST", f"/delivery/orders/{order['id']}/assign", {"riderId": riders[0]}, C1)
                 api.call("POST", f"/delivery/orders/{order['id']}/pickup", {}, tokens["+233200000005"])
                 api.call("POST", f"/delivery/orders/{order['id']}/delivered", {}, tokens["+233200000005"])
             else:
-                advance(order["id"], A, ["COMPLETED"])
+                advance(order["id"], C1, ["COMPLETED"])
             finished.append(order["id"])
             counts["completed"] += 1
             if k == 0:

@@ -92,6 +92,7 @@ public class OrderService {
     private final TableSessionService tableSessionService;
     private final DeliveryService deliveryService;
     private final com.restaurantmanager.core.inventory.InventoryService inventoryService;
+    private final OrderBranchResolver branchResolver;
 
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
@@ -111,7 +112,9 @@ public class OrderService {
                         OrderPricingService pricingService,
                         TableSessionService tableSessionService,
                         DeliveryService deliveryService,
-                        com.restaurantmanager.core.inventory.InventoryService inventoryService) {
+                        com.restaurantmanager.core.inventory.InventoryService inventoryService,
+                        OrderBranchResolver branchResolver) {
+        this.branchResolver = branchResolver;
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderItemModifierRepository = orderItemModifierRepository;
@@ -610,6 +613,10 @@ public class OrderService {
         }
         order.setSubtotal(subtotal);
         deliveryService.applyZone(order, request.deliveryZoneId());
+        if (order.getBranch() == null) {
+            // Customer app / guest orders: pick a branch so branch-scoped staff can handle them.
+            branchResolver.resolve(request.branchId(), order.getDeliveryZoneId()).ifPresent(order::setBranch);
+        }
         order.recalculateTotal();
         OrderEntity saved = orderRepository.save(order);
 
@@ -979,11 +986,10 @@ public class OrderService {
             }
             return;
         }
-        if (isBranchScopedStaff(principal)) {
-            UUID branchId = principal.branchId();
-            if (order.getBranch() == null || !branchId.equals(order.getBranch().getId())) {
-                throw new ApiException(403, "Forbidden");
-            }
+        // Orders without a branch are a shared queue that any branch's staff may handle.
+        if (isBranchScopedStaff(principal) && order.getBranch() != null
+                && !principal.branchId().equals(order.getBranch().getId())) {
+            throw new ApiException(403, "Forbidden");
         }
     }
 

@@ -23,8 +23,18 @@ public record OrderCreateRequest(
         String promoCode,
         @Min(0) Integer loyaltyPointsToRedeem,
         UUID deliveryZoneId,
-        @jakarta.validation.constraints.DecimalMin("0.00") java.math.BigDecimal tipAmount
+        @jakarta.validation.constraints.DecimalMin("0.00") java.math.BigDecimal tipAmount,
+        /** Optional: the branch to send this order to (customer apps). Staff and dine-in orders ignore it. */
+        UUID branchId
 ) {
+    public OrderCreateRequest(OrderType type, UUID tableId, String tableToken, List<OrderCreateItemRequest> items,
+                              String deliveryAddress, Instant pickupTime, Instant estimatedDeliveryTime,
+                              UUID groupSessionId, String notes, String promoCode, Integer loyaltyPointsToRedeem,
+                              UUID deliveryZoneId, java.math.BigDecimal tipAmount) {
+        this(type, tableId, tableToken, items, deliveryAddress, pickupTime, estimatedDeliveryTime, groupSessionId, notes,
+                promoCode, loyaltyPointsToRedeem, deliveryZoneId, tipAmount, null);
+    }
+
     public OrderCreateRequest(OrderType type, UUID tableId, String tableToken, List<OrderCreateItemRequest> items,
                               String deliveryAddress, Instant pickupTime, Instant estimatedDeliveryTime,
                               UUID groupSessionId, String notes, String promoCode, Integer loyaltyPointsToRedeem,

@@ -65,6 +65,7 @@ Defined in [application.yml](../backend/src/main/resources/application.yml):
 | `MEDIA_PROVIDER` | `local` (default, files under `MEDIA_LOCAL_DIR`) or `cloudinary` for menu photos |
 | `MEDIA_PUBLIC_BASE_URL`, `MEDIA_MAX_FILE_SIZE` | Public URL prefix for local images; upload size limit (5 MB) |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_FOLDER` | Required for `cloudinary` |
+| `ORDER_DEFAULT_BRANCH_CODE` | Branch code for customer and guest orders that don't get a branch from a table, the staff creator, `branchId` or the delivery zone. If unset and there is exactly one active branch, that branch is used; otherwise such orders form a shared queue that any branch can handle |
 | `INVENTORY_BLOCK_WHEN_INSUFFICIENT` | `true` by default. Reject orders that would take an ingredient below zero |
 
 With `EMAIL_PROVIDER=log`, password reset links are only written to the backend log. With `MEDIA_PROVIDER=local`, uploaded menu photos live on the backend container's disk, so mount a volume or use Cloudinary in production.
@@ -97,7 +98,12 @@ python scripts/dev/seed_local.py                       # --base http://localhost
 
 # 3. Build and serve the web app against that backend
 scripts/dev/run-web-local.sh                           # BACKEND_PORT=8082 if needed → http://localhost:3000
+
+# 4. (Optional) Customer app in Expo Go on a running Android emulator (start it from Android Studio first)
+scripts/dev/run-mobile-local.sh                        # BACKEND_PORT=8082 if needed; Metro on :19000
 ```
+
+If the emulator shows the Expo Go home screen rather than the app, tap **customer-mobile** under "Recently opened". To regenerate the app icon and splash after a brand change, run `python mobile/scripts/generate-brand-assets.py`.
 
 The seed creates **test accounts only**, all with the password `Passw0rd!`:
 
@@ -130,7 +136,7 @@ How the seed works:
 
 ## Known Issues (fix before production)
 
-- **Orders from the mobile app have no branch.** Staff assigned to a branch get `403` on them and don't see them on the KDS; only staff without a branch can process them. This blocks app orders in any deployment that assigns cashiers to branches
+- ~~Orders from the mobile app had no branch~~ ✅ Fixed (see `ORDER_DEFAULT_BRANCH_CODE` below). With several branches, set a default branch, or send `branchId` from the apps, so pickup orders go to a specific branch instead of the shared queue
 - **Two logins by the same user in the same second return 500.** Refresh tokens have no `jti` and their issue time is in whole seconds. Add a random token ID in `JwtService`
 - **Cash is not recorded as an offline payment**: every method goes through the payment provider and needs a payer phone number
 
@@ -230,7 +236,7 @@ These features are implemented and covered by automated tests, but have not yet 
 5. Run Flyway migrations against PostgreSQL in staging.
 6. Verify web proxy and mobile base URLs against deployed hostnames.
 7. Set the `NEXT_PUBLIC_*` restaurant details and the `wss://` WebSocket URL **before** `next build`.
-8. Fix the known issues above, branchless app orders in particular.
+8. Fix the remaining known issue above (same-second refresh-token collision). With more than one branch, set `ORDER_DEFAULT_BRANCH_CODE`.
 9. Use the `scripts/dev/` seed data for local and staging testing only. Never load it into production, and delete any seeded test accounts from shared environments.
 
 ## Conclusion

@@ -323,7 +323,7 @@ Load testing is done with k6 against a running stack. See `loadtest/README.md`.
 ## 11a. Delivery
 
 ### GET `/delivery/zones` (public)
-Active delivery zones with `fee`, `minOrderAmount` and `estimatedMinutes`. When zones exist, `POST /orders` with `type: DELIVERY` requires `deliveryZoneId`; the zone fee is added to the total.
+Active delivery zones with `fee`, `minOrderAmount` and `estimatedMinutes`. When zones exist, `POST /orders` with `type: DELIVERY` requires `deliveryZoneId`; the zone fee is added to the total. `POST /orders` also accepts an optional `branchId` (customer apps). An order with no table or staff branch takes, in order: `branchId`, the zone's branch, `ORDER_DEFAULT_BRANCH_CODE`, then the only active branch. Orders with no branch are visible to staff at every branch.
 
 ### GET `/delivery/zones/all`
 ### POST `/delivery/zones`

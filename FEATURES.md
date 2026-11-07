@@ -276,7 +276,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - **Multi-language / localization**
 
 ### Known issues (found while seeding local test data)
-- **Orders from the mobile app have no branch.** An order takes its creator's branch, and customers have none. Staff assigned to a branch (cashiers, managers) get `403` when they try to update these orders, and don't see them in their order list or on the KDS. Only staff without a branch, such as the admin, can process them. Fix: give the order a branch (from a branch picker, the delivery zone or a default branch), or let branch-scoped staff see orders with no branch
+- ~~Orders from the mobile app had no branch~~ ✅ Fixed. Every order now gets a branch, tried in this order: the dine-in table, the staff member who created it, an optional `branchId` on the request, the delivery zone's branch, `ORDER_DEFAULT_BRANCH_CODE`, and finally the only active branch if there is just one. Orders that still have no branch (older orders, or several branches with no default) are a shared queue: staff assigned to any branch can see and process them, while orders that belong to another branch stay off-limits
 - **Two logins in the same second fail with a 500 error.** Refresh tokens have no unique ID (`jti`) and their issue time is in whole seconds, so two logins by the same user within one second produce the same token and break the unique index. A double-tap on "Sign in" can trigger it, and it makes `AccountRecoveryIntegrationTest` fail depending on timing. Fix: add `.id(UUID.randomUUID().toString())` to the token builder in `JwtService`
 - ~~Dashboard "Best sellers" names were blank~~ ✅ Fixed: the API sends top items as `name` but the web read `itemName`; the web client now accepts both
 
@@ -302,7 +302,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 ## 3. Suggested Priority
 
 1. **Verify before merging**: the Postgres Flyway check for V9–V19, then a click-through of the web and mobile flows using the seeded local environment (`scripts/dev/`)
-2. **Fix the two known issues** above: branchless app orders and the same-second refresh-token collision
+2. **Fix the remaining known issue** above: the same-second refresh-token collision
 3. **Sandbox the providers**: Paystack test keys, a WhatsApp Cloud API test number, a Hubtel or Arkesel sender ID, an SMTP account, and Cloudinary (or a mounted volume for local images)
 4. **CI/CD and production hardening**: secrets, TLS, lock down admin tools, and a pipeline running backend, web and mobile tests plus the Postgres check
 5. **Push notifications**, then receipt printing and customer web ordering

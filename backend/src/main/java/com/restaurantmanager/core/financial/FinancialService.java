@@ -413,8 +413,8 @@ public class FinancialService {
     }
 
     private void assertBranchAccess(OrderEntity order, UserPrincipal principal) {
-        if (isBranchScoped(principal)
-                && (order.getBranch() == null || !principal.branchId().equals(order.getBranch().getId()))) {
+        if (isBranchScoped(principal) && order.getBranch() != null
+                && !principal.branchId().equals(order.getBranch().getId())) {
             throw new ApiException(403, "Forbidden");
         }
     }

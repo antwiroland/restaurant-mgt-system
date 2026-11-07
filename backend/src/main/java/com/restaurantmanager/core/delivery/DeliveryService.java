@@ -235,7 +235,7 @@ public class DeliveryService {
 
     private void assertStaffBranch(OrderEntity order, UserPrincipal principal) {
         boolean scoped = (principal.role() == Role.MANAGER || principal.role() == Role.CASHIER) && principal.branchId() != null;
-        if (scoped && (order.getBranch() == null || !principal.branchId().equals(order.getBranch().getId()))) {
+        if (scoped && order.getBranch() != null && !principal.branchId().equals(order.getBranch().getId())) {
             throw new ApiException(403, "Forbidden");
         }
     }

@@ -18,7 +18,7 @@
 | 12    | Platform UI/UX Redesign ("Hearth")        | Complete | 2026-11-07 |
 | 13    | Local Test Environment & Seed Data        | Complete | 2026-11-07 |
 
-**Current focus:** fix the known issues found while seeding (orders from the mobile app have no branch; two logins in the same second collide on the refresh token), check the redesign visually in a browser and the mobile app on a device, then production hardening (see `DEPLOYMENT_READINESS.md`).
+**Current focus:** fix the remaining issue found while seeding (two logins in the same second collide on the refresh token), check the redesign visually in a browser and the mobile app on a device, then production hardening (see `DEPLOYMENT_READINESS.md`).
 
 ---
 
@@ -403,6 +403,6 @@
 
 ### Issues found and status
 - Fixed: the dashboard "Best sellers" names were blank (the API sends `name` and the web read `itemName`)
-- Open: orders from the mobile app have no branch, so branch-scoped staff get `403` and don't see them
+- Fixed: orders from the mobile app had no branch. They now take the requested branch, the delivery zone's branch, the configured default or the only active branch, and any remaining unassigned orders are a shared queue for branch staff (`OrderBranchResolver`, `OrderBranchAssignmentIntegrationTest`)
 - Open: two logins in the same second produce the same refresh token and return 500
 
