@@ -6,19 +6,20 @@ import { fetchPayment, verifyPayment } from '../../src/api/payment';
 import type { Order, Receipt } from '../../src/types/api';
 import { fallbackPollMs, useRealtimeTopics } from '../../src/realtime/realtime';
 import { fetchDeliveryTracking, mapUrl, type DeliveryTracking } from '../../src/api/delivery';
+import { colors } from '../../src/theme';
 
 const STATUS_STEPS = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'COMPLETED'];
 const DELIVERY_STEPS = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED'];
 const STATUS_COLORS: Record<string, string> = {
-  PENDING: '#F59E0B',
-  CONFIRMED: '#3B82F6',
-  PREPARING: '#8B5CF6',
-  READY: '#10B981',
-  OUT_FOR_DELIVERY: '#0EA5E9',
-  DELIVERED: '#059669',
-  COMPLETED: '#6B7280',
-  CANCELLED: '#EF4444',
-  VOIDED: '#EF4444',
+  PENDING: colors.warning,
+  CONFIRMED: colors.brand,
+  PREPARING: colors.gold,
+  READY: colors.success,
+  OUT_FOR_DELIVERY: colors.info,
+  DELIVERED: colors.success,
+  COMPLETED: colors.inkMuted,
+  CANCELLED: colors.danger,
+  VOIDED: colors.danger,
 };
 
 export default function OrderTrackingScreen() {
@@ -88,7 +89,7 @@ export default function OrderTrackingScreen() {
   }
 
   if (loading) {
-    return <ActivityIndicator size="large" color="#2563EB" style={{ flex: 1, marginTop: 40 }} />;
+    return <ActivityIndicator size="large" color={colors.brand} style={{ flex: 1, marginTop: 40 }} />;
   }
 
   if (!order) {
@@ -109,7 +110,7 @@ export default function OrderTrackingScreen() {
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.orderId}>Order #{order.id.slice(0, 8)}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[order.status] ?? '#6B7280' }]}>
+        <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[order.status] ?? colors.inkMuted }]}>
           <Text style={styles.statusText}>{order.status}</Text>
         </View>
       </View>
@@ -220,46 +221,46 @@ export default function OrderTrackingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { fontSize: 16, color: '#374151' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: '#fff' },
-  orderId: { fontSize: 18, fontWeight: '700', color: '#111827' },
+  error: { fontSize: 16, color: colors.inkSoft },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: colors.white },
+  orderId: { fontSize: 18, fontWeight: '700', color: colors.ink },
   statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  statusText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  statusText: { color: colors.white, fontWeight: '600', fontSize: 13 },
   progressContainer: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginVertical: 8,
     justifyContent: 'space-between',
   },
   progressStep: { alignItems: 'center', flex: 1 },
-  dot: { width: 14, height: 14, borderRadius: 7, backgroundColor: '#E5E7EB', marginBottom: 4 },
-  dotActive: { backgroundColor: '#2563EB' },
-  stepLabel: { fontSize: 9, color: '#9CA3AF', textAlign: 'center' },
-  stepLabelActive: { color: '#2563EB', fontWeight: '600' },
-  section: { backgroundColor: '#fff', margin: 12, borderRadius: 12, padding: 16 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#111827', marginBottom: 12 },
+  dot: { width: 14, height: 14, borderRadius: 7, backgroundColor: colors.line, marginBottom: 4 },
+  dotActive: { backgroundColor: colors.brand },
+  stepLabel: { fontSize: 9, color: colors.inkMuted, textAlign: 'center' },
+  stepLabelActive: { color: colors.brand, fontWeight: '600' },
+  section: { backgroundColor: colors.white, margin: 12, borderRadius: 12, padding: 16 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 12 },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  itemName: { fontSize: 14, color: '#374151' },
-  itemModifier: { fontSize: 11, color: '#6B7280', marginTop: 2 },
-  itemPrice: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  totalLine: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 8, marginTop: 4 },
-  totalLabel: { fontSize: 15, fontWeight: '700', color: '#111827' },
-  totalValue: { fontSize: 16, fontWeight: '800', color: '#2563EB' },
-  receiptNum: { fontSize: 14, fontWeight: '600', color: '#111827', marginBottom: 4 },
-  receiptMeta: { fontSize: 12, color: '#6B7280' },
-  cancelBtn: { margin: 12, padding: 14, backgroundColor: '#FEE2E2', borderRadius: 10, alignItems: 'center' },
-  cancelText: { color: '#EF4444', fontWeight: '700', fontSize: 15 },
-  verifyBtn: { marginHorizontal: 12, padding: 14, backgroundColor: '#DBEAFE', borderRadius: 10, alignItems: 'center' },
-  verifyText: { color: '#1D4ED8', fontWeight: '700', fontSize: 15 },
-  backBtn: { margin: 12, padding: 14, backgroundColor: '#E5E7EB', borderRadius: 10, alignItems: 'center' },
-  backBtnText: { color: '#374151', fontWeight: '600', fontSize: 15 },
-  deliveryLine: { fontSize: 14, color: '#374151', marginBottom: 4 },
-  deliveryHint: { fontSize: 12, color: '#6B7280', marginBottom: 8 },
+  itemName: { fontSize: 14, color: colors.inkSoft },
+  itemModifier: { fontSize: 11, color: colors.inkMuted, marginTop: 2 },
+  itemPrice: { fontSize: 14, fontWeight: '600', color: colors.ink },
+  totalLine: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 8, marginTop: 4 },
+  totalLabel: { fontSize: 15, fontWeight: '700', color: colors.ink },
+  totalValue: { fontSize: 16, fontWeight: '800', color: colors.brand },
+  receiptNum: { fontSize: 14, fontWeight: '600', color: colors.ink, marginBottom: 4 },
+  receiptMeta: { fontSize: 12, color: colors.inkMuted },
+  cancelBtn: { margin: 12, padding: 14, backgroundColor: colors.dangerSubtle, borderRadius: 10, alignItems: 'center' },
+  cancelText: { color: colors.danger, fontWeight: '700', fontSize: 15 },
+  verifyBtn: { marginHorizontal: 12, padding: 14, backgroundColor: colors.brandSoft, borderRadius: 10, alignItems: 'center' },
+  verifyText: { color: colors.brandPressed, fontWeight: '700', fontSize: 15 },
+  backBtn: { margin: 12, padding: 14, backgroundColor: colors.line, borderRadius: 10, alignItems: 'center' },
+  backBtnText: { color: colors.inkSoft, fontWeight: '600', fontSize: 15 },
+  deliveryLine: { fontSize: 14, color: colors.inkSoft, marginBottom: 4 },
+  deliveryHint: { fontSize: 12, color: colors.inkMuted, marginBottom: 8 },
   deliveryActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  deliveryButton: { backgroundColor: '#EFF6FF', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 14, minHeight: 44 },
-  deliveryButtonText: { color: '#1D4ED8', fontWeight: '600' },
+  deliveryButton: { backgroundColor: colors.brandSubtle, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 14, minHeight: 44 },
+  deliveryButtonText: { color: colors.brandPressed, fontWeight: '600' },
 });

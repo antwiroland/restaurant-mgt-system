@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useOfflineStore } from '../store/offline';
+import { colors } from '../theme';
 
 export function OfflineBanner() {
   const { isOnline, pendingCount } = useOfflineStore();
@@ -19,12 +20,12 @@ export function OfflineBanner() {
 
 const styles = StyleSheet.create({
   banner: {
-    backgroundColor: '#F59E0B',
+    backgroundColor: colors.warning,
     padding: 8,
     alignItems: 'center',
   },
   text: {
-    color: '#1F2937',
+    color: colors.ink,
     fontSize: 13,
     fontWeight: '600',
   },

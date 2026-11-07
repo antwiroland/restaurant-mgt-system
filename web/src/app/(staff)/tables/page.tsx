@@ -1,10 +1,13 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Drawer } from "@/components/Drawer";
 import { Skeleton } from "@/components/Skeleton";
 import { Spinner } from "@/components/Spinner";
+import { Icon } from "@/components/Icon";
+import { EmptyState, ErrorState, PageHeader, StatusBadge, humanize } from "@/components/ui";
+import { formatMoney } from "@/lib/brand";
 import { useStaffSession } from "@/components/SessionProvider";
 import {
   createTable,
@@ -17,18 +20,20 @@ import {
   type TableRecord,
 } from "@/lib/apiClient";
 
-const CARD_STYLES: Record<TableRecord["status"], string> = {
-  AVAILABLE: "bg-available-subtle border-available text-available",
-  OCCUPIED: "bg-occupied-subtle border-occupied text-occupied",
-  RESERVED: "bg-reserved-subtle border-reserved text-reserved",
-  CLOSED: "bg-closed-subtle border-closed text-closed",
+const CARD_STYLES: Record<TableRecord["status"], { tile: string; dot: string; seat: string }> = {
+  AVAILABLE: { tile: "border-available/35 bg-surface hover:border-available", dot: "bg-available", seat: "bg-available/30" },
+  OCCUPIED: { tile: "border-occupied/40 bg-occupied-subtle/60 hover:border-occupied", dot: "bg-occupied", seat: "bg-occupied/55" },
+  RESERVED: { tile: "border-reserved/40 bg-reserved-subtle/60 hover:border-reserved", dot: "bg-reserved", seat: "bg-reserved/50" },
+  CLOSED: { tile: "border-line bg-sunken opacity-75 hover:opacity-100", dot: "bg-closed", seat: "bg-closed/30" },
 };
 
+const STATUS_ORDER: TableRecord["status"][] = ["AVAILABLE", "OCCUPIED", "RESERVED", "CLOSED"];
+
 const STATUS_ACTIONS: Array<{ status: TableRecord["status"]; label: string; className: string }> = [
-  { status: "AVAILABLE", label: "Set Available", className: "bg-available text-brand-on border-available" },
-  { status: "OCCUPIED", label: "Set Occupied", className: "bg-occupied text-brand-on border-occupied" },
-  { status: "RESERVED", label: "Set Reserved", className: "bg-reserved text-brand-on border-reserved" },
-  { status: "CLOSED", label: "Set Closed", className: "bg-closed text-brand-on border-closed" },
+  { status: "AVAILABLE", label: "Available", className: "border-available/40 text-available hover:bg-available-subtle" },
+  { status: "OCCUPIED", label: "Occupied", className: "border-occupied/40 text-occupied hover:bg-occupied-subtle" },
+  { status: "RESERVED", label: "Reserved", className: "border-reserved/40 text-reserved hover:bg-reserved-subtle" },
+  { status: "CLOSED", label: "Closed", className: "border-closed/40 text-closed hover:bg-closed-subtle" },
 ];
 
 export default function TablesPage() {
@@ -201,71 +206,126 @@ export default function TablesPage() {
       <main className="shell">
         <section className="panel">
           <p className="kicker">Tables</p>
-          <h1 className="text-2xl font-semibold">Staff access required</h1>
+          <h1 className="heading-lg mt-1">Staff access required</h1>
           <Link className="mt-4 inline-flex btn btn-primary" href="/login">Open Login</Link>
         </section>
       </main>
     );
   }
 
+  const isAdmin = session.user.role === "ADMIN";
+  const statusCounts = STATUS_ORDER.map((status) => ({ status, count: tables.filter((t) => t.status === status).length }));
+
   return (
-    <main className="shell grid gap-4">
-      <section className="panel">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="kicker">Tables</p>
-            <h1 className="text-2xl font-semibold">Floor Map</h1>
-            <p className="mt-1 text-sm text-ink-soft">Tap a table tile to open details, status controls, and inline edit form.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link className="btn btn-secondary btn-md" href="/tables/qr">
-              QR Studio
-            </Link>
-            <button className="btn btn-primary btn-md" onClick={() => setAddDrawerOpen(true)}>
-              Add Table
+    <main className="shell">
+      <PageHeader
+        eyebrow="Service"
+        title="Floor & tables"
+        description="See who's seated where, take an order for a table, and settle its bill."
+        actions={
+          <>
+            <Link className="btn btn-secondary btn-sm" href="/tables/qr"><Icon name="qr" size={16} /> QR studio</Link>
+            {isAdmin ? (
+              <button className="btn btn-primary btn-sm" onClick={() => setAddDrawerOpen(true)}>
+                <Icon name="plus" size={16} /> Add table
+              </button>
+            ) : null}
+          </>
+        }
+      />
+
+      <section className="grid gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <button
+            type="button"
+            aria-pressed={statusFilter === "ALL"}
+            onClick={() => setStatusFilter("ALL")}
+            className={`flex items-center justify-between rounded-card border px-4 py-3 text-left transition-colors ${statusFilter === "ALL" ? "border-espresso bg-espresso text-espresso-ink" : "border-line bg-surface hover:border-line-strong"}`}
+          >
+            <span className="text-sm font-semibold">All tables</span>
+            <span className="font-display text-xl font-extrabold tabular">{tables.length}</span>
+          </button>
+          {statusCounts.map(({ status, count }) => (
+            <button
+              key={status}
+              type="button"
+              aria-pressed={statusFilter === status}
+              onClick={() => setStatusFilter(statusFilter === status ? "ALL" : status)}
+              className={`flex items-center justify-between rounded-card border px-4 py-3 text-left transition-colors ${statusFilter === status ? "border-espresso bg-espresso text-espresso-ink" : "border-line bg-surface hover:border-line-strong"}`}
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <span className={`h-2.5 w-2.5 rounded-full ${CARD_STYLES[status].dot}`} aria-hidden="true" />
+                {humanize(status)}
+              </span>
+              <span className="font-display text-xl font-extrabold tabular">{count}</span>
             </button>
-          </div>
+          ))}
         </div>
 
-        <div className="mt-4 grid gap-2 md:grid-cols-3">
-          <input className="input text-sm" placeholder="Search table, zone, or branch" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <select className="select text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as TableRecord["status"] | "ALL")}>
-            <option value="ALL">All statuses</option>
-            <option value="AVAILABLE">AVAILABLE</option>
-            <option value="OCCUPIED">OCCUPIED</option>
-            <option value="RESERVED">RESERVED</option>
-            <option value="CLOSED">CLOSED</option>
-          </select>
-          <select className="select text-sm" value={zoneFilter} onChange={(e) => setZoneFilter(e.target.value)}>
-            <option value="">All zones</option>
-            {zoneOptions.map((zone) => <option key={zone} value={zone}>{zone}</option>)}
-          </select>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <label className="relative flex-1">
+            <span className="sr-only">Search tables</span>
+            <Icon name="search" size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
+            <input className="input pl-10" placeholder="Search table, zone or branch" value={query} onChange={(e) => setQuery(e.target.value)} />
+          </label>
+          {zoneOptions.length > 1 ? (
+            <select className="select sm:w-56" value={zoneFilter} onChange={(e) => setZoneFilter(e.target.value)} aria-label="Zone">
+              <option value="">All zones</option>
+              {zoneOptions.map((zone) => <option key={zone} value={zone}>{zone}</option>)}
+            </select>
+          ) : null}
         </div>
 
-        {error ? <p className="mt-4 alert alert-danger">{error}</p> : null}
+        {error ? <ErrorState message={error} onRetry={() => void loadData().catch((err) => setError(err instanceof Error ? err.message : "Could not load tables"))} /> : null}
       </section>
 
       {groupedTables.map((group) => (
-        <section key={group.zone} className="panel">
-          <p className="kicker">{group.zone}</p>
-          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <section key={group.zone} aria-labelledby={`zone-${group.zone}`} className="grid gap-3">
+          <div className="flex items-baseline justify-between">
+            <h2 id={`zone-${group.zone}`} className="font-display text-base font-bold text-ink">{group.zone}</h2>
+            <span className="text-xs text-ink-muted">{group.tables.length} tables</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
             {group.tables.map((table) => {
-              const hasOrders = activeOrders.some((order) => order.tableId === table.id);
+              const tableOrders = activeOrders.filter((order) => order.tableId === table.id);
+              const running = tableOrders.reduce((sum, order) => sum + Number(order.total), 0);
+              const style = CARD_STYLES[table.status];
+              const seats = Math.min(table.capacity, 8);
               return (
                 <button
                   key={table.id}
-                  className={`min-h-[var(--touch-card)] rounded-xl border p-3 text-left transition hover:shadow-card ${CARD_STYLES[table.status]}`}
+                  className={`group relative grid min-h-[148px] content-between rounded-xl border-2 p-3 text-left transition-[border-color,box-shadow,opacity] hover:shadow-card ${style.tile}`}
                   onClick={() => setSelectedTableId(table.id)}
+                  aria-label={`Table ${table.number}, ${table.capacity} seats, ${table.status.toLowerCase()}${tableOrders.length ? `, ${tableOrders.length} active orders` : ""}`}
                 >
-                  <p className="text-lg font-semibold">T-{table.number}</p>
-                  <p className="mt-1 text-sm">{table.capacity} seats</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-wide">{table.status}</p>
-                  <p className="mt-1 text-xs opacity-80">{hasOrders ? "Has active orders" : "No active orders"}</p>
-                  {guestSessions[table.id] ? (
-                    <span className="badge badge-info mt-2">
-                      {guestSessions[table.id]} guest phone{guestSessions[table.id] > 1 ? "s" : ""} ordering
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-display text-2xl font-extrabold leading-none text-ink">{table.number}</span>
+                    <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-soft">
+                      <span className={`h-2 w-2 rounded-full ${style.dot}`} aria-hidden="true" />
+                      {humanize(table.status)}
                     </span>
-                  ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-1 py-2" aria-hidden="true">
+                    {Array.from({ length: seats }).map((_, i) => (
+                      <span key={i} className={`h-2.5 w-2.5 rounded-full ${style.seat}`} />
+                    ))}
+                    {table.capacity > 8 ? <span className="text-[10px] text-ink-muted">+{table.capacity - 8}</span> : null}
+                  </div>
+                  <div className="grid gap-1 text-xs">
+                    {tableOrders.length > 0 ? (
+                      <span className="flex items-center justify-between font-semibold text-ink">
+                        <span>{tableOrders.length} order{tableOrders.length > 1 ? "s" : ""}</span>
+                        <span className="money">{formatMoney(running)}</span>
+                      </span>
+                    ) : (
+                      <span className="text-ink-muted">{table.capacity} seats · no orders</span>
+                    )}
+                    {guestSessions[table.id] ? (
+                      <span className="flex items-center gap-1 font-semibold text-info-on">
+                        <Icon name="qr" size={12} /> {guestSessions[table.id]} guest phone{guestSessions[table.id] > 1 ? "s" : ""}
+                      </span>
+                    ) : null}
+                  </div>
                 </button>
               );
             })}
@@ -274,27 +334,39 @@ export default function TablesPage() {
       ))}
 
       {groupedTables.length === 0 ? (
-        <section className="panel">
-          <p className="rounded-xl border border-dashed border-line p-4 text-sm text-ink-soft">No tables match the current filters.</p>
-        </section>
+        <EmptyState
+          icon="table"
+          title={tables.length === 0 ? "No tables yet" : "No tables match"}
+          description={tables.length === 0 ? (isAdmin ? "Add your first table to start seating guests and printing QR codes." : "An admin needs to add tables before they appear here.") : "Try a different status, zone or search."}
+          action={tables.length === 0 && isAdmin ? <button className="btn btn-primary btn-sm" onClick={() => setAddDrawerOpen(true)}>Add table</button> : undefined}
+        />
       ) : null}
 
       <Drawer open={!!selectedTable} title={selectedTable ? `Table ${selectedTable.number}` : "Table Details"} onClose={() => setSelectedTableId(null)}>
         {selectedTable ? (
           <div className="grid gap-4">
-            <section className="grid gap-1 rounded-xl border border-line bg-muted p-3 text-sm">
-              <p><span className="font-semibold">Status:</span> {selectedTable.status}</p>
-              <p><span className="font-semibold">Zone:</span> {selectedTable.zone || "Main Floor"}</p>
-              <p><span className="font-semibold">Capacity:</span> {selectedTable.capacity} seats</p>
+            <section className="grid grid-cols-3 gap-2 rounded-xl bg-ivory p-3 text-sm">
+              <div><p className="text-xs text-ink-muted">Status</p><StatusBadge status={selectedTable.status} className="mt-1" /></div>
+              <div><p className="text-xs text-ink-muted">Zone</p><p className="mt-1 font-semibold">{selectedTable.zone || "Main floor"}</p></div>
+              <div><p className="text-xs text-ink-muted">Seats</p><p className="mt-1 font-semibold">{selectedTable.capacity}</p></div>
+            </section>
+
+            <section className="grid gap-2 sm:grid-cols-2">
+              <Link className="btn btn-primary btn-lg" href={`/pos?table=${selectedTable.id}`}>
+                <Icon name="plus" size={18} /> Take order
+              </Link>
+              <Link className="btn btn-secondary btn-lg" href={`/tables/${selectedTable.id}/bill`}>
+                <Icon name="receipt" size={18} /> View bill
+              </Link>
             </section>
 
             <section className="grid gap-2">
-              <p className="field-label">Status Actions</p>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <p className="field-label">Set status</p>
+              <div className="grid grid-cols-2 gap-2">
                 {STATUS_ACTIONS.map((action) => (
                   <button
                     key={action.status}
-                    className={`btn btn-lg border ${action.className}`}
+                    className={`btn btn-md border bg-surface ${action.className} ${selectedTable.status === action.status ? "ring-2 ring-espresso ring-offset-1" : ""}`}
                     disabled={statusBusy === action.status || selectedTable.status === action.status}
                     onClick={() => void handleStatusChange(action.status)}
                   >
@@ -306,36 +378,46 @@ export default function TablesPage() {
             </section>
 
             <section className="grid gap-2">
-              <p className="field-label">Active Orders</p>
+              <p className="field-label">Active orders</p>
               {selectedTableOrders.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-line p-3 text-sm text-ink-soft">No active orders for this table.</p>
               ) : (
                 <ul className="grid gap-2">
                   {selectedTableOrders.map((order) => (
-                    <li key={order.id} className="rounded-xl border border-line p-3 text-sm">
-                      <p className="font-semibold">#{order.id.slice(0, 8)} - {order.status}</p>
-                      <p className="text-ink-soft">{order.items.length} item(s) - GHS {order.total}</p>
+                    <li key={order.id}>
+                      <Link href={`/orders/${order.id}`} className="flex items-center justify-between gap-3 rounded-xl border border-line p-3 text-sm hover:border-line-strong">
+                        <span className="min-w-0">
+                          <span className="font-mono font-semibold">#{order.id.slice(0, 8).toUpperCase()}</span>
+                          <span className="block truncate text-ink-soft">{order.items.map((item) => `${item.quantity}× ${item.name}`).join(", ")}</span>
+                        </span>
+                        <span className="grid shrink-0 justify-items-end gap-1">
+                          <StatusBadge status={order.status} />
+                          <span className="money">{formatMoney(order.total)}</span>
+                        </span>
+                      </Link>
                     </li>
                   ))}
                 </ul>
               )}
             </section>
 
+            {session.user.role === "ADMIN" ? (
             <section className="grid gap-2 rounded-xl border border-line p-3">
-              <p className="field-label">Edit Table</p>
+              <p className="field-label">Edit table</p>
               <div className="grid gap-2">
                 <input className="input" placeholder="Table number" value={editForm.number} onChange={(e) => setEditForm((s) => ({ ...s, number: e.target.value }))} />
                 <input className="input" placeholder="Capacity" type="number" min={1} value={editForm.capacity} onChange={(e) => setEditForm((s) => ({ ...s, capacity: e.target.value }))} />
                 <input className="input" placeholder="Zone" value={editForm.zone} onChange={(e) => setEditForm((s) => ({ ...s, zone: e.target.value }))} />
                 <button className="btn btn-primary btn-md" onClick={() => void handleSaveEdit()} disabled={savingEdit}>
                   {savingEdit ? <Spinner className="text-current" /> : null}
-                  Save Changes
+                  Save changes
                 </button>
               </div>
             </section>
+            ) : null}
 
             <section className="grid gap-2 rounded-xl border border-line p-3">
-              <p className="field-label">QR Metadata</p>
+              <p className="field-label">Guest QR link</p>
               <code className="input overflow-x-auto">{selectedTable.qrToken}</code>
               <div className="flex flex-wrap gap-2">
                 <button className="btn btn-secondary btn-sm" onClick={() => void copyToken(selectedTable.qrToken)}>
@@ -347,10 +429,7 @@ export default function TablesPage() {
               </div>
             </section>
 
-            <section className="grid gap-2 sm:grid-cols-2">
-              <Link className="btn btn-secondary btn-md" href={`/tables/${selectedTable.id}/bill`}>Table Bill</Link>
-              <Link className="btn btn-secondary btn-md" href={`/tables/${selectedTable.id}/qr`}>Printable QR</Link>
-            </section>
+            <Link className="btn btn-secondary btn-md" href={`/tables/${selectedTable.id}/qr`}><Icon name="print" size={16} /> Printable QR card</Link>
           </div>
         ) : null}
       </Drawer>

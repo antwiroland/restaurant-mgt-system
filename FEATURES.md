@@ -133,18 +133,42 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - `/analytics/*`: revenue, top items, peak hours, average order value, overview
 - Web dashboard with charts
 
+### Design system ("Hearth")
+- Shared tokens for web (`web/src/app/globals.css`) and mobile (`mobile/src/theme.ts`): ivory and cream surfaces, espresso ink and dark surfaces, terracotta for actions, muted gold for highlights, sage for success. Order and table status colours are the same on every screen
+- Type: Manrope for the interface, Fraunces for headings on customer pages, IBM Plex Mono for order numbers
+- Components: icon set (`components/Icon.tsx`), `PageHeader`, `StatCard`, `EmptyState`, `ErrorState`, `StatusBadge`, data table, chips, segmented controls, skeletons, modal/bottom sheet, drawer, image uploader
+- Chart colours checked for colour-blind separation; every chart has hover values, and the revenue chart can be shown as a table
+- Restaurant name, tagline, address, phone, hours and hero photo come from `NEXT_PUBLIC_RESTAURANT_*` (web) and `EXPO_PUBLIC_RESTAURANT_*` (mobile). Anything not set is left off the page instead of showing placeholder data
+
+### Customer Web (Next.js, no sign-in)
+- Homepage (`/`) built from the live menu: dishes available today, categories, how table ordering works, reservations, about and visit sections
+- Menu (`/explore`) with search, category filter, sorting, an "available now" filter, grid and list views, and filters kept in the URL. Dish page (`/explore/[id]`) shows modifier groups with their prices
+- Reservations (`/reserve`): book by date, time slot, party size and table; manage or cancel a booking by phone number
+- QR table ordering (`/scan/[token]`), designed for phones: options in a bottom sheet, floating cart, kitchen notes, and a live progress tracker for each order
+- Running bill (`/bill/[token]`) and a dark display-screen order board (`/orders-status`)
+- Account pages for the links the backend sends: `/forgot-password`, `/reset-password`, `/verify-email`
+
 ### Staff Web App (Next.js)
-- Persistent app shell with a role-aware sidebar; riders only see their own page
-- Design tokens in `globals.css`, with no hard-coded hex colours
-- Modals and drawers instead of `window.prompt/alert/confirm`. Dialogs trap focus and return it when they close
-- Accessibility checklist complete:
-  - Errors linked to their inputs and announced
-  - Collapsed nav links have accessible names
-  - Live regions on the KDS
-  - 44 px touch targets
-- Loading skeletons, and a touch-friendly POS with categories, promo codes and delivery
+- App shell with a dark sidebar, collapsible icon rail and a phone bottom bar. What each role sees matches the backend permissions:
+  - Cashiers go straight to the POS and don't see owner analytics or admin pages
+  - Riders only see their deliveries
+  - Users is admin-only
+- The shell handles loading, sign-in and "not available for your role" for every page. The API still enforces access
+- Owner dashboard: live tiles (new, cooking, ready, tables in use), KPIs, revenue trend with hover values, best sellers, payment and channel mix, busiest hours, order outcomes, recent orders, and a branch table when there is more than one branch
+- POS with menu and ticket side by side:
+  - Option picker that enforces required groups
+  - Kitchen notes per item and for the whole order
+  - Pricing from `/orders/quote` (offers, promo, delivery fee, service charge, tax lines)
+  - Table picker as a grid of buttons; `/pos?table=` preselects the table
+  - Keyboard search (`/`, then Enter adds the top result)
+  - Separate payment step
+- Kitchen display: dark high-contrast board, waiting timers that tick, late tickets highlighted, item notes and options shown, full-screen mode, swipe to advance
+- Orders: status tabs with counts, channel and date filters, table view on desktop and cards on phones
+- Floor plan with status counts, seat dots and running totals per table, plus "Take order" and "View bill" shortcuts
+- Menu builder with dish photo upload (drag and drop, replace, remove) and an availability switch
+- Staff page: admins can send a password-reset link
 - Pages: login, dashboard, POS, orders, pickup, KDS, tables, table bill and QR, reservations, group ordering, delivery, rider, menu, offers, payments, financial, receipts, shifts, users, branches, audit, admin
-- Backend proxy route `/api/rm/[...path]`
+- Backend proxy route `/api/rm/[...path]` passes binary files through unchanged (image uploads, QR PDFs and PNGs)
 
 ### Customer Mobile App (Expo)
 - Two-step sign-up with SMS verification and a resend timer, sign-in with a password or an SMS code, and guest mode
@@ -187,10 +211,14 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - **Printable / thermal receipts** (ESC/POS) and kitchen ticket printing
 - **Staff scheduling and timesheets** (beyond cash shifts)
 - **Customer feedback and ratings** after an order
-- **Menu item image upload** (media storage such as S3)
 - **Exports**: CSV or PDF of sales, reconciliation and audit reports
-- **Customer-facing web ordering for pickup and delivery** (web customer pages only cover dine-in QR)
-- **Password reset** for staff and email verification (customers can already sign in by SMS code)
+- **Customer-facing web ordering for pickup and delivery** (the web customer pages cover browsing, reservations and dine-in QR ordering only)
+- **Customer accounts on the web** (sign-in, saved addresses, order history and favourites are only in the mobile app; favourites don't exist anywhere)
+- **Guest "call a waiter" / service requests** (there is no backend endpoint; the old button that only showed a message has been removed)
+- **Cash as an offline payment**: every payment method, cash included, goes through the payment provider and needs a payer phone number
+- **Item-level "ready" on the KDS** (the API tracks status per order, not per item)
+- **Restaurant profile API** (name, hours and address are set with environment variables)
+- **Self-service password change** screen for signed-in staff (the API `/auth/password/change` exists; there is no UI yet)
 - **Multi-language / localization**
 
 ### Platform & operations

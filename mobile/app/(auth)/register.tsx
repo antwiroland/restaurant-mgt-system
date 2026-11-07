@@ -8,6 +8,7 @@ import { registerCustomer, requestOtp, verifyRegistrationOtp } from '../../src/a
 import { isValidOtpCode, normalizePhone, resendSecondsLeft } from '../../src/features/auth/auth';
 import { useAuthStore } from '../../src/store/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { colors } from '../../src/theme';
 
 type Step = 'details' | 'code';
 
@@ -95,7 +96,7 @@ export default function RegisterScreen() {
               value={password} onChangeText={setPassword} secureTextEntry
             />
             <TouchableOpacity style={styles.button} onPress={sendCode} disabled={loading} accessibilityRole="button">
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Send verification code</Text>}
+              {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Send verification code</Text>}
             </TouchableOpacity>
           </>
         ) : (
@@ -107,7 +108,7 @@ export default function RegisterScreen() {
               textContentType="oneTimeCode" autoComplete="sms-otp"
             />
             <TouchableOpacity style={styles.button} onPress={verifyAndRegister} disabled={loading} accessibilityRole="button">
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify & create account</Text>}
+              {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Verify & create account</Text>}
             </TouchableOpacity>
             <TouchableOpacity
               onPress={sendCode}
@@ -134,20 +135,20 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
-  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 32, color: '#111827' },
-  info: { fontSize: 15, color: '#374151', textAlign: 'center', marginBottom: 16 },
+  container: { flexGrow: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.white },
+  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 32, color: colors.ink },
+  info: { fontSize: 15, color: colors.inkSoft, textAlign: 'center', marginBottom: 16 },
   input: {
-    borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8,
+    borderWidth: 1, borderColor: colors.lineStrong, borderRadius: 8,
     padding: 14, marginBottom: 16, fontSize: 16,
   },
   codeInput: { fontSize: 24, letterSpacing: 8, textAlign: 'center' },
   button: {
-    backgroundColor: '#2563EB', borderRadius: 8, padding: 16,
+    backgroundColor: colors.brand, borderRadius: 8, padding: 16,
     alignItems: 'center', marginBottom: 12, minHeight: 48,
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  buttonText: { color: colors.white, fontSize: 16, fontWeight: '600' },
   back: { alignItems: 'center', paddingVertical: 10 },
-  backText: { color: '#2563EB', fontSize: 14 },
-  disabledText: { color: '#9CA3AF' },
+  backText: { color: colors.brand, fontSize: 14 },
+  disabledText: { color: colors.inkMuted },
 });

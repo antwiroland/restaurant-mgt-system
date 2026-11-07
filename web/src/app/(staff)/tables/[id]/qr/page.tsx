@@ -156,7 +156,7 @@ export default function TableQrDetailPage() {
       <main className="shell">
         <section className="panel">
           <p className="kicker">Table QR</p>
-          <h1 className="text-2xl font-semibold">Staff access required</h1>
+          <h1 className="heading-lg mt-1">Staff access required</h1>
           <Link className="mt-4 inline-flex btn btn-primary" href="/login">Open Login</Link>
         </section>
       </main>
@@ -168,7 +168,7 @@ export default function TableQrDetailPage() {
       <main className="shell">
         <section className="panel">
           <p className="kicker">Table QR</p>
-          <h1 className="text-2xl font-semibold">Table not found</h1>
+          <h1 className="heading-lg mt-1">Table not found</h1>
           <p className="mt-2 text-sm text-ink-soft">{error || "The requested table could not be loaded."}</p>
           <Link className="mt-4 inline-flex btn btn-primary" href="/tables/qr">Back to QR Studio</Link>
         </section>
@@ -182,7 +182,7 @@ export default function TableQrDetailPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="kicker">Printable QR</p>
-            <h1 className="text-2xl font-semibold">Table {table.number}</h1>
+            <h1 className="heading-lg mt-1">Table {table.number}</h1>
             <p className="mt-2 text-sm text-ink-soft">Use this dedicated page to print the QR card for one table or maintain its metadata.</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -238,7 +238,7 @@ export default function TableQrDetailPage() {
       <section className="panel grid gap-4">
         <div>
           <p className="kicker">Table Details</p>
-          <h2 className="text-xl font-semibold">Manage Table</h2>
+          <h2 className="heading-md">Manage Table</h2>
         </div>
 
         <div className="grid gap-2 rounded-xl border border-line p-3 text-sm">

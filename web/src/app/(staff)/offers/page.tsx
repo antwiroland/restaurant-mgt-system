@@ -122,7 +122,7 @@ export default function OffersPage() {
       <main className="shell">
         <section className="panel">
           <p className="kicker">Offers</p>
-          <h1 className="text-2xl font-semibold">Staff access required</h1>
+          <h1 className="heading-lg mt-1">Staff access required</h1>
           <Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link>
         </section>
       </main>
@@ -133,7 +133,7 @@ export default function OffersPage() {
     <main className="shell grid gap-4 lg:grid-cols-[1fr_1.4fr]">
       <form className="panel grid content-start gap-2" onSubmit={(e) => void save(e)}>
         <p className="kicker">Promotions</p>
-        <h1 className="text-2xl font-semibold">{draft.id ? "Edit offer" : "New Buy-X-Get-Y offer"}</h1>
+        <h1 className="heading-lg mt-1">{draft.id ? "Edit offer" : "New Buy-X-Get-Y offer"}</h1>
         <p className="text-sm text-ink-soft">Active offers apply automatically at checkout: e.g. buy 2 get 1 makes every third unit free.</p>
         <label className="grid gap-1 text-sm">
           <span>Name</span>
@@ -181,7 +181,7 @@ export default function OffersPage() {
       </form>
 
       <section className="panel">
-        <h2 className="text-xl font-semibold">Offers</h2>
+        <h2 className="heading-md">Offers</h2>
         {offers.length === 0 ? (
           <p className="mt-3 text-sm text-ink-soft">No offers yet. Create one to reward customers who order more.</p>
         ) : (

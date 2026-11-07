@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { Icon } from "@/components/Icon";
+import { PageHeader, StatCard, StatusBadge, humanize } from "@/components/ui";
 import { useEffect, useMemo, useState } from "react";
 import { Skeleton } from "@/components/Skeleton";
 import { Spinner } from "@/components/Spinner";
@@ -46,126 +48,188 @@ const EMPTY_ANALYTICS: AnalyticsOverviewRecord = {
 };
 
 const CHART_PALETTE = [
-  "var(--color-brand)",
-  "var(--color-info)",
-  "var(--color-warning)",
-  "var(--color-accent)",
-  "#7c3aed",
-  "#0891b2",
+  "var(--color-chart-1)",
+  "var(--color-chart-2)",
+  "var(--color-chart-3)",
+  "var(--color-chart-4)",
+  "var(--color-chart-5)",
 ];
+const CHART_OTHER = "var(--color-chart-other)";
+const MAX_SLICES = CHART_PALETTE.length;
 
 function formatMoney(value: string | number): string {
   const amount = typeof value === "number" ? value : Number.parseFloat(value);
-  return `GHS ${Number.isFinite(amount) ? amount.toFixed(2) : "0.00"}`;
+  return `GHS ${(Number.isFinite(amount) ? amount : 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function ratioWidth(value: number, total: number) {
-  if (total <= 0) return 8;
-  return Math.max(8, (value / total) * 100);
+function compactMoney(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return value.toFixed(0);
 }
 
+function EmptyChart({ label = "No data for this period yet." }: { label?: string }) {
+  return <p className="grid min-h-[120px] place-items-center rounded-xl border border-dashed border-line-strong p-4 text-center text-sm text-ink-soft">{label}</p>;
+}
+
+/** Fold anything past the palette length into "Other" so hues are never cycled. */
+function foldOther(data: { label: string; value: number }[]) {
+  const sorted = [...data].sort((a, b) => b.value - a.value);
+  if (sorted.length <= MAX_SLICES) return sorted;
+  const head = sorted.slice(0, MAX_SLICES - 1);
+  const rest = sorted.slice(MAX_SLICES - 1).reduce((sum, entry) => sum + entry.value, 0);
+  return [...head, { label: "Other", value: rest }];
+}
+
+/** Single-hue horizontal bars (magnitude). Values are always printed as text. */
 function BarChart({
   data,
-  colorClassName,
   valueFormatter,
-  legendLabel,
+  label,
 }: {
   data: { label: string; value: number }[];
-  colorClassName: string;
   valueFormatter: (value: number) => string;
-  legendLabel: string;
+  label: string;
 }) {
   const max = Math.max(...data.map((entry) => entry.value), 0);
-
-  if (data.length === 0) {
-    return <p className="rounded-xl border border-dashed border-line p-4 text-sm text-ink-soft">No chart data available.</p>;
-  }
-
+  if (data.length === 0 || max === 0) return <EmptyChart />;
   return (
-    <div className="grid gap-3">
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-muted/50 px-3 py-2 text-xs text-ink-soft">
-        <span className={`h-3 w-3 rounded-full ${colorClassName}`} />
-        <span>{legendLabel}</span>
-        <span className="ml-auto">Peak {valueFormatter(max)}</span>
-      </div>
+    <ul className="grid gap-3" aria-label={label}>
       {data.map((entry) => (
-        <div key={entry.label} className="grid gap-2">
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="font-medium text-ink">{entry.label}</span>
-            <span className="text-ink-soft">{valueFormatter(entry.value)}</span>
+        <li key={entry.label} className="group grid gap-1.5" title={`${entry.label}: ${valueFormatter(entry.value)}`}>
+          <div className="flex items-baseline justify-between gap-3 text-sm">
+            <span className="font-semibold text-ink">{entry.label}</span>
+            <span className="money text-ink-soft">{valueFormatter(entry.value)}</span>
           </div>
-          <div className="h-3 overflow-hidden rounded-full bg-muted">
-            <div className={`h-full rounded-full ${colorClassName}`} style={{ width: `${ratioWidth(entry.value, max)}%` }} />
+          <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-[color:var(--color-chart-1)] transition-[width,opacity] duration-500 group-hover:opacity-80"
+              style={{ width: `${Math.max(2, (entry.value / max) * 100)}%` }}
+            />
           </div>
-        </div>
+        </li>
       ))}
+    </ul>
+  );
+}
+
+/** Vertical column chart for ordered buckets (e.g. hours). Hover shows value. */
+function ColumnChart({
+  data,
+  valueFormatter,
+  label,
+}: {
+  data: { label: string; value: number }[];
+  valueFormatter: (value: number) => string;
+  label: string;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const max = Math.max(...data.map((entry) => entry.value), 0);
+  if (data.length === 0 || max === 0) return <EmptyChart />;
+  return (
+    <div className="grid gap-2" role="img" aria-label={label}>
+      <div className="relative flex h-40 items-end gap-[2px]">
+        {data.map((entry, index) => (
+          <div
+            key={entry.label}
+            className="relative flex h-full flex-1 items-end"
+            onMouseEnter={() => setHover(index)}
+            onMouseLeave={() => setHover(null)}
+          >
+            <div
+              className={`w-full rounded-t-[4px] transition-opacity ${hover === null || hover === index ? "opacity-100" : "opacity-45"}`}
+              style={{ height: `${Math.max(2, (entry.value / max) * 100)}%`, background: "var(--color-chart-1)" }}
+            />
+            {hover === index ? (
+              <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs shadow-lg">
+                <p className="font-semibold text-ink">{entry.label}</p>
+                <p className="text-ink-soft">{valueFormatter(entry.value)}</p>
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-between text-[11px] text-ink-muted">
+        <span>{data[0]?.label}</span>
+        <span>{data[data.length - 1]?.label}</span>
+      </div>
     </div>
   );
 }
 
 function DonutChart({
-  data,
+  data: raw,
   valueFormatter,
   centerLabel = "total",
+  centerValue,
 }: {
   data: { label: string; value: number }[];
   valueFormatter: (value: number) => string;
   centerLabel?: string;
+  centerValue?: string;
 }) {
+  const data = foldOther(raw.filter((entry) => entry.value > 0));
   const total = data.reduce((sum, entry) => sum + entry.value, 0);
-  let accumulated = 0;
-
-  if (data.length === 0 || total === 0) {
-    return <p className="rounded-xl border border-dashed border-line p-4 text-sm text-ink-soft">No chart data available.</p>;
-  }
+  const [hover, setHover] = useState<number | null>(null);
+  if (data.length === 0 || total === 0) return <EmptyChart />;
+  const segments = data.map((entry, index) => ({
+    entry,
+    index,
+    value: (entry.value / total) * 100,
+    offset: data.slice(0, index).reduce((sum, prev) => sum + (prev.value / total) * 100, 0),
+  }));
+  const gap = data.length > 1 ? 0.8 : 0;
+  const colorAt = (index: number, entry: { label: string }) => (entry.label === "Other" ? CHART_OTHER : CHART_PALETTE[index]);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[220px,1fr] lg:items-center">
-      <svg viewBox="0 0 42 42" className="mx-auto h-56 w-56 -rotate-90">
-        <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="var(--color-line)" strokeWidth="6" />
-        {data.map((entry, index) => {
-          const value = (entry.value / total) * 100;
-          const segment = (
-            <circle
-              key={entry.label}
-              cx="21"
-              cy="21"
-              r="15.9155"
-              fill="transparent"
-              stroke={CHART_PALETTE[index % CHART_PALETTE.length]}
-              strokeWidth="6"
-              strokeDasharray={`${value} ${100 - value}`}
-              strokeDashoffset={-accumulated}
-            />
-          );
-          accumulated += value;
-          return segment;
-        })}
-        <circle cx="21" cy="21" r="9.5" fill="var(--color-surface)" />
-        <text x="21" y="20" textAnchor="middle" className="fill-current text-[3.5px] font-semibold text-ink">
-          {total}
-        </text>
-        <text x="21" y="24" textAnchor="middle" className="fill-current text-[2.5px] text-ink-soft">
-          {centerLabel}
-        </text>
-      </svg>
-
-      <div className="grid gap-3">
-        {data.map((entry, index) => (
-          <div key={entry.label} className="flex items-center justify-between gap-3 rounded-xl border border-line px-4 py-3 text-sm">
-            <div className="flex items-center gap-3">
-              <span
-                className="h-3 w-3 rounded-full"
-                style={{ backgroundColor: CHART_PALETTE[index % CHART_PALETTE.length] }}
+    <div className="grid items-center gap-5 sm:grid-cols-[180px_1fr]">
+      <div className="relative mx-auto h-44 w-44">
+        <svg viewBox="0 0 42 42" className="h-full w-full -rotate-90" aria-hidden="true">
+          <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="var(--color-muted)" strokeWidth="5" />
+          {segments.map(({ entry, index, value, offset }) => (
+              <circle
+                key={entry.label}
+                cx="21"
+                cy="21"
+                r="15.9155"
+                fill="transparent"
+                stroke={colorAt(index, entry)}
+                strokeWidth={hover === index ? 6.5 : 5}
+                strokeDasharray={`${Math.max(0, value - gap)} ${100 - Math.max(0, value - gap)}`}
+                strokeDashoffset={-offset}
+                className="cursor-pointer transition-[stroke-width] duration-150"
+                onMouseEnter={() => setHover(index)}
+                onMouseLeave={() => setHover(null)}
               />
-              <span className="font-medium text-ink">{entry.label}</span>
-            </div>
-            <span className="text-ink-soft">
-              {valueFormatter(entry.value)} · {Math.round((entry.value / total) * 100)}%
-            </span>
+          ))}
+        </svg>
+        <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
+          <div>
+            <p className="font-display text-lg font-extrabold leading-tight text-ink tabular">
+              {hover !== null ? `${Math.round((data[hover].value / total) * 100)}%` : centerValue ?? total}
+            </p>
+            <p className="text-[11px] text-ink-muted">{hover !== null ? data[hover].label : centerLabel}</p>
           </div>
-        ))}
+        </div>
       </div>
+      <ul className="grid gap-1.5">
+        {data.map((entry, index) => (
+          <li
+            key={entry.label}
+            className={`flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors ${hover === index ? "bg-sunken" : ""}`}
+            onMouseEnter={() => setHover(index)}
+            onMouseLeave={() => setHover(null)}
+          >
+            <span className="flex items-center gap-2.5">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colorAt(index, entry) }} aria-hidden="true" />
+              <span className="font-semibold text-ink">{entry.label}</span>
+            </span>
+            <span className="money text-ink-soft">
+              {valueFormatter(entry.value)} <span className="text-ink-muted">· {Math.round((entry.value / total) * 100)}%</span>
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -173,83 +237,106 @@ function DonutChart({
 function LineChart({
   data,
   valueFormatter,
-  strokeColor = "var(--color-brand)",
 }: {
   data: { label: string; value: number }[];
   valueFormatter: (value: number) => string;
-  strokeColor?: string;
 }) {
-  if (data.length === 0) {
-    return <p className="rounded-xl border border-dashed border-line p-4 text-sm text-ink-soft">No chart data available.</p>;
+  const [hover, setHover] = useState<number | null>(null);
+  if (data.length === 0) return <EmptyChart />;
+
+  const width = 720;
+  const height = 260;
+  const padX = 44;
+  const padTop = 16;
+  const padBottom = 28;
+  const max = Math.max(...data.map((entry) => entry.value), 0) || 1;
+  const niceMax = Math.ceil(max / 4) * 4 || 4;
+  const labelStep = Math.max(1, Math.ceil(data.length / 7));
+  const xAt = (index: number) => (data.length === 1 ? width / 2 : padX + (index * (width - padX * 2)) / (data.length - 1));
+  const yAt = (value: number) => height - padBottom - (value / niceMax) * (height - padTop - padBottom);
+  const points = data.map((entry, index) => ({ ...entry, x: xAt(index), y: yAt(entry.value) }));
+  const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  const areaPath = `${path} L ${points[points.length - 1].x} ${height - padBottom} L ${points[0].x} ${height - padBottom} Z`;
+  const grid = [0, 0.25, 0.5, 0.75, 1].map((f) => ({ y: yAt(niceMax * f), value: niceMax * f }));
+
+  function onMove(event: React.MouseEvent<SVGSVGElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * width;
+    let nearest = 0;
+    for (let i = 1; i < points.length; i += 1) if (Math.abs(points[i].x - x) < Math.abs(points[nearest].x - x)) nearest = i;
+    setHover(nearest);
   }
 
-  const width = Math.max(640, data.length * 88);
-  const height = 240;
-  const padding = 24;
-  const max = Math.max(...data.map((entry) => entry.value), 0);
-  const labelStep = Math.max(1, Math.ceil(data.length / 6));
-  const points = data.map((entry, index) => {
-    const x = data.length === 1
-      ? width / 2
-      : padding + (index * (width - padding * 2)) / (data.length - 1);
-    const y = max === 0
-      ? height - padding
-      : height - padding - ((entry.value / max) * (height - padding * 2));
-    return { ...entry, x, y };
-  });
-  const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
-  const areaPath = `${path} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`;
-  const gridValues = [0.25, 0.5, 0.75, 1].map((factor) => ({
-    y: height - padding - factor * (height - padding * 2),
-    value: max * factor,
-  }));
+  const active = hover !== null ? points[hover] : null;
 
   return (
-    <div className="grid gap-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-muted/50 px-3 py-2 text-xs text-ink-soft">
-        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: strokeColor }} />
-        <span>Revenue trend</span>
-        <span className="ml-auto">Peak {valueFormatter(max)}</span>
-      </div>
-      <div className="overflow-x-auto rounded-2xl border border-line bg-[linear-gradient(180deg,rgba(19,32,24,0.05),rgba(255,255,255,0))]">
-        <svg viewBox={`0 0 ${width} ${height}`} className="h-72 min-w-[640px] w-full overflow-visible p-2">
-          {gridValues.map((grid) => (
-            <g key={grid.y}>
-              <line x1={padding} y1={grid.y} x2={width - padding} y2={grid.y} stroke="var(--color-line)" strokeDasharray="4 6" />
-              <text x={padding - 4} y={grid.y - 4} textAnchor="end" className="fill-current text-[10px] text-ink-muted">
-                {valueFormatter(grid.value).replace("GHS ", "")}
-              </text>
-            </g>
-          ))}
-          <path d={areaPath} fill="rgba(19,32,24,0.1)" />
-          <path d={path} fill="none" stroke={strokeColor} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-          {points.map((point, index) => (
-            <g key={point.label}>
-              <circle cx={point.x} cy={point.y} r="5" fill={strokeColor} />
-              {index % labelStep === 0 || index === points.length - 1 ? (
-                <text x={point.x} y={height - 6} textAnchor="middle" className="fill-current text-[11px] text-ink-soft">
-                  {point.label}
-                </text>
-              ) : null}
-            </g>
-          ))}
-        </svg>
-      </div>
-
-      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        {data.map((entry) => (
-          <div key={entry.label} className="rounded-xl border border-line px-4 py-3 text-sm">
-            <p className="font-medium text-ink">{entry.label}</p>
-            <p className="mt-1 text-ink-soft">{valueFormatter(entry.value)}</p>
-          </div>
+    <div className="relative">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-64 w-full overflow-visible"
+        role="img"
+        aria-label={`Revenue trend, peak ${valueFormatter(max)}`}
+        onMouseMove={onMove}
+        onMouseLeave={() => setHover(null)}
+      >
+        <defs>
+          <linearGradient id="rev-area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {grid.map((line) => (
+          <g key={line.y}>
+            <line x1={padX} y1={line.y} x2={width - padX} y2={line.y} stroke="var(--color-line-subtle)" />
+            <text x={padX - 8} y={line.y + 3} textAnchor="end" className="fill-[color:var(--color-ink-muted)] text-[10px]">
+              {compactMoney(line.value)}
+            </text>
+          </g>
         ))}
-      </div>
+        <path d={areaPath} fill="url(#rev-area)" />
+        <path d={path} fill="none" stroke="var(--color-chart-1)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {points.map((point, index) =>
+          index % labelStep === 0 || index === points.length - 1 ? (
+            <text key={`l-${point.label}`} x={point.x} y={height - 8} textAnchor="middle" className="fill-[color:var(--color-ink-muted)] text-[10px]">
+              {point.label}
+            </text>
+          ) : null,
+        )}
+        {active ? (
+          <g>
+            <line x1={active.x} y1={padTop} x2={active.x} y2={height - padBottom} stroke="var(--color-line-strong)" strokeDasharray="3 3" />
+            <circle cx={active.x} cy={active.y} r="5" fill="var(--color-chart-1)" stroke="var(--color-surface)" strokeWidth="2" />
+          </g>
+        ) : null}
+      </svg>
+      {active ? (
+        <div
+          className="pointer-events-none absolute top-2 z-10 -translate-x-1/2 whitespace-nowrap rounded-lg border border-line bg-surface px-3 py-2 text-xs shadow-lg"
+          style={{ left: `${(active.x / width) * 100}%` }}
+        >
+          <p className="font-semibold text-ink">{active.label}</p>
+          <p className="money text-ink-soft">{valueFormatter(active.value)}</p>
+        </div>
+      ) : null}
+      <details className="mt-2 text-sm">
+        <summary className="cursor-pointer select-none text-xs font-semibold text-ink-soft hover:text-ink">View as table</summary>
+        <div className="mt-2 max-h-56 overflow-auto rounded-lg border border-line">
+          <table className="data-table">
+            <thead><tr><th>Period</th><th className="num">Revenue</th></tr></thead>
+            <tbody>
+              {data.map((entry) => (
+                <tr key={entry.label}><td>{entry.label}</td><td className="num">{valueFormatter(entry.value)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
     </div>
   );
 }
 
 export default function DashboardPage() {
-  const { session, loading, authenticatedFetch, logout } = useStaffSession();
+  const { session, loading, authenticatedFetch } = useStaffSession();
   const [snapshot, setSnapshot] = useState<Snapshot>({
     orders: [],
     tables: [],
@@ -320,12 +407,6 @@ export default function DashboardPage() {
       value: Number.parseFloat(point.revenue),
     }));
   }, [snapshot.analytics.revenue.points]);
-  const branchRevenueData = useMemo(() => {
-    return snapshot.analytics.branches.map((branch) => ({
-      label: branch.branchName,
-      value: Number.parseFloat(branch.revenue),
-    }));
-  }, [snapshot.analytics.branches]);
   const paymentMixData = useMemo(() => {
     return snapshot.analytics.paymentMethods.map((entry) => ({
       label: entry.method.replace("_", " "),
@@ -351,338 +432,294 @@ export default function DashboardPage() {
     }));
   }, [snapshot.analytics.peakHours]);
 
-  if (loading) {
+  if (loading || !session || !hasStaffRole(session.user.role, ["ADMIN", "MANAGER"])) {
+    // AppShell handles sign-in and role gating; render the page skeleton meanwhile.
     return (
-      <main className="grid gap-4">
-        <section className="panel grid gap-4">
-          <Skeleton className="h-5 w-40" />
-          <Skeleton className="h-12 w-full" />
+      <main className="shell">
+        <Skeleton className="h-14 w-72" />
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 w-full" />)}
         </section>
-        <section className="grid gap-3 md:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-36 w-full" />
-          ))}
-        </section>
-        <section className="grid gap-4 xl:grid-cols-[1.35fr,1fr]">
-          <Skeleton className="h-[320px] w-full" />
-          <Skeleton className="h-[320px] w-full" />
+        <section className="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
+          <Skeleton className="h-[340px] w-full" />
+          <Skeleton className="h-[340px] w-full" />
         </section>
       </main>
     );
   }
 
-  if (!session) {
-    return (
-      <main className="grid gap-4">
-        <section className="panel">
-          <p className="kicker">Dashboard</p>
-          <h1 className="text-3xl font-semibold text-ink">Staff access required</h1>
-          <p className="mt-2 text-ink-soft">Sign in before viewing operations metrics.</p>
-          <Link className="btn btn-primary mt-4 inline-flex" href="/login">Open Login</Link>
-        </section>
-      </main>
-    );
-  }
+  const pendingOrders = activeOrders.filter((order) => order.status === "PENDING").length;
+  const inKitchen = activeOrders.filter((order) => order.status === "CONFIRMED" || order.status === "PREPARING").length;
+  const readyOrders = activeOrders.filter((order) => order.status === "READY").length;
+  const recentOrders = [...filteredOrders].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 6);
+  const topMax = Math.max(...snapshot.analytics.topItems.map((item) => Number(item.revenue)), 0);
+  const greeting = (() => {
+    const hour = new Date().getHours();
+    return hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  })();
 
-  if (!hasStaffRole(session.user.role, ["ADMIN", "MANAGER"])) {
-    return (
-      <main className="grid gap-4">
-        <section className="panel">
-          <p className="kicker">Dashboard</p>
-          <h1 className="text-3xl font-semibold text-ink">Manager view only</h1>
-          <p className="mt-2 text-ink-soft">Signed in as {session.user.role}. Use the POS view for cashier work.</p>
-          <div className="mt-4 flex gap-3">
-            <Link className="btn btn-primary" href="/pos">Open POS</Link>
-            <button className="btn btn-secondary" onClick={() => void logout()}>
-              Sign Out
-            </button>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
-  const operationsTiles = [
-    { href: "/pos", label: "POS", note: "Create and charge orders", badge: null },
-    { href: "/orders", label: "Orders", note: "Active queue", badge: String(activeOrders.length) },
-    { href: "/kds", label: "KDS", note: "Kitchen board", badge: null },
-    { href: "/tables", label: "Tables", note: "Floor status", badge: `${occupiedTables.length}/${filteredTables.length || 0}` },
-    { href: "/financial", label: "Financial", note: "Controls and overview", badge: null },
+  const liveTiles = [
+    { href: "/orders", label: "Awaiting payment / accept", value: pendingOrders, icon: "receipt" as const, tone: "text-pending bg-pending-subtle" },
+    { href: "/kds", label: "In the kitchen", value: inKitchen, icon: "chef" as const, tone: "text-preparing bg-preparing-subtle" },
+    { href: "/kds", label: "Ready to serve", value: readyOrders, icon: "checkCircle" as const, tone: "text-ready bg-ready-subtle" },
+    { href: "/tables", label: "Tables in use", value: `${occupiedTables.length}/${filteredTables.length}`, icon: "table" as const, tone: "text-info-on bg-info-subtle" },
   ];
 
   return (
-    <main className="grid gap-4">
-      <section className="panel">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="kicker">Admin Dashboard</p>
-            <h1 className="mt-2 text-3xl font-semibold text-ink">Restaurant Analytics</h1>
-            <p className="mt-2 text-ink-soft">
-              Signed in as {session.user.name}. This view now captures revenue, branch performance, order mix,
-              payment mix, status distribution, top sellers, and operational load for {selectedBranchName}.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => {
-                setRefreshing(true);
-                loadSnapshot()
-                  .catch((err) => setError(err instanceof Error ? err.message : "Could not refresh dashboard"))
-                  .finally(() => setRefreshing(false));
-              }}
-              disabled={refreshing}
-            >
-              {refreshing ? <Spinner className="text-current" /> : null}
-              Refresh
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={() => void logout()}>
-              Sign Out
-            </button>
-          </div>
-        </div>
+    <main className="shell">
+      <PageHeader
+        eyebrow={new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
+        title={`${greeting}, ${session.user.name.split(" ")[0]}`}
+        description={`Performance for ${selectedBranchName.toLowerCase() === "all branches" ? "all branches" : selectedBranchName}, ${fromDate} → ${toDate}.`}
+        actions={
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => {
+              setRefreshing(true);
+              loadSnapshot()
+                .catch((err) => setError(err instanceof Error ? err.message : "Could not refresh dashboard"))
+                .finally(() => setRefreshing(false));
+            }}
+            disabled={refreshing}
+          >
+            {refreshing ? <Spinner className="text-current" /> : <Icon name="refresh" size={16} />}
+            Refresh
+          </button>
+        }
+      />
 
-        <div className="mt-4 grid gap-3 xl:grid-cols-[1fr,1fr,1fr,1fr,auto]">
-          <label className="field">
-            <span className="field-label">From</span>
-            <input className="input" type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+      {/* Filters — one row above all charts */}
+      <section className="flex flex-col gap-3 rounded-panel border border-line bg-surface p-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="segmented" role="group" aria-label="Quick range">
+            {[
+              { label: "7 days", days: 6 },
+              { label: "30 days", days: 29 },
+              { label: "90 days", days: 89 },
+            ].map((range) => (
+              <button
+                key={range.label}
+                type="button"
+                aria-pressed={fromDate === isoDate(range.days) && toDate === isoDate(0)}
+                onClick={() => { setFromDate(isoDate(range.days)); setToDate(isoDate(0)); }}
+              >
+                {range.label}
+              </button>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <span className="sr-only">From</span>
+            <input className="input min-h-[40px] w-auto py-1.5" type="date" value={fromDate} max={toDate} onChange={(event) => setFromDate(event.target.value)} aria-label="From date" />
           </label>
-          <label className="field">
-            <span className="field-label">To</span>
-            <input className="input" type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+          <span className="text-ink-muted">→</span>
+          <label className="flex items-center gap-2 text-sm">
+            <span className="sr-only">To</span>
+            <input className="input min-h-[40px] w-auto py-1.5" type="date" value={toDate} min={fromDate} onChange={(event) => setToDate(event.target.value)} aria-label="To date" />
           </label>
-          <label className="field">
-            <span className="field-label">Branch</span>
-            <select className="input" value={selectedBranchId} onChange={(event) => setSelectedBranchId(event.target.value)}>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {snapshot.branches.length > 1 ? (
+            <select className="select min-h-[40px] w-auto py-1.5" value={selectedBranchId} onChange={(event) => setSelectedBranchId(event.target.value)} aria-label="Branch">
               <option value="">All branches</option>
               {snapshot.branches.map((branch) => (
                 <option key={branch.id} value={branch.id}>{branch.name}</option>
               ))}
             </select>
-          </label>
-          <label className="field">
-            <span className="field-label">Revenue Period</span>
-            <select className="input" value={period} onChange={(event) => setPeriod(event.target.value as "DAY" | "WEEK" | "MONTH")}>
-              <option value="DAY">Daily</option>
-              <option value="WEEK">Weekly</option>
-              <option value="MONTH">Monthly</option>
-            </select>
-          </label>
-          <div className="rounded-xl border border-line bg-muted px-4 py-3 text-sm text-ink-soft">
-            Range: {fromDate} to {toDate}
+          ) : null}
+          <div className="segmented" role="group" aria-label="Revenue grouping">
+            {(["DAY", "WEEK", "MONTH"] as const).map((value) => (
+              <button key={value} type="button" aria-pressed={period === value} onClick={() => setPeriod(value)}>
+                {value === "DAY" ? "Daily" : value === "WEEK" ? "Weekly" : "Monthly"}
+              </button>
+            ))}
           </div>
         </div>
-
-        {error ? <p className="alert alert-danger mt-4">{error}</p> : null}
       </section>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <article className="panel">
-          <p className="kicker">Revenue</p>
-          <p className="mt-3 text-4xl font-semibold text-ink">{formatMoney(snapshot.analytics.totalRevenue)}</p>
-          <p className="mt-2 text-sm text-ink-soft">Successful payments in the selected range.</p>
-        </article>
-        <article className="panel">
-          <p className="kicker">Paid Orders</p>
-          <p className="mt-3 text-4xl font-semibold text-ink">{snapshot.analytics.paidOrderCount}</p>
-          <p className="mt-2 text-sm text-ink-soft">Completed revenue-generating orders.</p>
-        </article>
-        <article className="panel">
-          <p className="kicker">Average Order</p>
-          <p className="mt-3 text-4xl font-semibold text-ink">{formatMoney(snapshot.analytics.averageOrderValue)}</p>
-          <p className="mt-2 text-sm text-ink-soft">Average revenue per paid order.</p>
-        </article>
-        <article className="panel">
-          <p className="kicker">Repeat Customers</p>
-          <p className="mt-3 text-4xl font-semibold text-ink">{snapshot.analytics.repeatCustomers}</p>
-          <p className="mt-2 text-sm text-ink-soft">Customers with at least two paid orders in range.</p>
-        </article>
-        <article className="panel">
-          <p className="kicker">Peak Hour</p>
-          <p className="mt-3 text-2xl font-semibold text-ink">{busiestHour ? `${String(busiestHour.hour).padStart(2, "0")}:00` : "No data"}</p>
-          <p className="mt-2 text-sm text-ink-soft">{busiestHour ? `${busiestHour.orders} items sold in the busiest hour.` : "No hourly traffic yet."}</p>
-        </article>
+      {error ? <p className="alert alert-danger" role="alert"><Icon name="alert" size={18} className="mt-0.5 shrink-0" />{error}</p> : null}
+
+      {/* Right now */}
+      <section aria-labelledby="live-title" className="grid gap-3">
+        <h2 id="live-title" className="flex items-center gap-2 text-sm font-bold text-ink">
+          <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-50" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-success" /></span>
+          Right now
+        </h2>
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          {liveTiles.map((tile) => (
+            <Link key={tile.label} href={tile.href} className="group flex items-center gap-3 rounded-card border border-line bg-surface p-4 transition-[border-color,box-shadow] hover:border-line-strong hover:shadow-card">
+              <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${tile.tone}`}><Icon name={tile.icon} size={22} /></span>
+              <span className="min-w-0">
+                <span className="block font-display text-2xl font-extrabold leading-none tabular text-ink">{tile.value}</span>
+                <span className="mt-1 block truncate text-xs font-semibold text-ink-soft">{tile.label}</span>
+              </span>
+              <Icon name="chevronRight" size={18} className="ml-auto shrink-0 text-ink-muted transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          ))}
+        </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.35fr,1fr]">
+      {/* KPIs */}
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Key figures">
+        <StatCard label="Revenue" value={formatMoney(snapshot.analytics.totalRevenue)} meta="Successful payments in range" icon="trend" tone="brand" />
+        <StatCard label="Paid orders" value={snapshot.analytics.paidOrderCount.toLocaleString()} meta="Revenue-generating orders" icon="receipt" tone="info" />
+        <StatCard label="Average order" value={formatMoney(snapshot.analytics.averageOrderValue)} meta="Revenue per paid order" icon="tag" tone="gold" />
+        <StatCard
+          label="Repeat customers"
+          value={snapshot.analytics.repeatCustomers.toLocaleString()}
+          meta={busiestHour ? `Busiest hour ${String(busiestHour.hour).padStart(2, "0")}:00` : "Two or more paid orders"}
+          icon="users"
+          tone="sage"
+        />
+      </section>
+
+      {/* Revenue + top sellers */}
+      <section className="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
         <article className="panel">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="kicker">Revenue Timeline</p>
-              <h2 className="text-xl font-semibold">{period === "DAY" ? "Daily" : period === "WEEK" ? "Weekly" : "Monthly"} Revenue</h2>
+              <h2 className="heading-md">Revenue</h2>
+              <p className="text-sm text-ink-soft">{period === "DAY" ? "Daily" : period === "WEEK" ? "Weekly" : "Monthly"} · {selectedBranchName}</p>
             </div>
-            <span className="badge badge-info">{snapshot.analytics.revenue.points.length} buckets</span>
+            {topRevenueBucket ? (
+              <div className="text-right">
+                <p className="text-xs font-semibold text-ink-muted">Best period</p>
+                <p className="text-sm font-bold text-ink">{topRevenueBucket.bucket} · <span className="money">{formatMoney(topRevenueBucket.revenue)}</span></p>
+              </div>
+            ) : null}
           </div>
-          <div className="mt-4">
+          <div className="mt-5">
             <LineChart data={revenueChartData} valueFormatter={(value) => formatMoney(value)} />
           </div>
         </article>
 
-        <article className="panel grid gap-4">
-          <div>
-            <p className="kicker">Top Sellers</p>
-            <h2 className="text-xl font-semibold">Best Performing Items</h2>
-          </div>
-          <div className="grid gap-3">
-            {snapshot.analytics.topItems.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-line p-4 text-sm text-ink-soft">No top-item analytics are available yet.</p>
-            ) : (
-              snapshot.analytics.topItems.map((item, index) => (
-                <div key={`${item.itemName}-${index}`} className="card p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-ink">{item.itemName}</p>
-                      <p className="mt-1 text-sm text-ink-soft">{item.quantitySold} sold</p>
-                    </div>
-                    <span className="badge badge-info">{formatMoney(item.revenue)}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div>
-            <p className="kicker">Best Bucket</p>
-            <p className="mt-2 text-base font-semibold text-ink">{topRevenueBucket?.bucket ?? "No data"}</p>
-            <p className="mt-1 text-sm text-ink-soft">{topRevenueBucket ? formatMoney(topRevenueBucket.revenue) : "No successful payments yet."}</p>
-          </div>
-        </article>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-2">
         <article className="panel">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="kicker">Branch Performance</p>
-              <h2 className="text-xl font-semibold">Revenue by Branch</h2>
+              <h2 className="heading-md">Best sellers</h2>
+              <p className="text-sm text-ink-soft">By revenue in range</p>
             </div>
-            <span className="badge badge-info">{snapshot.analytics.branches.length} branches</span>
+            <Link href="/menu" className="btn btn-ghost btn-sm">Menu <Icon name="arrowRight" size={14} /></Link>
           </div>
-          <div className="mt-4">
-            <BarChart
-              data={branchRevenueData}
-              colorClassName="bg-[linear-gradient(90deg,#0f766e,#14b8a6)]"
-              valueFormatter={(value) => formatMoney(value)}
-              legendLabel="Branch revenue contribution"
-            />
-          </div>
-          <div className="mt-4 grid gap-3">
-            {snapshot.analytics.branches.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-line p-4 text-sm text-ink-soft">No branch-attributed revenue for this range.</p>
-            ) : (
-              snapshot.analytics.branches.map((branch) => (
-                <div key={branch.branchId} className="rounded-xl border border-line p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-ink">{branch.branchName}</p>
-                      <p className="mt-1 text-sm text-ink-soft">{branch.branchCode}</p>
+          {snapshot.analytics.topItems.length === 0 ? (
+            <div className="mt-5"><EmptyChart label="Best sellers appear after the first paid orders." /></div>
+          ) : (
+            <ol className="mt-5 grid gap-4">
+              {snapshot.analytics.topItems.map((item, index) => (
+                <li key={`${item.itemName}-${index}`} className="grid grid-cols-[28px_1fr] items-start gap-3">
+                  <span className={`grid h-7 w-7 place-items-center rounded-lg font-display text-sm font-extrabold ${index === 0 ? "bg-accent-subtle text-accent-hover" : "bg-muted text-ink-soft"}`}>{index + 1}</span>
+                  <div className="grid gap-1.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="truncate font-semibold text-ink">{item.itemName}</p>
+                      <p className="money shrink-0 text-sm text-ink">{formatMoney(item.revenue)}</p>
                     </div>
-                    <span className="badge badge-info">{formatMoney(branch.revenue)}</span>
+                    <div className="flex items-center gap-3">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full bg-[color:var(--color-chart-1)]" style={{ width: `${topMax ? (Number(item.revenue) / topMax) * 100 : 0}%` }} />
+                      </div>
+                      <span className="shrink-0 text-xs text-ink-muted">{item.quantitySold} sold</span>
+                    </div>
                   </div>
-                  <div className="mt-3 grid gap-2 text-sm text-ink-soft md:grid-cols-2">
-                    <p>{branch.orderCount} paid orders</p>
-                    <p>Average ticket {formatMoney(branch.averageOrderValue)}</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </article>
-
-        <article className="panel grid gap-4">
-          <div>
-            <p className="kicker">Payment Mix</p>
-            <h2 className="text-xl font-semibold">Revenue by Payment Method</h2>
-          </div>
-          <DonutChart data={paymentMixData} valueFormatter={(value) => formatMoney(value)} centerLabel="revenue" />
-          <div className="grid gap-3">
-            {snapshot.analytics.paymentMethods.map((entry) => (
-              <div key={entry.method} className="flex items-center justify-between rounded-xl border border-line px-4 py-3">
-                <div>
-                  <p className="font-semibold text-ink">{entry.method.replace("_", " ")}</p>
-                  <p className="mt-1 text-sm text-ink-soft">{entry.paymentCount} payments</p>
-                </div>
-                <span className="badge badge-info">{formatMoney(entry.revenue)}</span>
-              </div>
-            ))}
-          </div>
+                </li>
+              ))}
+            </ol>
+          )}
         </article>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1fr,1fr,1fr]">
+      {/* Mix */}
+      <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         <article className="panel">
-          <p className="kicker">Order Mix</p>
-          <h2 className="text-xl font-semibold">Revenue by Order Type</h2>
-          <div className="mt-4">
-            <BarChart
-              data={orderTypeData}
-              colorClassName="bg-[linear-gradient(90deg,#1d4ed8,#60a5fa)]"
+          <h2 className="heading-md">Payment methods</h2>
+          <p className="text-sm text-ink-soft">Share of revenue</p>
+          <div className="mt-5">
+            <DonutChart
+              data={paymentMixData}
               valueFormatter={(value) => formatMoney(value)}
-              legendLabel="Revenue by order type"
+              centerLabel="revenue"
+              centerValue={compactMoney(paymentMixData.reduce((sum, entry) => sum + entry.value, 0))}
             />
           </div>
-          <div className="mt-4 grid gap-3">
-            {snapshot.analytics.orderTypes.map((entry) => (
-              <div key={entry.type} className="rounded-xl border border-line p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-semibold text-ink">{entry.type.replace("_", " ")}</p>
-                  <span className="badge badge-info">{formatMoney(entry.revenue)}</span>
-                </div>
-                <p className="mt-2 text-sm text-ink-soft">{entry.orderCount} paid orders</p>
-              </div>
-            ))}
+        </article>
+        <article className="panel">
+          <h2 className="heading-md">Order channels</h2>
+          <p className="text-sm text-ink-soft">Revenue by service type</p>
+          <div className="mt-5">
+            <BarChart data={orderTypeData} valueFormatter={(value) => formatMoney(value)} label="Revenue by order type" />
           </div>
         </article>
-
-        <article className="panel">
-          <p className="kicker">Status Mix</p>
-          <h2 className="text-xl font-semibold">Order Status Distribution</h2>
-          <div className="mt-4">
-            <DonutChart data={statusDistributionData} valueFormatter={(value) => `${value} orders`} centerLabel="orders" />
-          </div>
-          <div className="mt-4 grid gap-3">
-            {snapshot.analytics.orderStatuses.map((entry) => (
-              <div key={entry.status} className="flex items-center justify-between rounded-xl border border-line px-4 py-3">
-                <span className="font-medium text-ink">{entry.status.replaceAll("_", " ")}</span>
-                <span className="badge badge-info">{entry.orderCount}</span>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="panel">
-          <p className="kicker">Peak Hours</p>
-          <h2 className="text-xl font-semibold">Hourly Sales Density</h2>
-          <div className="mt-4">
-            <BarChart
-              data={peakHourData}
-              colorClassName="bg-[linear-gradient(90deg,#ea580c,#f59e0b)]"
-              valueFormatter={(value) => `${value} items`}
-              legendLabel="Items sold per hour"
-            />
+        <article className="panel lg:col-span-2 xl:col-span-1">
+          <h2 className="heading-md">Busiest hours</h2>
+          <p className="text-sm text-ink-soft">Items sold per hour of day</p>
+          <div className="mt-5">
+            <ColumnChart data={peakHourData} valueFormatter={(value) => `${value} items`} label="Items sold per hour" />
           </div>
         </article>
       </section>
 
-      <section className="panel grid gap-5">
-        <div className="grid gap-3">
-          <p className="kicker">Operations</p>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            {operationsTiles.map((tile) => (
-              <Link key={tile.href} className="nav-tile" href={tile.href}>
-                <div className="flex w-full items-start justify-between gap-2">
-                  <span className="rounded-pill bg-brand-subtle px-2 py-1 text-xs font-semibold text-brand">
-                    {tile.label.slice(0, 2).toUpperCase()}
-                  </span>
-                  {tile.badge ? <span className="badge badge-info">{tile.badge}</span> : null}
-                </div>
-                <p className="text-base font-semibold text-ink">{tile.label}</p>
-                <p className="text-sm text-ink-soft">{tile.note}</p>
-              </Link>
-            ))}
+      <section className="grid gap-4 xl:grid-cols-[1fr_1.4fr]">
+        <article className="panel">
+          <h2 className="heading-md">Order outcomes</h2>
+          <p className="text-sm text-ink-soft">Orders by status in range</p>
+          <div className="mt-5">
+            <DonutChart data={statusDistributionData} valueFormatter={(value) => `${value}`} centerLabel="orders" />
           </div>
-        </div>
+        </article>
+
+        <article className="panel">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="heading-md">Recent orders</h2>
+              <p className="text-sm text-ink-soft">Latest activity across channels</p>
+            </div>
+            <Link href="/orders" className="btn btn-ghost btn-sm">All orders <Icon name="arrowRight" size={14} /></Link>
+          </div>
+          {recentOrders.length === 0 ? (
+            <div className="mt-5"><EmptyChart label="No orders yet." /></div>
+          ) : (
+            <ul className="mt-4 divide-y divide-line-subtle">
+              {recentOrders.map((order) => (
+                <li key={order.id}>
+                  <Link href={`/orders/${order.id}`} className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 hover:bg-ivory">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-muted text-ink-soft">
+                      <Icon name={order.type === "DINE_IN" ? "table" : order.type === "PICKUP" ? "bag" : "scooter"} size={18} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">
+                        <span className="font-mono">#{order.id.slice(0, 8).toUpperCase()}</span>
+                        <span className="font-normal text-ink-soft"> · {order.type === "DINE_IN" ? `Table ${order.tableNumber ?? "—"}` : humanize(order.type)} · {order.items.reduce((n, i) => n + i.quantity, 0)} items</span>
+                      </p>
+                      <p className="text-xs text-ink-muted">{new Date(order.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    </div>
+                    <StatusBadge status={order.status} className="hidden sm:inline-flex" />
+                    <span className="money w-28 shrink-0 text-right text-sm text-ink">{formatMoney(order.total)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </article>
       </section>
+
+      {snapshot.analytics.branches.length > 1 ? (
+        <section className="panel">
+          <h2 className="heading-md">Branch performance</h2>
+          <div className="mt-4 overflow-x-auto">
+            <table className="data-table">
+              <thead><tr><th>Branch</th><th className="num">Paid orders</th><th className="num">Average ticket</th><th className="num">Revenue</th></tr></thead>
+              <tbody>
+                {snapshot.analytics.branches.map((branch) => (
+                  <tr key={branch.branchId}>
+                    <td><span className="font-semibold">{branch.branchName}</span> <span className="text-ink-muted">{branch.branchCode}</span></td>
+                    <td className="num">{branch.orderCount}</td>
+                    <td className="num">{formatMoney(branch.averageOrderValue)}</td>
+                    <td className="num font-semibold">{formatMoney(branch.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

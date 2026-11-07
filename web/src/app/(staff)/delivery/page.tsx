@@ -100,7 +100,7 @@ export default function DeliveryPage() {
     return (
       <main className="shell">
         <section className="panel">
-          <h1 className="text-2xl font-semibold">Staff access required</h1>
+          <h1 className="heading-lg mt-1">Staff access required</h1>
           <Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link>
         </section>
       </main>
@@ -111,7 +111,7 @@ export default function DeliveryPage() {
     <main className="shell grid gap-4 xl:grid-cols-[1.6fr_1fr]">
       <section className="panel">
         <p className="kicker">Delivery</p>
-        <h1 className="text-2xl font-semibold">Dispatch board</h1>
+        <h1 className="heading-lg mt-1">Dispatch board</h1>
         <div aria-live="polite">
           {error ? <p className="mt-3 alert alert-danger" role="alert">{error}</p> : null}
           {message ? <p className="mt-3 alert alert-success">{message}</p> : null}
@@ -163,7 +163,7 @@ export default function DeliveryPage() {
 
       {canManageZones ? (
         <section className="panel grid content-start gap-3">
-          <h2 className="text-xl font-semibold">Delivery zones</h2>
+          <h2 className="heading-md">Delivery zones</h2>
           <form className="grid gap-2" onSubmit={(e) => void saveZone(e)}>
             <input className="input" required placeholder="Zone name (e.g. East Legon)" aria-label="Zone name" value={zoneDraft.name} onChange={(e) => setZoneDraft({ ...zoneDraft, name: e.target.value })} />
             <div className="grid grid-cols-3 gap-2">

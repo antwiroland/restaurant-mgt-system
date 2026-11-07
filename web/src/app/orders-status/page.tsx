@@ -3,43 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Client } from "@stomp/stompjs";
 import { getPublicOrderStatus, type OrderPublicStatusView } from "@/lib/apiClient";
+import { BrandMark } from "@/components/NavSidebar";
+import { brand } from "@/lib/brand";
 
-type OrderStatus = OrderPublicStatusView["status"];
-
-const STATUS_META: Record<OrderStatus, { label: string; card: string; dot: string }> = {
-  PENDING: {
-    label: "Pending",
-    card: "bg-pending-subtle border-pending text-pending",
-    dot: "bg-pending",
-  },
-  CONFIRMED: {
-    label: "Confirmed",
-    card: "bg-confirmed-subtle border-confirmed text-confirmed",
-    dot: "bg-confirmed",
-  },
-  PREPARING: {
-    label: "Preparing",
-    card: "bg-preparing-subtle border-preparing text-preparing",
-    dot: "bg-preparing",
-  },
-  READY: {
-    label: "Ready",
-    card: "bg-ready-subtle border-ready text-ready",
-    dot: "bg-ready",
-  },
-  OUT_FOR_DELIVERY: {
-    label: "Out for Delivery",
-    card: "bg-info-subtle border-info text-info",
-    dot: "bg-info",
-  },
-  DELIVERED: {
-    label: "Delivered",
-    card: "bg-success-subtle border-success text-success",
-    dot: "bg-success",
-  },
-};
-
-const DISPLAY_STATUSES: OrderStatus[] = ["PENDING", "CONFIRMED", "PREPARING", "READY"];
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -103,104 +69,100 @@ export default function OrdersStatusPage() {
     };
   }, []);
 
-  const counts = useMemo(() => {
-    const result: Partial<Record<OrderStatus, number>> = {};
-    for (const o of orders) {
-      result[o.status] = (result[o.status] ?? 0) + 1;
-    }
-    return result;
-  }, [orders]);
-
-  const groups = useMemo(() =>
-    DISPLAY_STATUSES.map((status) => ({
-      status,
-      meta: STATUS_META[status],
-      orders: orders.filter((o) => o.status === status),
-    })).filter((g) => g.orders.length > 0),
-  [orders]);
+  const preparing = useMemo(
+    () => orders.filter((o) => o.status === "PENDING" || o.status === "CONFIRMED" || o.status === "PREPARING").sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [orders],
+  );
+  const ready = useMemo(
+    () => orders.filter((o) => o.status === "READY").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    [orders],
+  );
+  const onTheWay = useMemo(() => orders.filter((o) => o.status === "OUT_FOR_DELIVERY"), [orders]);
+  const code = (id: string) => id.slice(0, 6).toUpperCase();
+  const where = (o: OrderPublicStatusView) => (o.tableNumber ? `Table ${o.tableNumber}` : o.type === "PICKUP" ? "Pickup" : o.type === "DELIVERY" ? "Delivery" : "Counter");
 
   return (
-    <div className="min-h-screen bg-canvas px-4 py-8">
-      <div className="mx-auto max-w-5xl">
-        {/* Header */}
-        <div className="mb-8 text-center">
-          <p className="kicker">Restaurant</p>
-          <h1 className="mt-1 text-3xl font-semibold text-ink">Order Status Board</h1>
-          <p className="mt-2 text-sm text-ink-soft">Completed and cancelled orders are removed</p>
-          <div className="mt-2 flex items-center justify-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${realtimeConnected ? "bg-success" : "bg-warning"}`} />
-            <p className="text-xs text-ink-soft">
-              {realtimeConnected ? "Live updates connected" : "Reconnecting\u2026"}
-            </p>
+    <div className="flex min-h-dvh flex-col bg-night text-night-ink">
+      <header className="flex items-center justify-between gap-4 border-b border-night-line px-6 py-5 lg:px-10">
+        <div className="flex items-center gap-4">
+          <BrandMark size={48} />
+          <div>
+            <p className="font-serif text-2xl font-semibold leading-tight">{brand.name}</p>
+            <p className="text-sm text-night-soft">Order status</p>
           </div>
-          {lastUpdated ? (
-            <p className="mt-1 text-xs text-ink-soft">
-              Last updated: {lastUpdated.toLocaleTimeString()}
+        </div>
+        <div className="text-right">
+          <p className="font-display text-3xl font-extrabold tabular" suppressHydrationWarning>
+            {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </p>
+          <p className="flex items-center justify-end gap-2 text-xs text-night-soft" role="status">
+            <span className={`h-2 w-2 rounded-full ${realtimeConnected ? "bg-success" : "animate-pulse bg-warning"}`} aria-hidden="true" />
+            {realtimeConnected ? "Live" : "Reconnecting…"}
+            {lastUpdated ? ` · ${lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
+          </p>
+        </div>
+      </header>
+
+      {error ? <p className="mx-6 mt-4 rounded-xl bg-danger px-4 py-3 text-center text-white lg:mx-10" role="alert">{error}</p> : null}
+
+      <main className="grid flex-1 gap-4 p-4 lg:grid-cols-[1fr_1.25fr] lg:gap-6 lg:p-8">
+        {/* Preparing */}
+        <section aria-labelledby="col-prep" className="flex flex-col rounded-3xl border border-night-line bg-night-raised">
+          <div className="flex items-center justify-between border-b border-night-line px-6 py-4">
+            <h2 id="col-prep" className="flex items-center gap-3 font-display text-xl font-extrabold uppercase tracking-[0.14em]">
+              <span className="h-3 w-3 rounded-full bg-brand" aria-hidden="true" /> Being prepared
+            </h2>
+            <span className="font-display text-2xl font-extrabold tabular text-night-soft">{preparing.length}</span>
+          </div>
+          <div className="grid flex-1 content-start gap-3 p-5 sm:grid-cols-2" aria-live="polite">
+            {loading ? (
+              Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-20 animate-pulse rounded-2xl bg-night-card" />)
+            ) : preparing.length === 0 ? (
+              <p className="col-span-full py-10 text-center text-night-soft">Nothing in the kitchen right now.</p>
+            ) : (
+              preparing.map((order) => (
+                <div key={order.orderId} className="flex items-center justify-between rounded-2xl bg-night-card px-5 py-4">
+                  <span className="font-mono text-2xl font-semibold tracking-wider">{code(order.orderId)}</span>
+                  <span className="text-right text-sm text-night-soft">
+                    <span className="block">{where(order)}</span>
+                    <span className="block text-xs">{elapsedLabel(order.createdAt)}</span>
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        {/* Ready */}
+        <section aria-labelledby="col-ready" className="flex flex-col rounded-3xl border border-success/40 bg-night-raised">
+          <div className="flex items-center justify-between border-b border-night-line px-6 py-4">
+            <h2 id="col-ready" className="flex items-center gap-3 font-display text-xl font-extrabold uppercase tracking-[0.14em]">
+              <span className="h-3 w-3 animate-pulse rounded-full bg-success" aria-hidden="true" /> Ready — please collect
+            </h2>
+            <span className="font-display text-2xl font-extrabold tabular text-night-soft">{ready.length}</span>
+          </div>
+          <div className="grid flex-1 content-start gap-4 p-5 sm:grid-cols-2 xl:grid-cols-3" aria-live="assertive">
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-32 animate-pulse rounded-2xl bg-night-card" />)
+            ) : ready.length === 0 ? (
+              <p className="col-span-full py-10 text-center text-night-soft">Ready orders will appear here.</p>
+            ) : (
+              ready.map((order) => (
+                <div key={order.orderId} className="grid animate-fade-up justify-items-center gap-1 rounded-2xl border border-success/30 bg-night-card px-4 py-6 text-center">
+                  <span className="font-mono text-4xl font-bold tracking-wider text-gold lg:text-5xl">{code(order.orderId)}</span>
+                  <span className="text-sm font-semibold text-night-soft">{where(order)}</span>
+                </div>
+              ))
+            )}
+          </div>
+          {onTheWay.length > 0 ? (
+            <p className="border-t border-night-line px-6 py-3 text-sm text-night-soft">
+              Out for delivery: {onTheWay.map((o) => code(o.orderId)).join(" · ")}
             </p>
           ) : null}
-        </div>
-
-        {/* Legend / summary */}
-        <div className="mb-6 flex flex-wrap justify-center gap-4">
-          {DISPLAY_STATUSES.map((status) => {
-            const meta = STATUS_META[status];
-            const count = counts[status] ?? 0;
-            return (
-              <div key={status} className="flex items-center gap-2">
-                <span className={`h-3 w-3 rounded-full ${meta.dot}`} />
-                <span className="text-sm text-ink-soft">
-                  {meta.label} <span className="font-semibold text-ink">({count})</span>
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        {error ? (
-          <p className="mb-6 alert alert-danger text-center">{error}</p>
-        ) : null}
-
-        {loading ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} className="h-28 animate-pulse rounded-xl bg-muted" />
-            ))}
-          </div>
-        ) : groups.length === 0 ? (
-          <p className="mt-12 text-center text-sm text-ink-soft">No active orders right now.</p>
-        ) : (
-          groups.map(({ status, meta, orders: groupOrders }) => (
-            <section key={status} className="mb-8">
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-ink-soft">
-                {meta.label}
-              </h2>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
-                {groupOrders.map((order) => (
-                  <div
-                    key={order.orderId}
-                    className={`rounded-xl border p-4 text-center ${meta.card}`}
-                  >
-                    <p className="text-xl font-bold tracking-wide">
-                      #{order.orderId.slice(0, 6).toUpperCase()}
-                    </p>
-                    {order.tableNumber ? (
-                      <p className="mt-1 text-xs opacity-75">Table {order.tableNumber}</p>
-                    ) : (
-                      <p className="mt-1 text-xs capitalize opacity-75">
-                        {order.type.toLowerCase().replace("_", " ")}
-                      </p>
-                    )}
-                    <p className="mt-2 text-xs font-semibold uppercase tracking-wide">
-                      {meta.label}
-                    </p>
-                    <p className="mt-1 text-xs opacity-60">{elapsedLabel(order.createdAt)}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))
-        )}
-      </div>
+        </section>
+      </main>
+      <p className="px-6 pb-4 text-center text-xs text-night-soft lg:px-10">Your order number is on your receipt. Completed orders leave the board automatically.</p>
     </div>
   );
 }

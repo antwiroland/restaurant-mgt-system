@@ -675,6 +675,8 @@ export async function getTableQr(session: StaffSession, tableId: string): Promis
 }
 
 export type TablePublicStatusView = {
+  /** Present on backends that include it (used for guest reservations). */
+  id?: string;
   number: string;
   capacity: number;
   zone: string | null;
@@ -937,7 +939,7 @@ export async function createOrder(
     notes?: string;
     promoCode?: string;
     deliveryZoneId?: string;
-    items: { menuItemId: string; quantity: number; modifierOptionIds?: string[] }[];
+    items: { menuItemId: string; quantity: number; notes?: string; modifierOptionIds?: string[] }[];
   },
 ): Promise<OrderRecord> {
   return apiRequest<OrderRecord>("/orders", {
@@ -1524,4 +1526,106 @@ export async function sendRiderLocation(session: StaffSession, orderId: string, 
 
 export async function getDeliveryTracking(session: StaffSession, orderId: string): Promise<DeliveryRecord> {
   return apiRequest<DeliveryRecord>(`/delivery/orders/${orderId}/tracking`, { token: session.accessToken });
+}
+
+/* ------------------------------------------------------------------ */
+/* Public (no sign-in) customer endpoints                              */
+/* ------------------------------------------------------------------ */
+
+export async function getPublicMenuItem(menuItemId: string): Promise<MenuItemRecord> {
+  return apiRequest<MenuItemRecord>(`/menu/items/${menuItemId}`);
+}
+
+export async function createGuestReservation(payload: {
+  tableId: string;
+  customerName: string;
+  customerPhone: string;
+  partySize: number;
+  reservedAt: string;
+  durationMins?: number;
+  notes?: string;
+}): Promise<ReservationRecord> {
+  return apiRequest<ReservationRecord>("/reservations", { method: "POST", body: payload });
+}
+
+export async function lookupGuestReservations(phone: string): Promise<ReservationRecord[]> {
+  return apiRequest<ReservationRecord[]>("/reservations/guest/lookup", { method: "POST", body: { phone } });
+}
+
+export async function cancelGuestReservation(reservationId: string, phone: string): Promise<void> {
+  return apiRequest<void>(`/reservations/${reservationId}/guest-cancel`, { method: "POST", body: { phone } });
+}
+
+/* ------------------------------------------------------------------ */
+/* Menu images (ADMIN / MANAGER)                                       */
+/* ------------------------------------------------------------------ */
+
+export async function uploadMenuItemImage(session: StaffSession, menuItemId: string, file: File): Promise<{ imageUrl: string }> {
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch(`${API_PREFIX}/menu/items/${menuItemId}/image`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${session.accessToken}` },
+    body,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const payload = await parseResponse<{ message?: string } | undefined>(response).catch(() => undefined);
+    throw new Error(payload?.message ?? `Upload failed with status ${response.status}`);
+  }
+  return parseResponse<{ imageUrl: string }>(response);
+}
+
+export async function removeMenuItemImage(session: StaffSession, menuItemId: string): Promise<void> {
+  return apiRequest<void>(`/menu/items/${menuItemId}/image`, { method: "DELETE", token: session.accessToken });
+}
+
+/* ------------------------------------------------------------------ */
+/* Order quote — server-side pricing preview (discounts, fees, tax)    */
+/* ------------------------------------------------------------------ */
+
+export type OrderQuoteRecord = {
+  subtotal: string;
+  offerDiscount: string;
+  promoCode?: string | null;
+  promoDiscount: string;
+  loyaltyPointsRedeemed: number;
+  loyaltyDiscount: string;
+  deliveryFee: string;
+  serviceCharge?: string | null;
+  taxTotal?: string | null;
+  taxInclusive?: boolean;
+  taxLines?: { code: string; name: string; rate: string; amount: string }[];
+  tipAmount?: string | null;
+  discountTotal: string;
+  total: string;
+};
+
+export async function quoteOrder(
+  session: StaffSession,
+  payload: Parameters<typeof createOrder>[1],
+): Promise<OrderQuoteRecord> {
+  return apiRequest<OrderQuoteRecord>("/orders/quote", { method: "POST", token: session.accessToken, body: payload });
+}
+
+/* ------------------------------------------------------------------ */
+/* Account recovery                                                    */
+/* ------------------------------------------------------------------ */
+
+/** Always resolves for unknown accounts too (the API does not reveal who exists). */
+export async function requestPasswordReset(emailOrPhone: string): Promise<void> {
+  return apiRequest<void>("/auth/password/forgot", { method: "POST", body: { emailOrPhone } });
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  return apiRequest<void>("/auth/password/reset", { method: "POST", body: { token, newPassword } });
+}
+
+export async function verifyEmailToken(token: string): Promise<void> {
+  return apiRequest<void>("/auth/email/verify", { method: "POST", body: { token } });
+}
+
+/** ADMIN: send the user a reset link by email (or SMS when they have no email). */
+export async function sendUserPasswordReset(session: StaffSession, userId: string): Promise<void> {
+  return apiRequest<void>(`/users/${userId}/password-reset`, { method: "POST", token: session.accessToken });
 }

@@ -8,6 +8,7 @@ import { loginCustomer, loginWithOtp, requestOtp } from '../../src/api/auth';
 import { isValidOtpCode, normalizePhone } from '../../src/features/auth/auth';
 import { useAuthStore } from '../../src/store/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { colors } from '../../src/theme';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
@@ -109,7 +110,7 @@ export default function LoginScreen() {
             secureTextEntry
           />
           <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading} accessibilityRole="button">
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign In</Text>}
+            {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Sign In</Text>}
           </TouchableOpacity>
         </>
       ) : codeSent ? (
@@ -126,12 +127,12 @@ export default function LoginScreen() {
             autoComplete="sms-otp"
           />
           <TouchableOpacity style={styles.button} onPress={handleOtpLogin} disabled={loading} accessibilityRole="button">
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify & Sign In</Text>}
+            {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Verify & Sign In</Text>}
           </TouchableOpacity>
         </>
       ) : (
         <TouchableOpacity style={styles.button} onPress={handleSendCode} disabled={loading} accessibilityRole="button">
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Send SMS code</Text>}
+          {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Send SMS code</Text>}
         </TouchableOpacity>
       )}
 
@@ -155,20 +156,20 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
-  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 4, color: '#111827' },
-  subtitle: { fontSize: 16, textAlign: 'center', color: '#6B7280', marginBottom: 32 },
+  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.white },
+  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 4, color: colors.ink },
+  subtitle: { fontSize: 16, textAlign: 'center', color: colors.inkMuted, marginBottom: 32 },
   input: {
-    borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8,
+    borderWidth: 1, borderColor: colors.lineStrong, borderRadius: 8,
     padding: 14, marginBottom: 16, fontSize: 16,
   },
   button: {
-    backgroundColor: '#2563EB', borderRadius: 8, padding: 16,
+    backgroundColor: colors.brand, borderRadius: 8, padding: 16,
     alignItems: 'center', marginBottom: 12, minHeight: 48,
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  buttonText: { color: colors.white, fontSize: 16, fontWeight: '600' },
   registerLink: { alignItems: 'center', marginBottom: 8 },
-  linkText: { color: '#2563EB', fontSize: 14 },
+  linkText: { color: colors.brand, fontSize: 14 },
   guestButton: { alignItems: 'center', marginTop: 8 },
-  guestText: { color: '#6B7280', fontSize: 14, textDecorationLine: 'underline' },
+  guestText: { color: colors.inkMuted, fontSize: 14, textDecorationLine: 'underline' },
 });

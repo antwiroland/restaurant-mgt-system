@@ -41,7 +41,7 @@ public class RestaurantTableService {
     public List<TablePublicStatusView> listPublicTables() {
         return tableRepository.findAll().stream()
                 .sorted((a, b) -> a.getNumber().compareToIgnoreCase(b.getNumber()))
-                .map(t -> new TablePublicStatusView(t.getNumber(), t.getCapacity(), t.getZone(), t.getStatus()))
+                .map(t -> new TablePublicStatusView(t.getId(), t.getNumber(), t.getCapacity(), t.getZone(), t.getStatus()))
                 .toList();
     }
 

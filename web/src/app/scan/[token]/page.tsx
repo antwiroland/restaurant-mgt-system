@@ -1,10 +1,15 @@
-﻿"use client";
+"use client";
 
 import { Client } from "@stomp/stompjs";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { Skeleton } from "@/components/Skeleton";
+import { Icon } from "@/components/Icon";
+import { Modal } from "@/components/Modal";
+import { BrandMark } from "@/components/NavSidebar";
+import { FoodImage } from "@/components/site/FoodImage";
+import { brand, formatMoney } from "@/lib/brand";
 import { Spinner } from "@/components/Spinner";
 import {
   createPublicDineInOrder,
@@ -30,17 +35,6 @@ type CartLine = {
 
 type SelectionByGroup = Record<string, string[]>;
 
-const STATUS_BADGE: Record<PublicOrderTrackingRecord["status"], string> = {
-  PENDING: "badge-pending",
-  CONFIRMED: "badge-confirmed",
-  PREPARING: "badge-preparing",
-  READY: "badge-ready",
-  OUT_FOR_DELIVERY: "badge-info",
-  DELIVERED: "badge-completed",
-  COMPLETED: "badge-completed",
-  CANCELLED: "badge-cancelled",
-  VOIDED: "badge-voided",
-};
 
 function toCurrencyValue(value: string): number {
   const parsed = Number.parseFloat(value);
@@ -83,6 +77,9 @@ export default function GuestScanMenuPage() {
   const [error, setError] = useState("");
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const checkoutRef = useRef<HTMLDivElement | null>(null);
+  const [sheetItemId, setSheetItemId] = useState<string | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [justAdded, setJustAdded] = useState(0);
 
   useEffect(() => {
     if (!params?.token) {
@@ -271,7 +268,7 @@ export default function GuestScanMenuPage() {
     };
   }
 
-  function addConfiguredItem(item: MenuItemRecord) {
+  function addConfiguredItem(item: MenuItemRecord): boolean {
     try {
       setError("");
       const resolved = resolveSelection(item);
@@ -289,8 +286,11 @@ export default function GuestScanMenuPage() {
           modifierSummary: resolved.modifierSummary,
         }];
       });
+      setJustAdded((value) => value + 1);
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Modifier selection is invalid");
+      return false;
     }
   }
 
@@ -326,7 +326,9 @@ export default function GuestScanMenuPage() {
       });
       setCart([]);
       setNotes("");
-      setMessage(`Order ${order.id.slice(0, 8).toUpperCase()} sent for table ${order.tableNumber}.`);
+      setMessage(`Order #${order.id.slice(0, 8).toUpperCase()} is on its way to the kitchen.`);
+      setCartOpen(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       getPublicTableTracking(token).then(setTrackedOrders).catch(() => {});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not place order");
@@ -335,173 +337,296 @@ export default function GuestScanMenuPage() {
     }
   }
 
-  return (
-    <main className="shell-sm max-w-5xl pb-28 sm:pb-24">
-      <section className="panel">
-        <p className="kicker">Table {table?.tableNumber ?? "-"}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-ink">Menu</h1>
-        <p className="mt-1 text-sm text-ink-soft">Order directly from your phone. No app required.</p>
-        <p className={`mt-1 text-xs ${realtimeConnected ? "text-success-on" : "text-warning-on"}`}>
-          {realtimeConnected ? "Live order tracking connected" : "Reconnecting live tracking"}
-        </p>
+  const STEPS: Array<{ label: string; statuses: PublicOrderTrackingRecord["status"][] }> = [
+    { label: "Received", statuses: ["PENDING"] },
+    { label: "Accepted", statuses: ["CONFIRMED"] },
+    { label: "Cooking", statuses: ["PREPARING"] },
+    { label: "Ready", statuses: ["READY", "OUT_FOR_DELIVERY"] },
+    { label: "Served", statuses: ["COMPLETED", "DELIVERED"] },
+  ];
+  const stepIndex = (status: PublicOrderTrackingRecord["status"]) => STEPS.findIndex((step) => step.statuses.includes(status));
+  const sheetItem = sheetItemId ? menu.find((item) => item.id === sheetItemId) ?? null : null;
+  const qtyByItem = cart.reduce<Record<string, number>>((acc, line) => ({ ...acc, [line.item.id]: (acc[line.item.id] ?? 0) + line.quantity }), {});
+  const recentOrders = trackedOrders.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 4);
 
-        {error ? <p className="mt-3 alert alert-danger">{error}</p> : null}
-        {message ? <p className="mt-3 alert alert-success">{message}</p> : null}
+  function quickAdd(item: MenuItemRecord) {
+    if ((modifiersByItemId[item.id] ?? []).length > 0) {
+      setError("");
+      setSheetItemId(item.id);
+      return;
+    }
+    addConfiguredItem(item);
+  }
+
+  return (
+    <main className="min-h-dvh bg-ivory pb-32">
+      {/* Header */}
+      <header className="bg-espresso text-espresso-ink">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 pb-6 pt-5">
+          <div className="flex items-center gap-3">
+            <BrandMark size={40} />
+            <div>
+              <p className="font-serif text-lg font-semibold leading-tight">{brand.name}</p>
+              <p className="text-xs text-espresso-soft">Order from your table</p>
+            </div>
+          </div>
+          <div className="rounded-xl bg-espresso-raised px-3.5 py-2 text-center">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-espresso-soft">Table</p>
+            <p className="font-display text-2xl font-extrabold leading-none text-gold">{table?.tableNumber ?? "–"}</p>
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-3xl px-4">
+        {/* Status messages + live orders */}
+        <div className="-mt-3 grid gap-3">
+          {error ? (
+            <p className="alert alert-danger shadow-sm" role="alert"><Icon name="alert" size={18} className="mt-0.5 shrink-0" />{error}</p>
+          ) : null}
+          {message ? (
+            <p className="alert alert-success shadow-sm" role="status"><Icon name="checkCircle" size={18} className="mt-0.5 shrink-0" />{message}</p>
+          ) : null}
+
+          {recentOrders.length > 0 ? (
+            <section className="rounded-2xl border border-line bg-surface p-4 shadow-sm" aria-labelledby="your-orders">
+              <div className="flex items-center justify-between gap-3">
+                <h2 id="your-orders" className="font-display font-bold">Your table&apos;s orders</h2>
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-ink-soft">
+                  <span className={`h-2 w-2 rounded-full ${realtimeConnected ? "bg-success" : "animate-pulse bg-warning"}`} aria-hidden="true" />
+                  {realtimeConnected ? "Live" : "Reconnecting"}
+                </span>
+              </div>
+              <ul className="mt-3 grid gap-4">
+                {recentOrders.map((order) => {
+                  const current = stepIndex(order.status);
+                  const cancelled = order.status === "CANCELLED" || order.status === "VOIDED";
+                  return (
+                    <li key={order.orderId}>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-mono font-semibold">#{order.orderId.slice(0, 8).toUpperCase()}</span>
+                        <span className="text-xs text-ink-muted">
+                          {cancelled ? "Cancelled" : STEPS[current]?.label ?? order.status} · {new Date(order.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      {cancelled ? (
+                        <p className="mt-1 text-xs text-danger-on">{order.cancelReason ?? "This order was cancelled. Please ask our team."}</p>
+                      ) : (
+                        <ol className="mt-2 grid grid-cols-5 gap-1" aria-label={`Order progress: ${STEPS[current]?.label ?? order.status}`}>
+                          {STEPS.map((step, index) => (
+                            <li key={step.label} className="grid gap-1">
+                              <span className={`h-1.5 rounded-full ${index <= current ? "bg-brand" : "bg-muted"} ${index === current ? "animate-pulse" : ""}`} />
+                              <span className={`text-[10px] font-semibold ${index <= current ? "text-ink" : "text-ink-muted"}`}>{step.label}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              <Link className="btn btn-secondary btn-sm mt-4 w-full" href={`/bill/${token}`}>
+                <Icon name="receipt" size={16} /> View running bill
+              </Link>
+            </section>
+          ) : null}
+        </div>
 
         {loading ? (
-          <div className="mt-5 grid gap-3">
+          <div className="mt-6 grid gap-3">
             <Skeleton className="h-10 w-full" />
-            {Array.from({ length: 6 }).map((_, index) => (
-              <Skeleton key={index} className="h-32 w-full" />
-            ))}
+            {Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-28 w-full" />)}
           </div>
         ) : (
           <>
-            <div className="sticky top-0 z-[var(--z-sticky)] -mx-4 mt-4 border-y border-line bg-surface px-4 py-2">
-              <div className="flex gap-2 overflow-x-auto">
+            {/* Category bar */}
+            <div className="sticky top-0 z-[var(--z-sticky)] -mx-4 mt-5 border-b border-line bg-ivory/95 px-4 py-3 backdrop-blur">
+              <div className="flex gap-2 overflow-x-auto [scrollbar-width:none]" role="group" aria-label="Categories">
                 {categories.map((category) => (
-                  <button
-                    key={category}
-                    type="button"
-                    className={`btn btn-sm ${activeCategory === category ? "btn-primary" : "btn-secondary"}`}
-                    onClick={() => setActiveCategory(category)}
-                  >
-                    {category}
+                  <button key={category} type="button" className="chip shrink-0" aria-pressed={activeCategory === category} onClick={() => setActiveCategory(category)}>
+                    {category === "ALL" ? "Everything" : category}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3">
-              {filteredMenu.map((item) => {
-                const groups = modifiersByItemId[item.id] ?? [];
-                return (
-                  <article key={item.id} className="card grid gap-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-base font-semibold text-ink">{item.name}</p>
-                        <p className="text-sm text-ink-soft">{item.categoryName}</p>
-                      </div>
-                      <span className="badge badge-info">GHS {item.price}</span>
-                    </div>
-
-                    {item.description ? <p className="text-sm text-ink-soft">{item.description}</p> : null}
-
-                    {groups.map((group) => {
-                      const selectedByGroup = selectionByItemId[item.id] ?? {};
-                      return (
-                        <div key={group.id} className="rounded-lg border border-line p-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">{group.name}</p>
-                            <p className="text-xs text-ink-soft">
-                              {group.selectionType === "SINGLE" ? "Pick one" : `Pick ${group.minSelect ?? 0}-${group.maxSelect ?? group.options.length}`}
-                            </p>
-                          </div>
-
-                          {group.selectionType === "SINGLE" ? (
-                            <select
-                              className="select mt-2"
-                              value={(selectedByGroup[group.id] ?? [""])[0] ?? ""}
-                              onChange={(event) => setSingleSelection(item.id, group.id, event.target.value)}
+            {filteredMenu.length === 0 ? (
+              <p className="mt-10 text-center text-ink-soft">Nothing available in this section right now.</p>
+            ) : (
+              <ul className="mt-4 grid gap-3">
+                {filteredMenu.map((item) => {
+                  const hasOptions = (modifiersByItemId[item.id] ?? []).length > 0;
+                  const qty = qtyByItem[item.id] ?? 0;
+                  return (
+                    <li key={item.id}>
+                      <article className={`flex gap-3 rounded-2xl border bg-surface p-3 transition-colors ${qty > 0 ? "border-brand-soft" : "border-line"}`}>
+                        <button type="button" className="shrink-0" onClick={() => setSheetItemId(item.id)} aria-label={`View ${item.name}`}>
+                          <FoodImage src={item.imageUrl} alt={item.name} ratio="aspect-square" className="w-24 rounded-xl" />
+                        </button>
+                        <div className="flex min-w-0 flex-1 flex-col">
+                          <button type="button" className="text-left" onClick={() => setSheetItemId(item.id)}>
+                            <h3 className="font-display text-[15px] font-bold leading-snug text-ink">{item.name}</h3>
+                            {item.description ? <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-ink-soft">{item.description}</p> : null}
+                          </button>
+                          <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+                            <span className="money text-[15px] text-ink">{formatMoney(item.price)}</span>
+                            <button
+                              type="button"
+                              onClick={() => quickAdd(item)}
+                              className={`flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-bold transition-colors ${qty > 0 ? "bg-brand text-white" : "border border-line-strong bg-surface text-ink hover:border-brand hover:text-brand"}`}
+                              aria-label={`Add ${item.name}${hasOptions ? " (choose options)" : ""}`}
                             >
-                              {!group.required ? <option value="">None</option> : null}
-                              {group.options.map((option) => (
-                                <option key={option.id} value={option.id}>
-                                  {option.name} ({toCurrencyValue(option.priceDelta) >= 0 ? "+" : ""}GHS {option.priceDelta})
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <div className="mt-2 grid grid-cols-2 gap-2">
-                              {group.options.map((option) => {
-                                const selected = (selectedByGroup[group.id] ?? []).includes(option.id);
-                                return (
-                                  <button
-                                    key={option.id}
-                                    type="button"
-                                    className={`rounded-lg border p-2 text-left text-xs ${selected ? "border-line-focus bg-brand-subtle" : "border-line"}`}
-                                    onClick={() => toggleMultiSelection(item.id, group, option.id)}
-                                  >
-                                    <span className="block font-semibold">{option.name}</span>
-                                    <span className="block text-ink-soft">
-                                      {toCurrencyValue(option.priceDelta) >= 0 ? "+" : ""}GHS {option.priceDelta}
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
+                              {qty > 0 ? <span key={qty} className="animate-pop tabular">{qty}</span> : null}
+                              <Icon name="plus" size={18} strokeWidth={2.25} />
+                              {hasOptions && qty === 0 ? <span className="text-xs font-semibold">Options</span> : null}
+                            </button>
+                          </div>
                         </div>
-                      );
-                    })}
+                      </article>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
 
-                    <button type="button" className="btn btn-primary btn-md" onClick={() => addConfiguredItem(item)}>
-                      Add to Cart
-                    </button>
-                  </article>
-                );
-              })}
-            </div>
-
-            <section ref={checkoutRef} className="mt-5 rounded-xl border border-line bg-surface p-4">
-              <h2 className="text-lg font-semibold">Checkout</h2>
-              <div className="mt-3 grid gap-2">
-                {cart.length === 0 ? (
-                  <p className="text-sm text-ink-soft">Your cart is empty.</p>
-                ) : (
-                  cart.map((line) => (
-                    <div key={line.key} className="rounded-lg border border-line p-2 text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <span>{line.item.name} × {line.quantity}</span>
-                        <span>GHS {(line.unitPrice * line.quantity).toFixed(2)}</span>
-                      </div>
-                      {line.modifierSummary.length > 0 ? <p className="mt-1 text-xs text-ink-soft">{line.modifierSummary.join(", ")}</p> : null}
-                      <div className="mt-2 flex gap-2">
-                        <button className="btn btn-secondary btn-sm" onClick={() => updateQuantity(line.key, -1)}>-</button>
-                        <button className="btn btn-secondary btn-sm" onClick={() => updateQuantity(line.key, 1)}>+</button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div className="mt-3 grid gap-2">
-                <input className="input" placeholder="Your name (optional)" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-                <input className="input" inputMode="tel" placeholder="Phone (optional)" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
-                <textarea className="textarea" placeholder="Kitchen note (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
-              </div>
-
-              <h3 className="mt-4 text-sm font-semibold text-ink">Live Order Status</h3>
-              <div className="mt-2 grid gap-2">
-                {trackedOrders.slice().reverse().slice(0, 4).map((order) => (
-                  <article key={order.orderId} className="rounded-lg border border-line p-2 text-xs">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold">#{order.orderId.slice(0, 8).toUpperCase()}</span>
-                      <span className={`badge ${STATUS_BADGE[order.status]}`}>{order.status}</span>
-                    </div>
-                    <p className="mt-1 text-ink-soft">Updated {new Date(order.updatedAt).toLocaleTimeString()}</p>
-                  </article>
-                ))}
-                {trackedOrders.length === 0 ? <p className="text-sm text-ink-soft">No orders yet.</p> : null}
-              </div>
-
-              <Link className="btn btn-secondary btn-sm mt-3" href={`/bill/${token}`}>View Running Bill</Link>
-            </section>
+            {trackedOrders.length === 0 ? (
+              <p className="mt-8 text-center text-xs text-ink-muted">
+                Orders go straight to our kitchen. Pay with our team or from your running bill.
+              </p>
+            ) : null}
           </>
         )}
-      </section>
+      </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-[var(--z-sticky)] border-t border-line bg-surface/95 px-3 py-3 backdrop-blur sm:px-4">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <button className="btn btn-secondary btn-sm" onClick={() => checkoutRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
-            Cart ({cartItemsCount}) · GHS {total.toFixed(2)}
-          </button>
-          <button type="button" disabled={placing || cart.length === 0} onClick={() => void placeOrder()} className="btn btn-primary btn-md disabled:opacity-60">
-            {placing ? <Spinner className="text-current" /> : null}
-            Place Order
+      {/* Floating cart bar */}
+      {cartItemsCount > 0 ? (
+        <div className="fixed inset-x-0 bottom-0 z-[var(--z-sticky)] px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-3">
+          <button
+            type="button"
+            onClick={() => setCartOpen(true)}
+            className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between gap-3 rounded-2xl bg-espresso px-5 text-espresso-ink shadow-xl transition-transform active:scale-[0.99]"
+          >
+            <span className="flex items-center gap-3">
+              <span key={justAdded} className="grid h-9 min-w-9 animate-pop place-items-center rounded-full bg-brand px-2 font-display font-extrabold text-white">{cartItemsCount}</span>
+              <span className="font-semibold">View order</span>
+            </span>
+            <span className="money text-lg">{formatMoney(total)}</span>
           </button>
         </div>
-      </div>
+      ) : null}
+
+      {/* Dish sheet */}
+      {sheetItem ? (
+        <Modal open title={sheetItem.name} onClose={() => setSheetItemId(null)}
+          footer={
+            <button
+              type="button"
+              className="btn btn-primary btn-lg btn-block"
+              onClick={() => { if (addConfiguredItem(sheetItem)) setSheetItemId(null); }}
+            >
+              Add to order · {(() => { try { return formatMoney(resolveSelection(sheetItem).unitPrice); } catch { return formatMoney(sheetItem.price); } })()}
+            </button>
+          }
+        >
+          <div className="grid gap-4">
+            <FoodImage src={sheetItem.imageUrl} alt={sheetItem.name} ratio="aspect-[16/10]" className="-mx-5 -mt-2 sm:mx-0 sm:rounded-xl" />
+            {sheetItem.description ? <p className="text-ink-soft">{sheetItem.description}</p> : null}
+            <p className="money text-xl text-brand">{formatMoney(sheetItem.price)}</p>
+            {(modifiersByItemId[sheetItem.id] ?? []).map((group) => {
+              const selected = selectionByItemId[sheetItem.id]?.[group.id] ?? [];
+              return (
+                <fieldset key={group.id} className="grid gap-2">
+                  <legend className="mb-1 flex w-full items-center justify-between">
+                    <span className="font-display font-bold">{group.name}</span>
+                    <span className={`badge ${group.required ? "badge-warning" : "badge-neutral"}`}>
+                      {group.required ? "Required" : "Optional"}{group.selectionType === "MULTIPLE" && group.maxSelect ? ` · up to ${group.maxSelect}` : ""}
+                    </span>
+                  </legend>
+                  {group.options.map((option) => {
+                    const on = selected.includes(option.id);
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        role={group.selectionType === "SINGLE" ? "radio" : "checkbox"}
+                        aria-checked={on}
+                        onClick={() => {
+                          if (group.selectionType === "SINGLE") setSingleSelection(sheetItem.id, group.id, !group.required && on ? "" : option.id);
+                          else toggleMultiSelection(sheetItem.id, group, option.id);
+                        }}
+                        className={`flex min-h-[52px] items-center justify-between gap-3 rounded-xl border px-4 text-left transition-colors ${on ? "border-brand bg-brand-subtle" : "border-line hover:border-line-strong"}`}
+                      >
+                        <span className="flex items-center gap-3 font-semibold text-ink">
+                          <span className={`grid h-5 w-5 place-items-center border ${group.selectionType === "SINGLE" ? "rounded-full" : "rounded-md"} ${on ? "border-brand bg-brand text-white" : "border-line-strong bg-surface"}`}>
+                            {on ? <Icon name="check" size={13} strokeWidth={3} /> : null}
+                          </span>
+                          {option.name}
+                        </span>
+                        <span className="money text-sm text-ink-soft">{toCurrencyValue(option.priceDelta) > 0 ? `+${formatMoney(option.priceDelta)}` : ""}</span>
+                      </button>
+                    );
+                  })}
+                </fieldset>
+              );
+            })}
+            {error ? <p className="field-error" role="alert">{error}</p> : null}
+          </div>
+        </Modal>
+      ) : null}
+
+      {/* Cart / checkout sheet */}
+      <Modal open={cartOpen} title={`Your order · Table ${table?.tableNumber ?? ""}`} onClose={() => setCartOpen(false)}
+        footer={
+          <button type="button" disabled={placing || cart.length === 0} onClick={() => void placeOrder()} className="btn btn-primary btn-lg btn-block justify-between">
+            <span className="flex items-center gap-2">{placing ? <Spinner className="text-current" /> : <Icon name="chef" size={20} />}{placing ? "Sending…" : "Send to kitchen"}</span>
+            <span className="money">{formatMoney(total)}</span>
+          </button>
+        }
+      >
+        <div ref={checkoutRef} className="grid gap-4">
+          {cart.length === 0 ? (
+            <p className="text-ink-soft">Your order is empty.</p>
+          ) : (
+            <ul className="divide-y divide-line-subtle">
+              {cart.map((line) => (
+                <li key={line.key} className="flex items-center gap-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-ink">{line.item.name}</p>
+                    {line.modifierSummary.length > 0 ? <p className="text-xs text-ink-soft">{line.modifierSummary.map((m) => m.split(": ")[1] ?? m).join(" · ")}</p> : null}
+                    <p className="money mt-0.5 text-sm text-ink-soft">{formatMoney(line.unitPrice * line.quantity)}</p>
+                  </div>
+                  <div className="flex items-center rounded-full border border-line">
+                    <button className="grid h-10 w-10 place-items-center" onClick={() => updateQuantity(line.key, -1)} aria-label={`Remove one ${line.item.name}`}>
+                      <Icon name={line.quantity === 1 ? "trash" : "minus"} size={16} />
+                    </button>
+                    <span className="w-6 text-center font-bold tabular">{line.quantity}</span>
+                    <button className="grid h-10 w-10 place-items-center" onClick={() => updateQuantity(line.key, 1)} aria-label={`Add one ${line.item.name}`}>
+                      <Icon name="plus" size={16} />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="grid gap-3 rounded-xl bg-ivory p-3">
+            <label className="field">
+              <span className="field-label">Note for the kitchen <span className="font-normal text-ink-muted">(optional)</span></span>
+              <textarea className="textarea min-h-[72px]" placeholder="Allergies, no onions, extra spicy…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="field">
+                <span className="field-label">Name <span className="font-normal text-ink-muted">(optional)</span></span>
+                <input className="input" autoComplete="given-name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+              </label>
+              <label className="field">
+                <span className="field-label">Phone <span className="font-normal text-ink-muted">(optional)</span></span>
+                <input className="input" inputMode="tel" autoComplete="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+              </label>
+            </div>
+          </div>
+          {error ? <p className="alert alert-danger" role="alert">{error}</p> : null}
+          <p className="text-xs text-ink-muted">Prices include any options you chose. Your server will confirm the final bill.</p>
+        </div>
+      </Modal>
     </main>
   );
 }

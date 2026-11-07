@@ -20,6 +20,7 @@ import { fetchMyAddresses, saveMyAddress } from '../src/api/user';
 import { fetchLoyaltyBalance } from '../src/api/loyalty';
 import { fetchDeliveryZones, type DeliveryZone } from '../src/api/delivery';
 import type { CustomerAddress, LoyaltyBalance, PaymentMethod, OrderType } from '../src/types/api';
+import { colors } from '../src/theme';
 
 export default function CheckoutScreen() {
   const { lines, tableId, tableToken, tableStatus, promoCode, total, clear } = useCartStore();
@@ -355,66 +356,66 @@ export default function CheckoutScreen() {
       )}
 
       <TouchableOpacity style={styles.placeBtn} onPress={handlePlaceOrder} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.placeBtnText}>Place Order</Text>}
+        {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.placeBtnText}>Place Order</Text>}
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   section: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     margin: 12,
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: colors.black,
     shadowOpacity: 0.04,
     shadowRadius: 3,
     elevation: 1,
   },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#111827', marginBottom: 12 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 12 },
   typeOption: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.line,
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
   },
-  typeOptionActive: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
-  typeText: { fontSize: 14, color: '#374151' },
-  typeTextActive: { color: '#1D4ED8', fontWeight: '600' },
-  hint: { fontSize: 12, color: '#6B7280', marginTop: 4 },
+  typeOptionActive: { borderColor: colors.brand, backgroundColor: colors.brandSubtle },
+  typeText: { fontSize: 14, color: colors.inkSoft },
+  typeTextActive: { color: colors.brandPressed, fontWeight: '600' },
+  hint: { fontSize: 12, color: colors.inkMuted, marginTop: 4 },
   input: {
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: colors.lineStrong,
     borderRadius: 8,
     padding: 12,
     fontSize: 15,
   },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  summaryLabel: { fontSize: 14, color: '#6B7280' },
-  summaryValue: { fontSize: 14, color: '#374151' },
-  summaryLabelBold: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  summaryValueBold: { fontSize: 18, fontWeight: '800', color: '#2563EB' },
-  offlineWarning: { margin: 12, backgroundColor: '#FEF3C7', borderRadius: 8, padding: 12 },
-  offlineText: { color: '#92400E', fontSize: 13 },
+  summaryLabel: { fontSize: 14, color: colors.inkMuted },
+  summaryValue: { fontSize: 14, color: colors.inkSoft },
+  summaryLabelBold: { fontSize: 16, fontWeight: '700', color: colors.ink },
+  summaryValueBold: { fontSize: 18, fontWeight: '800', color: colors.brand },
+  offlineWarning: { margin: 12, backgroundColor: colors.warningSubtle, borderRadius: 8, padding: 12 },
+  offlineText: { color: colors.warningOn, fontSize: 13 },
   placeBtn: {
     margin: 12,
-    backgroundColor: '#2563EB',
+    backgroundColor: colors.brand,
     borderRadius: 12,
     padding: 18,
     alignItems: 'center',
   },
-  placeBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  placeBtnText: { color: colors.white, fontSize: 17, fontWeight: '700' },
   addressList: { gap: 8, marginBottom: 12 },
-  addressCard: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12 },
-  addressCardActive: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
-  addressLabel: { fontSize: 13, fontWeight: '700', color: '#111827', marginBottom: 4 },
-  addressLabelActive: { color: '#1D4ED8' },
-  addressText: { fontSize: 13, color: '#4B5563' },
-  addressTextActive: { color: '#1E40AF' },
-  loyaltyHint: { fontSize: 13, color: '#1D4ED8', marginBottom: 8, fontWeight: '600', flex: 1 },
+  addressCard: { borderWidth: 1, borderColor: colors.line, borderRadius: 10, padding: 12 },
+  addressCardActive: { borderColor: colors.brand, backgroundColor: colors.brandSubtle },
+  addressLabel: { fontSize: 13, fontWeight: '700', color: colors.ink, marginBottom: 4 },
+  addressLabelActive: { color: colors.brandPressed },
+  addressText: { fontSize: 13, color: colors.inkSoft },
+  addressTextActive: { color: colors.brandPressed },
+  loyaltyHint: { fontSize: 13, color: colors.brandPressed, marginBottom: 8, fontWeight: '600', flex: 1 },
   loyaltyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
 });
 

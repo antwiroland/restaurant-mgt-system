@@ -89,16 +89,16 @@ export default function PaymentsPage() {
   }
 
   if (loading) return <main className="shell"><section className="panel grid gap-3"><Skeleton className="h-6 w-44" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></section></main>;
-  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Payments</p><h1 className="text-2xl font-semibold">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
+  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Payments</p><h1 className="heading-lg mt-1">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
 
   return (
     <main className="shell grid gap-4 md:grid-cols-2">
       <section className="panel">
         <p className="kicker">Payments</p>
-        <h1 className="text-2xl font-semibold">Initiate Payment</h1>
+        <h1 className="heading-lg mt-1">Initiate Payment</h1>
         <form className="mt-3 grid gap-2" onSubmit={(event) => void onInitiate(event)}>
           <input className="input" placeholder="Order ID" value={orderId} onChange={(e) => setOrderId(e.target.value)} required />
-          <select className="input" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
+          <select className="select" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
             <option value="MOBILE_MONEY">MOBILE_MONEY</option>
             <option value="CARD">CARD</option>
             <option value="CASH">CASH</option>
@@ -112,7 +112,7 @@ export default function PaymentsPage() {
       </section>
 
       <section className="panel">
-        <h2 className="text-xl font-semibold">Lookup / Verify / Retry</h2>
+        <h2 className="heading-md">Lookup / Verify / Retry</h2>
         <div className="mt-3 flex flex-wrap gap-2">
           <input className="min-w-[320px] input" placeholder="Payment ID" value={lookupPaymentId} onChange={(e) => setLookupPaymentId(e.target.value)} />
           <button className="btn btn-secondary btn-sm" onClick={() => void onLookup()}>Load</button>

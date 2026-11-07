@@ -48,13 +48,13 @@ export default function TableBillPage() {
   }
 
   if (loading) return <main className="shell"><section className="panel">Loading table bill...</section></main>;
-  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Table Bill</p><h1 className="text-2xl font-semibold">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
+  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Table Bill</p><h1 className="heading-lg mt-1">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
 
   return (
     <main className="shell">
       <section className="panel">
         <p className="kicker">Table Bill</p>
-        <h1 className="text-2xl font-semibold">{bill ? `Table ${bill.tableNumber}` : "Table"}</h1>
+        <h1 className="heading-lg mt-1">{bill ? `Table ${bill.tableNumber}` : "Table"}</h1>
         {error ? <p className="mt-3 alert alert-danger">{error}</p> : null}
         {message ? <p className="mt-3 alert alert-success">{message}</p> : null}
 

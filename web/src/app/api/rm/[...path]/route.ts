@@ -24,7 +24,9 @@ async function proxy(request: NextRequest, path: string[]): Promise<NextResponse
   };
 
   if (request.method !== "GET" && request.method !== "HEAD") {
-    init.body = await request.text();
+    // ArrayBuffer keeps binary payloads (multipart image uploads) intact.
+    const raw = await request.arrayBuffer();
+    if (raw.byteLength > 0) init.body = raw;
   }
 
   let response: Response;
@@ -37,9 +39,10 @@ async function proxy(request: NextRequest, path: string[]): Promise<NextResponse
     );
   }
 
-  let body: string;
+  let body: ArrayBuffer;
   try {
-    body = await response.text();
+    // Binary-safe: PDFs (table cards) and PNGs (QR images) pass through untouched.
+    body = await response.arrayBuffer();
   } catch {
     return NextResponse.json(
       { message: "Backend response could not be read" },
@@ -54,14 +57,14 @@ async function proxy(request: NextRequest, path: string[]): Promise<NextResponse
   } else {
     forwardHeaders.set("content-type", "application/json");
   }
-  for (const header of ["x-page", "x-size", "x-total-elements", "x-total-pages"]) {
+  for (const header of ["x-page", "x-size", "x-total-elements", "x-total-pages", "content-disposition", "retry-after"]) {
     const value = response.headers.get(header);
     if (value) {
       forwardHeaders.set(header, value);
     }
   }
 
-  return new NextResponse(body, {
+  return new NextResponse(response.status === 204 ? null : body, {
     status: response.status,
     headers: forwardHeaders,
   });

@@ -5,6 +5,6 @@ type SkeletonProps = {
 };
 
 export function Skeleton({ className = "" }: SkeletonProps) {
-  return <div className={`animate-pulse rounded-[var(--radius-md)] bg-muted ${className}`} aria-hidden="true" />;
+  return <div className={`skeleton rounded-[var(--radius-md)] ${className}`} aria-hidden="true" />;
 }
 

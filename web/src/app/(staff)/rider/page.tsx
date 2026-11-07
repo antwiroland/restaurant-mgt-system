@@ -106,7 +106,7 @@ export default function RiderPage() {
     return (
       <main className="shell">
         <section className="panel">
-          <h1 className="text-2xl font-semibold">Rider access required</h1>
+          <h1 className="heading-lg mt-1">Rider access required</h1>
           <Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link>
         </section>
       </main>
@@ -118,7 +118,7 @@ export default function RiderPage() {
       <section className="panel flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="kicker">Rider</p>
-          <h1 className="text-2xl font-semibold">My deliveries</h1>
+          <h1 className="heading-lg mt-1">My deliveries</h1>
         </div>
         <label className="flex min-h-[var(--touch-md)] items-center gap-3 text-sm font-medium">
           <input type="checkbox" className="h-6 w-6" checked={sharing} onChange={(e) => setSharing(e.target.checked)} />

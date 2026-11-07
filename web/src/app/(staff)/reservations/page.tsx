@@ -114,21 +114,21 @@ export default function ReservationsPage() {
   }
 
   if (loading) return <main className="shell"><section className="panel">Loading reservations...</section></main>;
-  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Reservations</p><h1 className="text-2xl font-semibold">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
+  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Reservations</p><h1 className="heading-lg mt-1">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
 
   return (
     <main className="shell grid gap-4">
       <section className="panel">
         <p className="kicker">Reservations</p>
-        <h1 className="text-2xl font-semibold">Reservation Management</h1>
+        <h1 className="heading-lg mt-1">Reservation Management</h1>
         <div className="mt-3 flex flex-wrap gap-2">
           <input className="input" type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />
-          <select className="input" value={filterTableId} onChange={(e) => setFilterTableId(e.target.value)}>
+          <select className="select" value={filterTableId} onChange={(e) => setFilterTableId(e.target.value)}>
             <option value="">All tables</option>
             {tables.map((table) => <option key={table.id} value={table.id}>Table {table.number}</option>)}
           </select>
           <input className="input" placeholder="Search guest, phone, or table" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <select className="input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ReservationStatus | "ALL")}>
+          <select className="select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ReservationStatus | "ALL")}>
             <option value="ALL">All statuses</option>
             <option value="PENDING">PENDING</option>
             <option value="CONFIRMED">CONFIRMED</option>
@@ -138,9 +138,9 @@ export default function ReservationsPage() {
       </section>
 
       <section className="panel">
-        <h2 className="text-lg font-semibold">Create Reservation</h2>
+        <h2 className="font-display text-lg font-bold text-ink">Create Reservation</h2>
         <form className="mt-3 grid gap-2 md:grid-cols-3" onSubmit={(event) => void onCreate(event)}>
-          <select className="input" value={form.tableId} onChange={(e) => setForm((s) => ({ ...s, tableId: e.target.value }))} required>
+          <select className="select" value={form.tableId} onChange={(e) => setForm((s) => ({ ...s, tableId: e.target.value }))} required>
             <option value="">Select table</option>
             {tables.map((table) => <option key={table.id} value={table.id}>Table {table.number}</option>)}
           </select>
@@ -155,14 +155,14 @@ export default function ReservationsPage() {
       </section>
 
       <section className="panel">
-        <h2 className="text-lg font-semibold">Existing Reservations</h2>
+        <h2 className="font-display text-lg font-bold text-ink">Existing Reservations</h2>
         <ul className="mt-3 grid gap-2">
           {filteredReservations.map((reservation) => (
-            <li key={reservation.id} className="input">
+            <li key={reservation.id} className="rounded-xl border border-line bg-surface p-3">
               <p className="font-semibold">Table {reservation.tableNumber} · {reservation.customerName || "Guest"} ({reservation.partySize})</p>
               <p className="text-xs text-ink-soft">{new Date(reservation.reservedAt).toLocaleString()} · {reservation.durationMins} mins · {reservation.customerPhone || "No phone"}</p>
               <div className="mt-2 flex flex-wrap gap-2">
-                <select className="input text-sm" value={reservation.status} onChange={(e) => void onStatus(reservation.id, e.target.value as ReservationStatus)}>
+                <select className="select text-sm" value={reservation.status} onChange={(e) => void onStatus(reservation.id, e.target.value as ReservationStatus)}>
                   <option value="PENDING">PENDING</option>
                   <option value="CONFIRMED">CONFIRMED</option>
                   <option value="CANCELLED">CANCELLED</option>

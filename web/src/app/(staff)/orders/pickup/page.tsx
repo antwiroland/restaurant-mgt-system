@@ -26,13 +26,13 @@ export default function PickupLookupPage() {
   }
 
   if (loading) return <main className="shell"><section className="panel grid gap-3"><Skeleton className="h-6 w-40" /><Skeleton className="h-10 w-full" /></section></main>;
-  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Pickup Lookup</p><h1 className="text-2xl font-semibold">Staff access required</h1><Link className="mt-4 inline-flex btn btn-primary" href="/login">Open Login</Link></section></main>;
+  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Pickup Lookup</p><h1 className="heading-lg mt-1">Staff access required</h1><Link className="mt-4 inline-flex btn btn-primary" href="/login">Open Login</Link></section></main>;
 
   return (
     <main className="shell">
       <section className="panel">
         <p className="kicker">Pickup</p>
-        <h1 className="text-2xl font-semibold">Pickup Code Lookup</h1>
+        <h1 className="heading-lg mt-1">Pickup Code Lookup</h1>
         <form className="mt-4 flex gap-2" onSubmit={(event) => void onLookup(event)}>
           <input className="input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="PK000001" />
           <button className="btn btn-primary">Search</button>

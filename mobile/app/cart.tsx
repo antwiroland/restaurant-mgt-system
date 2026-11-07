@@ -12,6 +12,7 @@ import {
 import { router } from 'expo-router';
 import { useCartStore } from '../src/store/cart';
 import { validatePromoCode } from '../src/api/loyalty';
+import { colors } from '../src/theme';
 
 export default function CartScreen() {
   const {
@@ -121,7 +122,7 @@ export default function CartScreen() {
             autoCapitalize="characters"
           />
           <TouchableOpacity style={styles.promoBtn} onPress={applyPromo} disabled={promoLoading}>
-            {promoLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.promoBtnText}>Apply</Text>}
+            {promoLoading ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.promoBtnText}>Apply</Text>}
           </TouchableOpacity>
         </View>
         {promoCode && (
@@ -139,8 +140,8 @@ export default function CartScreen() {
         </View>
         {discount > 0 && (
           <View style={styles.totalRow}>
-            <Text style={[styles.totalLabel, { color: '#10B981' }]}>Discount</Text>
-            <Text style={[styles.totalValue, { color: '#10B981' }]}>-GHS {discount.toFixed(2)}</Text>
+            <Text style={[styles.totalLabel, { color: colors.success }]}>Discount</Text>
+            <Text style={[styles.totalValue, { color: colors.success }]}>-GHS {discount.toFixed(2)}</Text>
           </View>
         )}
         <View style={[styles.totalRow, styles.grandTotalRow]}>
@@ -156,59 +157,59 @@ export default function CartScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  emptyText: { fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 12 },
-  backText: { color: '#2563EB', fontSize: 15 },
-  tableInfo: { backgroundColor: '#EFF6FF', padding: 10, alignItems: 'center' },
-  tableInfoText: { color: '#1D4ED8', fontWeight: '600' },
+  emptyText: { fontSize: 18, fontWeight: '600', color: colors.inkSoft, marginBottom: 12 },
+  backText: { color: colors.brand, fontSize: 15 },
+  tableInfo: { backgroundColor: colors.brandSubtle, padding: 10, alignItems: 'center' },
+  tableInfoText: { color: colors.brandPressed, fontWeight: '600' },
   item: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: 10,
     padding: 14,
     marginBottom: 10,
-    shadowColor: '#000',
+    shadowColor: colors.black,
     shadowOpacity: 0.04,
     shadowRadius: 3,
     elevation: 1,
   },
   itemInfo: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  itemName: { fontSize: 15, fontWeight: '600', color: '#111827', flex: 1 },
-  itemPrice: { fontSize: 15, fontWeight: '700', color: '#2563EB' },
-  modifierText: { fontSize: 12, color: '#6B7280', marginBottom: 6 },
+  itemName: { fontSize: 15, fontWeight: '600', color: colors.ink, flex: 1 },
+  itemPrice: { fontSize: 15, fontWeight: '700', color: colors.brand },
+  modifierText: { fontSize: 12, color: colors.inkMuted, marginBottom: 6 },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   qtyBtn: {
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.line,
     borderRadius: 6,
     width: 32,
     height: 32,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  qtyBtnText: { fontSize: 18, fontWeight: '700', color: '#374151' },
+  qtyBtnText: { fontSize: 18, fontWeight: '700', color: colors.inkSoft },
   qty: { fontSize: 16, fontWeight: '600', minWidth: 24, textAlign: 'center' },
   removeBtn: { marginLeft: 'auto' },
-  removeBtnText: { color: '#EF4444', fontSize: 13 },
-  footer: { padding: 16, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E5E7EB' },
+  removeBtnText: { color: colors.danger, fontSize: 13 },
+  footer: { padding: 16, backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.line },
   promoRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   promoInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: colors.lineStrong,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
   },
-  promoBtn: { backgroundColor: '#2563EB', borderRadius: 8, paddingHorizontal: 16, justifyContent: 'center' },
-  promoBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
-  promoApplied: { color: '#10B981', fontSize: 12, marginBottom: 8 },
+  promoBtn: { backgroundColor: colors.brand, borderRadius: 8, paddingHorizontal: 16, justifyContent: 'center' },
+  promoBtnText: { color: colors.white, fontWeight: '600', fontSize: 14 },
+  promoApplied: { color: colors.success, fontSize: 12, marginBottom: 8 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  totalLabel: { fontSize: 14, color: '#6B7280' },
-  totalValue: { fontSize: 14, color: '#374151', fontWeight: '600' },
-  grandTotalRow: { borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 8, marginTop: 4, marginBottom: 12 },
-  grandTotalLabel: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  grandTotalValue: { fontSize: 18, fontWeight: '800', color: '#2563EB' },
-  checkoutBtn: { backgroundColor: '#2563EB', borderRadius: 10, padding: 16, alignItems: 'center' },
-  checkoutBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  totalLabel: { fontSize: 14, color: colors.inkMuted },
+  totalValue: { fontSize: 14, color: colors.inkSoft, fontWeight: '600' },
+  grandTotalRow: { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 8, marginTop: 4, marginBottom: 12 },
+  grandTotalLabel: { fontSize: 16, fontWeight: '700', color: colors.ink },
+  grandTotalValue: { fontSize: 18, fontWeight: '800', color: colors.brand },
+  checkoutBtn: { backgroundColor: colors.brand, borderRadius: 10, padding: 16, alignItems: 'center' },
+  checkoutBtnText: { color: colors.white, fontSize: 16, fontWeight: '700' },
 });

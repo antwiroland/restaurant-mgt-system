@@ -12,6 +12,7 @@ import {
 } from '../src/api/reservation';
 import { useAuthStore } from '../src/store/auth';
 import type { Reservation } from '../src/types/api';
+import { colors } from '../src/theme';
 
 export default function ReservationScreen() {
   const { isAuthenticated } = useAuthStore();
@@ -119,7 +120,7 @@ export default function ReservationScreen() {
       </TouchableOpacity>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#2563EB" style={{ flex: 1 }} />
+        <ActivityIndicator size="large" color={colors.brand} style={{ flex: 1 }} />
       ) : reservations.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.empty}>No reservations</Text>
@@ -172,7 +173,7 @@ export default function ReservationScreen() {
           ))}
 
           <TouchableOpacity style={styles.submitBtn} onPress={handleCreate} disabled={submitting}>
-            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Reserve</Text>}
+            {submitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.submitBtnText}>Reserve</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.closeBtn} onPress={() => setShowForm(false)}>
@@ -185,37 +186,37 @@ export default function ReservationScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
-  addBtn: { margin: 12, backgroundColor: '#2563EB', borderRadius: 10, padding: 14, alignItems: 'center' },
-  addBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  lookupCard: { backgroundColor: '#fff', margin: 12, borderRadius: 12, padding: 16 },
-  lookupTitle: { fontSize: 15, fontWeight: '700', color: '#111827', marginBottom: 10 },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  addBtn: { margin: 12, backgroundColor: colors.brand, borderRadius: 10, padding: 14, alignItems: 'center' },
+  addBtnText: { color: colors.white, fontWeight: '700', fontSize: 15 },
+  lookupCard: { backgroundColor: colors.white, margin: 12, borderRadius: 12, padding: 16 },
+  lookupTitle: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 10 },
   lookupInput: {
-    borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8,
+    borderWidth: 1, borderColor: colors.lineStrong, borderRadius: 8,
     padding: 12, fontSize: 15, marginBottom: 10,
   },
-  lookupBtn: { backgroundColor: '#E5E7EB', borderRadius: 10, padding: 12, alignItems: 'center' },
-  lookupBtnText: { color: '#374151', fontWeight: '700', fontSize: 14 },
+  lookupBtn: { backgroundColor: colors.line, borderRadius: 10, padding: 12, alignItems: 'center' },
+  lookupBtnText: { color: colors.inkSoft, fontWeight: '700', fontSize: 14 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  empty: { color: '#6B7280', fontSize: 16 },
+  empty: { color: colors.inkMuted, fontSize: 16 },
   card: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 3, elevation: 1,
+    backgroundColor: colors.white, borderRadius: 12, padding: 14, marginBottom: 10,
+    shadowColor: colors.black, shadowOpacity: 0.05, shadowRadius: 3, elevation: 1,
   },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: '#111827', marginBottom: 4 },
-  cardMeta: { fontSize: 13, color: '#6B7280', marginBottom: 4 },
-  cardNotes: { fontSize: 13, color: '#374151', marginBottom: 4, fontStyle: 'italic' },
-  cancelLink: { color: '#EF4444', fontSize: 13, marginTop: 4 },
-  modal: { flex: 1, padding: 20, backgroundColor: '#fff' },
-  modalTitle: { fontSize: 22, fontWeight: '700', color: '#111827', marginBottom: 20, marginTop: 12 },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 4 },
+  cardMeta: { fontSize: 13, color: colors.inkMuted, marginBottom: 4 },
+  cardNotes: { fontSize: 13, color: colors.inkSoft, marginBottom: 4, fontStyle: 'italic' },
+  cancelLink: { color: colors.danger, fontSize: 13, marginTop: 4 },
+  modal: { flex: 1, padding: 20, backgroundColor: colors.white },
+  modalTitle: { fontSize: 22, fontWeight: '700', color: colors.ink, marginBottom: 20, marginTop: 12 },
   field: { marginBottom: 16 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: colors.inkSoft, marginBottom: 6 },
   fieldInput: {
-    borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8,
+    borderWidth: 1, borderColor: colors.lineStrong, borderRadius: 8,
     padding: 12, fontSize: 15,
   },
-  submitBtn: { backgroundColor: '#2563EB', borderRadius: 10, padding: 16, alignItems: 'center', marginBottom: 12 },
-  submitBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  closeBtn: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 10, padding: 14, alignItems: 'center' },
-  closeBtnText: { color: '#374151', fontWeight: '600', fontSize: 15 },
+  submitBtn: { backgroundColor: colors.brand, borderRadius: 10, padding: 16, alignItems: 'center', marginBottom: 12 },
+  submitBtnText: { color: colors.white, fontWeight: '700', fontSize: 16 },
+  closeBtn: { borderWidth: 1, borderColor: colors.lineStrong, borderRadius: 10, padding: 14, alignItems: 'center' },
+  closeBtnText: { color: colors.inkSoft, fontWeight: '600', fontSize: 15 },
 });

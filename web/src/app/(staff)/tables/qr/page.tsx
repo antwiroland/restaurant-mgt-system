@@ -64,7 +64,7 @@ export default function TableQrStudioPage() {
       <main className="shell">
         <section className="panel">
           <p className="kicker">Table QR</p>
-          <h1 className="text-2xl font-semibold">Staff access required</h1>
+          <h1 className="heading-lg mt-1">Staff access required</h1>
           <Link className="mt-4 inline-flex btn btn-primary" href="/login">Open Login</Link>
         </section>
       </main>
@@ -75,7 +75,7 @@ export default function TableQrStudioPage() {
     <main className="shell grid gap-4 xl:grid-cols-[420px,1fr]">
       <section className="panel">
         <p className="kicker">QR Studio</p>
-        <h1 className="text-2xl font-semibold">Single-Table QR Setup</h1>
+        <h1 className="heading-lg mt-1">Single-Table QR Setup</h1>
         <p className="mt-2 text-sm text-ink-soft">Create a table, then open its dedicated printable QR page for edits, printing, or deletion.</p>
 
         {canManage ? (
@@ -110,7 +110,7 @@ export default function TableQrStudioPage() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="kicker">Existing Tables</p>
-            <h2 className="text-xl font-semibold">Open Printable QR Page</h2>
+            <h2 className="heading-md">Open Printable QR Page</h2>
           </div>
           <input
             className="input max-w-sm"

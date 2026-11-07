@@ -112,7 +112,7 @@ export default function FinancialPage() {
       <main className="shell">
         <section className="panel">
           <p className="kicker">Financial</p>
-          <h1 className="text-2xl font-semibold">Staff access required</h1>
+          <h1 className="heading-lg mt-1">Staff access required</h1>
           <Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link>
         </section>
       </main>
@@ -123,7 +123,7 @@ export default function FinancialPage() {
     <main className="shell grid gap-4 lg:grid-cols-2">
       <section className="panel">
         <p className="kicker">Financial</p>
-        <h1 className="text-2xl font-semibold">Manager approval</h1>
+        <h1 className="heading-lg mt-1">Manager approval</h1>
         <p className="mt-2 text-sm text-ink-soft">A manager enters their PIN to approve one action type. The token is used once below.</p>
         <div className="mt-3 grid gap-2">
           <label className="grid gap-1 text-sm">
@@ -168,7 +168,7 @@ export default function FinancialPage() {
             );
           }}
         >
-          <h2 className="text-lg font-semibold">Discount an order</h2>
+          <h2 className="font-display text-lg font-bold text-ink">Discount an order</h2>
           <input className="input" placeholder="Order ID" aria-label="Order ID to discount" value={discountOrderId} onChange={(e) => setDiscountOrderId(e.target.value)} required />
           <div className="grid grid-cols-2 gap-2">
             <select className="select" aria-label="Discount type" value={discountMode} onChange={(e) => setDiscountMode(e.target.value as DiscountMode)}>
@@ -192,7 +192,7 @@ export default function FinancialPage() {
             );
           }}
         >
-          <h2 className="text-lg font-semibold">Void an unpaid order</h2>
+          <h2 className="font-display text-lg font-bold text-ink">Void an unpaid order</h2>
           <input className="input" placeholder="Order ID" aria-label="Order ID to void" value={voidOrderId} onChange={(e) => setVoidOrderId(e.target.value)} required />
           <input className="input" placeholder="Reason" aria-label="Void reason" value={voidReason} onChange={(e) => setVoidReason(e.target.value)} />
           <button type="submit" className="btn btn-danger" disabled={busy}>Void order</button>
@@ -214,7 +214,7 @@ export default function FinancialPage() {
             );
           }}
         >
-          <h2 className="text-lg font-semibold">Refund a payment</h2>
+          <h2 className="font-display text-lg font-bold text-ink">Refund a payment</h2>
           <input className="input" placeholder="Payment ID" aria-label="Payment ID to refund" value={refundPaymentId} onChange={(e) => setRefundPaymentId(e.target.value)} required />
           <input className="input" type="number" min="0.01" step="0.01" placeholder="Amount (blank = full)" aria-label="Refund amount" value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} />
           <input className="input" placeholder="Reason" aria-label="Refund reason" value={refundReason} onChange={(e) => setRefundReason(e.target.value)} />
@@ -227,7 +227,7 @@ export default function FinancialPage() {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="kicker">Daily reconciliation</p>
-              <h2 className="text-xl font-semibold">Close of day</h2>
+              <h2 className="heading-md">Close of day</h2>
             </div>
             <label className="grid gap-1 text-sm">
               <span>Business date</span>
@@ -296,7 +296,7 @@ export default function FinancialPage() {
             <p className="mt-2 text-sm text-ink-soft">No financial actions recorded yet.</p>
           ) : (
             <div className="mt-2 overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="data-table">
                 <thead>
                   <tr className="text-left text-ink-soft">
                     <th scope="col" className="py-2">When</th>

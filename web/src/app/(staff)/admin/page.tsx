@@ -374,7 +374,7 @@ export default function AdminPage() {
       <main className="shell">
         <section className="panel">
           <p className="kicker">Admin</p>
-          <h1 className="text-2xl font-semibold">Staff access required</h1>
+          <h1 className="heading-lg mt-1">Staff access required</h1>
           <Link className="mt-4 inline-flex btn btn-primary" href="/login">Open Login</Link>
         </section>
       </main>
@@ -386,7 +386,7 @@ export default function AdminPage() {
       <main className="shell">
         <section className="panel">
           <p className="kicker">Admin</p>
-          <h1 className="text-2xl font-semibold">Manager/Admin only</h1>
+          <h1 className="heading-lg mt-1">Manager/Admin only</h1>
         </section>
       </main>
     );
@@ -397,7 +397,7 @@ export default function AdminPage() {
       <section className="grid gap-4 md:grid-cols-[360px,1fr]">
         <div className="panel">
           <p className="kicker">Menu</p>
-          <h1 className="text-2xl font-semibold">Modifier Setup</h1>
+          <h1 className="heading-lg mt-1">Modifier Setup</h1>
           <p className="mt-2 text-ink-soft">Configure size, spice, and add-on groups for each menu item.</p>
 
           <label className="mt-4 grid gap-2 text-sm text-ink-soft">
@@ -477,7 +477,7 @@ export default function AdminPage() {
 
         <div className="panel">
           <p className="kicker">Modifiers</p>
-          <h2 className="text-xl font-semibold">{selectedItem ? selectedItem.name : "Select a menu item"}</h2>
+          <h2 className="heading-md">{selectedItem ? selectedItem.name : "Select a menu item"}</h2>
           <input
             className="mt-4 w-full input text-sm"
             placeholder="Search group or option"
@@ -492,7 +492,7 @@ export default function AdminPage() {
           ) : (
             <div className="mt-4 grid gap-3">
               {filteredGroups.map((group) => (
-                <article key={group.id} className="input">
+                <article key={group.id} className="rounded-xl border border-line bg-surface p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-semibold text-ink">{group.name}</p>
                     <button className="btn btn-danger btn-sm" onClick={() => void removeGroup(group.id)}>Delete</button>
@@ -548,7 +548,7 @@ export default function AdminPage() {
       <section className="panel grid gap-4 xl:grid-cols-[360px,1fr]">
         <div>
           <p className="kicker">Promos</p>
-          <h2 className="text-xl font-semibold">
+          <h2 className="heading-md">
             {promoMode === "edit" ? `Edit ${selectedPromo?.code ?? "Promo"}` : "Promo Management"}
           </h2>
           <p className="mt-2 text-ink-soft">Create, update, activate, and deactivate persisted promo codes for mobile and staff checkout flows.</p>

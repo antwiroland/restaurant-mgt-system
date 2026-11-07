@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { linkTableSession, scanQrToken } from '../src/api/tables';
 import { useCartStore } from '../src/store/cart';
 import { useOfflineStore } from '../src/store/offline';
+import { colors } from '../src/theme';
 
 export default function QrScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -101,13 +102,13 @@ export default function QrScanScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  text: { fontSize: 16, color: '#374151', marginBottom: 16, textAlign: 'center' },
-  btn: { backgroundColor: '#2563EB', borderRadius: 8, paddingHorizontal: 24, paddingVertical: 12 },
-  btnText: { color: '#fff', fontWeight: '600' },
+  text: { fontSize: 16, color: colors.inkSoft, marginBottom: 16, textAlign: 'center' },
+  btn: { backgroundColor: colors.brand, borderRadius: 8, paddingHorizontal: 24, paddingVertical: 12 },
+  btnText: { color: colors.white, fontWeight: '600' },
   overlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center' },
   finder: {
     width: 240, height: 240, borderRadius: 12,
-    borderWidth: 2, borderColor: '#fff',
+    borderWidth: 2, borderColor: colors.white,
   },
-  hint: { color: '#fff', marginTop: 16, fontSize: 14, fontWeight: '600' },
+  hint: { color: colors.white, marginTop: 16, fontSize: 14, fontWeight: '600' },
 });

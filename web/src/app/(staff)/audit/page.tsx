@@ -51,15 +51,15 @@ export default function AuditPage() {
   }
 
   if (loading) return <main className="shell"><section className="panel">Loading audit...</section></main>;
-  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Audit</p><h1 className="text-2xl font-semibold">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
+  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Audit</p><h1 className="heading-lg mt-1">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
 
   return (
     <main className="shell grid gap-4">
       <section className="panel">
         <p className="kicker">Audit</p>
-        <h1 className="text-2xl font-semibold">Audit Events</h1>
+        <h1 className="heading-lg mt-1">Audit Events</h1>
         <form className="mt-3 flex flex-wrap gap-2" onSubmit={(event) => void onFilter(event)}>
-          <select className="input" value={action} onChange={(e) => setAction(e.target.value)}>
+          <select className="select" value={action} onChange={(e) => setAction(e.target.value)}>
             {ACTIONS.map((value) => <option key={value || "ALL"} value={value}>{value || "All actions"}</option>)}
           </select>
           <input className="input" type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -73,7 +73,7 @@ export default function AuditPage() {
       <section className="panel">
         <ul className="grid gap-2">
           {filteredEvents.map((event, index) => (
-            <li key={`${event.id ?? event.actorId}-${event.createdAt}-${index}`} className="input">
+            <li key={`${event.id ?? event.actorId}-${event.createdAt}-${index}`} className="rounded-xl border border-line bg-surface p-3">
               <p className="font-semibold">{event.action}</p>
               <p className="text-xs text-ink-soft">Actor: {event.actorName ?? event.actorId ?? "system"}</p>
               <p className="text-xs text-ink-soft">At: {new Date(event.createdAt).toLocaleString()}</p>

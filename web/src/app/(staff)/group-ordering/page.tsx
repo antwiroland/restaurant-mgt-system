@@ -139,13 +139,13 @@ export default function GroupOrderingPage() {
   }
 
   if (loading) return <main className="shell"><section className="panel">Loading group ordering...</section></main>;
-  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Group Ordering</p><h1 className="text-2xl font-semibold">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
+  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Group Ordering</p><h1 className="heading-lg mt-1">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
 
   return (
     <main className="shell grid gap-4">
       <section className="panel">
         <p className="kicker">Group Ordering</p>
-        <h1 className="text-2xl font-semibold">Session Management</h1>
+        <h1 className="heading-lg mt-1">Session Management</h1>
         <p className="mt-2 text-sm text-ink-soft">Create or join a session, add participant items, and finalize to one order.</p>
         {error ? <p className="mt-3 alert alert-danger">{error}</p> : null}
         {message ? <p className="mt-3 alert alert-success">{message}</p> : null}
@@ -153,7 +153,7 @@ export default function GroupOrderingPage() {
 
       <section className="grid gap-4 md:grid-cols-2">
         <article className="panel">
-          <h2 className="text-lg font-semibold">Create Session</h2>
+          <h2 className="font-display text-lg font-bold text-ink">Create Session</h2>
           <form className="mt-3 grid gap-2" onSubmit={(event) => void onCreateSession(event)}>
             <input className="input" placeholder="Host display name" value={createName} onChange={(e) => setCreateName(e.target.value)} />
             <button className="btn btn-primary">Create</button>
@@ -161,7 +161,7 @@ export default function GroupOrderingPage() {
         </article>
 
         <article className="panel">
-          <h2 className="text-lg font-semibold">Join Session</h2>
+          <h2 className="font-display text-lg font-bold text-ink">Join Session</h2>
           <form className="mt-3 grid gap-2" onSubmit={(event) => void onJoinSession(event)}>
             <input className="input" placeholder="Session code" value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} required />
             <input className="input" placeholder="Participant display name" value={joinName} onChange={(e) => setJoinName(e.target.value)} />
@@ -172,11 +172,11 @@ export default function GroupOrderingPage() {
 
       <section className="grid gap-4 md:grid-cols-2">
         <article className="panel">
-          <h2 className="text-lg font-semibold">Add Participant Item</h2>
+          <h2 className="font-display text-lg font-bold text-ink">Add Participant Item</h2>
           <form className="mt-3 grid gap-2" onSubmit={(event) => void onAddItem(event)}>
             <input className="input" placeholder="Active session code" value={sessionCode} onChange={(e) => setSessionCode(e.target.value.toUpperCase())} required />
             <input className="input" placeholder="Participant ID" value={participantId} onChange={(e) => setParticipantId(e.target.value)} required />
-            <select className="input" value={itemMenuId} onChange={(e) => setItemMenuId(e.target.value)}>
+            <select className="select" value={itemMenuId} onChange={(e) => setItemMenuId(e.target.value)}>
               {menuItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
             <input className="input" type="number" min={1} placeholder="Quantity" value={itemQty} onChange={(e) => setItemQty(e.target.value)} required />
@@ -188,15 +188,15 @@ export default function GroupOrderingPage() {
         </article>
 
         <article className="panel">
-          <h2 className="text-lg font-semibold">Finalize Session</h2>
+          <h2 className="font-display text-lg font-bold text-ink">Finalize Session</h2>
           <form className="mt-3 grid gap-2" onSubmit={(event) => void onFinalize(event)}>
-            <select className="input" value={finalizeType} onChange={(e) => setFinalizeType(e.target.value as "DINE_IN" | "PICKUP" | "DELIVERY")}>
+            <select className="select" value={finalizeType} onChange={(e) => setFinalizeType(e.target.value as "DINE_IN" | "PICKUP" | "DELIVERY")}>
               <option value="DINE_IN">DINE_IN</option>
               <option value="PICKUP">PICKUP</option>
               <option value="DELIVERY">DELIVERY</option>
             </select>
             {finalizeType === "DINE_IN" ? (
-              <select className="input" value={finalizeTableId} onChange={(e) => setFinalizeTableId(e.target.value)}>
+              <select className="select" value={finalizeTableId} onChange={(e) => setFinalizeTableId(e.target.value)}>
                 {tables.map((table) => <option key={table.id} value={table.id}>Table {table.number}</option>)}
               </select>
             ) : null}
@@ -210,14 +210,14 @@ export default function GroupOrderingPage() {
       </section>
 
       <section className="panel">
-        <h2 className="text-lg font-semibold">Session View</h2>
+        <h2 className="font-display text-lg font-bold text-ink">Session View</h2>
         {!groupView ? (
           <p className="mt-3 text-sm text-ink-soft">No session loaded.</p>
         ) : (
           <div className="mt-3 grid gap-3">
             <p className="text-sm">Code: <span className="font-mono">{groupView.sessionCode}</span> · Status: {groupView.status} · Total: GHS {groupView.groupTotal}</p>
             {groupView.participants.map((participant) => (
-              <article key={participant.participantId} className="input">
+              <article key={participant.participantId} className="rounded-xl border border-line bg-surface p-3">
                 <p className="font-semibold">{participant.displayName} · Subtotal GHS {participant.subtotal}</p>
                 <ul className="mt-2 grid gap-1 text-sm">
                   {participant.items.map((item) => (
