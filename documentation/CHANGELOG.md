@@ -421,3 +421,17 @@ Format: [Phase N - Title] followed by Added / Changed / Decisions.
 
 ### Verified
 - Backend: 258 tests pass (`mvn test`). Web: 29 Vitest tests, typecheck and production build. Mobile: 44 Vitest tests and typecheck.
+
+---
+
+## [Group, Guest and Recovery Follow-ups] - 2026-11-07
+
+### Added
+- Group participants can view the placed group order and see it in their order list (view only), so they can pay their share. The mobile group screen links to the order once it is placed; only the order's owner sees "split by items".
+- Public guest split-payment endpoints for dine-in tables (equal split, MoMo per share, payment status check), scoped to the table's QR token.
+- Web table QR page: guests split and pay their share by MoMo while the order is open, and rate the order once it is completed.
+- Mobile "Forgot password?" screen: request a reset link and finish the reset in the app by pasting the link.
+
+### Verified
+- Backend: 261 tests pass (H2). Web: 32 tests, typecheck and production build. Mobile: 48 tests and typecheck.
+- Not yet run: the Postgres Flyway smoke test (`mvn test -Ppostgres-it`), because the Docker engine was not available.

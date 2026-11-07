@@ -2006,3 +2006,39 @@ export type StaffMemberRecord = { id: string; name: string; role: StaffRole; bra
 export async function getSchedulableStaff(session: StaffSession): Promise<StaffMemberRecord[]> {
   return apiRequest<StaffMemberRecord[]>("/scheduling/staff", { token: session.accessToken });
 }
+
+// ---------------------------------------------------------------------------
+// Guest split payments (public, scoped to the table QR token)
+// ---------------------------------------------------------------------------
+
+function guestOrderPath(tableToken: string, orderId: string): string {
+  return `/orders/public/dine-in/tables/${encodeURIComponent(tableToken)}/orders/${orderId}`;
+}
+
+export async function getGuestSplits(tableToken: string, orderId: string): Promise<PaymentSplitRecord[]> {
+  return apiRequest<PaymentSplitRecord[]>(`${guestOrderPath(tableToken, orderId)}/splits`);
+}
+
+export async function createGuestSplits(tableToken: string, orderId: string, parts: number, names?: string[]): Promise<PaymentSplitRecord[]> {
+  return apiRequest<PaymentSplitRecord[]>(`${guestOrderPath(tableToken, orderId)}/splits`, {
+    method: "POST",
+    body: { parts, names: names && names.length > 0 ? names : undefined },
+  });
+}
+
+export async function payGuestSplit(
+  tableToken: string,
+  orderId: string,
+  splitId: string,
+  momoPhone: string,
+  idempotencyKey: string,
+): Promise<PaymentInitiateRecord> {
+  return apiRequest<PaymentInitiateRecord>(`${guestOrderPath(tableToken, orderId)}/splits/${splitId}/pay`, {
+    method: "POST",
+    body: { momoPhone, idempotencyKey },
+  });
+}
+
+export async function verifyGuestPayment(tableToken: string, orderId: string, paymentId: string): Promise<PaymentRecord> {
+  return apiRequest<PaymentRecord>(`${guestOrderPath(tableToken, orderId)}/payments/${paymentId}/verify`, { method: "POST" });
+}

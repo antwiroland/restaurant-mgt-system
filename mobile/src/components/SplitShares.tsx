@@ -78,8 +78,12 @@ export function SplitShares({ order, userId, onPaymentStarted }: Props) {
       <Text style={styles.title}>Split bill</Text>
       {splits.length === 0 ? (
         <>
-          <Text style={styles.hint}>Pay separately: everyone pays for their own items, plus a fair part of fees and taxes.</Text>
-          {canSplitByItems(order, splits) ? (
+          <Text style={styles.hint}>
+            {order.customerUserId === userId
+              ? 'Pay separately: everyone pays for their own items, plus a fair part of fees and taxes.'
+              : 'The person who placed the order can split the bill so everyone pays for their own items.'}
+          </Text>
+          {canSplitByItems(order, splits) && !!userId && order.customerUserId === userId ? (
             <TouchableOpacity style={styles.secondary} onPress={split} disabled={busy} accessibilityRole="button">
               <Text style={styles.secondaryText}>Split by what each person ordered</Text>
             </TouchableOpacity>

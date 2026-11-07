@@ -371,6 +371,15 @@ Orders and receipts return `serviceCharge`, `taxTotal`, `taxInclusive`, `tipAmou
 ### GET `/orders/{orderId}/splits`
 Shares with `status` (`PENDING`, `PAID`, `CANCELLED`) and who paid. Customers see them for their own order or a share assigned to them.
 
+### Guest split payments (public, dine-in)
+Under `/orders/public/dine-in/tables/{tableToken}/orders/{orderId}`. The order must have been placed at that table and still be open (not cancelled or completed), otherwise 404/409.
+- `GET /splits`
+- `POST /splits` `{parts (2-20), names?}`: equal split only
+- `POST /splits/{splitId}/pay` `{momoPhone, idempotencyKey}`: Mobile Money only; 409 if that share is paid or a payment for it is already in progress
+- `POST /payments/{paymentId}/verify`: refreshes the payment status from the provider
+
+Group orders can be viewed (`GET /orders/{id}`, and they appear in `GET /orders`) by every customer who joined the group session. Only the customer who placed the order can split, change or cancel it.
+
 Once a bill is split, `POST /payments/initiate` requires `splitId` and charges that share's amount. The order is confirmed when every share is paid. Split updates are published on `/topic/orders.{orderId}.payments`.
 
 ## 11d. Inventory

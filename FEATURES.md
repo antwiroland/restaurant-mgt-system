@@ -30,6 +30,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
   - `/auth/password/reset` and `/auth/password/change` sign the user out everywhere
   - Admins can send a reset link from the web Users page
   - Web pages: `/forgot-password`, `/reset-password`, `/verify-email` and `/account`
+  - Mobile "Forgot password?" screen: request a link, then open it or paste it into the app to set a new password
 
 ### Users & Customers
 - Admin user list, role assignment (including `RIDER`) and PIN setup (`/users`)
@@ -87,7 +88,8 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Split a bill equally (2–20 shares) or, for group orders, by what each participant ordered, with fees and taxes shared proportionally
 - Each share is paid separately; the order is confirmed once every share is paid
 - Web: split-bill panel on the order detail page, with cash, card or MoMo per share
-- Mobile: group participants see who has paid and pay their own share by MoMo
+- Mobile: group participants see who has paid and pay their own share by MoMo. Everyone who joined the group can open the placed order (from the group screen or their Orders tab); only the person who placed it can split, change or cancel it
+- Web table QR page: dine-in guests (no account) split the bill equally and pay their share by MoMo. Access is limited to orders placed at that table that are still open
 
 ### Group Ordering
 - Create or join a session by code, add items per participant, view the combined cart, and finalize it into one order (with promo code and delivery zone)
@@ -146,7 +148,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Web `/inventory` page, and a recipe editor on the menu page
 
 ### Customer Feedback
-- Customers rate a completed or delivered order once (overall, food, service or delivery, and a comment); dine-in guests can rate from the table QR
+- Customers rate a completed or delivered order once (overall, food, service or delivery, and a comment); dine-in guests rate from the web table QR page
 - Managers see averages, the rating spread and comments, and can reply. Ratings of 2 or lower raise a live alert
 - Web `/feedback` page; the order detail page shows the rating. Mobile: rate from the order screen and see the reply
 
@@ -229,8 +231,6 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - **Third-party delivery integration** (e.g. Bolt Food, Glovo)
 - **Printable / thermal receipts** (ESC/POS) and kitchen ticket printing
 - **Customer-facing web ordering for pickup and delivery** (web customer pages only cover dine-in QR)
-- **Password reset in the mobile app** (the backend and web pages exist; the app has no "forgot password" screen yet, though customers can sign in by SMS code)
-- **Guest feedback and split payment on the web QR pages** (the API supports guest ratings; the web scan page does not offer it yet)
 - **Multi-language / localization**
 
 ### Platform & operations

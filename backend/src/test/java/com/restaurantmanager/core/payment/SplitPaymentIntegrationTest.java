@@ -8,6 +8,8 @@ import com.restaurantmanager.core.menu.CategoryEntity;
 import com.restaurantmanager.core.menu.MenuItemEntity;
 import com.restaurantmanager.core.order.OrderStatus;
 import com.restaurantmanager.core.payment.split.SplitAllocator;
+import com.restaurantmanager.core.table.RestaurantTableEntity;
+import com.restaurantmanager.core.table.TableStatus;
 import com.restaurantmanager.core.user.UserEntity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -121,6 +123,27 @@ class SplitPaymentIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
+    void givenGroupParticipant_whenViewingGroupOrder_thenAllowedToViewAndListButNotCancel() throws Exception {
+        UUID orderId = groupOrder();
+        UserEntity stranger = createUser("Outsider", "+233300000008", "s8@x.com", "secret123", Role.CUSTOMER);
+
+        mockMvc.perform(get("/orders/" + orderId).header("Authorization", "Bearer " + accessToken(friend)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(orderId.toString()));
+        mockMvc.perform(get("/orders").header("Authorization", "Bearer " + accessToken(friend)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '%s')]".formatted(orderId)).isNotEmpty());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/orders/" + orderId)
+                        .header("Authorization", "Bearer " + accessToken(friend)))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/orders/" + orderId).header("Authorization", "Bearer " + accessToken(stranger)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/orders").header("Authorization", "Bearer " + accessToken(stranger)))
+                .andExpect(jsonPath("$[?(@.id == '%s')]".formatted(orderId)).isEmpty());
+    }
+
+    @Test
     void givenStranger_whenPayingSomeoneElsesShare_then403() throws Exception {
         UUID orderId = groupOrder();
         JsonNode splits = objectMapper.readTree(mockMvc.perform(post("/orders/" + orderId + "/splits")
@@ -155,6 +178,101 @@ class SplitPaymentIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$[0].displayName").value("Ama"))
                 .andExpect(jsonPath("$[0].amount").value(13.34))
                 .andExpect(jsonPath("$[2].amount").value(13.33));
+    }
+
+    @Test
+    void givenGuestTableOrder_whenGuestsSplitEquallyAndPayShares_thenOrderConfirmedWhenAllPaid() throws Exception {
+        RestaurantTableEntity table = guestTable("SP1");
+        UUID orderId = guestOrder(table);
+        String base = "/orders/public/dine-in/tables/" + table.getQrToken() + "/orders/" + orderId;
+
+        // Wrong table token cannot see or split the order
+        mockMvc.perform(get("/orders/public/dine-in/tables/wrong-token/orders/" + orderId + "/splits"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post(base + "/splits").contentType(MediaType.APPLICATION_JSON).content("{\"parts\":1}"))
+                .andExpect(status().isBadRequest());
+
+        JsonNode splits = objectMapper.readTree(mockMvc.perform(post(base + "/splits")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"parts\":2,\"names\":[\"Ama\",\"Kofi\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].displayName").value("Ama"))
+                .andExpect(jsonPath("$[0].amount").value(20.0))
+                .andReturn().getResponse().getContentAsString());
+        String amaSplit = splits.get(0).get("id").asText();
+        String kofiSplit = splits.get(1).get("id").asText();
+
+        String amaRef = guestPay(base, amaSplit, "guest-ama-1");
+        // Same share cannot be started twice while in progress; same key returns the same payment
+        mockMvc.perform(post(base + "/splits/" + amaSplit + "/pay")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"momoPhone\":\"0244000001\",\"idempotencyKey\":\"guest-ama-2\"}"))
+                .andExpect(status().isConflict());
+        assertEquals(amaRef, guestPay(base, amaSplit, "guest-ama-1"));
+
+        // Re-splitting is blocked once a payment has started
+        mockMvc.perform(post(base + "/splits").contentType(MediaType.APPLICATION_JSON).content("{\"parts\":3}"))
+                .andExpect(status().isConflict());
+
+        succeed(amaRef);
+        assertEquals(OrderStatus.PENDING, orderRepository.findById(orderId).orElseThrow().getStatus());
+        succeed(guestPay(base, kofiSplit, "guest-kofi-1"));
+        assertEquals(OrderStatus.CONFIRMED, orderRepository.findById(orderId).orElseThrow().getStatus());
+
+        mockMvc.perform(get(base + "/splits"))
+                .andExpect(jsonPath("$[0].status").value("PAID"))
+                .andExpect(jsonPath("$[1].status").value("PAID"));
+
+        String paymentId = paymentRepository.findByPaystackReference(amaRef).orElseThrow().getId().toString();
+        mockMvc.perform(post(base + "/payments/" + paymentId + "/verify"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUCCESS"));
+    }
+
+    @Test
+    void givenOrderFromAnotherTable_whenGuestPaysWithOwnTableToken_then404() throws Exception {
+        RestaurantTableEntity mine = guestTable("SP2");
+        RestaurantTableEntity other = guestTable("SP3");
+        UUID otherOrder = guestOrder(other);
+        String otherBase = "/orders/public/dine-in/tables/" + other.getQrToken() + "/orders/" + otherOrder;
+        String split = objectMapper.readTree(mockMvc.perform(post(otherBase + "/splits")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"parts\":2}"))
+                .andReturn().getResponse().getContentAsString()).get(0).get("id").asText();
+
+        mockMvc.perform(post("/orders/public/dine-in/tables/" + mine.getQrToken() + "/orders/" + otherOrder + "/splits/" + split + "/pay")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"momoPhone\":\"0244000001\",\"idempotencyKey\":\"cross-1\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    private RestaurantTableEntity guestTable(String number) {
+        RestaurantTableEntity table = new RestaurantTableEntity();
+        table.setNumber(number);
+        table.setCapacity(4);
+        table.setZone("Main");
+        table.setStatus(TableStatus.AVAILABLE);
+        table.setQrToken(number.toLowerCase() + "-" + UUID.randomUUID());
+        return restaurantTableRepository.save(table);
+    }
+
+    private UUID guestOrder(RestaurantTableEntity table) throws Exception {
+        String body = mockMvc.perform(post("/orders/public/dine-in")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tableToken\":\"" + table.getQrToken() + "\",\"items\":[{\"menuItemId\":\"" + waakye.getId()
+                                + "\",\"quantity\":1},{\"menuItemId\":\"" + kelewele.getId() + "\",\"quantity\":1}]}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.total").value(40.0))
+                .andReturn().getResponse().getContentAsString();
+        return UUID.fromString(objectMapper.readTree(body).get("id").asText());
+    }
+
+    private String guestPay(String base, String splitId, String key) throws Exception {
+        String body = mockMvc.perform(post(base + "/splits/" + splitId + "/pay")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"momoPhone\":\"0244000001\",\"idempotencyKey\":\"" + key + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(body).get("paystackReference").asText();
     }
 
     private UUID groupOrder() throws Exception {

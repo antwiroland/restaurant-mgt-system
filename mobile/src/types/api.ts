@@ -93,6 +93,7 @@ export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'READY' | 'OUT
 
 export type Order = {
   id: string;
+  customerUserId?: string | null;
   status: OrderStatus;
   type: OrderType;
   subtotal: string;
@@ -260,6 +261,8 @@ export type GroupSessionItem = {
 export type GroupSessionDetail = {
   sessionCode: string;
   status: 'OPEN' | 'COMPLETED' | 'CANCELLED';
+  /** Set once the group cart has been placed as an order. */
+  orderId?: string | null;
   participants: {
     participantId: string;
     displayName: string;

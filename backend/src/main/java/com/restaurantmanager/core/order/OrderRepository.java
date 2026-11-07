@@ -20,7 +20,9 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
 
     @Query("""
             select o from OrderEntity o
-            where (:customerId is null or o.customerUserId = :customerId)
+            where (:customerId is null or o.customerUserId = :customerId
+                     or exists (select 1 from GroupSessionParticipantEntity p
+                                where p.session = o.groupSession and p.userId = :customerId))
               and (:branchId is null or (o.branch is not null and o.branch.id = :branchId))
               and (:status is null or o.status = :status)
               and (:type is null or o.type = :type)
@@ -40,7 +42,9 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
             left join fetch o.branch
             left join fetch o.table
             left join fetch o.groupSession
-            where (:customerId is null or o.customerUserId = :customerId)
+            where (:customerId is null or o.customerUserId = :customerId
+                     or exists (select 1 from GroupSessionParticipantEntity p
+                                where p.session = o.groupSession and p.userId = :customerId))
               and (:branchId is null or (o.branch is not null and o.branch.id = :branchId))
               and (:status is null or o.status = :status)
               and (:type is null or o.type = :type)
@@ -49,7 +53,9 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
             """,
            countQuery = """
             select count(o) from OrderEntity o
-            where (:customerId is null or o.customerUserId = :customerId)
+            where (:customerId is null or o.customerUserId = :customerId
+                     or exists (select 1 from GroupSessionParticipantEntity p
+                                where p.session = o.groupSession and p.userId = :customerId))
               and (:branchId is null or (o.branch is not null and o.branch.id = :branchId))
               and (:status is null or o.status = :status)
               and (:type is null or o.type = :type)

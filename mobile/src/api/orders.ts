@@ -14,6 +14,7 @@ type OrderItemResponse = {
 
 type OrderResponse = {
   id: string;
+  customerUserId?: string | null;
   type: Order['type'];
   status: Order['status'];
   subtotal: string;
@@ -79,6 +80,7 @@ function toOrderItem(item: OrderItemResponse): OrderItem {
 function toOrder(order: OrderResponse): Order {
   return {
     id: order.id,
+    customerUserId: order.customerUserId ?? null,
     type: order.type,
     status: order.status,
     subtotal: String(order.subtotal),
