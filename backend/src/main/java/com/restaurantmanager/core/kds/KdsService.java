@@ -102,7 +102,8 @@ public class KdsService {
         List<KdsOrderItem> items = itemsByOrderId.getOrDefault(order.getId(), List.of()).stream()
                 .map(item -> {
                     List<String> modifiers = modifiersByItemId.getOrDefault(item.getId(), List.of());
-                    return new KdsOrderItem(item.getNameSnapshot(), item.getQuantity(), item.getNotes(), modifiers);
+                    return new KdsOrderItem(item.getId(), item.getNameSnapshot(), item.getQuantity(), item.getNotes(), modifiers,
+                            item.getReadyAt() != null);
                 })
                 .toList();
         return new KdsOrderCard(

@@ -12,6 +12,7 @@ public record OrderItemResponse(
         BigDecimal price,
         int quantity,
         String notes,
-        List<OrderItemModifierResponse> modifiers
+        List<OrderItemModifierResponse> modifiers,
+        java.time.Instant readyAt
 ) {
 }

@@ -64,6 +64,8 @@ export const navGroups: NavGroup[] = [
       { label: "Staff & Users", href: "/users", icon: "users", roles: ["ADMIN"] },
       { label: "Branches", href: "/branches", icon: "store", roles: MGMT },
       { label: "Billing & Tax", href: "/billing", icon: "cash", roles: MGMT },
+      { label: "Restaurant Profile", href: "/restaurant", icon: "store", roles: MGMT },
+      { label: "Printers", href: "/printers", icon: "print", roles: MGMT },
       { label: "Audit Log", href: "/audit", icon: "shield", roles: MGMT },
       { label: "Admin Panel", href: "/admin", icon: "settings", roles: MGMT },
     ],

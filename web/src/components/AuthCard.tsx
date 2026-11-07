@@ -1,10 +1,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { BrandMark } from "@/components/NavSidebar";
-import { brand } from "@/lib/brand";
+import { getBrand } from "@/lib/publicServer";
 
 /** Centered card used by account pages (reset password, verify email, …). */
-export function AuthCard({ eyebrow, title, description, children }: { eyebrow: string; title: string; description?: ReactNode; children: ReactNode }) {
+export async function AuthCard({ eyebrow, title, description, children }: { eyebrow: string; title: string; description?: ReactNode; children: ReactNode }) {
+  const brand = await getBrand();
   return (
     <main className="grid min-h-dvh place-items-center bg-ivory px-4 py-10">
       <div className="w-full max-w-[420px]">

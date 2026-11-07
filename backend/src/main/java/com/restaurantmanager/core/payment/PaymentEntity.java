@@ -56,6 +56,22 @@ public class PaymentEntity {
     @Column(name = "provider_message", length = 1000)
     private String providerMessage;
 
+    @Column(name = "amount_tendered", precision = 12, scale = 2)
+    private BigDecimal amountTendered;
+
+    @Column(name = "change_due", precision = 12, scale = 2)
+    private BigDecimal changeDue;
+
+    @Column(name = "received_by")
+    private java.util.UUID receivedBy;
+
+    public BigDecimal getAmountTendered() { return amountTendered; }
+    public void setAmountTendered(BigDecimal amountTendered) { this.amountTendered = amountTendered; }
+    public BigDecimal getChangeDue() { return changeDue; }
+    public void setChangeDue(BigDecimal changeDue) { this.changeDue = changeDue; }
+    public java.util.UUID getReceivedBy() { return receivedBy; }
+    public void setReceivedBy(java.util.UUID receivedBy) { this.receivedBy = receivedBy; }
+
     @Column(name = "failure_reason", length = 1000)
     private String failureReason;
 

@@ -8,7 +8,7 @@ import { useStaffSession } from "@/components/SessionProvider";
 import { Spinner } from "@/components/Spinner";
 import { Icon } from "@/components/Icon";
 import { BrandMark } from "@/components/NavSidebar";
-import { brand } from "@/lib/brand";
+import { useBrand } from "@/components/BrandProvider";
 import { canAccessPath } from "@/lib/navigation";
 
 /** Only allow same-origin, absolute-path redirects (no `//evil.com`). */
@@ -20,6 +20,7 @@ function safeNext(): string | null {
 }
 
 export default function LoginPage() {
+  const brand = useBrand();
   const router = useRouter();
   const { login, logout, session } = useStaffSession();
   const [phone, setPhone] = useState("");

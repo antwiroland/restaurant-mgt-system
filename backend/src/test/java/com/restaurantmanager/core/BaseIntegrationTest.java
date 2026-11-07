@@ -138,8 +138,21 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected SecurityGuardService securityGuardService;
 
+    @Autowired
+    protected com.restaurantmanager.core.servicerequest.ServiceRequestRepository serviceRequestRepository;
+    @Autowired
+    protected com.restaurantmanager.core.printing.PrinterRepository printerRepository;
+    @Autowired
+    protected com.restaurantmanager.core.notification.push.PushDeviceRepository pushDeviceRepository;
+    @Autowired
+    protected com.restaurantmanager.core.favourite.FavouriteRepository favouriteRepository;
+
     @BeforeEach
     void cleanupDb() {
+        serviceRequestRepository.deleteAll();
+        printerRepository.deleteAll();
+        pushDeviceRepository.deleteAll();
+        favouriteRepository.deleteAll();
         promoCodeRepository.deleteAll();
         paymentRefundRepository.deleteAll();
         menuOfferRepository.deleteAll();

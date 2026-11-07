@@ -24,7 +24,7 @@ export default function LoginScreen() {
     await AsyncStorage.setItem('userName', res.user.name);
     await AsyncStorage.setItem('userRole', res.user.role);
     setUser(res.user.id, res.user.name, res.user.role);
-    router.replace('/(tabs)/menu');
+    router.replace(res.user.role === 'RIDER' ? '/rider' : '/(tabs)/menu');
   }
 
   async function handleSendCode() {

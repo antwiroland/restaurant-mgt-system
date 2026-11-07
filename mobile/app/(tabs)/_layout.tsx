@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCartStore } from '../../src/store/cart';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '../../src/theme';
+import { t } from '../../src/i18n';
 
 function CartBadge() {
   const count = useCartStore((s) => s.itemCount());
@@ -41,7 +42,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="menu"
         options={{
-          title: 'Menu',
+          title: t('tabs.menu'),
           headerShown: false,
           tabBarIcon: ({ color, size }) => <Ionicons name="restaurant-outline" size={size} color={color} />,
         }}
@@ -49,14 +50,14 @@ export default function TabLayout() {
       <Tabs.Screen
         name="orders"
         options={{
-          title: 'Orders',
+          title: t('tabs.orders'),
           tabBarIcon: ({ color, size }) => <Ionicons name="list-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t('tabs.profile'),
           tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
         }}
       />

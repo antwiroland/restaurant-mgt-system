@@ -5,7 +5,7 @@ import { Client } from "@stomp/stompjs";
 import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
 import { useStaffSession } from "@/components/SessionProvider";
-import { getBranches, getKdsBoard, updateOrderStatus, type BranchRecord, type KdsBoardRecord, type KdsOrderCard } from "@/lib/apiClient";
+import { getBranches, getKdsBoard, sendOrderToPrinter, setOrderItemReady, updateOrderStatus, type BranchRecord, type KdsBoardRecord, type KdsOrderCard } from "@/lib/apiClient";
 
 const COLUMNS: Array<keyof KdsBoardRecord["columns"]> = ["PENDING", "CONFIRMED", "PREPARING", "READY"];
 const POLL_INTERVAL_MS = 15000;
@@ -112,6 +112,29 @@ export default function KdsPage() {
       client.deactivate();
     };
   }, [session, authenticatedFetch, branchId]);
+
+  async function toggleItem(orderId: string, itemId: string, ready: boolean) {
+    setBusyOrderId(orderId);
+    setError("");
+    try {
+      await authenticatedFetch((activeSession) => setOrderItemReady(activeSession, orderId, itemId, ready));
+      await loadBoard();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update item");
+    } finally {
+      setBusyOrderId(null);
+    }
+  }
+
+  async function printTicket(orderId: string) {
+    setError("");
+    try {
+      await authenticatedFetch((activeSession) => sendOrderToPrinter(activeSession, orderId, "kitchen"));
+    } catch {
+      // No network kitchen printer (or unreachable): fall back to the browser print layout.
+      window.open(`/print/kitchen/${orderId}`, "_blank", "noopener");
+    }
+  }
 
   async function moveOrder(orderId: string, status: KdsAdvanceStatus) {
     setBusyOrderId(orderId);
@@ -240,6 +263,8 @@ export default function KdsPage() {
                     busy={busyOrderId === card.orderId}
                     compact={compactMode}
                     onMove={moveOrder}
+                    onToggleItem={toggleItem}
+                    onPrint={printTicket}
                   />
                 ))}
                 {cards.length === 0 ? (
@@ -293,11 +318,15 @@ function OrderCard({
   busy,
   compact,
   onMove,
+  onToggleItem,
+  onPrint,
 }: {
   card: KdsOrderCard;
   busy: boolean;
   compact: boolean;
   onMove: (orderId: string, status: KdsAdvanceStatus) => void;
+  onToggleItem: (orderId: string, itemId: string, ready: boolean) => void;
+  onPrint: (orderId: string) => void;
 }) {
   const action = nextAction(card.status);
   const age = ageMeta(card.createdAt);
@@ -352,6 +381,11 @@ function OrderCard({
           <Icon name="timer" size={16} /> {age.label}
         </span>
       </header>
+      <div className="mt-2 flex justify-end">
+        <button type="button" onClick={() => onPrint(card.orderId)} className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold text-night-soft hover:bg-night-raised hover:text-night-ink">
+          <Icon name="print" size={14} /> Print ticket
+        </button>
+      </div>
 
       {card.notes && !compact ? (
         <p className="mt-3 flex gap-2 rounded-lg border border-warning/40 bg-warning/15 px-3 py-2 text-sm font-semibold text-warning-border">
@@ -360,21 +394,40 @@ function OrderCard({
       ) : null}
 
       <ul className={`mt-3 divide-y divide-night-line ${compact ? "text-base" : "text-lg"}`}>
-        {card.items.map((item, index) => (
-          <li key={`${item.name}-${index}`} className="flex gap-3 py-2">
-            <span className="grid h-8 min-w-8 shrink-0 place-items-center rounded-md bg-night-raised px-1.5 font-display font-extrabold tabular text-gold">
-              {item.quantity}
-            </span>
-            <div className="min-w-0 pt-0.5">
-              <p className="font-semibold leading-snug text-night-ink">{item.name}</p>
-              {!compact && item.modifiers.length > 0 ? (
-                <p className="mt-0.5 text-sm leading-snug text-night-soft">{item.modifiers.join(" · ")}</p>
-              ) : null}
-              {item.notes ? <p className="mt-0.5 text-sm font-semibold italic text-warning-border">“{item.notes}”</p> : null}
-            </div>
-          </li>
-        ))}
+        {card.items.map((item, index) => {
+          const canTick = !!item.id && card.status !== "PENDING";
+          return (
+            <li key={item.id ?? `${item.name}-${index}`}>
+              <button
+                type="button"
+                disabled={!canTick || busy}
+                onClick={() => item.id && onToggleItem(card.orderId, item.id, !item.ready)}
+                aria-pressed={!!item.ready}
+                title={canTick ? (item.ready ? "Tap to mark not ready" : "Tap when this item is ready") : "Accept the order first"}
+                className={`flex w-full gap-3 rounded-lg py-2 text-left transition-colors ${canTick ? "hover:bg-night-raised" : "cursor-default"} ${item.ready ? "opacity-55" : ""}`}
+              >
+                <span className={`grid h-8 min-w-8 shrink-0 place-items-center rounded-md px-1.5 font-display font-extrabold tabular ${item.ready ? "bg-success text-white" : "bg-night-raised text-gold"}`}>
+                  {item.ready ? <Icon name="check" size={16} strokeWidth={3} /> : item.quantity}
+                </span>
+                <span className="min-w-0 pt-0.5">
+                  <span className={`block font-semibold leading-snug text-night-ink ${item.ready ? "line-through decoration-2" : ""}`}>
+                    {item.ready ? `${item.quantity} × ` : ""}{item.name}
+                  </span>
+                  {!compact && item.modifiers.length > 0 ? (
+                    <span className="mt-0.5 block text-sm leading-snug text-night-soft">{item.modifiers.join(" · ")}</span>
+                  ) : null}
+                  {item.notes ? <span className="mt-0.5 block text-sm font-semibold italic text-warning-border">“{item.notes}”</span> : null}
+                </span>
+              </button>
+            </li>
+          );
+        })}
       </ul>
+      {card.items.length > 1 && card.status !== "PENDING" ? (
+        <p className="mt-1 text-xs text-night-soft">
+          {card.items.filter((i) => i.ready).length}/{card.items.length} items ready · tap an item when it&apos;s done
+        </p>
+      ) : null}
 
       {action ? (
         <button

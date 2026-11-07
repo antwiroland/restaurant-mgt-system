@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Client } from "@stomp/stompjs";
 import { getPublicOrderStatus, type OrderPublicStatusView } from "@/lib/apiClient";
 import { BrandMark } from "@/components/NavSidebar";
-import { brand } from "@/lib/brand";
+import { useBrand } from "@/components/BrandProvider";
 
 
 const REFRESH_INTERVAL_MS = 30_000;
@@ -18,6 +18,7 @@ function elapsedLabel(createdAt: string): string {
 }
 
 export default function OrdersStatusPage() {
+  const brand = useBrand();
   const [orders, setOrders] = useState<OrderPublicStatusView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

@@ -198,6 +198,8 @@ export type PaymentInitiateRecord = {
   paystackReference?: string;
   authorizationUrl?: string;
   message?: string;
+  /** CASH only: change to hand back. */
+  changeDue?: string | number | null;
 };
 
 export type ReceiptRecord = {
@@ -416,7 +418,7 @@ export type KdsOrderCard = {
   status: "PENDING" | "CONFIRMED" | "PREPARING" | "READY";
   notes?: string;
   createdAt: string;
-  items: { name: string; quantity: number; notes?: string; modifiers: string[] }[];
+  items: { id?: string; name: string; quantity: number; notes?: string; modifiers: string[]; ready?: boolean }[];
 };
 
 export type KdsBoardRecord = {
@@ -1318,7 +1320,7 @@ export async function cancelReservation(session: StaffSession, reservationId: st
 
 export async function initiatePayment(
   session: StaffSession,
-  payload: { orderId: string; method: PaymentMethod; momoPhone: string; idempotencyKey: string; splitId?: string },
+  payload: { orderId: string; method: PaymentMethod; momoPhone?: string; idempotencyKey: string; splitId?: string; amountTendered?: number },
 ): Promise<PaymentInitiateRecord> {
   return apiRequest<PaymentInitiateRecord>("/payments/initiate", {
     method: "POST",
@@ -2101,4 +2103,179 @@ export async function quoteOrder(
   payload: Parameters<typeof createOrder>[1],
 ): Promise<OrderQuoteRecord> {
   return apiRequest<OrderQuoteRecord>("/orders/quote", { method: "POST", token: session.accessToken, body: payload });
+}
+
+
+/* ================================================================== */
+/* Restaurant profile                                                  */
+/* ================================================================== */
+
+export type RestaurantProfileRecord = {
+  name: string;
+  tagline?: string | null;
+  about?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  websiteUrl?: string | null;
+  heroImageUrl?: string | null;
+  currency: string;
+  openingHours: string[];
+  latitude?: number | null;
+  longitude?: number | null;
+  receiptFooter?: string | null;
+  updatedAt?: string;
+};
+
+export async function getRestaurantProfile(): Promise<RestaurantProfileRecord> {
+  return apiRequest<RestaurantProfileRecord>("/restaurant/profile");
+}
+
+export async function updateRestaurantProfile(session: StaffSession, payload: Omit<RestaurantProfileRecord, "updatedAt">): Promise<RestaurantProfileRecord> {
+  return apiRequest<RestaurantProfileRecord>("/restaurant/profile", { method: "PUT", token: session.accessToken, body: payload });
+}
+
+/* ================================================================== */
+/* Kitchen: item-level ready                                           */
+/* ================================================================== */
+
+export async function setOrderItemReady(session: StaffSession, orderId: string, itemId: string, ready: boolean): Promise<OrderRecord> {
+  return apiRequest<OrderRecord>(`/orders/${orderId}/items/${itemId}/ready`, { method: "PATCH", token: session.accessToken, body: { ready } });
+}
+
+/* ================================================================== */
+/* Service requests (call a waiter / bill)                             */
+/* ================================================================== */
+
+export type ServiceRequestType = "CALL_WAITER" | "BILL" | "OTHER";
+export type ServiceRequestStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED";
+export type ServiceRequestRecord = {
+  id: string;
+  tableId: string;
+  tableNumber: string;
+  branchId?: string | null;
+  type: ServiceRequestType;
+  note?: string | null;
+  status: ServiceRequestStatus;
+  createdAt: string;
+  acknowledgedAt?: string | null;
+  resolvedAt?: string | null;
+};
+
+export async function createTableServiceRequest(tableToken: string, type: ServiceRequestType, note?: string): Promise<ServiceRequestRecord> {
+  return apiRequest<ServiceRequestRecord>(`/tables/public/${encodeURIComponent(tableToken)}/requests`, { method: "POST", body: { type, note } });
+}
+
+export async function getTableServiceRequests(tableToken: string): Promise<ServiceRequestRecord[]> {
+  return apiRequest<ServiceRequestRecord[]>(`/tables/public/${encodeURIComponent(tableToken)}/requests`);
+}
+
+export async function getServiceRequests(session: StaffSession, includeResolved = false): Promise<ServiceRequestRecord[]> {
+  return apiRequest<ServiceRequestRecord[]>(`/service-requests${includeResolved ? "?includeResolved=true" : ""}`, { token: session.accessToken });
+}
+
+export async function updateServiceRequest(session: StaffSession, id: string, status: Exclude<ServiceRequestStatus, "OPEN">): Promise<ServiceRequestRecord> {
+  return apiRequest<ServiceRequestRecord>(`/service-requests/${id}`, { method: "PATCH", token: session.accessToken, body: { status } });
+}
+
+/* ================================================================== */
+/* Printing                                                            */
+/* ================================================================== */
+
+export type PrinterKind = "RECEIPT" | "KITCHEN";
+export type PrinterRecord = {
+  id: string;
+  branchId?: string | null;
+  name: string;
+  kind: PrinterKind;
+  host: string;
+  port: number;
+  paperWidthMm: 58 | 80;
+  active: boolean;
+};
+export type PrinterUpsert = Omit<PrinterRecord, "id">;
+export type PrintResultRecord = { printerId: string; printerName: string; sent: boolean; bytes: number; message: string };
+
+export async function getPrinters(session: StaffSession): Promise<PrinterRecord[]> {
+  return apiRequest<PrinterRecord[]>("/printers", { token: session.accessToken });
+}
+
+export async function savePrinter(session: StaffSession, payload: PrinterUpsert, id?: string): Promise<PrinterRecord> {
+  return apiRequest<PrinterRecord>(id ? `/printers/${id}` : "/printers", { method: id ? "PUT" : "POST", token: session.accessToken, body: payload });
+}
+
+export async function deletePrinter(session: StaffSession, id: string): Promise<void> {
+  return apiRequest<void>(`/printers/${id}`, { method: "DELETE", token: session.accessToken });
+}
+
+export async function testPrinter(session: StaffSession, id: string): Promise<PrintResultRecord> {
+  return apiRequest<PrintResultRecord>(`/printers/${id}/test`, { method: "POST", token: session.accessToken });
+}
+
+export async function sendOrderToPrinter(session: StaffSession, orderId: string, kind: "receipt" | "kitchen", printerId?: string): Promise<PrintResultRecord> {
+  return apiRequest<PrintResultRecord>(`/orders/${orderId}/print/${kind}`, { method: "POST", token: session.accessToken, body: printerId ? { printerId } : {} });
+}
+
+/* ================================================================== */
+/* Customer accounts (web)                                             */
+/* ================================================================== */
+
+export async function requestOtp(phone: string, purpose: "REGISTER" | "LOGIN"): Promise<{ expiresInSeconds: number; resendAfterSeconds: number }> {
+  return apiRequest("/auth/otp/request", { method: "POST", body: { phone, purpose } });
+}
+
+export async function verifyOtp(phone: string, code: string): Promise<{ phone: string; verificationToken: string }> {
+  return apiRequest("/auth/otp/verify", { method: "POST", body: { phone, code } });
+}
+
+export async function loginWithOtp(phone: string, code: string): Promise<StaffSession> {
+  const response = await apiRequest<AuthResponse>("/auth/otp/login", { method: "POST", body: { phone, code } });
+  return {
+    accessToken: response.accessToken,
+    refreshToken: response.refreshToken,
+    expiresAtEpochMs: Date.now() + response.expiresIn * 1000,
+    user: response.user,
+  };
+}
+
+export async function registerCustomer(payload: { name: string; phone: string; email?: string; password: string; verificationToken: string }): Promise<StaffSession> {
+  await apiRequest<RegisterResponse>("/auth/register", { method: "POST", body: payload });
+  return loginStaff(payload.phone, payload.password);
+}
+
+export type CustomerProfileRecord = { id: string; name: string; phone: string; email?: string | null; role: StaffRole };
+
+export async function getMe(session: StaffSession): Promise<CustomerProfileRecord> {
+  return apiRequest<CustomerProfileRecord>("/users/me", { token: session.accessToken });
+}
+
+export async function updateMe(session: StaffSession, payload: { name: string; email?: string; phone: string }): Promise<CustomerProfileRecord> {
+  return apiRequest<CustomerProfileRecord>("/users/me", { method: "PATCH", token: session.accessToken, body: payload });
+}
+
+export type CustomerAddressRecord = { id: string; label: string; addressLine: string; city?: string | null; landmark?: string | null; isDefault: boolean };
+
+export async function getMyAddresses(session: StaffSession): Promise<CustomerAddressRecord[]> {
+  return apiRequest<CustomerAddressRecord[]>("/users/me/addresses", { token: session.accessToken });
+}
+
+export async function addMyAddress(session: StaffSession, payload: Omit<CustomerAddressRecord, "id">): Promise<CustomerAddressRecord> {
+  return apiRequest<CustomerAddressRecord>("/users/me/addresses", { method: "POST", token: session.accessToken, body: payload });
+}
+
+export async function getMyReservations(session: StaffSession): Promise<ReservationRecord[]> {
+  return apiRequest<ReservationRecord[]>("/reservations/mine", { token: session.accessToken });
+}
+
+export async function getFavourites(session: StaffSession): Promise<MenuItemRecord[]> {
+  return apiRequest<MenuItemRecord[]>("/users/me/favourites", { token: session.accessToken });
+}
+
+export async function setFavourite(session: StaffSession, menuItemId: string, favourite: boolean): Promise<void> {
+  return apiRequest<void>(`/users/me/favourites/${menuItemId}`, { method: favourite ? "PUT" : "DELETE", token: session.accessToken });
+}
+
+/** Guest cart estimate (no sign-in): same pricing rules as the authenticated quote. */
+export async function quoteOrderPublic(payload: Parameters<typeof createOrder>[1]): Promise<OrderQuoteRecord> {
+  return apiRequest<OrderQuoteRecord>("/orders/public/quote", { method: "POST", body: payload });
 }

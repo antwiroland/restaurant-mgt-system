@@ -37,3 +37,48 @@ export function formatMoney(value: string | number | undefined | null, currency 
   if (!Number.isFinite(amount)) return `${currency} 0.00`;
   return `${currency} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+/** Restaurant identity used across the site. `brand` above holds the env fallbacks. */
+export type Brand = typeof brand & {
+  websiteUrl?: string;
+  latitude?: number;
+  longitude?: number;
+  receiptFooter?: string;
+};
+
+type ProfileLike = {
+  name?: string | null;
+  tagline?: string | null;
+  about?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  websiteUrl?: string | null;
+  heroImageUrl?: string | null;
+  currency?: string | null;
+  openingHours?: string[] | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  receiptFooter?: string | null;
+};
+
+/** The restaurant profile from the API wins field by field; env values fill any gaps. */
+export function brandFromProfile(profile: ProfileLike | null | undefined): Brand {
+  if (!profile) return { ...brand };
+  const pick = (value: string | null | undefined, fallback: string | undefined) => (value && value.trim() ? value.trim() : fallback);
+  return {
+    name: pick(profile.name, brand.name) ?? brand.name,
+    tagline: pick(profile.tagline, brand.tagline) ?? brand.tagline,
+    about: pick(profile.about, brand.about),
+    address: pick(profile.address, brand.address),
+    phone: pick(profile.phone, brand.phone),
+    email: pick(profile.email, brand.email),
+    hours: profile.openingHours && profile.openingHours.length > 0 ? profile.openingHours : brand.hours,
+    heroImage: pick(profile.heroImageUrl, brand.heroImage),
+    currency: pick(profile.currency, brand.currency) ?? brand.currency,
+    websiteUrl: profile.websiteUrl ?? undefined,
+    latitude: profile.latitude ?? undefined,
+    longitude: profile.longitude ?? undefined,
+    receiptFooter: profile.receiptFooter ?? undefined,
+  };
+}

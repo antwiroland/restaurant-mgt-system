@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { Icon } from "@/components/Icon";
 import { FoodImage } from "@/components/site/FoodImage";
 import { MenuCard } from "@/components/site/MenuCard";
+import { AddToCart } from "@/components/site/AddToCart";
 import { formatMoney } from "@/lib/brand";
 import { fetchPublicMenu, fetchPublicMenuItem } from "@/lib/publicServer";
 
@@ -52,39 +53,15 @@ export default async function DishPage({ params }: Props) {
           </div>
           {item.description ? <p className="mt-6 text-lg leading-relaxed text-ink-soft">{item.description}</p> : null}
 
-          {modifiers.length > 0 ? (
-            <div className="mt-8 grid gap-5">
-              {modifiers.map((group) => (
-                <section key={group.id} className="rounded-xl border border-line bg-surface p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 className="font-display text-base font-bold">{group.name}</h2>
-                    <span className="text-xs font-semibold text-ink-muted">
-                      {group.required ? "Required · " : "Optional · "}
-                      {group.selectionType === "SINGLE" ? "choose one" : group.maxSelect ? `up to ${group.maxSelect}` : "choose any"}
-                    </span>
-                  </div>
-                  <ul className="mt-3 divide-y divide-line-subtle">
-                    {group.options.map((option) => (
-                      <li key={option.id} className="flex items-center justify-between py-2.5 text-[15px]">
-                        <span className="text-ink">{option.name}</span>
-                        <span className="money text-sm text-ink-soft">
-                          {Number(option.priceDelta) > 0 ? `+ ${formatMoney(option.priceDelta)}` : "Included"}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
-          ) : null}
+          <AddToCart item={item} modifiers={modifiers} />
 
           <div className="mt-8 rounded-2xl bg-cream/70 p-6">
             <div className="flex gap-4">
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface text-brand shadow-xs"><Icon name="qr" size={22} /></span>
               <div>
-                <p className="font-display font-bold text-ink">Order this at your table</p>
+                <p className="font-display font-bold text-ink">Dining in?</p>
                 <p className="mt-1 text-sm leading-relaxed text-ink-soft">
-                  Scan the QR code on your table to add {item.name} to your order, choose your options, and leave a note for the kitchen.
+                  Scan the QR code on your table to order {item.name} straight to the kitchen. The button above is for pickup or delivery.
                 </p>
               </div>
             </div>

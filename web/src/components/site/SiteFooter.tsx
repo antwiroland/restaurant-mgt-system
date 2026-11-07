@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/NavSidebar";
 import { Icon } from "@/components/Icon";
-import { brand } from "@/lib/brand";
+import { getBrand } from "@/lib/publicServer";
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  const brand = await getBrand();
   const year = new Date().getFullYear();
   return (
     <footer className="bg-espresso text-espresso-soft">

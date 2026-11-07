@@ -65,7 +65,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (!"POST".equalsIgnoreCase(method)) {
             return null;
         }
-        if ("/qr/sessions/link".equals(path) || (path.startsWith("/orders/public/") && path.endsWith("/feedback"))) {
+        if ("/qr/sessions/link".equals(path) || (path.startsWith("/orders/public/") && path.endsWith("/feedback"))
+                || (path.startsWith("/tables/public/") && path.endsWith("/requests"))) {
             return new LimitSpec("public", rateLimitProps.getPublicRequests(), rateLimitProps.getPublicWindowSeconds() * 1000L);
         }
         if ("/auth/login".equals(path) || "/auth/register".equals(path) || "/auth/refresh".equals(path)

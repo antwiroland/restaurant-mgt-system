@@ -3,8 +3,8 @@ import { connection } from "next/server";
 import { Icon, type IconName } from "@/components/Icon";
 import { FoodImage } from "@/components/site/FoodImage";
 import { MenuCard } from "@/components/site/MenuCard";
-import { brand, formatMoney } from "@/lib/brand";
-import { fetchPublicMenu } from "@/lib/publicServer";
+import { formatMoney } from "@/lib/brand";
+import { fetchPublicMenu, getBrand } from "@/lib/publicServer";
 import type { MenuItemRecord } from "@/lib/apiClient";
 
 /** Prefer dishes that have photographs, then keep menu order. */
@@ -21,7 +21,7 @@ const steps: { icon: IconName; title: string; body: string }[] = [
 
 export default async function HomePage() {
   await connection();
-  const menu = await fetchPublicMenu();
+  const [menu, brand] = await Promise.all([fetchPublicMenu(), getBrand()]);
   const items = menu?.items ?? [];
   const categories = menu?.categories ?? [];
   const highlights = featured(items, 6);

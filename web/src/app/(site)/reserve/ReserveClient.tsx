@@ -12,7 +12,7 @@ import {
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
-import { brand } from "@/lib/brand";
+import { useBrand } from "@/components/BrandProvider";
 
 type Tab = "book" | "manage";
 
@@ -63,6 +63,7 @@ export function ReserveClient() {
 /* ------------------------------------------------------------------ */
 
 function BookForm() {
+  const brand = useBrand();
   const today = isoDate(new Date());
   const [tables, setTables] = useState<TablePublicStatusView[] | null>(null);
   const [tablesError, setTablesError] = useState("");

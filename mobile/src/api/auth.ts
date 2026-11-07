@@ -44,6 +44,12 @@ export async function loginCustomer(phone: string, password: string): Promise<Lo
 }
 
 export async function logoutCustomer(): Promise<void> {
+  // Stop push to this device for the account that is signing out.
+  const pushToken = await AsyncStorage.getItem('pushToken');
+  if (pushToken) {
+    await apiClient.delete(`/notifications/devices/${encodeURIComponent(pushToken)}`).catch(() => {});
+    await AsyncStorage.removeItem('pushToken');
+  }
   const refreshToken = await AsyncStorage.getItem('refreshToken');
   if (refreshToken) {
     await apiClient.post('/auth/logout', { refreshToken }).catch(() => {});

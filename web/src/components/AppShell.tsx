@@ -8,9 +8,10 @@ import { Icon } from "@/components/Icon";
 import { BrandMark, NavSidebar } from "@/components/NavSidebar";
 import { useStaffSession } from "@/components/SessionProvider";
 import { Skeleton } from "@/components/Skeleton";
+import { ServiceRequestsBell } from "@/components/ServiceRequestsBell";
 import { StaffAlerts } from "@/components/StaffAlerts";
 import { routeByRole } from "@/features/auth/auth";
-import { brand } from "@/lib/brand";
+import { useBrand } from "@/components/BrandProvider";
 import { bottomNavForRole, canAccessPath, isActivePath, navItemForPath } from "@/lib/navigation";
 
 const COLLAPSE_KEY = "staff-nav-collapsed";
@@ -36,6 +37,7 @@ function CenteredCard({ children }: { children: React.ReactNode }) {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const brand = useBrand();
   const pathname = usePathname();
   const router = useRouter();
   const { session, loading, logout } = useStaffSession();
@@ -187,6 +189,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Icon name="plus" size={16} /> New order
                 </Link>
               ) : null}
+              {role === "ADMIN" || role === "MANAGER" || role === "CASHIER" ? <ServiceRequestsBell dark={immersive} /> : null}
               <AccountMenu name={session.user.name} role={role} onSignOut={signOut} dark={immersive} />
             </div>
           </div>

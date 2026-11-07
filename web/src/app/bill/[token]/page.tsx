@@ -8,7 +8,8 @@ import { Skeleton } from "@/components/Skeleton";
 import { Icon } from "@/components/Icon";
 import { BrandMark } from "@/components/NavSidebar";
 import { StatusBadge } from "@/components/ui";
-import { brand, formatMoney } from "@/lib/brand";
+import { formatMoney } from "@/lib/brand";
+import { useBrand } from "@/components/BrandProvider";
 import { getPublicTableBill, getPublicTableTracking, type PublicOrderTrackingRecord, type TableBillRecord } from "@/lib/apiClient";
 
 
@@ -18,6 +19,7 @@ function toMoney(value: string): number {
 }
 
 export default function PublicBillPage() {
+  const brand = useBrand();
   const params = useParams<{ token: string }>();
   const [bill, setBill] = useState<TableBillRecord | null>(null);
   const [orders, setOrders] = useState<PublicOrderTrackingRecord[]>([]);

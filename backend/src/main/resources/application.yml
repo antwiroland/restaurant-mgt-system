@@ -68,6 +68,13 @@ management:
 app:
   public-web-url: ${PUBLIC_WEB_URL:http://localhost:3000}
   venue-name: ${VENUE_NAME:Restaurant}
+  timezone: ${APP_TIMEZONE:Africa/Accra}
+  push:
+    # "expo" sends through the Expo push service (Expo Go and EAS builds); "log" only writes messages to the log.
+    provider: ${PUSH_PROVIDER:log}
+    expo-endpoint: ${EXPO_PUSH_ENDPOINT:https://exp.host/--/api/v2/push/send}
+    # Optional: required only if "enhanced push security" is turned on for the Expo project.
+    expo-access-token: ${EXPO_ACCESS_TOKEN:}
   orders:
     # Branch for customer/guest orders that don't get one from a table, the staff creator,
     # the request or the delivery zone. Leave empty to use the only active branch (if there is one).

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "@/components/Icon";
-import { brand } from "@/lib/brand";
+import { useBrand } from "@/components/BrandProvider";
 import type { StaffRole } from "@/lib/apiClient";
 import { isActivePath, navForRole, navItemForPath, roleLabel } from "@/lib/navigation";
 
@@ -17,6 +17,7 @@ type NavSidebarProps = {
 };
 
 export function BrandMark({ size = 36 }: { size?: number }) {
+  const brand = useBrand();
   return (
     <span
       className="grid shrink-0 place-items-center rounded-[10px] bg-brand font-serif font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]"
@@ -29,6 +30,7 @@ export function BrandMark({ size = 36 }: { size?: number }) {
 }
 
 export function NavSidebar({ role, userName, collapsed = false, onNavigate, onSignOut, mobile = false }: NavSidebarProps) {
+  const brand = useBrand();
   const pathname = usePathname();
   const groups = navForRole(role);
   const current = navItemForPath(pathname);

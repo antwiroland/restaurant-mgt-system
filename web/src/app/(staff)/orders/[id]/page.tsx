@@ -7,12 +7,13 @@ import { Skeleton } from "@/components/Skeleton";
 import { useStaffSession } from "@/components/SessionProvider";
 import { BillBreakdown } from "@/components/BillBreakdown";
 import { SplitBillPanel } from "@/components/SplitBillPanel";
-import { cancelOrder, getOrderById, getOrderFeedback, type FeedbackRecord, type OrderRecord } from "@/lib/apiClient";
+import { cancelOrder, getOrderById, sendOrderToPrinter, getOrderFeedback, type FeedbackRecord, type OrderRecord } from "@/lib/apiClient";
 
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
   const { session, loading, authenticatedFetch } = useStaffSession();
   const [order, setOrder] = useState<OrderRecord | null>(null);
+  const [printNotice, setPrintNotice] = useState("");
   const [feedback, setFeedback] = useState<FeedbackRecord | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -67,8 +68,20 @@ export default function OrderDetailPage() {
   if (loading) return <main className="shell"><section className="panel grid gap-3"><Skeleton className="h-6 w-40" /><Skeleton className="h-32 w-full" /><Skeleton className="h-24 w-full" /></section></main>;
   if (!session) return <main className="shell"><section className="panel"><p className="kicker">Order</p><h1 className="heading-lg mt-1">Staff access required</h1><Link className="mt-4 inline-flex btn btn-primary" href="/login">Open Login</Link></section></main>;
 
+  async function sendToPrinter(kind: "receipt" | "kitchen") {
+    if (!order) return;
+    setPrintNotice("");
+    try {
+      const result = await authenticatedFetch((activeSession) => sendOrderToPrinter(activeSession, order.id, kind));
+      setPrintNotice(result.message);
+    } catch (err) {
+      setPrintNotice(err instanceof Error ? err.message : "Could not print");
+    }
+  }
+
   return (
     <main className="shell grid gap-4">
+      {printNotice ? <p className="alert alert-info" role="status">{printNotice}</p> : null}
       <section className="panel">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -80,7 +93,14 @@ export default function OrderDetailPage() {
               </p>
             ) : null}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {order ? (
+              <>
+                <a className="btn btn-secondary" href={`/print/receipt/${order.id}`} target="_blank" rel="noreferrer">Print receipt</a>
+                <a className="btn btn-secondary" href={`/print/kitchen/${order.id}`} target="_blank" rel="noreferrer">Print kitchen ticket</a>
+                <button type="button" className="btn btn-secondary" onClick={() => void sendToPrinter("receipt")}>Send receipt to printer</button>
+              </>
+            ) : null}
             <button
               type="button"
               className="btn btn-secondary disabled:opacity-60"

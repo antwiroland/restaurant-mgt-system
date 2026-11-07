@@ -1,5 +1,6 @@
 // Server-only module: imported exclusively from Server Components.
-import type { CategoryRecord, MenuItemRecord, MenuModifierGroupRecord, TablePublicStatusView } from "@/lib/apiClient";
+import type { CategoryRecord, MenuItemRecord, MenuModifierGroupRecord, RestaurantProfileRecord, TablePublicStatusView } from "@/lib/apiClient";
+import { brandFromProfile, type Brand } from "@/lib/brand";
 
 /**
  * Server-side reads of PUBLIC backend endpoints for customer pages.
@@ -51,4 +52,13 @@ export async function fetchPublicMenuItem(id: string) {
 
 export async function fetchPublicTables(): Promise<TablePublicStatusView[] | null> {
   return getJson<TablePublicStatusView[]>("/tables/public");
+}
+
+export async function fetchRestaurantProfile(): Promise<RestaurantProfileRecord | null> {
+  return getJson<RestaurantProfileRecord>("/restaurant/profile");
+}
+
+/** Restaurant identity for server components: the profile from the API, with env values as fallback. */
+export async function getBrand(): Promise<Brand> {
+  return brandFromProfile(await fetchRestaurantProfile());
 }

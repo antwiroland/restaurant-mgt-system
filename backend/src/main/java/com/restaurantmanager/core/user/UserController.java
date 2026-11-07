@@ -59,7 +59,7 @@ public class UserController {
     }
 
     @GetMapping("/me")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','CUSTOMER','RIDER')")
     public UserResponse me(@AuthenticationPrincipal UserPrincipal principal) {
         return userService.me(principal);
     }

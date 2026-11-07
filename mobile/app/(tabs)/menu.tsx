@@ -19,6 +19,10 @@ import { useOfflineStore } from '../../src/store/offline';
 import { OfflineBanner } from '../../src/components/OfflineBanner';
 import type { MenuCategory, MenuItem, MenuModifierGroup } from '../../src/types/api';
 import { brand, colors, money, radius, shadow } from '../../src/theme';
+import { fetchFavourites, setFavourite } from '../../src/api/favourites';
+import { t } from '../../src/i18n';
+import { useAuthStore } from '../../src/store/auth';
+import { Ionicons } from '@expo/vector-icons';
 
 const MENU_CACHE_KEY = 'menu_cache';
 const MENU_CACHE_TS_KEY = 'menu_cache_ts';
@@ -60,6 +64,31 @@ export default function MenuScreen() {
   const [modalError, setModalError] = useState('');
   const { addItem, itemCount } = useCartStore();
   const { isOnline } = useOfflineStore();
+  const canFavourite = useAuthStore((st) => st.isAuthenticated && st.role === 'CUSTOMER');
+  const [favouriteIds, setFavouriteIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!canFavourite) return;
+    fetchFavourites().then((items) => setFavouriteIds(new Set(items.map((i) => i.id)))).catch(() => {});
+  }, [canFavourite]);
+
+  async function toggleFavourite(item: MenuItem) {
+    const next = !favouriteIds.has(item.id);
+    setFavouriteIds((current) => {
+      const copy = new Set(current);
+      if (next) copy.add(item.id); else copy.delete(item.id);
+      return copy;
+    });
+    try {
+      await setFavourite(item.id, next);
+    } catch {
+      setFavouriteIds((current) => {
+        const copy = new Set(current);
+        if (next) copy.delete(item.id); else copy.add(item.id);
+        return copy;
+      });
+    }
+  }
 
   useEffect(() => {
     loadMenu();
@@ -291,6 +320,17 @@ export default function MenuScreen() {
               {item.description ? <Text style={styles.rowDesc} numberOfLines={2}>{item.description}</Text> : null}
               <View style={styles.rowFooter}>
                 <Text style={styles.rowPrice}>{money(item.price)}</Text>
+                {canFavourite ? (
+                  <TouchableOpacity
+                    onPress={() => void toggleFavourite(item)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={favouriteIds.has(item.id) ? t('favourites.remove') : t('favourites.add')}
+                    style={{ marginLeft: 'auto', marginRight: 12 }}
+                  >
+                    <Ionicons name={favouriteIds.has(item.id) ? 'heart' : 'heart-outline'} size={22} color={colors.brand} />
+                  </TouchableOpacity>
+                ) : null}
                 <TouchableOpacity style={styles.addBtn} onPress={() => void beginAdd(item)} accessibilityLabel={`Add ${item.name}`} hitSlop={8}>
                   <Text style={styles.addBtnText}>Add</Text>
                 </TouchableOpacity>

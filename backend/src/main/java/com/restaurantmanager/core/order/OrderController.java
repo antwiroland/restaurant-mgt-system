@@ -112,6 +112,18 @@ public class OrderController {
         return orderService.getOrder(id, principal);
     }
 
+    /** Kitchen: mark one item ready / not ready (the order follows automatically). */
+    @PatchMapping("/{id}/items/{itemId}/ready")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
+    public OrderResponse setItemReady(@PathVariable UUID id,
+                                      @PathVariable UUID itemId,
+                                      @RequestBody ItemReadyRequest request,
+                                      @AuthenticationPrincipal UserPrincipal principal) {
+        return orderService.setItemReady(id, itemId, request == null || request.ready() == null || request.ready(), principal);
+    }
+
+    public record ItemReadyRequest(Boolean ready) {}
+
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
     public OrderResponse updateStatus(@PathVariable UUID id,

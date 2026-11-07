@@ -3,7 +3,7 @@ import { useAuthStore } from '../src/store/auth';
 import { useEffect, useState } from 'react';
 
 export default function Index() {
-  const { restore, isAuthenticated, isGuest } = useAuthStore();
+  const { restore, isAuthenticated, isGuest, role } = useAuthStore();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -11,6 +11,7 @@ export default function Index() {
   }, []);
 
   if (!ready) return null;
+  if (isAuthenticated && role === 'RIDER') return <Redirect href="/rider" />;
   if (isAuthenticated || isGuest) return <Redirect href="/(tabs)/menu" />;
   return <Redirect href="/(auth)/login" />;
 }

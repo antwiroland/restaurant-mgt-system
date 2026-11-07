@@ -27,6 +27,7 @@ import {
   getTables,
   initiatePayment,
   quoteOrder,
+  sendOrderToPrinter,
   verifyPayment,
   type DeliveryZoneRecord,
   type MenuItemRecord,
@@ -99,6 +100,8 @@ export default function PosPage() {
   const [paymentId, setPaymentId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("MOBILE_MONEY");
   const [momoPhone, setMomoPhone] = useState("");
+  const [tendered, setTendered] = useState("");
+  const [changeDue, setChangeDue] = useState<number | null>(null);
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const [paymentRecord, setPaymentRecord] = useState<PaymentRecord | null>(null);
   const [paymentFieldErrors, setPaymentFieldErrors] = useState<{ createdOrderId?: string; momoPhone?: string }>({});
@@ -300,8 +303,13 @@ export default function PosPage() {
     if (!session) return;
     const nextFieldErrors: { createdOrderId?: string; momoPhone?: string } = {};
     if (!createdOrderId.trim()) nextFieldErrors.createdOrderId = "Order ID is required";
-    // The payment service requires a payer phone for every method (it is passed to the provider).
-    if (!momoPhone.trim()) nextFieldErrors.momoPhone = paymentMethod === "MOBILE_MONEY" ? "Enter the customer's MoMo number" : "Enter the customer's phone number";
+    const cash = paymentMethod === "CASH";
+    // Cash is recorded at the counter; MoMo and card go through the provider and need the payer's phone.
+    if (!cash && !momoPhone.trim()) nextFieldErrors.momoPhone = paymentMethod === "MOBILE_MONEY" ? "Enter the customer's MoMo number" : "Enter the customer's phone number";
+    const tenderedAmount = cash && tendered.trim() ? Number(tendered) : undefined;
+    if (cash && tenderedAmount !== undefined && createdOrder && tenderedAmount < Number(createdOrder.total)) {
+      nextFieldErrors.momoPhone = `Amount received is less than ${formatMoney(createdOrder.total)}`;
+    }
     if (Object.keys(nextFieldErrors).length > 0) {
       setPaymentFieldErrors(nextFieldErrors);
       return;
@@ -315,10 +323,12 @@ export default function PosPage() {
         initiatePayment(activeSession, {
           orderId: createdOrderId.trim(),
           method: paymentMethod,
-          momoPhone: momoPhone.trim(),
+          momoPhone: cash ? undefined : momoPhone.trim(),
+          amountTendered: tenderedAmount,
           idempotencyKey: `pos-${createdOrderId}-${Date.now()}`,
         }),
       );
+      setChangeDue(initiated.changeDue == null ? null : Number(initiated.changeDue));
       setPaymentId(initiated.paymentId);
       const payment = await authenticatedFetch((activeSession) => getPayment(activeSession, initiated.paymentId));
       setPaymentRecord(payment);
@@ -326,6 +336,16 @@ export default function PosPage() {
       setMessage({ tone: "danger", text: err instanceof Error ? err.message : "Could not initiate payment" });
     } finally {
       setSubmittingPayment(false);
+    }
+  }
+
+  async function sendReceipt() {
+    if (!createdOrderId) return;
+    try {
+      const result = await authenticatedFetch((activeSession) => sendOrderToPrinter(activeSession, createdOrderId, "receipt"));
+      setMessage({ tone: "success", text: result.message });
+    } catch (err) {
+      setMessage({ tone: "danger", text: err instanceof Error ? err.message : "Could not print receipt" });
     }
   }
 
@@ -350,6 +370,8 @@ export default function PosPage() {
     setPaymentId("");
     setPaymentRecord(null);
     setMomoPhone("");
+    setTendered("");
+    setChangeDue(null);
     setPaymentFieldErrors({});
     setMessage(null);
     searchRef.current?.focus();
@@ -755,7 +777,40 @@ export default function PosPage() {
                 <p className="mt-2 text-xs text-ink-muted">{PAYMENT_METHODS.find((m) => m.value === paymentMethod)?.hint}</p>
               </fieldset>
 
-              {(
+              {paymentMethod === "CASH" ? (
+                <div className="field mt-4">
+                  <label className="field-label" htmlFor="pos-tendered">Amount received <span className="font-normal text-ink-muted">(optional)</span></label>
+                  <input
+                    id="pos-tendered"
+                    className="input text-lg tabular"
+                    inputMode="decimal"
+                    value={tendered}
+                    onChange={(event) => setTendered(event.target.value.replace(/[^0-9.]/g, ""))}
+                    placeholder={createdOrder ? Number(createdOrder.total).toFixed(2) : "0.00"}
+                    aria-invalid={paymentFieldErrors.momoPhone ? true : undefined}
+                    aria-describedby={paymentFieldErrors.momoPhone ? "pos-momo-error" : undefined}
+                    disabled={!!paymentId && paymentRecord?.status === "SUCCESS"}
+                  />
+                  {createdOrder ? (
+                    <div className="flex flex-wrap gap-2" role="group" aria-label="Quick amounts">
+                      {Array.from(new Set([
+                        Number(createdOrder.total),
+                        Math.ceil(Number(createdOrder.total) / 10) * 10,
+                        Math.ceil(Number(createdOrder.total) / 50) * 50,
+                        Math.ceil(Number(createdOrder.total) / 100) * 100,
+                      ])).map((amount) => (
+                        <button key={amount} type="button" className="chip min-h-[40px]" onClick={() => setTendered(amount.toFixed(2))}>
+                          {amount === Number(createdOrder.total) ? "Exact" : formatMoney(amount)}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {tendered && createdOrder && Number(tendered) >= Number(createdOrder.total) && changeDue === null ? (
+                    <p className="text-sm font-semibold text-ink">Change to give: <span className="money">{formatMoney(Number(tendered) - Number(createdOrder.total))}</span></p>
+                  ) : null}
+                  {paymentFieldErrors.momoPhone ? <span id="pos-momo-error" className="field-error" role="alert">{paymentFieldErrors.momoPhone}</span> : null}
+                </div>
+              ) : (
                 <label className="field mt-4">
                   <span className="field-label">{paymentMethod === "MOBILE_MONEY" ? "Customer MoMo number" : "Customer phone"}</span>
                   <input
@@ -773,6 +828,11 @@ export default function PosPage() {
 
               {paymentRecord ? (
                 <div className={`mt-5 rounded-xl border p-4 ${paymentSettled ? "border-success-border bg-success-subtle" : "border-line bg-sunken"}`} role="status" aria-live="polite">
+                  {paymentSettled && changeDue !== null && changeDue > 0 ? (
+                    <p className="mb-3 rounded-lg bg-surface px-3 py-2 text-center font-display text-2xl font-extrabold text-ink">
+                      Change due <span className="money text-brand">{formatMoney(changeDue)}</span>
+                    </p>
+                  ) : null}
                   <div className="flex items-center justify-between gap-3">
                     <p className="flex items-center gap-2 font-display font-bold text-ink">
                       {paymentSettled ? <Icon name="checkCircle" className="text-success" /> : <Spinner size={16} />}
@@ -793,9 +853,21 @@ export default function PosPage() {
 
             <div className="grid gap-2 border-t border-line bg-ivory/70 px-4 py-3">
               {paymentSettled ? (
-                <button type="button" className="btn btn-success btn-xl btn-block" onClick={startNewOrder}>
-                  <Icon name="check" size={20} /> Done — start next order
-                </button>
+                <>
+                  {createdOrderId ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <a className="btn btn-secondary btn-md" href={`/print/receipt/${createdOrderId}`} target="_blank" rel="noreferrer">
+                        <Icon name="print" size={16} /> Print in browser
+                      </a>
+                      <button type="button" className="btn btn-secondary btn-md" onClick={() => void sendReceipt()}>
+                        <Icon name="receipt" size={16} /> Send to printer
+                      </button>
+                    </div>
+                  ) : null}
+                  <button type="button" className="btn btn-success btn-xl btn-block" onClick={startNewOrder}>
+                    <Icon name="check" size={20} /> Done — start next order
+                  </button>
+                </>
               ) : (
                 <>
                   <button type="button" className="btn btn-primary btn-xl btn-block" disabled={submittingPayment || (!!paymentId && paymentRecord?.status !== "FAILED")} onClick={() => void handleInitiatePayment()}>

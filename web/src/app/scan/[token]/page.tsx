@@ -10,7 +10,9 @@ import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { BrandMark } from "@/components/NavSidebar";
 import { FoodImage } from "@/components/site/FoodImage";
-import { brand, formatMoney } from "@/lib/brand";
+import { formatMoney } from "@/lib/brand";
+import { useBrand } from "@/components/BrandProvider";
+import { TableServiceButtons } from "@/components/TableServiceButtons";
 import { Spinner } from "@/components/Spinner";
 import {
   createPublicDineInOrder,
@@ -60,6 +62,7 @@ function buildInitialSelection(groups: MenuModifierGroupRecord[]): SelectionByGr
 }
 
 export default function GuestScanMenuPage() {
+  const brand = useBrand();
   const params = useParams<{ token: string }>();
   const [token, setToken] = useState("");
   const [table, setTable] = useState<TableScanRecord | null>(null);
@@ -383,6 +386,7 @@ export default function GuestScanMenuPage() {
       <div className="mx-auto max-w-3xl px-4">
         {/* Status messages + live orders */}
         <div className="-mt-3 grid gap-3">
+          {token && table ? <TableServiceButtons token={token} /> : null}
           {error ? (
             <p className="alert alert-danger shadow-sm" role="alert"><Icon name="alert" size={18} className="mt-0.5 shrink-0" />{error}</p>
           ) : null}

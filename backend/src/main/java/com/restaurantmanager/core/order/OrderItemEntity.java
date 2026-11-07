@@ -46,6 +46,13 @@ public class OrderItemEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    /** Set when the kitchen marks this item ready. */
+    @Column(name = "ready_at")
+    private Instant readyAt;
+
+    public Instant getReadyAt() { return readyAt; }
+    public void setReadyAt(Instant readyAt) { this.readyAt = readyAt; }
+
     @PrePersist
     public void prePersist() {
         if (id == null) {

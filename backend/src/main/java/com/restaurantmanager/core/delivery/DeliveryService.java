@@ -37,13 +37,16 @@ public class DeliveryService {
     private final OrderRealtimePublisher orderRealtimePublisher;
     private final SimpMessagingTemplate messagingTemplate;
     private final WhatsAppService whatsAppService;
+    private final com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications;
 
     public DeliveryService(DeliveryZoneRepository zoneRepository,
                            OrderRepository orderRepository,
                            UserRepository userRepository,
                            OrderRealtimePublisher orderRealtimePublisher,
                            SimpMessagingTemplate messagingTemplate,
-                           WhatsAppService whatsAppService) {
+                           WhatsAppService whatsAppService,
+            com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications) {
+        this.pushNotifications = pushNotifications;
         this.zoneRepository = zoneRepository;
         this.orderRepository = orderRepository;
         this.userRepository = userRepository;
@@ -138,6 +141,7 @@ public class DeliveryService {
         order.setRiderUserId(rider.getId());
         order.setRiderAssignedAt(Instant.now());
         orderRepository.save(order);
+        pushNotifications.riderAssigned(rider.getId(), order);
         publishDeliveryUpdate(order, rider);
         return toView(order, rider);
     }
@@ -159,6 +163,7 @@ public class DeliveryService {
         OrderStatus previous = order.getStatus();
         order.setStatus(OrderStatus.OUT_FOR_DELIVERY);
         orderRepository.save(order);
+        pushNotifications.orderStatusChanged(order, OrderStatus.OUT_FOR_DELIVERY);
         orderRealtimePublisher.publishOrderStatusChanged(order.getId(), previous, order.getStatus(), null);
         UserEntity rider = userRepository.findById(principal.userId()).orElse(null);
         notifyCustomer(order, "Your order is on the way" + (rider == null ? "" : " with " + rider.getName()));
@@ -176,6 +181,7 @@ public class DeliveryService {
         order.setStatus(OrderStatus.DELIVERED);
         order.setDeliveredAt(Instant.now());
         orderRepository.save(order);
+        pushNotifications.orderStatusChanged(order, OrderStatus.DELIVERED);
         orderRealtimePublisher.publishOrderStatusChanged(order.getId(), previous, order.getStatus(), null);
         notifyCustomer(order, "Your order has been delivered. Enjoy!");
         UserEntity rider = userRepository.findById(principal.userId()).orElse(null);

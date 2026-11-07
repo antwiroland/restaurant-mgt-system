@@ -5,17 +5,22 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { BrandMark } from "@/components/NavSidebar";
-import { brand } from "@/lib/brand";
+import { useBrand } from "@/components/BrandProvider";
+import { useStaffSession } from "@/components/SessionProvider";
+import { cartCount, useCart } from "@/lib/cart";
 
 const links = [
   { href: "/", label: "Home" },
-  { href: "/explore", label: "Menu" },
+  { href: "/explore", label: "Order online" },
   { href: "/reserve", label: "Reservations" },
   { href: "/#about", label: "About" },
   { href: "/#visit", label: "Visit" },
 ];
 
 export function SiteHeader() {
+  const brand = useBrand();
+  const { session } = useStaffSession();
+  const count = cartCount(useCart());
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -76,6 +81,13 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-1.5">
+          <Link href="/account" className="btn btn-ghost btn-icon" aria-label={session?.user.role === "CUSTOMER" ? `Account: ${session.user.name}` : "Sign in"}>
+            <Icon name="user" />
+          </Link>
+          <Link href="/cart" className="btn btn-ghost btn-icon relative" aria-label={count > 0 ? `Cart, ${count} item(s)` : "Cart"}>
+            <Icon name="bag" />
+            {count > 0 ? <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[11px] font-bold text-white" suppressHydrationWarning>{count}</span> : null}
+          </Link>
           <Link href="/explore#search" className="btn btn-ghost btn-icon" aria-label="Search the menu">
             <Icon name="search" />
           </Link>
