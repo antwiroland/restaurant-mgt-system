@@ -24,7 +24,8 @@ async function proxy(request: NextRequest, path: string[]): Promise<NextResponse
   };
 
   if (request.method !== "GET" && request.method !== "HEAD") {
-    init.body = await request.text();
+    // Read raw bytes so multipart uploads (menu images) and other binary bodies pass through intact.
+    init.body = await request.arrayBuffer();
   }
 
   let response: Response;
@@ -37,9 +38,10 @@ async function proxy(request: NextRequest, path: string[]): Promise<NextResponse
     );
   }
 
-  let body: string;
+  let body: ArrayBuffer;
   try {
-    body = await response.text();
+    // Raw bytes keep PDF/CSV downloads intact.
+    body = await response.arrayBuffer();
   } catch {
     return NextResponse.json(
       { message: "Backend response could not be read" },
@@ -54,14 +56,14 @@ async function proxy(request: NextRequest, path: string[]): Promise<NextResponse
   } else {
     forwardHeaders.set("content-type", "application/json");
   }
-  for (const header of ["x-page", "x-size", "x-total-elements", "x-total-pages"]) {
+  for (const header of ["content-disposition", "x-page", "x-size", "x-total-elements", "x-total-pages"]) {
     const value = response.headers.get(header);
     if (value) {
       forwardHeaders.set(header, value);
     }
   }
 
-  return new NextResponse(body, {
+  return new NextResponse(response.status === 204 ? null : body, {
     status: response.status,
     headers: forwardHeaders,
   });

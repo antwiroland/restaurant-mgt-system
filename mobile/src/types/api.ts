@@ -109,6 +109,56 @@ export type Order = {
   loyaltyPointsRedeemed?: number;
   loyaltyDiscount?: string;
   deliveryFee?: string;
+  serviceCharge?: string;
+  taxTotal?: string;
+  taxInclusive?: boolean;
+  tipAmount?: string;
+  taxLines?: TaxLine[];
+};
+
+export type TaxLine = { code: string; name: string; rate: string; amount: string };
+
+export type BillingConfig = {
+  serviceChargePercent: string;
+  serviceChargeDineInOnly: boolean;
+  pricesIncludeTax: boolean;
+  taxDeliveryFee: boolean;
+  tipsEnabled: boolean;
+  taxes: { id: string; code: string; name: string; rate: string; compound: boolean; displayOrder: number; active: boolean }[];
+};
+
+export type PaymentSplit = {
+  id: string;
+  orderId: string;
+  participantId?: string | null;
+  userId?: string | null;
+  displayName: string;
+  amount: string;
+  status: 'PENDING' | 'PAID' | 'CANCELLED';
+  paymentId?: string | null;
+  paidAt?: string | null;
+};
+
+export type Feedback = {
+  id: string;
+  orderId: string;
+  rating: number;
+  foodRating?: number | null;
+  serviceRating?: number | null;
+  deliveryRating?: number | null;
+  comment?: string | null;
+  response?: string | null;
+  respondedAt?: string | null;
+  createdAt: string;
+};
+
+export type FeedbackRequest = {
+  rating: number;
+  foodRating?: number;
+  serviceRating?: number;
+  deliveryRating?: number;
+  comment?: string;
+  guestName?: string;
 };
 
 export type CreateOrderRequest = {
@@ -122,6 +172,7 @@ export type CreateOrderRequest = {
   groupSessionId?: string;
   deliveryAddress?: string;
   notes?: string;
+  tipAmount?: number;
 };
 
 export type PaymentMethod = 'MOBILE_MONEY' | 'CARD';
@@ -154,6 +205,13 @@ export type Receipt = {
   currency: string;
   paymentMethod: PaymentMethod;
   paidAt: string;
+  discountTotal?: string;
+  deliveryFee?: string;
+  serviceCharge?: string;
+  taxTotal?: string;
+  taxInclusive?: boolean;
+  taxLines?: TaxLine[];
+  tipAmount?: string;
 };
 
 export type Reservation = {

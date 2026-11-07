@@ -1,7 +1,8 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useState } from "react";
+import { BillBreakdown } from "@/components/BillBreakdown";
 import { Skeleton } from "@/components/Skeleton";
 import { useStaffSession } from "@/components/SessionProvider";
 import { getReceiptByOrderId, getReceiptByPaymentId, type ReceiptRecord } from "@/lib/apiClient";
@@ -62,10 +63,24 @@ export default function ReceiptsPage() {
             <p><span className="font-semibold">Receipt:</span> {receipt.receiptNumber}</p>
             <p><span className="font-semibold">Order:</span> {receipt.orderId}</p>
             <p><span className="font-semibold">Payment:</span> {receipt.paymentId}</p>
-            <p><span className="font-semibold">Subtotal:</span> {receipt.currency} {receipt.subtotal}</p>
-            <p><span className="font-semibold">Total:</span> {receipt.currency} {receipt.total}</p>
             <p><span className="font-semibold">Method:</span> {receipt.paymentMethod}</p>
             <p><span className="font-semibold">Paid At:</span> {receipt.paidAt ? new Date(receipt.paidAt).toLocaleString() : "-"}</p>
+            <div className="mt-3">
+              <BillBreakdown
+                currency={receipt.currency}
+                subtotal={receipt.subtotal}
+                discountTotal={receipt.discountTotal}
+                deliveryFee={receipt.deliveryFee}
+                serviceCharge={receipt.serviceCharge}
+                taxLines={receipt.taxLines}
+                taxTotal={receipt.taxTotal}
+                taxInclusive={receipt.taxInclusive}
+                tipAmount={receipt.tipAmount}
+                total={receipt.total}
+                amountPaid={receipt.amountPaid}
+                refundedAmount={receipt.refundedAmount}
+              />
+            </div>
           </div>
         ) : (
           <p className="mt-3 text-sm text-ink-soft">No receipt loaded.</p>

@@ -30,6 +30,7 @@ const groups: NavGroup[] = [
       { label: "Pickup", href: "/orders/pickup", short: "PK" },
       { label: "Delivery", href: "/delivery", short: "DL", roles: ["ADMIN", "MANAGER", "CASHIER"] },
       { label: "My Deliveries", href: "/rider", short: "RD", roles: ["RIDER"] },
+      { label: "Schedule", href: "/schedule", short: "SC", roles: ["ADMIN", "MANAGER", "CASHIER", "RIDER"] },
     ],
   },
   {
@@ -41,6 +42,9 @@ const groups: NavGroup[] = [
       { label: "Receipts", href: "/receipts", short: "RC" },
       { label: "Shifts", href: "/shifts", short: "SH" },
       { label: "Offers", href: "/offers", short: "OF", roles: ["ADMIN", "MANAGER"] },
+      { label: "Inventory", href: "/inventory", short: "IN", roles: ["ADMIN", "MANAGER", "CASHIER"] },
+      { label: "Feedback", href: "/feedback", short: "FB", roles: ["ADMIN", "MANAGER"] },
+      { label: "Reports", href: "/reports", short: "RP", roles: ["ADMIN", "MANAGER"] },
     ],
   },
   {
@@ -48,8 +52,10 @@ const groups: NavGroup[] = [
     items: [
       { label: "Users", href: "/users", short: "US", roles: ["ADMIN", "MANAGER"] },
       { label: "Branches", href: "/branches", short: "BR", roles: ["ADMIN", "MANAGER"] },
+      { label: "Billing & Tax", href: "/billing", short: "BT", roles: ["ADMIN", "MANAGER"] },
       { label: "Audit Log", href: "/audit", short: "AL", roles: ["ADMIN", "MANAGER"] },
       { label: "Admin Panel", href: "/admin", short: "AP", roles: ["ADMIN", "MANAGER"] },
+      { label: "My Account", href: "/account", short: "MA" },
     ],
   },
 ];

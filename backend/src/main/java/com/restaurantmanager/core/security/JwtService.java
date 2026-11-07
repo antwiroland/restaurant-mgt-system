@@ -66,6 +66,8 @@ public class JwtService {
     private String generateToken(UUID userId, Role role, UUID branchId, TokenType tokenType, OverrideActionType actionType, Duration ttl) {
         Instant now = Instant.now();
         return Jwts.builder()
+                // Unique ID so two tokens issued in the same second differ (refresh_tokens.token_hash is unique).
+                .id(UUID.randomUUID().toString())
                 .subject(userId.toString())
                 .claim("role", role.name())
                 .claim("branchId", branchId == null ? null : branchId.toString())

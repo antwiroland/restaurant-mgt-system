@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { NavSidebar } from "@/components/NavSidebar";
+import { StaffAlerts } from "@/components/StaffAlerts";
 import { hasStaffRole, useStaffSession } from "@/components/SessionProvider";
 
 const bottomNavItems = [
@@ -68,7 +69,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
 
               <div className="flex items-center gap-2">
-                {session ? <span className="hidden text-sm text-ink-soft md:inline">{session.user.name}</span> : null}
+                {session ? (
+                  <Link href="/account" className="hidden text-sm text-ink-soft underline-offset-2 hover:underline md:inline">
+                    {session.user.name}
+                  </Link>
+                ) : null}
                 {canViewAdmin ? (
                   <Link href="/dashboard" className="btn btn-secondary btn-sm hidden sm:inline-flex">
                     Dashboard
@@ -95,6 +100,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </aside>
         </div>
       ) : null}
+
+      <StaffAlerts role={role} />
 
       <nav className="fixed inset-x-0 bottom-0 z-[var(--z-sticky)] grid grid-cols-5 border-t border-line bg-surface p-2 lg:hidden">
         {bottomNavItems.map((item) => {

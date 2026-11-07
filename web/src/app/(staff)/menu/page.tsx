@@ -1,8 +1,9 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { MenuItemExtrasDrawer } from "@/components/MenuItemExtrasDrawer";
 import { Modal } from "@/components/Modal";
 import { Skeleton } from "@/components/Skeleton";
 import { Spinner } from "@/components/Spinner";
@@ -41,6 +42,8 @@ export default function MenuManagementPage() {
   const [deletingCategory, setDeletingCategory] = useState<CategoryRecord | null>(null);
   const [deletingItem, setDeletingItem] = useState<MenuItemRecord | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [extrasItem, setExtrasItem] = useState<MenuItemRecord | null>(null);
+  const canManageMenu = session?.user.role === "ADMIN" || session?.user.role === "MANAGER";
   const filteredCategories = categories.filter((category) => {
     const normalizedQuery = categoryQuery.trim().toLowerCase();
     return !normalizedQuery
@@ -273,9 +276,15 @@ export default function MenuManagementPage() {
             {filteredItems.map((item) => (
               <li key={item.id} className="input">
                 <div className="flex items-center justify-between gap-2">
-                  <div>
+                  <div className="flex items-center gap-3">
+                    {item.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- images come from the configured media store
+                      <img src={item.imageUrl} alt="" className="h-12 w-12 rounded-md border border-line object-cover" />
+                    ) : null}
+                    <div>
                     <p className="font-medium">{item.name}</p>
                     <p className="text-xs text-ink-soft">GHS {item.price} - {item.available ? "available" : "unavailable"}</p>
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -294,6 +303,9 @@ export default function MenuManagementPage() {
                     >
                       Edit
                     </button>
+                    {canManageMenu ? (
+                      <button className="btn btn-secondary btn-sm" onClick={() => setExtrasItem(item)}>Photo &amp; recipe</button>
+                    ) : null}
                     <button className="btn btn-secondary btn-sm" onClick={() => void authenticatedFetch((s) => updateMenuItemAvailability(s, item.id, !item.available)).then(loadAll)}>{item.available ? "Disable" : "Enable"}</button>
                     <button className="btn btn-danger btn-sm" onClick={() => setDeletingItem(item)}>Delete</button>
                   </div>
@@ -440,6 +452,8 @@ export default function MenuManagementPage() {
           </label>
         </div>
       </Modal>
+
+      <MenuItemExtrasDrawer item={extrasItem} onClose={() => setExtrasItem(null)} onChanged={() => void loadAll()} />
     </main>
   );
 }

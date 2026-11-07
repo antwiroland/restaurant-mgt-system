@@ -400,3 +400,24 @@ Format: [Phase N - Title] followed by Added / Changed / Decisions.
 ### Migrations
 - `V9__order_pricing_financial_controls.sql`, `V10__table_mobile_sessions.sql`, `V11__otp_verification.sql`, `V12__delivery.sql`
 
+---
+
+## [Operations Expansion] - 2026-11-07
+
+### Added
+- Backend (commit `0f82bf3`): service charge, VAT/NHIL/GETFund taxes and tips on orders and receipts; split payments; ingredient inventory with recipes, stock ledger, low-stock alerts and auto-86; menu image upload (local or Cloudinary); customer feedback; CSV/PDF report exports; staff scheduling, time clock and timesheets; password reset, password change and email verification.
+- `GET /scheduling/staff` so managers (who cannot list users) can build the rota.
+- Web staff pages: `/billing` (service charge, tax rates, tips), `/inventory`, `/schedule` (time clock, weekly rota, timesheets), `/feedback`, `/reports`, `/account`.
+- Web public pages: `/forgot-password`, `/reset-password`, `/verify-email`; "Forgot password?" on the login page.
+- Web: itemised bill (discounts, service charge, each tax, tip) on order detail and receipts; split-bill panel on order detail; photo upload and recipe editor on the menu page; tip field on POS; admin "Send reset link" on Users; live low-stock and low-rating alerts in the app shell.
+- Mobile: tip choice and a note on service charge and taxes at checkout; itemised bill on the order screen; rate a completed or delivered order and see the restaurant's reply; split a group order by items and pay your own share by MoMo.
+
+### Fixed
+- Two logins by the same user within one second produced identical refresh tokens and failed with a 500 (unique `token_hash`). JWTs now carry a random `jti`.
+- The web API proxy read request and response bodies as text, which corrupted file uploads and PDF downloads. It now passes raw bytes and forwards `Content-Disposition`.
+
+### Migrations
+- `V13__billing_tax_tips.sql` to `V19__account_recovery.sql`
+
+### Verified
+- Backend: 258 tests pass (`mvn test`). Web: 29 Vitest tests, typecheck and production build. Mobile: 44 Vitest tests and typecheck.

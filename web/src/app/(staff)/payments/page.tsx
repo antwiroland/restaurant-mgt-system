@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
@@ -20,6 +20,7 @@ export default function PaymentsPage() {
   const [method, setMethod] = useState<PaymentMethod>("MOBILE_MONEY");
   const [momoPhone, setMomoPhone] = useState("");
   const [idem, setIdem] = useState("");
+  const [splitId, setSplitId] = useState("");
   const [lookupPaymentId, setLookupPaymentId] = useState("");
   const [payment, setPayment] = useState<PaymentRecord | null>(null);
   const [initResult, setInitResult] = useState<PaymentInitiateRecord | null>(null);
@@ -38,6 +39,7 @@ export default function PaymentsPage() {
           method,
           momoPhone,
           idempotencyKey: idem || `${orderId}-${Date.now()}`,
+          splitId: splitId.trim() || undefined,
         }),
       );
       setInitResult(result);
@@ -105,6 +107,7 @@ export default function PaymentsPage() {
           </select>
           <input className="input" inputMode="tel" placeholder="MoMo Phone" value={momoPhone} onChange={(e) => setMomoPhone(e.target.value)} required />
           <input className="input" placeholder="Idempotency key (optional)" value={idem} onChange={(e) => setIdem(e.target.value)} />
+          <input className="input" placeholder="Split share ID (only for split bills)" value={splitId} onChange={(e) => setSplitId(e.target.value)} />
           <button className="btn btn-primary">Initiate</button>
         </form>
 

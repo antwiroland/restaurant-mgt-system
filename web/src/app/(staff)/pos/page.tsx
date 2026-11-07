@@ -19,6 +19,7 @@ import {
   getMenuItems,
   getPayment,
   getTables,
+  getBillingConfig,
   initiatePayment,
   verifyPayment,
   type DeliveryZoneRecord,
@@ -51,6 +52,14 @@ export default function PosPage() {
   const [orderType, setOrderType] = useState<(typeof ORDER_TYPES)[number]["value"]>("DINE_IN");
   const [tableId, setTableId] = useState("");
   const [promoCode, setPromoCode] = useState("");
+  const [tipAmount, setTipAmount] = useState("");
+  const [tipsEnabled, setTipsEnabled] = useState(false);
+
+  useEffect(() => {
+    getBillingConfig()
+      .then((config) => setTipsEnabled(config.tipsEnabled))
+      .catch(() => setTipsEnabled(false));
+  }, []);
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [deliveryZoneId, setDeliveryZoneId] = useState("");
   const [deliveryZones, setDeliveryZones] = useState<DeliveryZoneRecord[]>([]);
@@ -162,6 +171,7 @@ export default function PosPage() {
     try {
       const payload = {
         ...buildOrderPayload(orderType, cart, tableId || undefined, promoCode),
+        ...(tipsEnabled && Number(tipAmount) > 0 ? { tipAmount: Number(Number(tipAmount).toFixed(2)) } : {}),
         ...(orderType === "DELIVERY"
           ? { deliveryAddress: deliveryAddress.trim(), deliveryZoneId: deliveryZoneId || undefined }
           : {}),
@@ -173,14 +183,19 @@ export default function PosPage() {
       setPaymentRecord(null);
       setCart([]);
       setPromoCode("");
+      setTipAmount("");
       setDeliveryAddress("");
       setDeliveryZoneId("");
       if (orderType !== "DINE_IN") setTableId("");
       const discount = Number(created.discountTotal ?? 0);
+      const extras = [
+        Number(created.serviceCharge ?? 0) > 0 ? `service GHS ${Number(created.serviceCharge).toFixed(2)}` : "",
+        Number(created.taxTotal ?? 0) > 0 ? `tax GHS ${Number(created.taxTotal).toFixed(2)}${created.taxInclusive ? " incl." : ""}` : "",
+        Number(created.tipAmount ?? 0) > 0 ? `tip GHS ${Number(created.tipAmount).toFixed(2)}` : "",
+      ].filter(Boolean);
       setMessage(
-        discount > 0
-          ? `Order ${created.id.slice(0, 8)} created with GHS ${discount.toFixed(2)} off. Total GHS ${Number(created.total).toFixed(2)}. Proceed to payment.`
-          : `Order ${created.id.slice(0, 8)} created. Proceed to payment.`,
+        `Order ${created.id.slice(0, 8)} created${discount > 0 ? ` with GHS ${discount.toFixed(2)} off` : ""}. ` +
+          `Total GHS ${Number(created.total).toFixed(2)}${extras.length ? ` (${extras.join(", ")})` : ""}. Proceed to payment.`,
       );
 
       setPaymentHighlight(true);
@@ -603,6 +618,22 @@ export default function PosPage() {
                   maxLength={30}
                 />
               </label>
+              {tipsEnabled ? (
+                <label className="grid gap-1 text-sm">
+                  <span className="text-xs uppercase tracking-[0.18em] text-ink-soft">Tip (GHS, optional)</span>
+                  <input
+                    className="input"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    inputMode="decimal"
+                    value={tipAmount}
+                    onChange={(e) => setTipAmount(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </label>
+              ) : null}
+              <p className="text-xs text-ink-soft">Service charge and taxes are added when the order is created.</p>
               <button className="btn btn-accent btn-lg w-full" disabled={submittingOrder} onClick={() => void handleCreateOrder()}>
                 {submittingOrder ? <Spinner className="text-current" /> : null}
                 Create Order

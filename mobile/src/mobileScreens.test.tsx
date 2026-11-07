@@ -94,6 +94,10 @@ vi.mock('./api/payment', () => ({
   initiatePayment,
 }));
 
+vi.mock('./api/billing', () => ({
+  fetchBillingConfig: vi.fn(() => Promise.reject(new Error('offline in tests'))),
+}));
+
 vi.mock('./api/tables', () => ({
   scanQrToken,
 }));

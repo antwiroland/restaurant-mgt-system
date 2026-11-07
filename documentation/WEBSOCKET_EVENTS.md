@@ -27,6 +27,8 @@ Both channels require a valid JWT. The token is passed as a query parameter on c
 | `/topic/public.tables.{qrToken}.orders` | Guests at a table  | Orders created / updated for the table   |
 | `/topic/group.{sessionCode}`         | Group participants    | Group cart updates                       |
 | `/topic/payments.status`, `/topic/payments.failed` | Cashier | All payment events               |
+| `/topic/inventory.alerts`            | Managers (web shell)  | Low stock, and items taken off / put back on the menu by stock levels (`ITEM_86`, `ITEM_BACK`) |
+| `/topic/feedback.alerts`             | Managers (web shell)  | Customer ratings of 2 stars or lower     |
 
 Per-order topics are keyed by unguessable order UUIDs. The STOMP endpoint is plain WebSocket at `/ws`, which both the web app and the mobile app (`@stomp/stompjs`) use.
 
