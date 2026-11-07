@@ -107,7 +107,7 @@ export function TrackOrderClient({ orderId }: { orderId: string }) {
     return (
       <section className="mx-auto max-w-md rounded-card border border-line bg-surface p-8 text-center">
         <p>Sign in to see this order.</p>
-        <Link href={`/account?next=/my-orders/${orderId}`} className="btn btn-primary mt-4">Sign in</Link>
+        <Link href={`/my-account?next=/my-orders/${orderId}`} className="btn btn-primary mt-4">Sign in</Link>
       </section>
     );
   }
@@ -126,7 +126,7 @@ export function TrackOrderClient({ orderId }: { orderId: string }) {
     <div className="mx-auto grid max-w-3xl gap-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Link href="/account" className="text-sm font-semibold text-brand hover:underline">← Your orders</Link>
+          <Link href="/my-account" className="text-sm font-semibold text-brand hover:underline">← Your orders</Link>
           <h1 className="heading-serif mt-2 text-4xl">Order #{order.id.slice(0, 8).toUpperCase()}</h1>
           <p className="mt-1 text-ink-soft">
             {order.type === "PICKUP" ? "Pickup" : order.type === "DELIVERY" ? "Delivery" : `Table ${order.tableNumber ?? ""}`} · {new Date(order.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}

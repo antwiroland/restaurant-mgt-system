@@ -31,7 +31,7 @@ export function FavouriteButton({ menuItemId }: { menuItemId: string }) {
 
   async function toggle() {
     if (!isCustomer) {
-      router.push(`/account?next=${encodeURIComponent(window.location.pathname)}`);
+      router.push(`/my-account?next=${encodeURIComponent(window.location.pathname)}`);
       return;
     }
     setBusy(true);

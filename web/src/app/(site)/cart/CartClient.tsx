@@ -313,7 +313,7 @@ export function CartClient() {
           <section className="rounded-card border border-line bg-cream/60 p-5 text-center">
             <p className="font-display font-bold">{session ? "Staff accounts can't order here" : t("checkout.signInToOrder")}</p>
             <p className="mt-1 text-sm text-ink-soft">{t("checkout.signInHint")}</p>
-            {!session ? <Link href="/account?next=/cart" className="btn btn-primary btn-block mt-4">{t("common.signIn")} / {t("common.createAccount")}</Link> : null}
+            {!session ? <Link href="/my-account?next=/cart" className="btn btn-primary btn-block mt-4">{t("common.signIn")} / {t("common.createAccount")}</Link> : null}
           </section>
         )}
       </aside>

@@ -81,7 +81,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-1.5">
-          <Link href="/account" className="btn btn-ghost btn-icon" aria-label={session?.user.role === "CUSTOMER" ? `Account: ${session.user.name}` : "Sign in"}>
+          <Link href="/my-account" className="btn btn-ghost btn-icon" aria-label={session?.user.role === "CUSTOMER" ? `Account: ${session.user.name}` : "Sign in"}>
             <Icon name="user" />
           </Link>
           <Link href="/cart" className="btn btn-ghost btn-icon relative" aria-label={count > 0 ? `Cart, ${count} item(s)` : "Cart"}>

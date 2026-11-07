@@ -88,7 +88,7 @@ function SignIn() {
   }
 
   function done() {
-    router.replace(next && next.startsWith("/") ? next : "/account");
+    router.replace(next && next.startsWith("/") ? next : "/my-account");
   }
 
   async function run(action: () => Promise<void>) {
