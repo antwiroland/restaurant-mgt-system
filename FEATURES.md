@@ -243,9 +243,20 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Actuator health and Prometheus metrics, Zipkin tracing, OpenAPI/Swagger UI
 - Tests:
   - 258 backend tests (H2), including integration suites for financial operations, order pricing, OTP, delivery, QR sessions, billing, split payments, inventory, feedback, reports, workforce and account recovery, plus HTTP client tests against mock servers
-  - Web: 29 Vitest tests and a production build
-  - Mobile: 44 Vitest tests and a typecheck
+  - Web: 39 Vitest tests and a production build (39 routes)
+  - Mobile: 48 Vitest tests and a typecheck
   - An optional Postgres + Flyway smoke profile (`-Ppostgres-it`)
+- **Local development without Docker** (`scripts/dev/`):
+  - `run-backend-local.sh` runs the backend on an H2 file database. It needs no Postgres or Redis; payments use the Paystack stub, and SMS, WhatsApp and email are only logged
+  - `seed_local.py` loads related test data through the real API:
+    - 6 staff accounts covering every role, plus 5 customers
+    - 2 branches, 16 tables, a 17-dish menu with options, and recipes linked to stock
+    - Billing settings: 5% service charge, NHIL, GETFund levy and VAT
+    - 3 delivery zones, promo codes and a buy-X-get-Y offer
+    - About 90 orders with 30 days of history: kitchen tickets at every stage, deliveries assigned to riders, customer reviews
+    - Reservations, a week of staff rota, an open cash shift and an open group-order session
+  - `run-web-local.sh` builds the web app for a given backend port and serves it
+  - Steps are in `documentation/DEPLOYMENT_READINESS.md` → "Local test environment"
 
 ---
 
@@ -263,6 +274,11 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - **Item-level "ready" on the KDS** (the API tracks status per order, not per item)
 - **Restaurant profile API** (name, hours and address are set with environment variables)
 - **Multi-language / localization**
+
+### Known issues (found while seeding local test data)
+- **Orders from the mobile app have no branch.** An order takes its creator's branch, and customers have none. Staff assigned to a branch (cashiers, managers) get `403` when they try to update these orders, and don't see them in their order list or on the KDS. Only staff without a branch, such as the admin, can process them. Fix: give the order a branch (from a branch picker, the delivery zone or a default branch), or let branch-scoped staff see orders with no branch
+- **Two logins in the same second fail with a 500 error.** Refresh tokens have no unique ID (`jti`) and their issue time is in whole seconds, so two logins by the same user within one second produce the same token and break the unique index. A double-tap on "Sign in" can trigger it, and it makes `AccountRecoveryIntegrationTest` fail depending on timing. Fix: add `.id(UUID.randomUUID().toString())` to the token builder in `JwtService`
+- ~~Dashboard "Best sellers" names were blank~~ ✅ Fixed: the API sends top items as `name` but the web read `itemName`; the web client now accepts both
 
 ### Platform & operations
 - **CI/CD pipeline**: no `.github/workflows` or other CI config yet
@@ -285,7 +301,8 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 
 ## 3. Suggested Priority
 
-1. **Verify before merging**: the Postgres Flyway check for V9–V19, then a click-through of the new web pages and mobile flows
-2. **Sandbox the providers**: Paystack test keys, a WhatsApp Cloud API test number, a Hubtel or Arkesel sender ID, an SMTP account, and Cloudinary (or a mounted volume for local images)
-3. **CI/CD and production hardening**: secrets, TLS, lock down admin tools, and a pipeline running backend, web and mobile tests plus the Postgres check
-4. **Push notifications**, then receipt printing and customer web ordering
+1. **Verify before merging**: the Postgres Flyway check for V9–V19, then a click-through of the web and mobile flows using the seeded local environment (`scripts/dev/`)
+2. **Fix the two known issues** above: branchless app orders and the same-second refresh-token collision
+3. **Sandbox the providers**: Paystack test keys, a WhatsApp Cloud API test number, a Hubtel or Arkesel sender ID, an SMTP account, and Cloudinary (or a mounted volume for local images)
+4. **CI/CD and production hardening**: secrets, TLS, lock down admin tools, and a pipeline running backend, web and mobile tests plus the Postgres check
+5. **Push notifications**, then receipt printing and customer web ordering

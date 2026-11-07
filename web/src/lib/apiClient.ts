@@ -95,6 +95,11 @@ export type AnalyticsTopItemRecord = {
   revenue: string;
 };
 
+/** The API sends top items as `{ name }`; the UI reads `itemName`. Accept both. */
+function normalizeTopItems(rows: Array<AnalyticsTopItemRecord & { name?: string }> | undefined): AnalyticsTopItemRecord[] {
+  return (rows ?? []).map((row) => ({ ...row, itemName: row.itemName ?? row.name ?? "" }));
+}
+
 export type AnalyticsPeakHourRecord = {
   hour: number;
   orders: number;
@@ -1373,7 +1378,7 @@ export async function getAnalyticsTopItems(
   if (params?.branchId) query.set("branchId", params.branchId);
   if (params?.limit) query.set("limit", String(params.limit));
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<AnalyticsTopItemRecord[]>(`/analytics/top-items${suffix}`, { token: session.accessToken });
+  return normalizeTopItems(await apiRequest<AnalyticsTopItemRecord[]>(`/analytics/top-items${suffix}`, { token: session.accessToken }));
 }
 
 export async function getAnalyticsPeakHours(
@@ -1410,7 +1415,8 @@ export async function getAnalyticsOverview(
   if (params?.branchId) query.set("branchId", params.branchId);
   if (params?.period) query.set("period", params.period);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<AnalyticsOverviewRecord>(`/analytics/overview${suffix}`, { token: session.accessToken });
+  const overview = await apiRequest<AnalyticsOverviewRecord>(`/analytics/overview${suffix}`, { token: session.accessToken });
+  return { ...overview, topItems: normalizeTopItems(overview.topItems) };
 }
 
 export type TableSessionRecord = {

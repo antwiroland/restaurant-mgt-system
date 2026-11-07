@@ -24,3 +24,7 @@ Thumbs.db
 # Locally stored media uploads
 backend/uploads/
 uploads/
+
+# Python
+__pycache__/
+*.pyc
