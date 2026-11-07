@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { AccountMenu } from "@/components/AccountMenu";
 import { Icon } from "@/components/Icon";
 import { BrandMark, NavSidebar } from "@/components/NavSidebar";
 import { useStaffSession } from "@/components/SessionProvider";
@@ -36,7 +37,11 @@ function CenteredCard({ children }: { children: React.ReactNode }) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { session, loading, logout } = useStaffSession();
+  const signOut = () => {
+    void logout().finally(() => router.replace("/login"));
+  };
   // Safe as lazy state: the first (server + hydration) render is the loading
   // skeleton, which does not depend on this preference.
   const [collapsed, setCollapsed] = useState(() => (typeof window === "undefined" ? false : readCollapsed()));
@@ -136,7 +141,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           role={role}
           userName={session.user.name}
           collapsed={collapsed}
-          onSignOut={() => void logout()}
+          onSignOut={signOut}
         />
       </aside>
 
@@ -182,13 +187,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Icon name="plus" size={16} /> New order
                 </Link>
               ) : null}
-              <span
-                className={`grid h-9 w-9 place-items-center rounded-full text-sm font-bold lg:hidden ${immersive ? "bg-night-card text-gold" : "bg-espresso text-gold"}`}
-                aria-label={`Signed in as ${session.user.name}`}
-                title={session.user.name}
-              >
-                {session.user.name.charAt(0).toUpperCase()}
-              </span>
+              <AccountMenu name={session.user.name} role={role} onSignOut={signOut} dark={immersive} />
             </div>
           </div>
         </header>
@@ -227,7 +226,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               userName={session.user.name}
               mobile
               onNavigate={() => setMobileOpen(false)}
-              onSignOut={() => void logout()}
+              onSignOut={signOut}
             />
           </aside>
         </div>

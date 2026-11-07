@@ -35,10 +35,10 @@ export function NavSidebar({ role, userName, collapsed = false, onNavigate, onSi
 
   return (
     <nav
-      className="flex h-full flex-col bg-espresso text-espresso-ink"
+      className="flex h-full min-h-0 flex-col bg-espresso text-espresso-ink"
       aria-label="Staff navigation"
     >
-      <div className={`flex items-center gap-3 border-b border-espresso-line ${collapsed ? "justify-center px-2 py-5" : "px-5 py-5"} ${mobile ? "pt-6" : ""}`}>
+      <div className={`flex shrink-0 items-center gap-3 border-b border-espresso-line ${collapsed ? "justify-center px-2 py-5" : "px-5 py-5"} ${mobile ? "pt-6" : ""}`}>
         <BrandMark />
         {!collapsed ? (
           <div className="min-w-0">
@@ -48,7 +48,7 @@ export function NavSidebar({ role, userName, collapsed = false, onNavigate, onSi
         ) : null}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-4 [scrollbar-color:var(--color-espresso-line)_transparent]">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 [scrollbar-color:var(--color-espresso-line)_transparent]">
         <div className="grid gap-5">
           {groups.map((group) => (
             <section key={group.title} className="grid gap-1">
@@ -86,7 +86,7 @@ export function NavSidebar({ role, userName, collapsed = false, onNavigate, onSi
         </div>
       </div>
 
-      <div className={`border-t border-espresso-line ${collapsed ? "px-2 py-3" : "p-3"}`}>
+      <div className={`shrink-0 border-t border-espresso-line ${collapsed ? "px-2 py-3" : "p-3"}`}>
         {!collapsed && userName ? (
           <div className="mb-2 flex items-center gap-3 rounded-lg px-2 py-2">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-espresso-raised text-sm font-bold text-gold">
