@@ -98,6 +98,21 @@ export default function GroupSessionScreen() {
         }
       />
 
+      {session.orderId ? (
+        <View style={styles.placedCard}>
+          <Text style={styles.placedText}>
+            The group order has been placed. Open it to track it and, if the bill is split, pay your share.
+          </Text>
+          <TouchableOpacity
+            style={styles.finalizeBtn}
+            onPress={() => router.push(`/order/${session.orderId}`)}
+            accessibilityRole="button"
+          >
+            <Text style={styles.finalizeBtnText}>View order</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       {session.status === 'OPEN' ? (
         <TouchableOpacity style={styles.finalizeBtn} onPress={handleFinalize} disabled={finalizing}>
           {finalizing ? <ActivityIndicator color={colors.white} /> : <Text style={styles.finalizeBtnText}>Finalize & Place Order</Text>}
@@ -109,6 +124,8 @@ export default function GroupSessionScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.canvas },
+  placedCard: { paddingHorizontal: 12, paddingTop: 8 },
+  placedText: { fontSize: 13, color: colors.inkSoft, marginHorizontal: 12 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   error: { fontSize: 16, color: colors.inkSoft },
   header: { backgroundColor: colors.white, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

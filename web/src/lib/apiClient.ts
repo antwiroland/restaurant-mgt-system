@@ -204,6 +204,15 @@ export type ReceiptRecord = {
   currency: string;
   paymentMethod: PaymentMethod;
   paidAt?: string;
+  discountTotal?: string;
+  deliveryFee?: string;
+  serviceCharge?: string;
+  taxTotal?: string;
+  taxInclusive?: boolean;
+  taxLines?: TaxLineRecord[];
+  tipAmount?: string;
+  amountPaid?: string;
+  refundedAmount?: string;
 };
 
 export type ShiftStatus = "OPEN" | "CLOSED";
@@ -351,7 +360,14 @@ export type OrderRecord = {
   voidedAt?: string | null;
   deliveryZoneId?: string | null;
   riderUserId?: string | null;
+  serviceCharge?: string;
+  taxTotal?: string;
+  taxInclusive?: boolean;
+  tipAmount?: string;
+  taxLines?: TaxLineRecord[];
 };
+
+export type TaxLineRecord = { code: string; name: string; rate: string; amount: string };
 
 export type GroupParticipantRecord = {
   participantId: string;
@@ -939,6 +955,7 @@ export async function createOrder(
     notes?: string;
     promoCode?: string;
     deliveryZoneId?: string;
+    tipAmount?: number;
     items: { menuItemId: string; quantity: number; notes?: string; modifierOptionIds?: string[] }[];
   },
 ): Promise<OrderRecord> {
@@ -1296,7 +1313,7 @@ export async function cancelReservation(session: StaffSession, reservationId: st
 
 export async function initiatePayment(
   session: StaffSession,
-  payload: { orderId: string; method: PaymentMethod; momoPhone: string; idempotencyKey: string },
+  payload: { orderId: string; method: PaymentMethod; momoPhone: string; idempotencyKey: string; splitId?: string },
 ): Promise<PaymentInitiateRecord> {
   return apiRequest<PaymentInitiateRecord>("/payments/initiate", {
     method: "POST",
@@ -1528,8 +1545,508 @@ export async function getDeliveryTracking(session: StaffSession, orderId: string
   return apiRequest<DeliveryRecord>(`/delivery/orders/${orderId}/tracking`, { token: session.accessToken });
 }
 
+// ---------------------------------------------------------------------------
+// Downloads and uploads (raw fetch: not JSON)
+// ---------------------------------------------------------------------------
+
+export type DownloadedFile = { blob: Blob; filename: string };
+
+async function rawError(response: Response, fallback: string): Promise<Error> {
+  const payload = await parseResponse<{ message?: string } | string | undefined>(response).catch(() => undefined);
+  const message = typeof payload === "object" && payload?.message ? payload.message : `${fallback} (status ${response.status})`;
+  return new Error(message);
+}
+
+async function downloadFile(session: StaffSession, path: string, fallbackName: string): Promise<DownloadedFile> {
+  const response = await fetch(`${API_PREFIX}${path}`, {
+    headers: { Authorization: `Bearer ${session.accessToken}` },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw await rawError(response, "Download failed");
+  }
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+  return { blob: await response.blob(), filename: match ? decodeURIComponent(match[1]) : fallbackName };
+}
+
+/** Saves a downloaded file through a temporary object URL. */
+export function saveDownloadedFile(file: DownloadedFile): void {
+  const url = URL.createObjectURL(file.blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = file.filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function query(params: Record<string, string | number | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") search.set(key, String(value));
+  }
+  const text = search.toString();
+  return text ? `?${text}` : "";
+}
+
+// ---------------------------------------------------------------------------
+// Billing: service charge, taxes, tips
+// ---------------------------------------------------------------------------
+
+export type TaxRateRecord = {
+  id: string;
+  code: string;
+  name: string;
+  rate: string;
+  compound: boolean;
+  displayOrder: number;
+  active: boolean;
+};
+
+export type BillingConfigRecord = {
+  serviceChargePercent: string;
+  serviceChargeDineInOnly: boolean;
+  pricesIncludeTax: boolean;
+  taxDeliveryFee: boolean;
+  tipsEnabled: boolean;
+  taxes: TaxRateRecord[];
+};
+
+export type BillingSettingsRequest = {
+  serviceChargePercent: number;
+  serviceChargeDineInOnly: boolean;
+  pricesIncludeTax: boolean;
+  taxDeliveryFee: boolean;
+  tipsEnabled: boolean;
+};
+
+export type TaxRateRequest = {
+  code: string;
+  name: string;
+  rate: number;
+  compound: boolean;
+  displayOrder?: number;
+  active?: boolean;
+};
+
+export async function getBillingConfig(): Promise<BillingConfigRecord> {
+  return apiRequest<BillingConfigRecord>("/billing/settings");
+}
+
+export async function updateBillingSettings(session: StaffSession, payload: BillingSettingsRequest): Promise<BillingConfigRecord> {
+  return apiRequest<BillingConfigRecord>("/billing/settings", { method: "PUT", token: session.accessToken, body: payload });
+}
+
+export async function createTaxRate(session: StaffSession, payload: TaxRateRequest): Promise<TaxRateRecord> {
+  return apiRequest<TaxRateRecord>("/billing/taxes", { method: "POST", token: session.accessToken, body: payload });
+}
+
+export async function updateTaxRate(session: StaffSession, id: string, payload: TaxRateRequest): Promise<TaxRateRecord> {
+  return apiRequest<TaxRateRecord>(`/billing/taxes/${id}`, { method: "PUT", token: session.accessToken, body: payload });
+}
+
+export async function deleteTaxRate(session: StaffSession, id: string): Promise<void> {
+  await apiRequest<void>(`/billing/taxes/${id}`, { method: "DELETE", token: session.accessToken });
+}
+
+// ---------------------------------------------------------------------------
+// Split payments
+// ---------------------------------------------------------------------------
+
+export type SplitMode = "BY_ITEMS" | "EQUAL";
+
+export type PaymentSplitRecord = {
+  id: string;
+  orderId: string;
+  participantId?: string | null;
+  userId?: string | null;
+  displayName: string;
+  amount: string;
+  status: "PENDING" | "PAID" | "CANCELLED";
+  paymentId?: string | null;
+  paidAt?: string | null;
+};
+
+export async function getOrderSplits(session: StaffSession, orderId: string): Promise<PaymentSplitRecord[]> {
+  return apiRequest<PaymentSplitRecord[]>(`/orders/${orderId}/splits`, { token: session.accessToken });
+}
+
+export async function createOrderSplits(
+  session: StaffSession,
+  orderId: string,
+  payload: { mode: SplitMode; parts?: number; names?: string[] },
+): Promise<PaymentSplitRecord[]> {
+  return apiRequest<PaymentSplitRecord[]>(`/orders/${orderId}/splits`, { method: "POST", token: session.accessToken, body: payload });
+}
+
+// ---------------------------------------------------------------------------
+// Inventory
+// ---------------------------------------------------------------------------
+
+export type IngredientRecord = {
+  id: string;
+  name: string;
+  unit: string;
+  stockQuantity: string;
+  lowStockThreshold: string;
+  costPerUnit?: string | null;
+  low: boolean;
+  active: boolean;
+  updatedAt: string;
+};
+
+export type IngredientRequest = {
+  name: string;
+  unit: string;
+  lowStockThreshold?: number;
+  costPerUnit?: number;
+  initialStock?: number;
+  active?: boolean;
+};
+
+export type StockMovementReason = "RESTOCK" | "ORDER" | "ORDER_CANCELLED" | "WASTE" | "ADJUSTMENT";
+
+export type StockMovementRecord = {
+  id: string;
+  changeQuantity: string;
+  balanceAfter: string;
+  reason: StockMovementReason;
+  orderId?: string | null;
+  note?: string | null;
+  actorUserId?: string | null;
+  createdAt: string;
+};
+
+export type RecipeLineRecord = { ingredientId: string; ingredientName: string; unit: string; quantity: string };
+
+export async function getIngredients(session: StaffSession): Promise<IngredientRecord[]> {
+  return apiRequest<IngredientRecord[]>("/inventory/ingredients", { token: session.accessToken });
+}
+
+export async function getLowStock(session: StaffSession): Promise<IngredientRecord[]> {
+  return apiRequest<IngredientRecord[]>("/inventory/low-stock", { token: session.accessToken });
+}
+
+export async function createIngredient(session: StaffSession, payload: IngredientRequest): Promise<IngredientRecord> {
+  return apiRequest<IngredientRecord>("/inventory/ingredients", { method: "POST", token: session.accessToken, body: payload });
+}
+
+export async function updateIngredient(session: StaffSession, id: string, payload: IngredientRequest): Promise<IngredientRecord> {
+  return apiRequest<IngredientRecord>(`/inventory/ingredients/${id}`, { method: "PUT", token: session.accessToken, body: payload });
+}
+
+export async function restockIngredient(session: StaffSession, id: string, quantity: number, note?: string): Promise<IngredientRecord> {
+  return apiRequest<IngredientRecord>(`/inventory/ingredients/${id}/restock`, {
+    method: "POST",
+    token: session.accessToken,
+    body: { quantity, note },
+  });
+}
+
+export async function adjustIngredient(
+  session: StaffSession,
+  id: string,
+  payload: { reason: "WASTE" | "ADJUSTMENT"; delta?: number; countedQuantity?: number; note?: string },
+): Promise<IngredientRecord> {
+  return apiRequest<IngredientRecord>(`/inventory/ingredients/${id}/adjust`, { method: "POST", token: session.accessToken, body: payload });
+}
+
+export async function getStockMovements(session: StaffSession, id: string): Promise<StockMovementRecord[]> {
+  return apiRequest<StockMovementRecord[]>(`/inventory/ingredients/${id}/movements`, { token: session.accessToken });
+}
+
+export async function getRecipe(session: StaffSession, menuItemId: string): Promise<RecipeLineRecord[]> {
+  return apiRequest<RecipeLineRecord[]>(`/inventory/menu-items/${menuItemId}/recipe`, { token: session.accessToken });
+}
+
+export async function setRecipe(
+  session: StaffSession,
+  menuItemId: string,
+  lines: { ingredientId: string; quantity: number }[],
+): Promise<RecipeLineRecord[]> {
+  return apiRequest<RecipeLineRecord[]>(`/inventory/menu-items/${menuItemId}/recipe`, { method: "PUT", token: session.accessToken, body: lines });
+}
+
+// ---------------------------------------------------------------------------
+// Menu item images
+// ---------------------------------------------------------------------------
+
+export async function uploadMenuItemImage(session: StaffSession, menuItemId: string, file: File): Promise<{ menuItemId: string; imageUrl: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(`${API_PREFIX}/menu/items/${menuItemId}/image`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${session.accessToken}` },
+    body: form,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw await rawError(response, "Upload failed");
+  }
+  return parseResponse<{ menuItemId: string; imageUrl: string }>(response);
+}
+
+export async function removeMenuItemImage(session: StaffSession, menuItemId: string): Promise<void> {
+  await apiRequest<void>(`/menu/items/${menuItemId}/image`, { method: "DELETE", token: session.accessToken });
+}
+
+// ---------------------------------------------------------------------------
+// Customer feedback
+// ---------------------------------------------------------------------------
+
+export type FeedbackRecord = {
+  id: string;
+  orderId: string;
+  customerUserId?: string | null;
+  customerName?: string | null;
+  rating: number;
+  foodRating?: number | null;
+  serviceRating?: number | null;
+  deliveryRating?: number | null;
+  comment?: string | null;
+  response?: string | null;
+  respondedAt?: string | null;
+  createdAt: string;
+};
+
+export type FeedbackSummaryRecord = {
+  count: number;
+  averageRating?: string | null;
+  averageFood?: string | null;
+  averageService?: string | null;
+  averageDelivery?: string | null;
+  distribution: Record<string, number>;
+  lowRatings: number;
+  responded: number;
+};
+
+export type FeedbackRequest = {
+  rating: number;
+  foodRating?: number;
+  serviceRating?: number;
+  deliveryRating?: number;
+  comment?: string;
+  guestName?: string;
+};
+
+export async function getFeedback(
+  session: StaffSession,
+  params: { from?: string; to?: string; maxRating?: number } = {},
+): Promise<FeedbackRecord[]> {
+  return apiRequest<FeedbackRecord[]>(`/feedback${query(params)}`, { token: session.accessToken });
+}
+
+export async function getFeedbackSummary(session: StaffSession, params: { from?: string; to?: string } = {}): Promise<FeedbackSummaryRecord> {
+  return apiRequest<FeedbackSummaryRecord>(`/feedback/summary${query(params)}`, { token: session.accessToken });
+}
+
+export async function respondToFeedback(session: StaffSession, id: string, response: string): Promise<FeedbackRecord> {
+  return apiRequest<FeedbackRecord>(`/feedback/${id}/respond`, { method: "POST", token: session.accessToken, body: { response } });
+}
+
+export async function getOrderFeedback(session: StaffSession, orderId: string): Promise<FeedbackRecord | undefined> {
+  return apiRequest<FeedbackRecord | undefined>(`/orders/${orderId}/feedback`, { token: session.accessToken });
+}
+
+/** Public: a dine-in guest rates their order from the table QR page. */
+export async function submitGuestFeedback(tableToken: string, orderId: string, payload: FeedbackRequest): Promise<FeedbackRecord> {
+  return apiRequest<FeedbackRecord>(
+    `/orders/public/dine-in/tables/${encodeURIComponent(tableToken)}/orders/${orderId}/feedback`,
+    { method: "POST", body: payload },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Report exports (CSV / PDF)
+// ---------------------------------------------------------------------------
+
+export type ReportFormat = "CSV" | "PDF";
+export type ReportKind = "sales" | "reconciliation" | "audit" | "timesheet";
+
+export async function downloadReport(
+  session: StaffSession,
+  kind: ReportKind,
+  params: { from?: string; to?: string; date?: string; branchId?: string; format: ReportFormat },
+): Promise<DownloadedFile> {
+  const ext = params.format === "PDF" ? "pdf" : "csv";
+  return downloadFile(session, `/reports/${kind}${query(params)}`, `${kind}-report.${ext}`);
+}
+
+// ---------------------------------------------------------------------------
+// Workforce: scheduling and timesheets
+// ---------------------------------------------------------------------------
+
+export type ScheduleRecord = {
+  id: string;
+  userId: string;
+  userName: string;
+  branchId?: string | null;
+  startsAt: string;
+  endsAt: string;
+  minutes: number;
+  position?: string | null;
+  notes?: string | null;
+};
+
+export type ScheduleRequest = {
+  userId: string;
+  branchId?: string;
+  startsAt: string;
+  endsAt: string;
+  position?: string;
+  notes?: string;
+};
+
+export type TimeEntryRecord = {
+  id: string;
+  userId: string;
+  scheduleId?: string | null;
+  clockInAt: string;
+  clockOutAt?: string | null;
+  breakMinutes: number;
+  workedMinutes: number;
+  lateMinutes: number;
+  notes?: string | null;
+  editReason?: string | null;
+  open: boolean;
+};
+
+export type TimesheetRowRecord = {
+  userId: string;
+  name: string;
+  role: string;
+  workedMinutes: number;
+  scheduledMinutes: number;
+  overtimeMinutes: number;
+  lateArrivals: number;
+  missedShifts: number;
+  entryCount: number;
+  entries: TimeEntryRecord[];
+};
+
+export async function getSchedules(session: StaffSession, from: string, to: string, userId?: string): Promise<ScheduleRecord[]> {
+  return apiRequest<ScheduleRecord[]>(`/scheduling/shifts${query({ from, to, userId })}`, { token: session.accessToken });
+}
+
+export async function getMySchedules(session: StaffSession, from: string, to: string): Promise<ScheduleRecord[]> {
+  return apiRequest<ScheduleRecord[]>(`/scheduling/my-shifts${query({ from, to })}`, { token: session.accessToken });
+}
+
+export async function createSchedule(session: StaffSession, payload: ScheduleRequest): Promise<ScheduleRecord> {
+  return apiRequest<ScheduleRecord>("/scheduling/shifts", { method: "POST", token: session.accessToken, body: payload });
+}
+
+export async function updateSchedule(session: StaffSession, id: string, payload: ScheduleRequest): Promise<ScheduleRecord> {
+  return apiRequest<ScheduleRecord>(`/scheduling/shifts/${id}`, { method: "PUT", token: session.accessToken, body: payload });
+}
+
+export async function deleteSchedule(session: StaffSession, id: string): Promise<void> {
+  await apiRequest<void>(`/scheduling/shifts/${id}`, { method: "DELETE", token: session.accessToken });
+}
+
+export async function getClockStatus(session: StaffSession): Promise<TimeEntryRecord | undefined> {
+  return apiRequest<TimeEntryRecord | undefined>("/timeclock/status", { token: session.accessToken });
+}
+
+export async function clockIn(session: StaffSession, notes?: string): Promise<TimeEntryRecord> {
+  return apiRequest<TimeEntryRecord>("/timeclock/clock-in", { method: "POST", token: session.accessToken, body: { notes } });
+}
+
+export async function clockOut(session: StaffSession, breakMinutes?: number): Promise<TimeEntryRecord> {
+  return apiRequest<TimeEntryRecord>("/timeclock/clock-out", { method: "POST", token: session.accessToken, body: { breakMinutes } });
+}
+
+export async function editTimeEntry(
+  session: StaffSession,
+  id: string,
+  payload: { clockInAt?: string; clockOutAt?: string; breakMinutes?: number; reason: string },
+): Promise<TimeEntryRecord> {
+  return apiRequest<TimeEntryRecord>(`/timeclock/entries/${id}`, { method: "PUT", token: session.accessToken, body: payload });
+}
+
+export async function getTimesheet(session: StaffSession, from: string, to: string, userId?: string): Promise<TimesheetRowRecord[]> {
+  return apiRequest<TimesheetRowRecord[]>(`/timeclock/timesheet${query({ from, to, userId })}`, { token: session.accessToken });
+}
+
+export async function getMyTimesheet(session: StaffSession, from: string, to: string): Promise<TimesheetRowRecord[]> {
+  return apiRequest<TimesheetRowRecord[]>(`/timeclock/my-timesheet${query({ from, to })}`, { token: session.accessToken });
+}
+
+// ---------------------------------------------------------------------------
+// Account recovery
+// ---------------------------------------------------------------------------
+
+export async function requestPasswordReset(emailOrPhone: string): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>("/auth/password/forgot", { method: "POST", body: { emailOrPhone } });
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  await apiRequest<void>("/auth/password/reset", { method: "POST", body: { token, newPassword } });
+}
+
+export async function changePassword(session: StaffSession, currentPassword: string, newPassword: string): Promise<void> {
+  await apiRequest<void>("/auth/password/change", { method: "POST", token: session.accessToken, body: { currentPassword, newPassword } });
+}
+
+export async function requestEmailVerification(session: StaffSession): Promise<void> {
+  await apiRequest<void>("/auth/email/verification", { method: "POST", token: session.accessToken });
+}
+
+export async function verifyEmail(token: string): Promise<void> {
+  await apiRequest<void>("/auth/email/verify", { method: "POST", body: { token } });
+}
+
+export async function adminResetUserPassword(session: StaffSession, userId: string): Promise<void> {
+  await apiRequest<void>(`/users/${userId}/password-reset`, { method: "POST", token: session.accessToken });
+}
+
+export type StaffMemberRecord = { id: string; name: string; role: StaffRole; branchId?: string | null };
+
+/** Staff who can be put on the rota (managers and admins). */
+export async function getSchedulableStaff(session: StaffSession): Promise<StaffMemberRecord[]> {
+  return apiRequest<StaffMemberRecord[]>("/scheduling/staff", { token: session.accessToken });
+}
+
+// ---------------------------------------------------------------------------
+// Guest split payments (public, scoped to the table QR token)
+// ---------------------------------------------------------------------------
+
+function guestOrderPath(tableToken: string, orderId: string): string {
+  return `/orders/public/dine-in/tables/${encodeURIComponent(tableToken)}/orders/${orderId}`;
+}
+
+export async function getGuestSplits(tableToken: string, orderId: string): Promise<PaymentSplitRecord[]> {
+  return apiRequest<PaymentSplitRecord[]>(`${guestOrderPath(tableToken, orderId)}/splits`);
+}
+
+export async function createGuestSplits(tableToken: string, orderId: string, parts: number, names?: string[]): Promise<PaymentSplitRecord[]> {
+  return apiRequest<PaymentSplitRecord[]>(`${guestOrderPath(tableToken, orderId)}/splits`, {
+    method: "POST",
+    body: { parts, names: names && names.length > 0 ? names : undefined },
+  });
+}
+
+export async function payGuestSplit(
+  tableToken: string,
+  orderId: string,
+  splitId: string,
+  momoPhone: string,
+  idempotencyKey: string,
+): Promise<PaymentInitiateRecord> {
+  return apiRequest<PaymentInitiateRecord>(`${guestOrderPath(tableToken, orderId)}/splits/${splitId}/pay`, {
+    method: "POST",
+    body: { momoPhone, idempotencyKey },
+  });
+}
+
+export async function verifyGuestPayment(tableToken: string, orderId: string, paymentId: string): Promise<PaymentRecord> {
+  return apiRequest<PaymentRecord>(`${guestOrderPath(tableToken, orderId)}/payments/${paymentId}/verify`, { method: "POST" });
+}
+
 /* ------------------------------------------------------------------ */
-/* Public (no sign-in) customer endpoints                              */
+/* Public customer endpoints and order quote (UI redesign)             */
 /* ------------------------------------------------------------------ */
 
 export async function getPublicMenuItem(menuItemId: string): Promise<MenuItemRecord> {
@@ -1556,34 +2073,6 @@ export async function cancelGuestReservation(reservationId: string, phone: strin
   return apiRequest<void>(`/reservations/${reservationId}/guest-cancel`, { method: "POST", body: { phone } });
 }
 
-/* ------------------------------------------------------------------ */
-/* Menu images (ADMIN / MANAGER)                                       */
-/* ------------------------------------------------------------------ */
-
-export async function uploadMenuItemImage(session: StaffSession, menuItemId: string, file: File): Promise<{ imageUrl: string }> {
-  const body = new FormData();
-  body.append("file", file);
-  const response = await fetch(`${API_PREFIX}/menu/items/${menuItemId}/image`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${session.accessToken}` },
-    body,
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    const payload = await parseResponse<{ message?: string } | undefined>(response).catch(() => undefined);
-    throw new Error(payload?.message ?? `Upload failed with status ${response.status}`);
-  }
-  return parseResponse<{ imageUrl: string }>(response);
-}
-
-export async function removeMenuItemImage(session: StaffSession, menuItemId: string): Promise<void> {
-  return apiRequest<void>(`/menu/items/${menuItemId}/image`, { method: "DELETE", token: session.accessToken });
-}
-
-/* ------------------------------------------------------------------ */
-/* Order quote — server-side pricing preview (discounts, fees, tax)    */
-/* ------------------------------------------------------------------ */
-
 export type OrderQuoteRecord = {
   subtotal: string;
   offerDiscount: string;
@@ -1606,26 +2095,4 @@ export async function quoteOrder(
   payload: Parameters<typeof createOrder>[1],
 ): Promise<OrderQuoteRecord> {
   return apiRequest<OrderQuoteRecord>("/orders/quote", { method: "POST", token: session.accessToken, body: payload });
-}
-
-/* ------------------------------------------------------------------ */
-/* Account recovery                                                    */
-/* ------------------------------------------------------------------ */
-
-/** Always resolves for unknown accounts too (the API does not reveal who exists). */
-export async function requestPasswordReset(emailOrPhone: string): Promise<void> {
-  return apiRequest<void>("/auth/password/forgot", { method: "POST", body: { emailOrPhone } });
-}
-
-export async function resetPassword(token: string, newPassword: string): Promise<void> {
-  return apiRequest<void>("/auth/password/reset", { method: "POST", body: { token, newPassword } });
-}
-
-export async function verifyEmailToken(token: string): Promise<void> {
-  return apiRequest<void>("/auth/email/verify", { method: "POST", body: { token } });
-}
-
-/** ADMIN: send the user a reset link by email (or SMS when they have no email). */
-export async function sendUserPasswordReset(session: StaffSession, userId: string): Promise<void> {
-  return apiRequest<void>(`/users/${userId}/password-reset`, { method: "POST", token: session.accessToken });
 }

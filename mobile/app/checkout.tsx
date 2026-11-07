@@ -19,7 +19,9 @@ import { useAuthStore } from '../src/store/auth';
 import { fetchMyAddresses, saveMyAddress } from '../src/api/user';
 import { fetchLoyaltyBalance } from '../src/api/loyalty';
 import { fetchDeliveryZones, type DeliveryZone } from '../src/api/delivery';
-import type { CustomerAddress, LoyaltyBalance, PaymentMethod, OrderType } from '../src/types/api';
+import { fetchBillingConfig } from '../src/api/billing';
+import { billingNote, TIP_CHOICES, tipAmountFor, type TipChoice } from '../src/features/billing/billing';
+import type { BillingConfig, CustomerAddress, LoyaltyBalance, PaymentMethod, OrderType } from '../src/types/api';
 import { colors } from '../src/theme';
 
 export default function CheckoutScreen() {
@@ -37,6 +39,13 @@ export default function CheckoutScreen() {
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [zoneId, setZoneId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [billing, setBilling] = useState<BillingConfig | null>(null);
+  const [tipChoice, setTipChoice] = useState<TipChoice>('NONE');
+  const [customTip, setCustomTip] = useState('');
+
+  useEffect(() => {
+    fetchBillingConfig().then(setBilling).catch(() => setBilling(null));
+  }, []);
 
   const selectedAddress = useMemo(
     () => addresses.find((address) => address.id === selectedAddressId) ?? null,
@@ -44,6 +53,10 @@ export default function CheckoutScreen() {
   );
 
   const effectiveOrderType = tableId ? 'DINE_IN' : orderType;
+  // Guest table orders use the public endpoint, which does not take tips.
+  const tipsAvailable = !!billing?.tipsEnabled && !isGuest;
+  const tipAmount = tipsAvailable ? tipAmountFor(tipChoice, total(), customTip) : 0;
+  const chargesNote = billingNote(billing, effectiveOrderType as OrderType);
   const orderPayload = {
     type: effectiveOrderType as OrderType,
     tableId: tableId ?? undefined,
@@ -58,6 +71,7 @@ export default function CheckoutScreen() {
     loyaltyPointsToRedeem: usePoints && loyaltyBalance && loyaltyBalance.points > 0 ? loyaltyBalance.points : undefined,
     deliveryAddress: effectiveOrderType === 'DELIVERY' ? deliveryAddress.trim() : undefined,
     deliveryZoneId: effectiveOrderType === 'DELIVERY' && zoneId ? zoneId : undefined,
+    tipAmount: tipAmount > 0 ? tipAmount : undefined,
   };
   const selectedZone = zones.find((zone) => zone.id === zoneId) ?? null;
   const deliveryFee = effectiveOrderType === 'DELIVERY' && selectedZone ? Number(selectedZone.fee) : 0;
@@ -178,9 +192,16 @@ export default function CheckoutScreen() {
         );
         clear();
         const savings = Number(order.discountTotal ?? 0);
-        const summary = savings > 0
-          ? `You saved GHS ${savings.toFixed(2)}. Total GHS ${Number(order.total).toFixed(2)}.\n${payment.message}`
-          : payment.message;
+        const charges = [
+          Number(order.serviceCharge ?? 0) > 0 ? `service charge GHS ${Number(order.serviceCharge).toFixed(2)}` : '',
+          Number(order.taxTotal ?? 0) > 0 ? `tax GHS ${Number(order.taxTotal).toFixed(2)}${order.taxInclusive ? ' (included)' : ''}` : '',
+          Number(order.tipAmount ?? 0) > 0 ? `tip GHS ${Number(order.tipAmount).toFixed(2)}` : '',
+        ].filter(Boolean);
+        const summary = [
+          savings > 0 ? `You saved GHS ${savings.toFixed(2)}.` : '',
+          `Total GHS ${Number(order.total).toFixed(2)}${charges.length ? ` incl. ${charges.join(', ')}` : ''}.`,
+          payment.message,
+        ].filter(Boolean).join('\n');
         Alert.alert('Payment initiated', summary, [
           {
             text: 'Track Order',
@@ -316,6 +337,41 @@ export default function CheckoutScreen() {
         </View>
       )}
 
+      {tipsAvailable && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Add a tip</Text>
+          <View style={styles.tipRow} accessibilityRole="radiogroup">
+            {TIP_CHOICES.map((choice) => {
+              const active = tipChoice === choice;
+              return (
+                <TouchableOpacity
+                  key={choice}
+                  style={[styles.tipChip, active && styles.typeOptionActive]}
+                  onPress={() => setTipChoice(choice)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={[styles.typeText, active && styles.typeTextActive]}>
+                    {choice === 'NONE' ? 'No tip' : choice === 'CUSTOM' ? 'Other' : `${choice}%`}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {tipChoice === 'CUSTOM' && (
+            <TextInput
+              style={styles.input}
+              placeholder="Tip amount in GHS"
+              value={customTip}
+              onChangeText={setCustomTip}
+              keyboardType="decimal-pad"
+              accessibilityLabel="Custom tip amount in Ghana cedis"
+            />
+          )}
+          <Text style={styles.hint}>Tips are never taxed.</Text>
+        </View>
+      )}
+
       <View style={styles.section}>
         {loyaltyBalance && isAuthenticated && (
           <View style={styles.loyaltyRow}>
@@ -343,10 +399,17 @@ export default function CheckoutScreen() {
             <Text style={styles.summaryValue}>GHS {deliveryFee.toFixed(2)}</Text>
           </View>
         )}
+        {tipAmount > 0 && (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Tip</Text>
+            <Text style={styles.summaryValue}>GHS {tipAmount.toFixed(2)}</Text>
+          </View>
+        )}
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabelBold}>Total</Text>
-          <Text style={styles.summaryValueBold}>GHS {(total() + deliveryFee).toFixed(2)}</Text>
+          <Text style={styles.summaryLabelBold}>{chargesNote ? 'Subtotal' : 'Total'}</Text>
+          <Text style={styles.summaryValueBold}>GHS {(total() + deliveryFee + tipAmount).toFixed(2)}</Text>
         </View>
+        {chargesNote ? <Text style={styles.hint}>{chargesNote}</Text> : null}
       </View>
 
       {!isOnline && (
@@ -416,6 +479,8 @@ const styles = StyleSheet.create({
   addressText: { fontSize: 13, color: colors.inkSoft },
   addressTextActive: { color: colors.brandPressed },
   loyaltyHint: { fontSize: 13, color: colors.brandPressed, marginBottom: 8, fontWeight: '600', flex: 1 },
+  tipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  tipChip: { borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 14, minHeight: 44 },
   loyaltyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
 });
 

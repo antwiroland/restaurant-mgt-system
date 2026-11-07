@@ -51,8 +51,8 @@ describe("role-aware navigation", () => {
     expect(canAccessPath("CASHIER", "/menu")).toBe(false);
   });
 
-  test("riders only see their deliveries", () => {
-    expect(navForRole("RIDER").flatMap((g) => g.items.map((i) => i.href))).toEqual(["/rider"]);
+  test("riders only see their deliveries, schedule and account", () => {
+    expect(navForRole("RIDER").flatMap((g) => g.items.map((i) => i.href))).toEqual(["/rider", "/schedule", "/account"]);
     expect(canAccessPath("RIDER", "/pos")).toBe(false);
   });
 

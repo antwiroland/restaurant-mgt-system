@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
-import { requestPasswordReset, resetPassword, verifyEmailToken } from "@/lib/apiClient";
+import { requestPasswordReset, resetPassword, verifyEmail } from "@/lib/apiClient";
 
 export function ForgotPasswordForm() {
   const [value, setValue] = useState("");
@@ -128,7 +128,7 @@ export function VerifyEmail({ token }: { token: string }) {
   useEffect(() => {
     if (!token || started.current) return;
     started.current = true;
-    verifyEmailToken(token)
+    verifyEmail(token)
       .then(() => setState("done"))
       .catch((err) => {
         setMessage(err instanceof Error ? err.message : "This link is invalid or has expired.");
@@ -149,8 +149,8 @@ export function VerifyEmail({ token }: { token: string }) {
   }
   return (
     <div className="grid gap-4">
-      <p className="alert alert-danger" role="alert">{message}</p>
-      <Link href="/" className="btn btn-secondary btn-md btn-block">Go to homepage</Link>
+      <p className="alert alert-danger" role="alert">{message} Staff can send a new link from My Account.</p>
+      <Link href="/account" className="btn btn-secondary btn-md btn-block">Open My Account</Link>
     </div>
   );
 }

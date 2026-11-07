@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity, Alert, Linking } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { BillLines } from '../../src/components/BillLines';
+import { RateOrder } from '../../src/components/RateOrder';
+import { SplitShares } from '../../src/components/SplitShares';
+import { useAuthStore } from '../../src/store/auth';
 import { fetchOrder, cancelOrder, fetchReceipt } from '../../src/api/orders';
 import { fetchPayment, verifyPayment } from '../../src/api/payment';
 import type { Order, Receipt } from '../../src/types/api';
@@ -23,7 +27,9 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function OrderTrackingScreen() {
-  const { id, paymentId } = useLocalSearchParams<{ id: string; paymentId?: string }>();
+  const { id, paymentId: initialPaymentId } = useLocalSearchParams<{ id: string; paymentId?: string }>();
+  const [paymentId, setPaymentId] = useState<string | undefined>(initialPaymentId);
+  const { userId, isAuthenticated } = useAuthStore();
   const [order, setOrder] = useState<Order | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,7 +68,7 @@ export default function OrderTrackingScreen() {
           pendingPaymentPollsRef.current = 0;
         }
       }
-      if (nextOrder.status === 'COMPLETED') {
+      if (nextOrder.status === 'COMPLETED' || nextOrder.status === 'DELIVERED') {
         fetchReceipt(id).then(setReceipt).catch(() => {});
       }
     } finally {
@@ -185,11 +191,28 @@ export default function OrderTrackingScreen() {
             <Text style={styles.itemPrice}>GHS {item.totalPrice}</Text>
           </View>
         ))}
-        <View style={styles.totalLine}>
-          <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>GHS {order.total}</Text>
+        <View style={{ marginTop: 8 }}>
+          <BillLines
+            subtotal={order.subtotal}
+            discountTotal={order.discountTotal}
+            deliveryFee={order.deliveryFee}
+            serviceCharge={order.serviceCharge}
+            taxLines={order.taxLines}
+            taxTotal={order.taxTotal}
+            taxInclusive={order.taxInclusive}
+            tipAmount={order.tipAmount}
+            total={order.total}
+          />
         </View>
       </View>
+
+      {isAuthenticated ? (
+        <SplitShares order={order} userId={userId} onPaymentStarted={(nextPaymentId) => setPaymentId(nextPaymentId)} />
+      ) : null}
+
+      {isAuthenticated && (order.status === 'COMPLETED' || order.status === 'DELIVERED') ? (
+        <RateOrder orderId={order.id} orderType={order.type} />
+      ) : null}
 
       {receipt && (
         <View style={styles.section}>

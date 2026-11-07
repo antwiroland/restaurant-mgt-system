@@ -19,6 +19,7 @@ import {
 import { useStaffSession } from "@/components/SessionProvider";
 import {
   createOrder,
+  getBillingConfig,
   getDeliveryZones,
   getMenuItemModifiers,
   getMenuItems,
@@ -72,6 +73,8 @@ export default function PosPage() {
   const [tableId, setTableId] = useState("");
   const [promoCode, setPromoCode] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
+  const [tipAmount, setTipAmount] = useState("");
+  const [tipsEnabled, setTipsEnabled] = useState(false);
   const [showExtras, setShowExtras] = useState(false);
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [deliveryZoneId, setDeliveryZoneId] = useState("");
@@ -103,6 +106,12 @@ export default function PosPage() {
   const searchRef = useRef<HTMLInputElement>(null);
 
   /* ---------------------------- Data ---------------------------- */
+  useEffect(() => {
+    getBillingConfig()
+      .then((config) => setTipsEnabled(config.tipsEnabled))
+      .catch(() => setTipsEnabled(false));
+  }, []);
+
   useEffect(() => {
     if (!session) return;
     authenticatedFetch(async (activeSession) => {
@@ -168,9 +177,10 @@ export default function PosPage() {
   const payload = useMemo(
     () => ({
       ...buildOrderPayload(orderType, cart, tableId || undefined, promoCode, orderNotes),
+      ...(tipsEnabled && Number(tipAmount) > 0 ? { tipAmount: Number(Number(tipAmount).toFixed(2)) } : {}),
       ...(orderType === "DELIVERY" ? { deliveryAddress: deliveryAddress.trim() || undefined, deliveryZoneId: deliveryZoneId || undefined } : {}),
     }),
-    [cart, deliveryAddress, deliveryZoneId, orderNotes, orderType, promoCode, tableId],
+    [cart, deliveryAddress, deliveryZoneId, orderNotes, orderType, promoCode, tableId, tipAmount, tipsEnabled],
   );
 
   /* Live server-side pricing (discounts, fees, service charge, tax). */
@@ -265,6 +275,7 @@ export default function PosPage() {
       setCart([]);
       setPromoCode("");
       setOrderNotes("");
+      setTipAmount("");
       setShowExtras(false);
       setDeliveryAddress("");
       setDeliveryZoneId("");
@@ -650,13 +661,16 @@ export default function PosPage() {
             {/* Totals + submit */}
             <div className="border-t border-line bg-ivory/70 px-4 py-3">
               <button type="button" className="mb-2 flex w-full items-center justify-between text-sm font-semibold text-ink-soft hover:text-ink" onClick={() => setShowExtras((v) => !v)} aria-expanded={showExtras}>
-                <span className="flex items-center gap-2"><Icon name="tag" size={16} /> Promo code &amp; order note{promoCode || orderNotes ? " · added" : ""}</span>
+                <span className="flex items-center gap-2"><Icon name="tag" size={16} /> Promo, {tipsEnabled ? "tip, " : ""}order note{promoCode || orderNotes || tipAmount ? " · added" : ""}</span>
                 <Icon name="chevronDown" size={16} className={`transition-transform ${showExtras ? "rotate-180" : ""}`} />
               </button>
               {showExtras ? (
                 <div className="mb-3 grid gap-2">
                   <input className="input min-h-[40px] py-2 text-sm uppercase" value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="Promo code" maxLength={30} aria-label="Promo code" />
                   <input className="input min-h-[40px] py-2 text-sm" value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} placeholder="Note for the whole order" maxLength={500} aria-label="Order note" />
+                  {tipsEnabled ? (
+                    <input className="input min-h-[40px] py-2 text-sm" type="number" min={0} step="0.01" inputMode="decimal" value={tipAmount} onChange={(e) => setTipAmount(e.target.value)} placeholder="Tip amount (optional)" aria-label="Tip amount" />
+                  ) : null}
                 </div>
               ) : null}
 
@@ -666,6 +680,7 @@ export default function PosPage() {
                 {quote && Number(quote.promoDiscount) > 0 ? <Row label={`Promo ${quote.promoCode ?? ""}`} value={`− ${formatMoney(quote.promoDiscount)}`} tone="success" /> : null}
                 {quote && Number(quote.deliveryFee) > 0 ? <Row label="Delivery" value={formatMoney(quote.deliveryFee)} /> : null}
                 {quote && Number(quote.serviceCharge ?? 0) > 0 ? <Row label="Service charge" value={formatMoney(quote.serviceCharge)} /> : null}
+                {quote && Number(quote.tipAmount ?? 0) > 0 ? <Row label="Tip" value={formatMoney(quote.tipAmount)} /> : null}
                 {quote?.taxLines?.map((tax) => (
                   <Row key={tax.code} label={`${tax.name}${quote.taxInclusive ? " (incl.)" : ""}`} value={formatMoney(tax.amount)} muted={quote.taxInclusive} />
                 ))}

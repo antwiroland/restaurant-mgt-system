@@ -8,7 +8,7 @@ import { Spinner } from "@/components/Spinner";
 import { PageHeader } from "@/components/ui";
 import { roleLabel } from "@/lib/navigation";
 import { hasStaffRole, useStaffSession } from "@/components/SessionProvider";
-import { assignUserRole, getBranches, getUsers, registerUser, sendUserPasswordReset, setUserPin, type BranchRecord, type StaffRole, type UserRecord } from "@/lib/apiClient";
+import { assignUserRole, getBranches, getUsers, registerUser, adminResetUserPassword, setUserPin, type BranchRecord, type StaffRole, type UserRecord } from "@/lib/apiClient";
 
 const STAFF_ROLES: StaffRole[] = ["ADMIN", "MANAGER", "CASHIER", "RIDER", "CUSTOMER"];
 
@@ -38,8 +38,8 @@ export default function UsersPage() {
     setError("");
     setMessage("");
     try {
-      await authenticatedFetch((activeSession) => sendUserPasswordReset(activeSession, user.id));
-      setMessage(`Reset link sent to ${user.name}${user.email ? " by email" : " by SMS"}.`);
+      await authenticatedFetch((activeSession) => adminResetUserPassword(activeSession, user.id));
+      setMessage(`Reset link sent to ${user.name}${user.email ? " by email" : " by SMS"}. They are signed out everywhere once they set a new password.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send reset link");
     } finally {
@@ -229,9 +229,11 @@ export default function UsersPage() {
                   maxLength={4}
                 />
                 <button className="btn btn-secondary btn-sm" onClick={() => void applyPin(user)}>Set PIN</button>
-                <button className="btn btn-ghost btn-sm" disabled={resettingId === user.id} onClick={() => void sendReset(user)} title="Send a password reset link">
-                  {resettingId === user.id ? <Spinner size={14} /> : <Icon name="mail" size={16} />} Reset password
-                </button>
+                {session?.user.role === "ADMIN" && user.id !== session.user.id ? (
+                  <button className="btn btn-ghost btn-sm" disabled={resettingId === user.id} onClick={() => void sendReset(user)} title="Send a password reset link">
+                    {resettingId === user.id ? <Spinner size={14} /> : <Icon name="mail" size={16} />} Reset password
+                  </button>
+                ) : null}
               </div>
             </li>
           ))}

@@ -22,3 +22,21 @@ export function resendSecondsLeft(requestedAtMs: number | null, cooldownSeconds:
 export function createGuestSessionToken(): { sessionTokenUsed: boolean; role: null } {
   return { sessionTokenUsed: true, role: null };
 }
+
+/**
+ * Accepts the whole reset link from the email or SMS (…/reset-password?token=abc) or just the token,
+ * and returns the token, or '' when nothing usable was pasted.
+ */
+export function extractResetToken(input: string): string {
+  const text = input.trim();
+  if (!text) return '';
+  const match = /[?&]token=([^&\s#]+)/.exec(text);
+  if (match) {
+    try {
+      return decodeURIComponent(match[1]);
+    } catch {
+      return match[1];
+    }
+  }
+  return /^[A-Za-z0-9._~-]+$/.test(text) ? text : '';
+}

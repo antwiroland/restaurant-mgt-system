@@ -44,6 +44,17 @@ public class WorkforceService {
 
     // ------------------------------------------------------------ rota
 
+    /** Active staff who can be put on the rota (everyone except customers), for managers building schedules. */
+    @Transactional(readOnly = true)
+    public List<StaffMember> staff() {
+        return userRepository.findAll().stream()
+                .filter(u -> u.isActive() && u.getRole() != Role.CUSTOMER)
+                .sorted(Comparator.comparing(UserEntity::getName, String.CASE_INSENSITIVE_ORDER))
+                .map(u -> new StaffMember(u.getId(), u.getName(), u.getRole().name(),
+                        u.getBranch() == null ? null : u.getBranch().getId()))
+                .toList();
+    }
+
     @Transactional
     public ScheduleView saveSchedule(UUID id, ScheduleRequest request, UserPrincipal manager) {
         if (!request.endsAt().isAfter(request.startsAt())) {
@@ -222,6 +233,8 @@ public class WorkforceService {
     }
 
     // ------------------------------------------------------------ DTOs
+
+    public record StaffMember(UUID id, String name, String role, UUID branchId) {}
 
     public record ScheduleRequest(@jakarta.validation.constraints.NotNull UUID userId, UUID branchId,
                                   @jakarta.validation.constraints.NotNull Instant startsAt,

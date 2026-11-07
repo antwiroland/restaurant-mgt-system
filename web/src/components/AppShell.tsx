@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { BrandMark, NavSidebar } from "@/components/NavSidebar";
 import { useStaffSession } from "@/components/SessionProvider";
 import { Skeleton } from "@/components/Skeleton";
+import { StaffAlerts } from "@/components/StaffAlerts";
 import { routeByRole } from "@/features/auth/auth";
 import { brand } from "@/lib/brand";
 import { bottomNavForRole, canAccessPath, isActivePath, navItemForPath } from "@/lib/navigation";
@@ -212,6 +213,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </div>
+
+      {/* Live manager alerts (low stock, auto-86, low ratings) */}
+      <StaffAlerts role={role} />
 
       {/* Mobile / tablet drawer */}
       {mobileOpen ? (

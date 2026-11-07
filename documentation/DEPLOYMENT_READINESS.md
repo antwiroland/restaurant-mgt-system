@@ -51,6 +51,14 @@ Defined in [application.yml](/C:/Users/HP/Desktop/restaurant_manager/backend/src
 | `OTP_REQUIRED_FOR_REGISTRATION` | `true` by default. Customers must verify their phone by SMS before registering |
 | `PUBLIC_WEB_URL`, `VENUE_NAME` | Used in printed table QR cards and SMS text |
 | `LOYALTY_POINTS_PER_CEDI`, `LOYALTY_POINT_VALUE`, `LOYALTY_MAX_REDEEM_PERCENT`, `LOYALTY_AUTO_ACCRUE` | Loyalty rules |
+| `EMAIL_PROVIDER` | `log` (default) or `smtp`. Used for password reset and email verification links |
+| `SPRING_MAIL_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_FROM` | SMTP settings, required for `smtp` |
+| `MEDIA_PROVIDER` | `local` (default, files under `MEDIA_LOCAL_DIR`) or `cloudinary` for menu photos |
+| `MEDIA_PUBLIC_BASE_URL`, `MEDIA_MAX_FILE_SIZE` | Public URL prefix for local images; upload size limit (5 MB) |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_FOLDER` | Required for `cloudinary` |
+| `INVENTORY_BLOCK_WHEN_INSUFFICIENT` | `true` by default. Reject orders that would take an ingredient below zero |
+
+With `EMAIL_PROVIDER=log`, password reset links are only written to the backend log. With `MEDIA_PROVIDER=local`, uploaded menu photos live on the backend container's disk, so mount a volume or use Cloudinary in production.
 
 With `SMS_PROVIDER=log`, OTP codes are only written to the backend log. Set a real provider before you enable customer registration in production.
 

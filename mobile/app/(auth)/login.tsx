@@ -144,6 +144,12 @@ export default function LoginScreen() {
         <Text style={styles.linkText}>{mode === 'password' ? 'Sign in with an SMS code instead' : 'Sign in with password instead'}</Text>
       </TouchableOpacity>
 
+      {mode === 'password' ? (
+        <TouchableOpacity style={styles.registerLink} onPress={() => router.push('/(auth)/forgot-password')}>
+          <Text style={styles.linkText}>Forgot password?</Text>
+        </TouchableOpacity>
+      ) : null}
+
       <TouchableOpacity style={styles.registerLink} onPress={() => router.push('/(auth)/register')}>
         <Text style={styles.linkText}>Don't have an account? Register</Text>
       </TouchableOpacity>

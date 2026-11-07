@@ -57,6 +57,41 @@ public class SplitService {
     public List<SplitView> createSplits(UUID orderId, SplitRequest request, UserPrincipal principal) {
         OrderEntity order = orderRepository.findById(orderId).orElseThrow(() -> new ApiException(404, "Order not found"));
         assertCanManage(order, principal);
+        return create(order, request);
+    }
+
+    /**
+     * Dine-in guests at the table (no account) split the bill equally. Re-splitting is allowed until the first
+     * share payment starts, as for staff.
+     */
+    @Transactional
+    public List<SplitView> createSplitsAsGuest(String tableToken, UUID orderId, Integer parts, List<String> names) {
+        OrderEntity order = requireTableOrder(tableToken, orderId);
+        return create(order, new SplitRequest(Mode.EQUAL, parts, names));
+    }
+
+    @Transactional(readOnly = true)
+    public List<SplitView> listAsGuest(String tableToken, UUID orderId) {
+        requireTableOrder(tableToken, orderId);
+        return splitRepository.findByOrderIdOrderByPositionAsc(orderId).stream().map(SplitView::from).toList();
+    }
+
+    /** The order, when it was placed at the table with this QR token and is still open. */
+    @Transactional
+    public OrderEntity requireTableOrder(String tableToken, UUID orderId) {
+        OrderEntity order = orderRepository.findById(orderId).orElseThrow(() -> new ApiException(404, "Order not found"));
+        if (order.getTable() == null || tableToken == null || !tableToken.equals(order.getTable().getQrToken())) {
+            throw new ApiException(404, "Order not found for this table");
+        }
+        if (order.getStatus() == OrderStatus.CANCELLED
+                || order.getStatus() == OrderStatus.COMPLETED) {
+            throw new ApiException(409, "This order is closed");
+        }
+        return order;
+    }
+
+    private List<SplitView> create(OrderEntity order, SplitRequest request) {
+        UUID orderId = order.getId();
         if (order.getStatus() == OrderStatus.CANCELLED) {
             throw new ApiException(409, "Order is cancelled");
         }

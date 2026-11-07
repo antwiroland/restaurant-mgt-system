@@ -1,16 +1,19 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Skeleton } from "@/components/Skeleton";
 import { useStaffSession } from "@/components/SessionProvider";
-import { cancelOrder, getOrderById, type OrderRecord } from "@/lib/apiClient";
+import { BillBreakdown } from "@/components/BillBreakdown";
+import { SplitBillPanel } from "@/components/SplitBillPanel";
+import { cancelOrder, getOrderById, getOrderFeedback, type FeedbackRecord, type OrderRecord } from "@/lib/apiClient";
 
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
   const { session, loading, authenticatedFetch } = useStaffSession();
   const [order, setOrder] = useState<OrderRecord | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackRecord | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [cancelReason, setCancelReason] = useState("");
@@ -29,6 +32,8 @@ export default function OrderDetailPage() {
     try {
       const next = await authenticatedFetch((activeSession) => getOrderById(activeSession, params.id));
       setOrder(next);
+      const rating = await authenticatedFetch((activeSession) => getOrderFeedback(activeSession, next.id)).catch(() => undefined);
+      setFeedback(rating ?? null);
     } finally {
       setRefreshing(false);
     }
@@ -99,8 +104,6 @@ export default function OrderDetailPage() {
             <p><span className="font-semibold text-ink">Status:</span> {order.status}</p>
             <p><span className="font-semibold text-ink">Type:</span> {order.type}</p>
             <p><span className="font-semibold text-ink">Table:</span> {order.tableNumber ?? "-"}</p>
-            <p><span className="font-semibold text-ink">Subtotal:</span> GHS {order.subtotal}</p>
-            <p><span className="font-semibold text-ink">Total:</span> GHS {order.total}</p>
             {order.pickupCode ? <p><span className="font-semibold text-ink">Pickup Code:</span> {order.pickupCode}</p> : null}
             {order.deliveryAddress ? <p><span className="font-semibold text-ink">Delivery Address:</span> {order.deliveryAddress}</p> : null}
             {order.notes ? <p className="md:col-span-2"><span className="font-semibold text-ink">Notes:</span> {order.notes}</p> : null}
@@ -126,6 +129,37 @@ export default function OrderDetailPage() {
             </ul>
             <p className="mt-3 text-sm text-ink-soft">Computed items subtotal: GHS {subtotal.toFixed(2)}</p>
           </section>
+
+          <section className="panel">
+            <h2 className="mb-3 text-xl font-semibold">Bill</h2>
+            <BillBreakdown
+              subtotal={order.subtotal}
+              discountTotal={order.discountTotal}
+              deliveryFee={order.deliveryFee}
+              serviceCharge={order.serviceCharge}
+              taxLines={order.taxLines}
+              taxTotal={order.taxTotal}
+              taxInclusive={order.taxInclusive}
+              tipAmount={order.tipAmount}
+              total={order.total}
+            />
+            {order.promoCode ? <p className="mt-2 text-xs text-ink-soft">Promo code: {order.promoCode}</p> : null}
+          </section>
+
+          <SplitBillPanel order={order} onPaid={() => void loadOrder()} />
+
+          {feedback ? (
+            <section className="panel">
+              <h2 className="text-lg font-semibold">Customer rating</h2>
+              <p className="mt-1 text-sm">
+                <span className="font-semibold" aria-label={`${feedback.rating} out of 5`}>{"★".repeat(feedback.rating)}{"☆".repeat(5 - feedback.rating)}</span>
+                {feedback.customerName ? <span className="text-ink-soft"> · {feedback.customerName}</span> : null}
+              </p>
+              {feedback.comment ? <p className="mt-2 text-sm">“{feedback.comment}”</p> : null}
+              {feedback.response ? <p className="mt-2 text-sm text-ink-soft">Reply: {feedback.response}</p> : null}
+              <Link href="/feedback" className="mt-2 inline-flex text-sm text-brand underline">Open feedback inbox</Link>
+            </section>
+          ) : null}
 
           {order.status !== "CANCELLED" && order.status !== "COMPLETED" ? (
             <section className="panel">

@@ -4,6 +4,7 @@ import { Client } from "@stomp/stompjs";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { GuestOrderActions } from "@/components/GuestOrderActions";
 import { Skeleton } from "@/components/Skeleton";
 import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
@@ -76,6 +77,7 @@ export default function GuestScanMenuPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [liveTick, setLiveTick] = useState(0);
   const checkoutRef = useRef<HTMLDivElement | null>(null);
   const [sheetItemId, setSheetItemId] = useState<string | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
@@ -149,6 +151,7 @@ export default function GuestScanMenuPage() {
         setRealtimeConnected(true);
         client.subscribe(`/topic/public.tables.${token}.orders`, () => {
           getPublicTableTracking(token).then(setTrackedOrders).catch(() => {});
+          setLiveTick((tick) => tick + 1);
         });
       },
       onWebSocketClose: () => setRealtimeConnected(false),
@@ -420,6 +423,7 @@ export default function GuestScanMenuPage() {
                           ))}
                         </ol>
                       )}
+                      <GuestOrderActions tableToken={token} order={order} refreshKey={liveTick} />
                     </li>
                   );
                 })}

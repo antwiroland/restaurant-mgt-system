@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/Skeleton";
 import { Spinner } from "@/components/Spinner";
 import { Icon } from "@/components/Icon";
 import { MenuImageUploader } from "@/components/MenuImageUploader";
+import { MenuItemExtrasDrawer } from "@/components/MenuItemExtrasDrawer";
 import { FoodImage } from "@/components/site/FoodImage";
 import { formatMoney } from "@/lib/brand";
 import { useStaffSession } from "@/components/SessionProvider";
@@ -45,6 +46,8 @@ export default function MenuManagementPage() {
   const [deletingCategory, setDeletingCategory] = useState<CategoryRecord | null>(null);
   const [deletingItem, setDeletingItem] = useState<MenuItemRecord | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [extrasItem, setExtrasItem] = useState<MenuItemRecord | null>(null);
+  const canManageMenu = session?.user.role === "ADMIN" || session?.user.role === "MANAGER";
   const filteredCategories = categories.filter((category) => {
     const normalizedQuery = categoryQuery.trim().toLowerCase();
     return !normalizedQuery
@@ -312,6 +315,11 @@ export default function MenuManagementPage() {
                 >
                   <Icon name="edit" size={18} />
                 </button>
+                {canManageMenu ? (
+                  <button className="btn btn-ghost btn-icon btn-sm" aria-label={`Recipe and stock for ${item.name}`} title="Photo & recipe" onClick={() => setExtrasItem(item)}>
+                    <Icon name="clipboard" size={18} />
+                  </button>
+                ) : null}
                 <button className="btn btn-ghost btn-icon btn-sm text-ink-muted hover:text-danger-on" aria-label={`Delete ${item.name}`} onClick={() => setDeletingItem(item)}>
                   <Icon name="trash" size={18} />
                 </button>
@@ -467,6 +475,8 @@ export default function MenuManagementPage() {
           </label>
         </div>
       </Modal>
+
+      <MenuItemExtrasDrawer item={extrasItem} onClose={() => setExtrasItem(null)} onChanged={() => void loadAll()} />
     </main>
   );
 }

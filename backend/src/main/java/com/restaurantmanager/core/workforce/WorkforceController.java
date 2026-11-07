@@ -39,6 +39,12 @@ public class WorkforceController {
         return workforceService.schedules(from, to, userId);
     }
 
+    @GetMapping("/scheduling/staff")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public List<WorkforceService.StaffMember> staff() {
+        return workforceService.staff();
+    }
+
     @GetMapping("/scheduling/my-shifts")
     @PreAuthorize(STAFF)
     public List<WorkforceService.ScheduleView> myShifts(@RequestParam Instant from, @RequestParam Instant to,

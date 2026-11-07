@@ -4,6 +4,7 @@ import { act, create } from 'react-test-renderer';
 import LoginScreen from '../app/(auth)/login';
 import MenuScreen from '../app/(tabs)/menu';
 import CheckoutScreen from '../app/checkout';
+import ForgotPasswordScreen from '../app/(auth)/forgot-password';
 import { useConnectivity } from './hooks/useConnectivity';
 import { useCartStore } from './store/cart';
 import { useAuthStore } from './store/auth';
@@ -57,6 +58,8 @@ const asyncStorage = vi.hoisted(() => ({
 }));
 
 const loginCustomer = vi.hoisted(() => vi.fn());
+const requestPasswordReset = vi.hoisted(() => vi.fn());
+const resetPassword = vi.hoisted(() => vi.fn());
 const fetchCategories = vi.hoisted(() => vi.fn());
 const fetchMenuItemModifiers = vi.hoisted(() => vi.fn());
 const createOrder = vi.hoisted(() => vi.fn());
@@ -78,6 +81,8 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 
 vi.mock('./api/auth', () => ({
   loginCustomer,
+  requestPasswordReset,
+  resetPassword,
 }));
 
 vi.mock('./api/menu', () => ({
@@ -92,6 +97,10 @@ vi.mock('./api/orders', () => ({
 
 vi.mock('./api/payment', () => ({
   initiatePayment,
+}));
+
+vi.mock('./api/billing', () => ({
+  fetchBillingConfig: vi.fn(() => Promise.reject(new Error('offline in tests'))),
 }));
 
 vi.mock('./api/tables', () => ({
@@ -245,6 +254,33 @@ describe('mobile screens', () => {
       expect.any(Array)
     );
     expect(router.replace).toHaveBeenCalledWith('/(tabs)/orders');
+  });
+
+  test('forgot password screen requests a link, then resets with the pasted link', async () => {
+    requestPasswordReset.mockResolvedValue(undefined);
+    resetPassword.mockResolvedValue(undefined);
+
+    let tree!: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<ForgotPasswordScreen />);
+    });
+
+    setInputValue(tree, 'Phone or email', ' +233201234567 ');
+    await pressByText(tree, 'Send reset link');
+    expect(requestPasswordReset).toHaveBeenCalledWith('+233201234567');
+
+    setInputValue(tree, 'Paste the reset link', 'http://localhost:3000/reset-password?token=abc_DEF-123');
+    setInputValue(tree, 'New password (at least 8 characters)', 'newpass456');
+    setInputValue(tree, 'Confirm new password', 'different1');
+    await pressByText(tree, 'Set new password');
+    expect(resetPassword).not.toHaveBeenCalled();
+
+    setInputValue(tree, 'Confirm new password', 'newpass456');
+    await pressByText(tree, 'Set new password');
+    expect(resetPassword).toHaveBeenCalledWith('abc_DEF-123', 'newpass456');
+
+    await pressByText(tree, 'Sign in');
+    expect(router.replace).toHaveBeenCalledWith('/(auth)/login');
   });
 
   test('connectivity hook syncs queued orders when app is already online', async () => {

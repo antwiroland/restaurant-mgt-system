@@ -20,6 +20,7 @@ export type NavGroup = { title: string; items: NavItem[] };
 
 const OPS: StaffRole[] = ["ADMIN", "MANAGER", "CASHIER"];
 const MGMT: StaffRole[] = ["ADMIN", "MANAGER"];
+const STAFF: StaffRole[] = ["ADMIN", "MANAGER", "CASHIER", "RIDER"];
 
 export const navGroups: NavGroup[] = [
   {
@@ -35,6 +36,7 @@ export const navGroups: NavGroup[] = [
       { label: "Group Orders", href: "/group-ordering", icon: "group", roles: OPS, description: "Shared carts" },
       { label: "Delivery", href: "/delivery", icon: "scooter", roles: OPS, description: "Dispatch and zones" },
       { label: "My Deliveries", href: "/rider", icon: "route", roles: ["RIDER"], description: "Your assigned drops" },
+      { label: "Schedule", href: "/schedule", icon: "timer", roles: STAFF, description: "Rota and time clock" },
     ],
   },
   {
@@ -44,6 +46,7 @@ export const navGroups: NavGroup[] = [
       { label: "Receipts", href: "/receipts", icon: "note", roles: OPS },
       { label: "Financial", href: "/financial", icon: "chart", roles: OPS },
       { label: "Cash Shifts", href: "/shifts", icon: "clock", roles: OPS },
+      { label: "Reports", href: "/reports", icon: "trend", roles: MGMT },
     ],
   },
   {
@@ -51,6 +54,8 @@ export const navGroups: NavGroup[] = [
     items: [
       { label: "Menu Builder", href: "/menu", icon: "book", roles: MGMT },
       { label: "Offers", href: "/offers", icon: "tag", roles: MGMT },
+      { label: "Inventory", href: "/inventory", icon: "box", roles: OPS },
+      { label: "Guest Feedback", href: "/feedback", icon: "star", roles: MGMT },
     ],
   },
   {
@@ -58,9 +63,14 @@ export const navGroups: NavGroup[] = [
     items: [
       { label: "Staff & Users", href: "/users", icon: "users", roles: ["ADMIN"] },
       { label: "Branches", href: "/branches", icon: "store", roles: MGMT },
+      { label: "Billing & Tax", href: "/billing", icon: "cash", roles: MGMT },
       { label: "Audit Log", href: "/audit", icon: "shield", roles: MGMT },
       { label: "Admin Panel", href: "/admin", icon: "settings", roles: MGMT },
     ],
+  },
+  {
+    title: "You",
+    items: [{ label: "My Account", href: "/account", icon: "user", roles: STAFF, description: "Password and profile" }],
   },
 ];
 
@@ -97,7 +107,7 @@ const bottomByRole: Partial<Record<StaffRole, string[]>> = {
   ADMIN: ["/dashboard", "/pos", "/orders", "/kds", "/tables"],
   MANAGER: ["/dashboard", "/pos", "/orders", "/kds", "/tables"],
   CASHIER: ["/pos", "/orders", "/kds", "/tables", "/orders/pickup"],
-  RIDER: ["/rider"],
+  RIDER: ["/rider", "/schedule", "/account"],
 };
 
 export function bottomNavForRole(role: StaffRole | undefined): NavItem[] {

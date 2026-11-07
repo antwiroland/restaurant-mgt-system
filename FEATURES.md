@@ -1,6 +1,6 @@
 # Restaurant Manager — Feature Status
 
-_Last updated: 2026-11-06 (branch `refactor/domain-packages-and-feature-completion`, commit `e4f2d19`)_
+_Last updated: 2026-11-07 (branch `feature/operations-expansion`)_
 
 This file is based on the source code, not just the docs. The first analysis (commit `1d93de5`) found 16 features that were stubbed, simulated or not connected to the real order and payment flow. All 16 have been finished on this branch, and the `phase8`/`phase9`/`phase10` packages were renamed to domain names.
 
@@ -25,6 +25,12 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Login brute-force limiting (Redis, with an in-memory fallback) and a request rate-limit filter that also covers the OTP and public QR routes
 - Configurable CORS and WebSocket origin allow-lists
 - Audit log for logins, PIN events, role changes and all financial actions (`/audit`, `/financial/audit`)
+- **Password reset and email verification**:
+  - `/auth/password/forgot` sends a single-use reset link by email, or by SMS when the account has no email; the reply is the same whether or not the account exists
+  - `/auth/password/reset` and `/auth/password/change` sign the user out everywhere
+  - Admins can send a reset link from the web Users page
+  - Web pages: `/forgot-password`, `/reset-password`, `/verify-email` and `/account`
+  - Mobile "Forgot password?" screen: request a link, then open it or paste it into the app to set a new password
 
 ### Users & Customers
 - Admin user list, role assignment (including `RIDER`) and PIN setup (`/users`)
@@ -37,6 +43,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Category and menu item CRUD, availability toggle, and public browse/search/filter
 - Modifier groups and options (size, spice, add-ons). Price snapshots are stored on order items along with the chosen modifiers
 - Web `/menu` management page
+- **Menu item photos**: JPEG, PNG or WebP up to 5 MB, stored locally or on Cloudinary (`MEDIA_PROVIDER`), uploaded from the menu page
 
 ### Tables & QR
 - Table CRUD and status updates, with real-time table events
@@ -69,6 +76,20 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Pickup codes and lookup (`/orders/pickup`)
 - Public dine-in ordering from a table QR without an account
 - Public order status board (`/orders-status`) and table status board (`/tables-status`)
+
+### Billing: Service Charge, Tax and Tips
+- Service charge percentage, optionally on dine-in only
+- Tax rates such as NHIL, GETFund and VAT. Compound taxes (VAT) are charged on the bill plus the levies. Menu prices can include tax or have it added on top, and the delivery fee can be taxed or not
+- Tips on POS and mobile checkout when enabled. Tips are never taxed
+- Orders and receipts show each tax line, the service charge and the tip
+- Web `/billing` page (admins edit; managers can view)
+
+### Split Payments
+- Split a bill equally (2–20 shares) or, for group orders, by what each participant ordered, with fees and taxes shared proportionally
+- Each share is paid separately; the order is confirmed once every share is paid
+- Web: split-bill panel on the order detail page, with cash, card or MoMo per share
+- Mobile: group participants see who has paid and pay their own share by MoMo. Everyone who joined the group can open the placed order (from the group screen or their Orders tab); only the person who placed it can split, change or cancel it
+- Web table QR page: dine-in guests (no account) split the bill equally and pay their share by MoMo. Access is limited to orders placed at that table that are still open
 
 ### Group Ordering
 - Create or join a session by code, add items per participant, view the combined cart, and finalize it into one order (with promo code and delivery zone)
@@ -118,9 +139,32 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Loyalty ledger (`EARN`, `REDEEM`, `ADJUST`), with automatic earning, redemption at checkout and clawback on refunds. Rules are set with `LOYALTY_*` variables
 - Mobile: the profile shows the points balance and history, and checkout has a switch to spend points
 
+### Inventory
+- Ingredients with units, cost, low-stock level and a stock ledger (restock, used by order, order cancelled, waste, stock count)
+- Recipes per menu item. Orders deduct stock and cancellations return it
+- Items are taken off the menu automatically when an ingredient runs out, and come back when restocked
+- Optionally reject orders that would take stock below zero (`INVENTORY_BLOCK_WHEN_INSUFFICIENT`)
+- Low-stock alerts on `/topic/inventory.alerts`, shown live to managers in the web app
+- Web `/inventory` page, and a recipe editor on the menu page
+
+### Customer Feedback
+- Customers rate a completed or delivered order once (overall, food, service or delivery, and a comment); dine-in guests rate from the web table QR page
+- Managers see averages, the rating spread and comments, and can reply. Ratings of 2 or lower raise a live alert
+- Web `/feedback` page; the order detail page shows the rating. Mobile: rate from the order screen and see the reply
+
+### Staff Scheduling and Timesheets
+- Weekly rota with overlap checks; staff clock in and out (with breaks)
+- Timesheets show worked vs scheduled hours, overtime (over 8 h a day), late arrivals (over 5 minutes) and missed shifts. Managers can correct entries with a reason
+- Web `/schedule` page for all staff roles
+
+### Report Exports
+- CSV or PDF downloads of sales, daily reconciliation, the audit trail and timesheets (`/reports/*`)
+- Web `/reports` page
+
 ### Notifications
 - **WhatsApp**: Cloud API gateway (free text or an approved template), sent off the request thread, enabled with `WHATSAPP_PROVIDER=meta`. Otherwise messages are only logged
 - **SMS** (used for OTP codes): Hubtel or Arkesel, chosen with `SMS_PROVIDER`. Otherwise messages are only logged
+- **Email** (password reset and verification links): SMTP with `EMAIL_PROVIDER=smtp`. Otherwise messages are only logged
 - Phone numbers are normalised to international format (default country code 233)
 
 ### Real-time
@@ -144,7 +188,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Homepage (`/`) built from the live menu: dishes available today, categories, how table ordering works, reservations, about and visit sections
 - Menu (`/explore`) with search, category filter, sorting, an "available now" filter, grid and list views, and filters kept in the URL. Dish page (`/explore/[id]`) shows modifier groups with their prices
 - Reservations (`/reserve`): book by date, time slot, party size and table; manage or cancel a booking by phone number
-- QR table ordering (`/scan/[token]`), designed for phones: options in a bottom sheet, floating cart, kitchen notes, and a live progress tracker for each order
+- QR table ordering (`/scan/[token]`), designed for phones: options in a bottom sheet, floating cart, kitchen notes, a live progress tracker for each order, paying your own share of a split bill, and rating a finished order
 - Running bill (`/bill/[token]`) and a dark display-screen order board (`/orders-status`)
 - Account pages for the links the backend sends: `/forgot-password`, `/reset-password`, `/verify-email`
 
@@ -166,8 +210,11 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Orders: status tabs with counts, channel and date filters, table view on desktop and cards on phones
 - Floor plan with status counts, seat dots and running totals per table, plus "Take order" and "View bill" shortcuts
 - Menu builder with dish photo upload (drag and drop, replace, remove) and an availability switch
-- Staff page: admins can send a password-reset link
-- Pages: login, dashboard, POS, orders, pickup, KDS, tables, table bill and QR, reservations, group ordering, delivery, rider, menu, offers, payments, financial, receipts, shifts, users, branches, audit, admin
+- Staff page: admins can send a password-reset link (not to themselves); My Account for changing your own password
+- Menu items have a "Photo & recipe" drawer that links ingredients to stock
+- Live manager alerts for low stock, items taken off the menu, and low ratings
+- Modals and drawers instead of `window.prompt/alert/confirm`. Dialogs trap focus and return focus when they close; errors are linked to their inputs and announced; 44 px touch targets
+- Pages: login, dashboard, POS, orders, pickup, KDS, tables, table bill and QR, reservations, group ordering, delivery, rider, menu, offers, payments, financial, receipts, shifts, users, branches, audit, admin, billing, inventory, schedule, feedback, reports, account
 - Backend proxy route `/api/rm/[...path]` passes binary files through unchanged (image uploads, QR PDFs and PNGs)
 
 ### Customer Mobile App (Expo)
@@ -177,24 +224,27 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
   - Spending loyalty points
   - Delivery area picker with the fee
   - Savings summary
+  - Tip choice (5/10/15% or a custom amount) and a note on service charge and taxes
+- Itemised bill on the order screen, rating a finished order, and paying your own share of a split group bill
 - QR scan to link a table (also registers a guest session), table tracking, order tracking with delivery details, reservations, group ordering
 - Live updates over STOMP, with polling as a fallback
 - Offline menu cache, an offline order queue that syncs on reconnect, and an offline banner
 - MoMo payment with retry
 
 ### Infrastructure & Quality
-- Flyway migrations V1–V12, with JPA `ddl-auto: validate`:
+- Flyway migrations V1–V19, with JPA `ddl-auto: validate`:
   - V9: order pricing, refunds, reconciliation and offers
   - V10: table sessions
   - V11: OTP
   - V12: delivery
+  - V13–V19: billing and tax, payment splits, inventory, menu images, feedback, scheduling and timesheets, account recovery
 - Docker Compose: Postgres, Redis, backend, pgAdmin, Zipkin, Prometheus, Grafana. Provider settings come from the environment, and k6 runs under the `loadtest` profile
 - **k6 load tests** (`loadtest/`): checkout throughput, public browsing, and WebSocket fan-out, each with latency and error-rate thresholds
 - Actuator health and Prometheus metrics, Zipkin tracing, OpenAPI/Swagger UI
 - Tests:
-  - 235 backend tests (H2), including integration suites for financial operations, order pricing, OTP, delivery and QR sessions, plus HTTP client tests against mock servers
-  - Web: 23 Vitest tests and a production build
-  - Mobile: 35 Vitest tests and a typecheck
+  - 258 backend tests (H2), including integration suites for financial operations, order pricing, OTP, delivery, QR sessions, billing, split payments, inventory, feedback, reports, workforce and account recovery, plus HTTP client tests against mock servers
+  - Web: 29 Vitest tests and a production build
+  - Mobile: 44 Vitest tests and a typecheck
   - An optional Postgres + Flyway smoke profile (`-Ppostgres-it`)
 
 ---
@@ -202,23 +252,16 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 ## 2. Not Yet Implemented ❌
 
 ### Business features
-- **Split payments** for group orders: separate MoMo payments per participant, and tracking who has paid
-- **Inventory and stock**: ingredients, stock levels, auto-86 when an item runs out, low-stock alerts
 - **Push notifications** for the mobile app (Expo push or FCM)
 - **Native rider app** (riders currently use the web `/rider` page) and an in-app map view (customers get a map link)
 - **Third-party delivery integration** (e.g. Bolt Food, Glovo)
-- **Tips, service charge and tax** (VAT/NHIL/GETFund) on bills and receipts
 - **Printable / thermal receipts** (ESC/POS) and kitchen ticket printing
-- **Staff scheduling and timesheets** (beyond cash shifts)
-- **Customer feedback and ratings** after an order
-- **Exports**: CSV or PDF of sales, reconciliation and audit reports
 - **Customer-facing web ordering for pickup and delivery** (the web customer pages cover browsing, reservations and dine-in QR ordering only)
 - **Customer accounts on the web** (sign-in, saved addresses, order history and favourites are only in the mobile app; favourites don't exist anywhere)
 - **Guest "call a waiter" / service requests** (there is no backend endpoint; the old button that only showed a message has been removed)
 - **Cash as an offline payment**: every payment method, cash included, goes through the payment provider and needs a payer phone number
 - **Item-level "ready" on the KDS** (the API tracks status per order, not per item)
 - **Restaurant profile API** (name, hours and address are set with environment variables)
-- **Self-service password change** screen for signed-in staff (the API `/auth/password/change` exists; there is no UI yet)
 - **Multi-language / localization**
 
 ### Platform & operations
@@ -242,8 +285,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 
 ## 3. Suggested Priority
 
-1. **Verify before merging**: the Postgres Flyway check for V9–V12, then a click-through of the new web pages and mobile flows
-2. **Sandbox the providers**: Paystack test keys, a WhatsApp Cloud API test number, a Hubtel or Arkesel sender ID
+1. **Verify before merging**: the Postgres Flyway check for V9–V19, then a click-through of the new web pages and mobile flows
+2. **Sandbox the providers**: Paystack test keys, a WhatsApp Cloud API test number, a Hubtel or Arkesel sender ID, an SMTP account, and Cloudinary (or a mounted volume for local images)
 3. **CI/CD and production hardening**: secrets, TLS, lock down admin tools, and a pipeline running backend, web and mobile tests plus the Postgres check
-4. **Split payments for group orders**
-5. **Push notifications**, then tax and service charge, receipt printing, and inventory
+4. **Push notifications**, then receipt printing and customer web ordering

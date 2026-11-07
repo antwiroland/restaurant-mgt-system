@@ -50,3 +50,12 @@ export async function logoutCustomer(): Promise<void> {
   }
   await AsyncStorage.multiRemove([...SESSION_KEYS]);
 }
+
+/** Sends a single-use password reset link by email, or by SMS when the account has no email. */
+export async function requestPasswordReset(emailOrPhone: string): Promise<void> {
+  await apiClient.post('/auth/password/forgot', { emailOrPhone });
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  await apiClient.post('/auth/password/reset', { token, newPassword });
+}

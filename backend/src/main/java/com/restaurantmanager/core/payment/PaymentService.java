@@ -139,8 +139,63 @@ public class PaymentService {
             assertOrderAccess(order, principal);
         }
 
+        return start(order, amount, splitId, request.method(), request.momoPhone().trim(), key);
+    }
+
+    /**
+     * A dine-in guest (no account) pays one share of a split bill by Mobile Money from the table QR page.
+     * The order must belong to the table and the bill must already be split.
+     */
+    @Transactional
+    public PaymentInitiateResponse initiateGuestShare(String tableToken, UUID orderId, UUID splitId,
+                                                      String momoPhone, String idempotencyKey) {
+        ensureProviderConfigured();
+        OrderEntity order = splitService.requireTableOrder(tableToken, orderId);
+        String key = idempotencyKey.trim();
+        PaymentEntity existing = paymentRepository.findByIdempotencyKey(key).orElse(null);
+        if (existing != null) {
+            if (!existing.getOrder().getId().equals(orderId) || !splitId.equals(existing.getSplitId())) {
+                throw new ApiException(409, "Idempotency key already used for a different payment");
+            }
+            return toInitiateResponse(existing);
+        }
+        var split = splitService.activeSplits(orderId).stream().filter(s -> s.getId().equals(splitId)).findFirst()
+                .orElseThrow(() -> new ApiException(404, "Split not found for this order"));
+        if (split.getStatus() == com.restaurantmanager.core.payment.split.PaymentSplitEntity.Status.PAID) {
+            throw new ApiException(409, "This share has already been paid");
+        }
+        boolean shareInProgress = !paymentRepository.findByOrderIdAndStatusIn(orderId,
+                        List.of(PaymentStatus.INITIATED, PaymentStatus.PENDING)).stream()
+                .filter(p -> splitId.equals(p.getSplitId()))
+                .toList().isEmpty();
+        if (shareInProgress) {
+            throw new ApiException(409, "A payment for this share is already in progress");
+        }
+        return start(order, split.getAmount(), splitId, PaymentMethod.MOBILE_MONEY, momoPhone.trim(), key);
+    }
+
+    /** Lets the guest page refresh a share payment's status; the payment must belong to that table's order. */
+    @Transactional
+    public PaymentResponse verifyGuestPayment(String tableToken, UUID orderId, UUID paymentId) {
+        ensureProviderConfigured();
+        splitService.requireTableOrder(tableToken, orderId);
+        PaymentEntity payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ApiException(404, "Payment not found"));
+        if (!payment.getOrder().getId().equals(orderId)) {
+            throw new ApiException(404, "Payment not found");
+        }
+        if (payment.getStatus() == PaymentStatus.INITIATED || payment.getStatus() == PaymentStatus.PENDING) {
+            PaystackClient.VerifyResult verifyResult = paystackClient.verify(payment.getPaystackReference());
+            applyStatusChange(payment, mapProviderStatus(verifyResult.providerStatus()), verifyResult.message());
+            payment = paymentRepository.save(payment);
+        }
+        return toResponse(payment);
+    }
+
+    private PaymentInitiateResponse start(OrderEntity order, BigDecimal amount, UUID splitId, PaymentMethod method,
+                                          String momoPhone, String key) {
         PaystackClient.InitiateResult result = paystackClient.initiate(
-                key, amount, paymentProps.getDefaultCurrency(), request.momoPhone().trim()
+                key, amount, paymentProps.getDefaultCurrency(), momoPhone
         );
 
         PaymentEntity payment = new PaymentEntity();
@@ -148,12 +203,12 @@ public class PaymentService {
         payment.setSplitId(splitId);
         payment.setAmount(amount);
         payment.setCurrency(paymentProps.getDefaultCurrency());
-        payment.setMethod(request.method());
+        payment.setMethod(method);
         payment.setStatus(PaymentStatus.INITIATED);
         payment.setPaystackReference(result.reference());
         payment.setIdempotencyKey(key);
         payment.setAuthorizationUrl(result.authorizationUrl());
-        payment.setMomoPhone(request.momoPhone().trim());
+        payment.setMomoPhone(momoPhone);
         payment.setProviderMessage(result.message());
         PaymentEntity saved = paymentRepository.save(payment);
         return toInitiateResponse(saved);
