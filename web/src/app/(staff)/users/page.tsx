@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Skeleton } from "@/components/Skeleton";
 import { hasStaffRole, useStaffSession } from "@/components/SessionProvider";
-import { assignUserRole, getBranches, getUsers, registerUser, setUserPin, type BranchRecord, type StaffRole, type UserRecord } from "@/lib/apiClient";
+import { adminResetUserPassword, assignUserRole, getBranches, getUsers, registerUser, setUserPin, type BranchRecord, type StaffRole, type UserRecord } from "@/lib/apiClient";
 
 const STAFF_ROLES: StaffRole[] = ["ADMIN", "MANAGER", "CASHIER", "RIDER", "CUSTOMER"];
 
@@ -83,6 +83,18 @@ export default function UsersPage() {
       setMessage(`PIN updated for ${user.name}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not set PIN");
+    }
+  }
+
+  async function sendPasswordReset(user: UserRecord) {
+    if (!session) return;
+    setError("");
+    setMessage("");
+    try {
+      await authenticatedFetch((activeSession) => adminResetUserPassword(activeSession, user.id));
+      setMessage(`Reset link sent to ${user.name} (${user.email ? "email" : "SMS"}). They will be signed out everywhere once they set a new password.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send reset link");
     }
   }
 
@@ -188,6 +200,9 @@ export default function UsersPage() {
                   maxLength={4}
                 />
                 <button className="btn btn-secondary btn-sm" onClick={() => void applyPin(user)}>Set PIN</button>
+                {session?.user.role === "ADMIN" && user.id !== session.user.id ? (
+                  <button className="btn btn-secondary btn-sm whitespace-nowrap" onClick={() => void sendPasswordReset(user)}>Send reset link</button>
+                ) : null}
               </div>
             </li>
           ))}

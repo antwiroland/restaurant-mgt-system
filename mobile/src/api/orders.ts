@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Order, OrderItem, CreateOrderRequest, Receipt, PublicOrderTracking, TableBill } from '../types/api';
+import type { Order, OrderItem, CreateOrderRequest, Receipt, PublicOrderTracking, TableBill, TaxLine } from '../types/api';
 
 type OrderItemResponse = {
   id: string;
@@ -14,6 +14,7 @@ type OrderItemResponse = {
 
 type OrderResponse = {
   id: string;
+  customerUserId?: string | null;
   type: Order['type'];
   status: Order['status'];
   subtotal: string;
@@ -30,6 +31,11 @@ type OrderResponse = {
   loyaltyPointsRedeemed?: number;
   loyaltyDiscount?: string;
   deliveryFee?: string;
+  serviceCharge?: string;
+  taxTotal?: string;
+  taxInclusive?: boolean;
+  tipAmount?: string;
+  taxLines?: TaxLine[];
 };
 
 type ReceiptResponse = {
@@ -41,7 +47,20 @@ type ReceiptResponse = {
   currency: string;
   paymentMethod: Receipt['paymentMethod'];
   paidAt: string;
+  discountTotal?: string;
+  deliveryFee?: string;
+  serviceCharge?: string;
+  taxTotal?: string;
+  taxInclusive?: boolean;
+  taxLines?: TaxLine[];
+  tipAmount?: string;
 };
+
+const money = (value: string | number | undefined | null): string | undefined =>
+  value === undefined || value === null ? undefined : String(value);
+
+const taxLines = (lines: TaxLine[] | undefined): TaxLine[] | undefined =>
+  lines?.map((line) => ({ ...line, rate: String(line.rate), amount: String(line.amount) }));
 
 function toOrderItem(item: OrderItemResponse): OrderItem {
   const unitPrice = String(item.price);
@@ -61,6 +80,7 @@ function toOrderItem(item: OrderItemResponse): OrderItem {
 function toOrder(order: OrderResponse): Order {
   return {
     id: order.id,
+    customerUserId: order.customerUserId ?? null,
     type: order.type,
     status: order.status,
     subtotal: String(order.subtotal),
@@ -77,6 +97,11 @@ function toOrder(order: OrderResponse): Order {
     loyaltyPointsRedeemed: order.loyaltyPointsRedeemed,
     loyaltyDiscount: order.loyaltyDiscount === undefined ? undefined : String(order.loyaltyDiscount),
     deliveryFee: order.deliveryFee === undefined ? undefined : String(order.deliveryFee),
+    serviceCharge: money(order.serviceCharge),
+    taxTotal: money(order.taxTotal),
+    taxInclusive: order.taxInclusive,
+    tipAmount: money(order.tipAmount),
+    taxLines: taxLines(order.taxLines),
   };
 }
 
@@ -115,6 +140,13 @@ export async function fetchReceipt(orderId: string): Promise<Receipt> {
     currency: data.currency,
     paymentMethod: data.paymentMethod,
     paidAt: data.paidAt,
+    discountTotal: money(data.discountTotal),
+    deliveryFee: money(data.deliveryFee),
+    serviceCharge: money(data.serviceCharge),
+    taxTotal: money(data.taxTotal),
+    taxInclusive: data.taxInclusive,
+    taxLines: taxLines(data.taxLines),
+    tipAmount: money(data.tipAmount),
   };
 }
 

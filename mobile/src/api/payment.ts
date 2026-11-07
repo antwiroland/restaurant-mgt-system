@@ -8,12 +8,18 @@ function generateUUID(): string {
   });
 }
 
-export async function initiatePayment(orderId: string, method: PaymentMethod, momoPhone?: string): Promise<PaymentInitiateResponse> {
+export async function initiatePayment(
+  orderId: string,
+  method: PaymentMethod,
+  momoPhone?: string,
+  splitId?: string,
+): Promise<PaymentInitiateResponse> {
   const { data } = await apiClient.post<PaymentInitiateResponse>('/payments/initiate', {
     orderId,
     method,
     momoPhone,
     idempotencyKey: generateUUID(),
+    ...(splitId ? { splitId } : {}),
   });
   return data;
 }

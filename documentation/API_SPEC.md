@@ -350,6 +350,111 @@ Rider workflow: `READY` → `OUT_FOR_DELIVERY` → `DELIVERED`. The customer is 
 ### GET `/delivery/orders/{orderId}/tracking`
 Rider, ETA and last location for the ordering customer, staff or the assigned rider.
 
+## 11b. Billing: service charge, tax and tips
+
+### GET `/billing/settings` (public)
+Service charge %, whether it applies to dine-in only, whether menu prices include tax, whether the delivery fee is taxed, whether tips are allowed, and the tax list.
+
+### PUT `/billing/settings` (admin)
+`{serviceChargePercent, serviceChargeDineInOnly, pricesIncludeTax, taxDeliveryFee, tipsEnabled}`.
+
+### POST `/billing/taxes` · PUT `/billing/taxes/{id}` · DELETE `/billing/taxes/{id}` (admin)
+`{code, name, rate, compound, displayOrder, active}`. Rates are percentages. Non-compound levies (NHIL, GETFund) are charged on the taxable base; compound taxes (VAT) on the base plus the levies.
+
+Orders and receipts return `serviceCharge`, `taxTotal`, `taxInclusive`, `tipAmount` and `taxLines[]`. `POST /orders` accepts an optional `tipAmount` when tips are enabled.
+
+## 11c. Split payments
+
+### POST `/orders/{orderId}/splits`
+`{mode: "BY_ITEMS" | "EQUAL", parts?, names?}`. `BY_ITEMS` gives each group participant their own items plus a proportional part of fees and taxes; `EQUAL` splits into 2-20 shares. Allowed until a payment starts.
+
+### GET `/orders/{orderId}/splits`
+Shares with `status` (`PENDING`, `PAID`, `CANCELLED`) and who paid. Customers see them for their own order or a share assigned to them.
+
+### Guest split payments (public, dine-in)
+Under `/orders/public/dine-in/tables/{tableToken}/orders/{orderId}`. The order must have been placed at that table and still be open (not cancelled or completed), otherwise 404/409.
+- `GET /splits`
+- `POST /splits` `{parts (2-20), names?}`: equal split only
+- `POST /splits/{splitId}/pay` `{momoPhone, idempotencyKey}`: Mobile Money only; 409 if that share is paid or a payment for it is already in progress
+- `POST /payments/{paymentId}/verify`: refreshes the payment status from the provider
+
+Group orders can be viewed (`GET /orders/{id}`, and they appear in `GET /orders`) by every customer who joined the group session. Only the customer who placed the order can split, change or cancel it.
+
+Once a bill is split, `POST /payments/initiate` requires `splitId` and charges that share's amount. The order is confirmed when every share is paid. Split updates are published on `/topic/orders.{orderId}.payments`.
+
+## 11d. Inventory
+
+### GET `/inventory/ingredients` · GET `/inventory/low-stock`
+### POST `/inventory/ingredients` · PUT `/inventory/ingredients/{id}` (admin/manager)
+`{name, unit, lowStockThreshold, costPerUnit, initialStock, active}`.
+
+### POST `/inventory/ingredients/{id}/restock`
+`{quantity, note}` (admin/manager/cashier).
+
+### POST `/inventory/ingredients/{id}/adjust` (admin/manager)
+`{reason: "WASTE" | "ADJUSTMENT", delta?, countedQuantity?, note}`. `countedQuantity` sets the stock to the counted level.
+
+### GET `/inventory/ingredients/{id}/movements`
+Stock ledger: `RESTOCK`, `ORDER`, `ORDER_CANCELLED`, `WASTE`, `ADJUSTMENT`.
+
+### GET · PUT `/inventory/menu-items/{menuItemId}/recipe`
+Ingredients used per portion. Orders deduct stock (and cancellations return it). Menu items are taken off the menu automatically when an ingredient runs out and come back when restocked. With `INVENTORY_BLOCK_WHEN_INSUFFICIENT=true`, orders that would push stock below zero are rejected.
+
+## 11e. Menu item images
+
+### POST `/menu/items/{menuItemId}/image` (multipart `file`)
+JPEG, PNG or WebP up to `MEDIA_MAX_FILE_SIZE` (5 MB). Stored locally (`MEDIA_PROVIDER=local`) or on Cloudinary.
+
+### DELETE `/menu/items/{menuItemId}/image`
+
+## 11f. Customer feedback
+
+### POST `/orders/{orderId}/feedback` (customer)
+### POST `/orders/public/dine-in/tables/{tableToken}/orders/{orderId}/feedback` (guest)
+`{rating, foodRating?, serviceRating?, deliveryRating?, comment?, guestName?}`. Once per order, after it is `COMPLETED` or `DELIVERED`. Ratings of 2 or lower are published on `/topic/feedback.alerts`.
+
+### GET `/orders/{orderId}/feedback`
+### GET `/feedback?from=&to=&maxRating=` · GET `/feedback/summary?from=&to=` (admin/manager)
+### POST `/feedback/{id}/respond` (admin/manager)
+`{response}`.
+
+## 11g. Report exports
+
+### GET `/reports/sales?from=&to=&branchId=&format=CSV|PDF`
+### GET `/reports/reconciliation?date=&branchId=&format=`
+### GET `/reports/audit?from=&to=&format=`
+### GET `/reports/timesheet?from=&to=&format=`
+Admin/manager. Returned as a file download (`Content-Disposition: attachment`).
+
+## 11h. Scheduling and timesheets
+
+### GET `/scheduling/staff` (admin/manager)
+Active non-customer users who can be put on the rota.
+
+### GET `/scheduling/shifts?from=&to=&userId=` (admin/manager) · GET `/scheduling/my-shifts?from=&to=` (staff)
+### POST `/scheduling/shifts` · PUT `/scheduling/shifts/{id}` · DELETE `/scheduling/shifts/{id}` (admin/manager)
+`{userId, branchId?, startsAt, endsAt, position?, notes?}`. Overlapping shifts for the same person are rejected (409); shifts are at most 16 hours.
+
+### POST `/timeclock/clock-in` `{notes?}` · POST `/timeclock/clock-out` `{breakMinutes?}` · GET `/timeclock/status` (staff)
+### PUT `/timeclock/entries/{id}` (admin/manager)
+`{clockInAt?, clockOutAt?, breakMinutes?, reason}`.
+
+### GET `/timeclock/timesheet?from=&to=&userId=` (admin/manager) · GET `/timeclock/my-timesheet?from=&to=` (staff)
+Worked vs scheduled minutes, overtime (over 8 h a day), late arrivals (over 5 min late) and missed shifts.
+
+## 11i. Account recovery
+
+### POST `/auth/password/forgot` `{emailOrPhone}`
+Always 202. Sends a single-use reset link (`PUBLIC_WEB_URL/reset-password?token=...`) by email, or by SMS when the account has no email.
+
+### POST `/auth/password/reset` `{token, newPassword}`
+Minimum 8 characters. Revokes all refresh tokens.
+
+### POST `/auth/password/change` `{currentPassword, newPassword}` (signed in)
+### POST `/auth/email/verification` (signed in) · POST `/auth/email/verify` `{token}`
+### POST `/users/{userId}/password-reset` (admin)
+Sends the user a reset link.
+
 ## 12. Audit
 
 ### GET `/audit`

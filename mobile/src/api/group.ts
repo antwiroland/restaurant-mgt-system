@@ -23,6 +23,7 @@ type GroupSessionDetailResponse = {
   status: GroupSession['status'];
   groupTotal: string;
   participants: GroupParticipantResponse[];
+  orderId?: string | null;
 };
 
 export async function createGroupSession(displayName: string): Promise<GroupSession> {
@@ -41,6 +42,7 @@ export async function fetchGroupSession(code: string): Promise<GroupSessionDetai
     sessionCode: data.sessionCode,
     status: data.status,
     groupTotal: String(data.groupTotal),
+    orderId: data.orderId ?? null,
     participants: data.participants.map((participant) => ({
       participantId: participant.participantId,
       displayName: participant.displayName,

@@ -174,7 +174,9 @@ public class OrderService {
     public OrderResponse getOrder(UUID id, UserPrincipal principal) {
         OrderEntity order = orderRepository.findById(id)
                 .orElseThrow(() -> new ApiException(404, "Order not found"));
-        assertOrderAccess(order, principal);
+        if (!isGroupParticipant(order, principal)) {
+            assertOrderAccess(order, principal);
+        }
         return toResponses(List.of(order)).get(0);
     }
 
@@ -955,6 +957,19 @@ public class OrderService {
 
     private GroupParticipantResponse toParticipantResponse(GroupSessionParticipantEntity participant) {
         return new GroupParticipantResponse(participant.getId(), participant.getUserId(), participant.getDisplayName());
+    }
+
+    /**
+     * Customers who joined the group session an order came from may view it (to see and pay their share of a
+     * split bill), but only the customer who placed it may change or cancel it.
+     */
+    private boolean isGroupParticipant(OrderEntity order, UserPrincipal principal) {
+        return principal != null
+                && principal.role() == Role.CUSTOMER
+                && order.getGroupSession() != null
+                && groupSessionParticipantRepository
+                        .findBySessionIdAndUserId(order.getGroupSession().getId(), principal.userId())
+                        .isPresent();
     }
 
     private void assertOrderAccess(OrderEntity order, UserPrincipal principal) {

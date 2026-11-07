@@ -46,6 +46,17 @@ class WorkforceIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
+    void givenManager_whenListingStaff_thenCustomersAreExcludedAndCashiersCannotList() throws Exception {
+        createUser("Cust", "+233340000008", "c8@x.com", "secret123", Role.CUSTOMER);
+        mockMvc.perform(get("/scheduling/staff").header("Authorization", "Bearer " + accessToken(manager)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.role == 'CUSTOMER')]").isEmpty())
+                .andExpect(jsonPath("$[?(@.name == 'Efo')].role").value("CASHIER"));
+        mockMvc.perform(get("/scheduling/staff").header("Authorization", "Bearer " + accessToken(cashier)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void givenCustomer_whenScheduled_then400() throws Exception {
         UserEntity customer = createUser("Cust", "+233340000009", "c9@x.com", "secret123", Role.CUSTOMER);
         Instant start = Instant.now().plus(1, ChronoUnit.DAYS);

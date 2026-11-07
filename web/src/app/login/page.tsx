@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { routeByRole } from "@/features/auth/auth";
@@ -86,6 +87,7 @@ export default function LoginPage() {
             {submitting ? <Spinner className="text-current" /> : null}
             Sign In
           </button>
+          <Link href="/forgot-password" className="justify-self-center text-sm text-ink-soft underline">Forgot password?</Link>
         </form>
       </section>
     </main>
