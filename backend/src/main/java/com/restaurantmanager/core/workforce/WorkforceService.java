@@ -31,14 +31,17 @@ public class WorkforceService {
     private final WorkScheduleRepository scheduleRepository;
     private final TimeEntryRepository entryRepository;
     private final UserRepository userRepository;
+    private final com.restaurantmanager.core.hr.employee.EmployeeRepository employeeRepository;
     private final ZoneId zone;
 
     public WorkforceService(WorkScheduleRepository scheduleRepository, TimeEntryRepository entryRepository,
                             UserRepository userRepository,
+                            com.restaurantmanager.core.hr.employee.EmployeeRepository employeeRepository,
                             @org.springframework.beans.factory.annotation.Value("${app.time-zone:Africa/Accra}") String timeZone) {
         this.scheduleRepository = scheduleRepository;
         this.entryRepository = entryRepository;
         this.userRepository = userRepository;
+        this.employeeRepository = employeeRepository;
         this.zone = ZoneId.of(timeZone);
     }
 
@@ -69,7 +72,8 @@ public class WorkforceService {
         }
         WorkScheduleEntity schedule = id == null ? new WorkScheduleEntity()
                 : scheduleRepository.findById(id).orElseThrow(() -> new ApiException(404, "Shift not found"));
-        boolean overlaps = scheduleRepository.findOverlapping(request.startsAt(), request.endsAt(), request.userId()).stream()
+        // drafts from HR scheduling count too, so the quick rota cannot double-book someone
+        boolean overlaps = scheduleRepository.findActiveForUser(request.startsAt(), request.endsAt(), request.userId()).stream()
                 .anyMatch(other -> !other.getId().equals(schedule.getId()));
         if (overlaps) {
             throw new ApiException(409, staff.getName() + " already has a shift that overlaps this time");
@@ -80,8 +84,13 @@ public class WorkforceService {
         schedule.setEndsAt(request.endsAt());
         schedule.setPosition(blankToNull(request.position()));
         schedule.setNotes(blankToNull(request.notes()));
+        employeeRepository.findByUserId(staff.getId()).ifPresent(e -> schedule.setEmployeeId(e.getId()));
         if (id == null) {
+            // the quick rota has no draft stage: its shifts are live immediately
             schedule.setCreatedBy(manager.userId());
+            schedule.setStatus(ScheduleStatus.PUBLISHED);
+            schedule.setPublishedAt(java.time.Instant.now());
+            schedule.setPublishedBy(manager.userId());
         }
         return toView(scheduleRepository.save(schedule), staff);
     }

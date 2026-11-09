@@ -17,8 +17,44 @@ public class WorkScheduleEntity {
     @Id
     private UUID id;
 
-    @Column(name = "user_id", nullable = false)
+    /** Login of the employee, when they have one (keeps "my shifts" and the time clock working). */
+    @Column(name = "user_id")
     private UUID userId;
+
+    /** HR employee record; null for an open (unassigned) shift. */
+    @Column(name = "employee_id")
+    private UUID employeeId;
+
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private ScheduleStatus status = ScheduleStatus.PUBLISHED;
+
+    @Column(name = "template_id")
+    private UUID templateId;
+
+    @Column(name = "department_id")
+    private UUID departmentId;
+
+    @Column(name = "position_id")
+    private UUID positionId;
+
+    @Column(name = "break_minutes", nullable = false)
+    private int breakMinutes;
+
+    @Column(name = "published_at")
+    private Instant publishedAt;
+
+    @Column(name = "published_by")
+    private UUID publishedBy;
+
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
+
+    @Column(name = "cancel_reason", length = 500)
+    private String cancelReason;
+
+    @jakarta.persistence.Version
+    private long version;
 
     @Column(name = "branch_id")
     private UUID branchId;
@@ -77,5 +113,27 @@ public class WorkScheduleEntity {
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
     public UUID getCreatedBy() { return createdBy; }
+    public UUID getEmployeeId() { return employeeId; }
+    public void setEmployeeId(UUID employeeId) { this.employeeId = employeeId; }
+    public ScheduleStatus getStatus() { return status; }
+    public void setStatus(ScheduleStatus status) { this.status = status; }
+    public UUID getTemplateId() { return templateId; }
+    public void setTemplateId(UUID templateId) { this.templateId = templateId; }
+    public UUID getDepartmentId() { return departmentId; }
+    public void setDepartmentId(UUID departmentId) { this.departmentId = departmentId; }
+    public UUID getPositionId() { return positionId; }
+    public void setPositionId(UUID positionId) { this.positionId = positionId; }
+    public int getBreakMinutes() { return breakMinutes; }
+    public void setBreakMinutes(int breakMinutes) { this.breakMinutes = breakMinutes; }
+    public Instant getPublishedAt() { return publishedAt; }
+    public void setPublishedAt(Instant publishedAt) { this.publishedAt = publishedAt; }
+    public UUID getPublishedBy() { return publishedBy; }
+    public void setPublishedBy(UUID publishedBy) { this.publishedBy = publishedBy; }
+    public Instant getCancelledAt() { return cancelledAt; }
+    public void setCancelledAt(Instant cancelledAt) { this.cancelledAt = cancelledAt; }
+    public String getCancelReason() { return cancelReason; }
+    public void setCancelReason(String cancelReason) { this.cancelReason = cancelReason; }
+    public long getVersion() { return version; }
+    public Instant getCreatedAt() { return createdAt; }
     public void setCreatedBy(UUID createdBy) { this.createdBy = createdBy; }
 }

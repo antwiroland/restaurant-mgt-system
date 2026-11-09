@@ -41,4 +41,14 @@ public interface BranchAssignmentRepository extends JpaRepository<BranchAssignme
     @Query("select a.branchId, count(distinct a.employeeId) from BranchAssignmentEntity a where a.assignmentType <> 'PRIMARY' "
             + "and a.startDate <= :day and (a.endDate is null or a.endDate >= :day) group by a.branchId")
     List<Object[]> countActiveSecondaryByBranch(@Param("day") LocalDate day);
+
+    /** Whether the employee belongs to the branch on {@code day} through any assignment (primary or not). */
+    @Query("select count(a) > 0 from BranchAssignmentEntity a where a.employeeId = :employeeId and a.branchId = :branchId "
+            + "and a.startDate <= :day and (a.endDate is null or a.endDate >= :day)")
+    boolean existsActiveAt(@Param("employeeId") UUID employeeId, @Param("branchId") UUID branchId, @Param("day") LocalDate day);
+
+    /** Employees with any assignment at the branch overlapping [from, to]. */
+    @Query("select distinct a.employeeId from BranchAssignmentEntity a where a.branchId = :branchId "
+            + "and a.startDate <= :to and (a.endDate is null or a.endDate >= :from)")
+    List<UUID> findEmployeeIdsAtBranch(@Param("branchId") UUID branchId, @Param("from") LocalDate from, @Param("to") LocalDate to);
 }
