@@ -25,6 +25,8 @@ public class HrTestCleanup {
     /** Keeps migration-seeded departments, positions and sequences (PostgreSQL/Flyway tests). */
     @Transactional
     public void cleanEmployees() {
+        entityManager.createQuery("delete from BranchAssignmentEntity").executeUpdate();
+        entityManager.createQuery("delete from HrUserBranchAccessEntity").executeUpdate();
         entityManager.createQuery("delete from ContractEntity").executeUpdate();
         entityManager.createQuery("delete from EmployeeDocumentEntity").executeUpdate();
         entityManager.createQuery("delete from EmergencyContactEntity").executeUpdate();

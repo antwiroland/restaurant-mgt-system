@@ -17,16 +17,20 @@ import java.util.UUID;
  * Single place that decides what an authenticated user may do in HR and which branches' data they may see.
  *
  * <p>Branch rule: ADMIN, or anyone granted {@link HrPermission#BRANCH_ALL}, sees every branch. Everyone else sees only the
- * branch on their user account; with no branch they see no branch-specific HR data. This is deliberately stricter than
+ * branch on their user account plus any extra branches an admin added ({@code hr_user_branch_access}); with none they see
+ * no branch-specific HR data. This is deliberately stricter than
  * the rest of the app, where a MANAGER without a branch sees everything.</p>
  */
 @Service
 public class HrAccessService {
     private final HrUserPermissionRepository grantRepository;
+    private final HrUserBranchAccessRepository branchAccessRepository;
     private final UserRepository userRepository;
 
-    public HrAccessService(HrUserPermissionRepository grantRepository, UserRepository userRepository) {
+    public HrAccessService(HrUserPermissionRepository grantRepository, HrUserBranchAccessRepository branchAccessRepository,
+                           UserRepository userRepository) {
         this.grantRepository = grantRepository;
+        this.branchAccessRepository = branchAccessRepository;
         this.userRepository = userRepository;
     }
 
@@ -46,8 +50,14 @@ public class HrAccessService {
             grantRepository.findByUserId(user.getId()).forEach(g -> permissions.add(g.getPermission()));
         }
         boolean allBranches = role == Role.ADMIN || permissions.contains(HrPermission.BRANCH_ALL);
-        Set<UUID> branches = branchId == null ? Set.of() : Set.of(branchId);
-        return new HrAccess(user.getId(), role, Collections.unmodifiableSet(permissions), allBranches, branches);
+        Set<UUID> branches = new java.util.HashSet<>();
+        if (branchId != null) {
+            branches.add(branchId);
+        }
+        if (!allBranches && role != Role.CUSTOMER) {
+            branchAccessRepository.findByUserId(user.getId()).forEach(a -> branches.add(a.getBranchId()));
+        }
+        return new HrAccess(user.getId(), role, Collections.unmodifiableSet(permissions), allBranches, Collections.unmodifiableSet(branches));
     }
 
     /** Loads access and fails with 403 unless the user holds every listed permission. */

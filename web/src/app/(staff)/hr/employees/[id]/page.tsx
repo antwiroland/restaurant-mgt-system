@@ -9,6 +9,7 @@ import { Modal } from "@/components/Modal";
 import { Skeleton } from "@/components/Skeleton";
 import { ErrorState, humanize } from "@/components/ui";
 import { useStaffSession } from "@/components/SessionProvider";
+import { BranchesPanel } from "@/features/hr/BranchesPanel";
 import { ContractsPanel } from "@/features/hr/ContractsPanel";
 import { DocumentsPanel } from "@/features/hr/DocumentsPanel";
 import { EmployeeForm } from "@/features/hr/EmployeeForm";
@@ -39,7 +40,7 @@ import {
   type Position,
 } from "@/lib/hrApi";
 
-type Tab = "overview" | "contracts" | "documents" | "history";
+type Tab = "overview" | "branches" | "contracts" | "documents" | "history";
 
 export default function EmployeeProfilePage() {
   return (
@@ -80,14 +81,14 @@ function EmployeeProfile() {
   }, [id]);
 
   const loadDocuments = useCallback(async () => {
-    if (!can("hr.document.view")) return;
+    if (!can("hr.document.view") || employee?.manageable === false) return;
     try {
       setDocuments(await authenticatedFetch((s) => getDocuments(s, id, showArchivedDocs)));
     } catch {
       setDocuments([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, showArchivedDocs, access]);
+  }, [id, showArchivedDocs, access, employee?.manageable]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { void loadDocuments(); }, [loadDocuments]);
@@ -150,9 +151,10 @@ function EmployeeProfile() {
   const s = employee.summary;
   const tabs: { key: Tab; label: string; show: boolean }[] = [
     { key: "overview", label: "Overview", show: true },
-    { key: "contracts", label: "Contracts", show: can("hr.contract.view") },
-    { key: "documents", label: "Documents", show: can("hr.document.view") },
-    { key: "history", label: "History", show: true },
+    { key: "branches", label: "Branches", show: true },
+    { key: "contracts", label: "Contracts", show: employee.manageable && can("hr.contract.view") },
+    { key: "documents", label: "Documents", show: employee.manageable && can("hr.document.view") },
+    { key: "history", label: "History", show: employee.manageable },
   ];
 
   return (
@@ -172,7 +174,7 @@ function EmployeeProfile() {
             <div className="mt-1.5 flex flex-wrap gap-2"><EmploymentBadge status={s.employmentStatus} /><span className="badge badge-neutral">{humanize(s.employmentType)}</span></div>
           </div>
         </div>
-        {can("hr.employee.update") ? (
+        {employee.manageable && can("hr.employee.update") ? (
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn btn-secondary btn-md" onClick={() => setStatusOpen(true)}>Change status</button>
             <button type="button" className="btn btn-primary btn-md" onClick={openEditor}><Icon name="edit" size={16} /> Edit</button>
@@ -181,6 +183,9 @@ function EmployeeProfile() {
       </header>
 
       {notice ? <p className="alert alert-info" role="status">{notice}</p> : null}
+      {!employee.manageable ? (
+        <p className="alert alert-info">This employee works at one of your branches but is based elsewhere. Their home branch manages their record.</p>
+      ) : null}
 
       <div className="segmented max-w-full overflow-x-auto" role="tablist" aria-label="Employee sections">
         {tabs.filter((t) => t.show).map((t) => (
@@ -194,7 +199,7 @@ function EmployeeProfile() {
         {tab === "overview" ? (
           <EmployeeOverview
             employee={employee}
-            linkActions={can("hr.employee.update") ? (
+            linkActions={employee.manageable && can("hr.employee.update") ? (
               employee.linkedUser ? (
                 <button type="button" className="btn btn-ghost btn-sm" onClick={unlink}>Unlink login</button>
               ) : (
@@ -208,6 +213,7 @@ function EmployeeProfile() {
           <DocumentsPanel employeeId={id} documents={documents} showArchived={showArchivedDocs} onToggleArchived={setShowArchivedDocs} onChanged={loadDocuments} />
         ) : null}
         {tab === "history" ? <History entries={audit} /> : null}
+        {tab === "branches" ? <BranchesPanel employee={employee} onEmployeeChanged={(updated) => { setEmployee(updated); setNotice("Transfer recorded."); }} /> : null}
       </div>
 
       <Drawer open={editing} title={`Edit ${s.fullName}`} onClose={() => setEditing(false)}>

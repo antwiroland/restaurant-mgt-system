@@ -10,6 +10,8 @@ Describes only what is implemented. Sections for later phases are added as each 
   - `hr.employee` — employee registry, emergency contacts, user-account link, self-profile
   - `hr.contract` — employment contracts and renewals
   - `hr.document` — private employee document store
+  - `hr.branch` — branch assignment history (`BranchAssignmentRecorder` keeps it consistent), secondary/temporary
+    assignments, transfers, branch workforce summary
   - `hr.common` — `HrSequenceService` (gap-tolerant sequential numbers), shared helpers
 - HR never writes to POS, order, payment or financial tables.
 - REST prefix: `/hr/**` (web reaches it through `/api/rm/hr/**`).
@@ -48,10 +50,17 @@ receive HR permissions.
 `HrAccessService.scope(principal)`:
 
 - ADMIN, or holder of `hr.branch.all` → all branches.
-- Otherwise → the user's own `branch_id` only; no branch → no branch-specific data.
+- Otherwise → the user's own `branch_id` plus any extra branches an admin added (`hr_user_branch_access`); none → no
+  branch-specific data.
 
-An employee is in scope when their primary branch is in scope. Employees with no primary branch are visible to all-branch
-users only. Out-of-scope lookups return **404** (no existence leak).
+Two levels of employee access (both return **404** when out of scope, so existence is not leaked):
+
+| Level | Rule | Used for |
+|---|---|---|
+| Visible (`loadVisible`) | primary branch in scope, **or** an active secondary/temporary assignment at a branch in scope | directory, profile, assignment history |
+| Manageable (`loadInScope`) | primary branch in scope | edits, status, login link, contracts, documents, audit history, assignments |
+
+Employees with no primary branch are visible to all-branch users only. `EmployeeDetail.manageable` tells the client which level applies.
 
 ### 2.3 Self-service
 
@@ -75,6 +84,15 @@ Departments and positions referenced by employees cannot be deleted; they are ar
 
 Default departments/positions from the restaurant category list are seeded by the migration as editable configuration.
 
+### Phase 2 (`V28__hr_branch_assignments.sql`)
+
+| Table | Purpose / key constraints |
+|---|---|
+| `hr_employee_branch_assignments` | `employee_id`, `branch_id`, `assignment_type` (PRIMARY/SECONDARY/TEMPORARY), optional branch-specific `position_id`, `start_date`, `end_date` (required for TEMPORARY), reasons, actors. Partial unique indexes: one open PRIMARY per employee; one open row per employee and branch. Rows are closed, never deleted. Backfilled with a PRIMARY row per existing employee (hire date → exit date). |
+| `hr_user_branch_access` | (`user_id`, `branch_id`) extra HR branch scope for non-admin staff accounts |
+
+`hr_employees.primary_branch_id` remains the current home branch; the assignment table is its history.
+
 ## 4. API endpoints (Phase 1)
 
 | Method & path | Permission |
@@ -97,7 +115,13 @@ Default departments/positions from the restaurant category list are seeded by th
 | `POST /hr/employees/{id}/contracts`, `PUT /hr/contracts/{id}`, `POST /hr/contracts/{id}/activate|renew|end` | `hr.contract.manage` |
 | `GET /hr/employees/{id}/documents`, `GET /hr/documents/{id}/download` | `hr.document.view` |
 | `POST /hr/employees/{id}/documents` (multipart), `POST /hr/documents/{id}/archive` | `hr.document.manage` |
-| `GET /hr/employees/{id}/audit` | `hr.employee.view` |
+| `GET /hr/employees/{id}/audit` | `hr.employee.view` (manageable) |
+| `GET /hr/employees/{id}/assignments` | `hr.employee.view` (visible) |
+| `POST /hr/employees/{id}/assignments` (`branchId`, `assignmentType` SECONDARY/TEMPORARY, `positionId`, `startDate`, `endDate`, `reason`) | `hr.branch.assign`; employee manageable and target branch in scope |
+| `POST /hr/assignments/{id}/end` (`endDate`, `reason`) | `hr.branch.assign` |
+| `POST /hr/employees/{id}/transfer` (`toBranchId`, `effectiveDate`, `reason`) | `hr.employee.update` + `hr.employee.transfer`; target branch in scope |
+| `GET /hr/branches/workforce` | `hr.branch.view` or `hr.employee.view` |
+| `PUT /hr/access/branches/{userId}` (`branchIds`) | ADMIN |
 
 Paged responses: `{ "items": [...], "page": 0, "size": 25, "total": 123 }`.
 
@@ -114,9 +138,23 @@ Paged responses: `{ "items": [...], "page": 0, "size": 25, "total": 123 }`.
 - Documents: PDF, PNG, JPEG, DOCX only, verified by magic bytes; ≤ 5 MB (matches `spring.servlet.multipart.max-file-size`);
   SHA-256 stored; download streams with `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`; every download audited.
 
+### Multi-branch rules (Phase 2)
+
+- New and imported employees get a PRIMARY assignment starting on the hire date.
+- Transfer: effective date ≤ today and ≥ hire date. The open PRIMARY row ends the day before; a new one starts on the date.
+  A transfer dated on the start day of the open PRIMARY row corrects that row (fixes a wrong branch at hire) instead of
+  creating a one-day assignment. Changing the branch on the edit form is a transfer effective today.
+- An existing secondary assignment at the new home branch is closed when it becomes the primary branch.
+- Secondary/temporary: not at the primary branch, no overlap with another assignment at the same branch, not before hire
+  date; temporary needs an end date. Ending can shorten but not extend (create a new assignment to extend).
+- Exit closes every open assignment at the exit date; re-hire opens a new PRIMARY from the re-hire date.
+- Branch workforce: per branch in scope, counts by status of employees whose home branch it is, plus distinct employees
+  covering it via an active secondary/temporary assignment. Central users also see a "No branch" row.
+
 ## 6. Audit
 
-HR events use the shared `audit_logs` table with `AuditAction.HR_*` values. Metadata never contains salary figures, PINs or
+HR events use the shared `audit_logs` table with `AuditAction.HR_*` values (Phase 2 adds `HR_EMPLOYEE_TRANSFERRED`,
+`HR_BRANCH_ASSIGNMENT_CHANGED`, `HR_BRANCH_ACCESS_CHANGED`). Metadata never contains salary figures, PINs or
 document contents; salary changes are recorded as "changed" without amounts.
 
 ## 7. Web application (Phase 1)
@@ -128,6 +166,10 @@ document contents; salary changes are recorded as "changed" without amounts.
 | `/hr/organisation` | Departments and positions | `hr.employee.view` or department/position manage |
 | `/hr/access` | Per-user HR permission grants | ADMIN role |
 | `/hr/me` | Self-service read-only profile | account linked to an employee |
+| `/hr/branches` | Branch workforce headcount | `hr.branch.view` or `hr.employee.view` |
+
+The profile has a **Branches** tab (history, transfer, add/end assignment). Employees visible only through an assignment
+open read-only with only the Overview and Branches tabs. The HR Access drawer also sets extra branches per account.
 
 - `features/hr/HrAccessContext.tsx` loads `/hr/me/access` once per signed-in user; `lib/navigation.ts` items carry an `hr`
   requirement (`"self"` = linked employee). Hiding is cosmetic; the API enforces everything.
@@ -141,6 +183,7 @@ document contents; salary changes are recorded as "changed" without amounts.
 | `HrUnitTest` | Role defaults, branch scope rules, permission codes, file-signature detection |
 | `HrEmployeeIntegrationTest` (16) | Registry CRUD, numbering, duplicates, branch isolation, grants, exits, optimistic locking, reporting loops, org validation, user linking, import, audit scoping |
 | `HrContractDocumentIntegrationTest` (7) | Pay masking, lifecycle, renewal, expiry job, document validation/download/IDOR, cross-employee document refs |
+| `HrMultiBranchIntegrationTest` (9) | Primary history on hire, transfers (dates, permissions, visibility, audit), same-day correction, covering-branch visibility vs management, overlap rules, temporary expiry, exit/rehire, extra branch scope, workforce counts, scoped vs central assigners |
 | `HrPostgresFlywayIntegrationTest` | Same flows on the Flyway schema (tag `postgres`, run with `-Ppostgres-it`) |
 | `web/src/features/hr/hr.test.tsx` (9) | Permission-filtered navigation, employee form validation and payload |
 
