@@ -13,6 +13,8 @@ Payments use the Paystack stub. They are confirmed by sending the same
 signed `charge.success` webhook Paystack would send, signed with the
 local development secret (PAYSTACK_SECRET_KEY default).
 
+HR data (departments, employees, contracts, documents, branch assignments) is added by seed_hr.py.
+
 Usage (backend started with scripts/dev/run-backend-local.sh):
   python scripts/dev/seed_local.py                    # http://localhost:8080
   python scripts/dev/seed_local.py --base http://localhost:8082
@@ -515,6 +517,10 @@ def main():
         for chunk in range(0, len(statements), 40):
             h2_sql(db_url, ";".join(statements[chunk:chunk + 40]))
 
+    # ---------------------------------------------------------------- HR
+    from seed_hr import print_hr_summary, seed_hr
+    hr_summary = seed_hr(api, A, {"OSU": osu, "ELG": legon}, users, step=step)
+
     print("\nDone.")
     print(f"  Orders: {counts['completed']} finished (history), {counts['active']} live today, {counts['cancelled']} cancelled")
     print(f"  Accounts (password {PASSWORD}):")
@@ -524,6 +530,7 @@ def main():
     print("  Manager PIN (financial approvals): 2468")
     print(f"  Promo codes: WELCOME10, FEAST20 (expired: EXPIRED5)   Open group session: {code}")
     print(f"  Guest QR link: /scan/{guest_table['qrToken']}")
+    print_hr_summary(hr_summary)
 
 
 def step(label):
