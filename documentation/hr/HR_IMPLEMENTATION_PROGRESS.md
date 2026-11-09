@@ -74,6 +74,12 @@
 | `feature/hr-multi-branch` | `1baa588` | feat(hr): add branch history, transfers and branch workforce screens | 2026-11-09 | Phase 2 web |
 | `feature/hr-multi-branch` | `977adb2` | docs(hr): record Phase 2 multi-branch design, tests and progress | 2026-11-09 | Phase 2 docs |
 | `feature/restaurant-hr-management` | `6bb1538` | Merge of `feature/hr-multi-branch` (no fast-forward) | 2026-11-09 | Phase 2 integration |
+| `feature/restaurant-hr-management` | `c5ea856` | Merge of `feature/hr-dev-seed` (dev seed tooling) | 2026-11-09 | Dev tooling |
+| `feature/hr-shift-scheduling` | `a582612` | feat(hr): add shift scheduling with templates, validation, publishing and swaps | 2026-11-09 | Phase 3 backend |
+| `feature/hr-shift-scheduling` | `477bc39` | feat(hr): add shift schedule board and staff self-service schedule | 2026-11-09 | Phase 3 web |
+| `feature/hr-shift-scheduling` | `90a6b00` | chore(hr): seed shift templates, schedules, availability and a swap request | 2026-11-09 | Dev tooling |
+| `feature/hr-shift-scheduling` | `32a7178` | docs(hr): record Phase 3 scheduling design, tests and progress | 2026-11-09 | Phase 3 docs |
+| `feature/restaurant-hr-management` | `9d24358` | Merge of `feature/hr-shift-scheduling` (no fast-forward) | 2026-11-09 | Phase 3 integration |
 
 ## Development Log
 
