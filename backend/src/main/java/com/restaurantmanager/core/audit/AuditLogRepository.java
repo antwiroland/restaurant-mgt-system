@@ -22,4 +22,9 @@ public interface AuditLogRepository extends JpaRepository<AuditLogEntity, UUID> 
     @Query("select a from AuditLogEntity a left join fetch a.actor where a.createdAt >= :from and a.createdAt < :to order by a.createdAt desc")
     List<AuditLogEntity> findAllBetween(@org.springframework.data.repository.query.Param("from") java.time.Instant from,
                                         @org.springframework.data.repository.query.Param("to") java.time.Instant to);
+
+    @Query("select a from AuditLogEntity a left join fetch a.actor where a.entityType = :entityType and a.entityId = :entityId order by a.createdAt desc")
+    List<AuditLogEntity> findTimeline(@org.springframework.data.repository.query.Param("entityType") String entityType,
+                                      @org.springframework.data.repository.query.Param("entityId") java.util.UUID entityId,
+                                      org.springframework.data.domain.Pageable pageable);
 }

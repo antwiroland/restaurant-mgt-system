@@ -24,6 +24,9 @@ Thumbs.db
 # Locally stored media uploads
 backend/uploads/
 uploads/
+# Private HR document store (must never be committed or served publicly)
+backend/hr-documents/
+hr-documents/
 
 # Python
 __pycache__/

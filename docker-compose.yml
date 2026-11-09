@@ -66,8 +66,12 @@ services:
       RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
       ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
       WEBSOCKET_ALLOWED_ORIGIN_PATTERNS: http://localhost:3000,http://localhost:19006,http://localhost:8080
+      HR_DOCUMENTS_DIR: /app/hr-documents
     ports:
       - "8080:8080"
+    volumes:
+      # Confidential HR files: private volume, never served directly.
+      - hr_documents:/app/hr-documents
     depends_on:
       postgres:
         condition: service_healthy
@@ -144,6 +148,7 @@ services:
       - backend
 
 volumes:
+  hr_documents:
   postgres_data:
   redis_data:
   pgadmin_data:

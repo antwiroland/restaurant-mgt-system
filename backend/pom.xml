@@ -179,7 +179,8 @@
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
                             <groups>postgres</groups>
-                            <excludedGroups></excludedGroups>
+                            <!-- an empty element would inherit "postgres" from the default configuration -->
+                            <excludedGroups>none</excludedGroups>
                         </configuration>
                     </plugin>
                 </plugins>
