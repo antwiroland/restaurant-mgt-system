@@ -17,8 +17,29 @@ public class TimeEntryEntity {
     @Id
     private UUID id;
 
-    @Column(name = "user_id", nullable = false)
+    /** Login of the employee when they have one (keeps the self-service /timeclock endpoints working). */
+    @Column(name = "user_id")
     private UUID userId;
+
+    @Column(name = "employee_id")
+    private UUID employeeId;
+
+    /** POS, SELF_SERVICE, MANAGER, DEVICE or CORRECTION (see hr.attendance.AttendanceSource). */
+    @Column(nullable = false, length = 20)
+    private String source = "SELF_SERVICE";
+
+    @Column(name = "clock_out_source", length = 20)
+    private String clockOutSource;
+
+    @Column(name = "terminal_id", length = 80)
+    private String terminalId;
+
+    /** Clocked in without a matching published shift (allowed by policy, flagged for review). */
+    @Column(nullable = false)
+    private boolean unscheduled;
+
+    @jakarta.persistence.Version
+    private long version;
 
     @Column(name = "branch_id")
     private UUID branchId;
@@ -66,6 +87,18 @@ public class TimeEntryEntity {
     }
 
     /** Worked minutes excluding breaks; open entries count up to {@code now}. */
+    public UUID getEmployeeId() { return employeeId; }
+    public void setEmployeeId(UUID employeeId) { this.employeeId = employeeId; }
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
+    public String getClockOutSource() { return clockOutSource; }
+    public void setClockOutSource(String clockOutSource) { this.clockOutSource = clockOutSource; }
+    public String getTerminalId() { return terminalId; }
+    public void setTerminalId(String terminalId) { this.terminalId = terminalId; }
+    public boolean isUnscheduled() { return unscheduled; }
+    public void setUnscheduled(boolean unscheduled) { this.unscheduled = unscheduled; }
+    public long getVersion() { return version; }
+
     public long workedMinutes(Instant now) {
         Instant end = clockOutAt == null ? now : clockOutAt;
         return Math.max(0, Duration.between(clockInAt, end).toMinutes() - breakMinutes);

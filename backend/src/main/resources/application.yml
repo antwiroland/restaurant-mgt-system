@@ -92,6 +92,8 @@ app:
     pin-window-seconds: ${RATE_LIMIT_PIN_WINDOW_SECONDS:300}
     public-requests: ${RATE_LIMIT_PUBLIC_REQUESTS:120}
     public-window-seconds: ${RATE_LIMIT_PUBLIC_WINDOW_SECONDS:60}
+    hr-clock-requests: ${RATE_LIMIT_HR_CLOCK_REQUESTS:60}
+    hr-clock-window-seconds: ${RATE_LIMIT_HR_CLOCK_WINDOW_SECONDS:60}
 
 security:
   jwt:
@@ -155,6 +157,20 @@ hr:
     default-min-rest-minutes: ${HR_DEFAULT_MIN_REST_MINUTES:480}
     default-max-shift-minutes: ${HR_DEFAULT_MAX_SHIFT_MINUTES:720}
     default-max-weekly-minutes: ${HR_DEFAULT_MAX_WEEKLY_MINUTES:2880}
+  attendance:
+    # Fallbacks until an organisation or branch attendance policy is saved (HR > Attendance > Rules).
+    default-late-grace-minutes: ${HR_DEFAULT_LATE_GRACE_MINUTES:5}
+    default-early-leave-grace-minutes: ${HR_DEFAULT_EARLY_LEAVE_GRACE_MINUTES:5}
+    default-early-clock-in-minutes: ${HR_DEFAULT_EARLY_CLOCK_IN_MINUTES:30}
+    # ALLOW records unscheduled clock-ins and flags them; BLOCK refuses them.
+    default-unscheduled-clock-in: ${HR_DEFAULT_UNSCHEDULED_CLOCK_IN:ALLOW}
+    default-require-correction-approval: ${HR_DEFAULT_REQUIRE_CORRECTION_APPROVAL:true}
+    default-meal-break-paid: ${HR_DEFAULT_MEAL_BREAK_PAID:false}
+    default-rest-break-paid: ${HR_DEFAULT_REST_BREAK_PAID:true}
+    default-allow-self-clock: ${HR_DEFAULT_ALLOW_SELF_CLOCK:true}
+    default-missed-clock-out-minutes: ${HR_DEFAULT_MISSED_CLOCK_OUT_MINUTES:120}
+    pin-max-attempts: ${HR_CLOCK_PIN_MAX_ATTEMPTS:5}
+    pin-lockout-minutes: ${HR_CLOCK_PIN_LOCKOUT_MINUTES:15}
 
 inventory:
   block-when-insufficient: ${INVENTORY_BLOCK_WHEN_INSUFFICIENT:true}

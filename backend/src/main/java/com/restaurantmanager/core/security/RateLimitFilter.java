@@ -75,6 +75,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 || "/auth/email/verify".equals(path)) {
             return new LimitSpec("auth", rateLimitProps.getAuthRequests(), rateLimitProps.getAuthWindowSeconds() * 1000L);
         }
+        if ("/hr/pos/clock".equals(path) || "/hr/pos/me".equals(path)) {
+            return new LimitSpec("hrclock", rateLimitProps.getHrClockRequests(), rateLimitProps.getHrClockWindowSeconds() * 1000L);
+        }
         if ("/auth/pin/verify".equals(path) || USER_PIN_PATH.matcher(path).matches()) {
             return new LimitSpec("pin", rateLimitProps.getPinRequests(), rateLimitProps.getPinWindowSeconds() * 1000L);
         }

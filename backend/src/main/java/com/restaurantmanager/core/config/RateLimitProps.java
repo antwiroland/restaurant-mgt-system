@@ -11,6 +11,9 @@ public class RateLimitProps {
     private int pinWindowSeconds = 300;
     private int publicRequests = 120;
     private int publicWindowSeconds = 60;
+    /** POS staff clock (PIN entry). Per-employee lockout stops guessing one PIN; this caps sprays across employees. */
+    private int hrClockRequests = 60;
+    private int hrClockWindowSeconds = 60;
 
     public boolean isEnabled() {
         return enabled;
@@ -66,5 +69,21 @@ public class RateLimitProps {
 
     public void setPublicWindowSeconds(int publicWindowSeconds) {
         this.publicWindowSeconds = publicWindowSeconds;
+    }
+
+    public int getHrClockRequests() {
+        return hrClockRequests;
+    }
+
+    public void setHrClockRequests(int hrClockRequests) {
+        this.hrClockRequests = hrClockRequests;
+    }
+
+    public int getHrClockWindowSeconds() {
+        return hrClockWindowSeconds;
+    }
+
+    public void setHrClockWindowSeconds(int hrClockWindowSeconds) {
+        this.hrClockWindowSeconds = hrClockWindowSeconds;
     }
 }
