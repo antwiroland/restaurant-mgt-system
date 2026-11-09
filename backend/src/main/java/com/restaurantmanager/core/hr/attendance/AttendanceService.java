@@ -44,12 +44,14 @@ public class AttendanceService {
     private final EmployeeRepository employeeRepository;
     private final BranchAssignmentRepository assignmentRepository;
     private final AttendancePolicyService policyService;
+    private final com.restaurantmanager.core.hr.timesheet.TimesheetGuard timesheetGuard;
     private final ZoneId zone;
 
     public AttendanceService(TimeEntryRepository entryRepository, AttendanceBreakRepository breakRepository,
                              AttendanceEventRepository eventRepository, AttendanceEventRecorder eventRecorder,
                              WorkScheduleRepository scheduleRepository, EmployeeRepository employeeRepository,
                              BranchAssignmentRepository assignmentRepository, AttendancePolicyService policyService,
+                             com.restaurantmanager.core.hr.timesheet.TimesheetGuard timesheetGuard,
                              @Value("${app.timezone:Africa/Accra}") String timeZone) {
         this.entryRepository = entryRepository;
         this.breakRepository = breakRepository;
@@ -59,6 +61,7 @@ public class AttendanceService {
         this.employeeRepository = employeeRepository;
         this.assignmentRepository = assignmentRepository;
         this.policyService = policyService;
+        this.timesheetGuard = timesheetGuard;
         this.zone = ZoneId.of(timeZone);
     }
 
@@ -85,6 +88,7 @@ public class AttendanceService {
         Instant now = Instant.now();
         Instant at = eventTime(cmd.occurredAt(), now);
         try {
+            timesheetGuard.assertEditable(employee.getId(), at.atZone(zone).toLocalDate());
             TimeEntryEntity entry = switch (cmd.action()) {
                 case CLOCK_IN -> clockIn(employee, cmd, at);
                 case BREAK_START -> startBreak(employee, cmd, at);

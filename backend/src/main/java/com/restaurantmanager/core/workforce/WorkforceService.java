@@ -34,6 +34,7 @@ public class WorkforceService {
     private final com.restaurantmanager.core.hr.employee.EmployeeRepository employeeRepository;
     private final com.restaurantmanager.core.hr.attendance.AttendanceCorrectionRepository correctionRepository;
     private final com.restaurantmanager.core.hr.attendance.AttendancePolicyService attendancePolicyService;
+    private final com.restaurantmanager.core.hr.timesheet.TimesheetGuard timesheetGuard;
     private final ZoneId zone;
 
     public WorkforceService(WorkScheduleRepository scheduleRepository, TimeEntryRepository entryRepository,
@@ -41,6 +42,7 @@ public class WorkforceService {
                             com.restaurantmanager.core.hr.employee.EmployeeRepository employeeRepository,
                             com.restaurantmanager.core.hr.attendance.AttendanceCorrectionRepository correctionRepository,
                             com.restaurantmanager.core.hr.attendance.AttendancePolicyService attendancePolicyService,
+                            com.restaurantmanager.core.hr.timesheet.TimesheetGuard timesheetGuard,
                             @org.springframework.beans.factory.annotation.Value("${app.time-zone:Africa/Accra}") String timeZone) {
         this.scheduleRepository = scheduleRepository;
         this.entryRepository = entryRepository;
@@ -48,6 +50,7 @@ public class WorkforceService {
         this.employeeRepository = employeeRepository;
         this.correctionRepository = correctionRepository;
         this.attendancePolicyService = attendancePolicyService;
+        this.timesheetGuard = timesheetGuard;
         this.zone = ZoneId.of(timeZone);
     }
 
@@ -176,6 +179,7 @@ public class WorkforceService {
         if (breaks < 0 || (out != null && breaks > Duration.between(in, out).toMinutes())) {
             throw new ApiException(400, "Break time is longer than the shift");
         }
+        timesheetGuard.assertEditable(entry.getEmployeeId(), entry.getClockInAt().atZone(zone).toLocalDate(), in.atZone(zone).toLocalDate());
         if (entry.getEmployeeId() != null) {
             // keep the original values on record as an applied correction (HR attendance history)
             var correction = new com.restaurantmanager.core.hr.attendance.AttendanceCorrectionEntity();

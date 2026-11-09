@@ -171,6 +171,14 @@ hr:
     default-missed-clock-out-minutes: ${HR_DEFAULT_MISSED_CLOCK_OUT_MINUTES:120}
     pin-max-attempts: ${HR_CLOCK_PIN_MAX_ATTEMPTS:5}
     pin-lockout-minutes: ${HR_CLOCK_PIN_LOCKOUT_MINUTES:15}
+  overtime:
+    # Fallbacks until an overtime rule is saved (HR > Timesheets > Overtime rules). Business settings, not legal advice.
+    default-daily-threshold-minutes: ${HR_DEFAULT_OT_DAILY_THRESHOLD_MINUTES:480}
+    default-weekly-threshold-minutes: ${HR_DEFAULT_OT_WEEKLY_THRESHOLD_MINUTES:2880}
+    default-daily-multiplier: ${HR_DEFAULT_OT_DAILY_MULTIPLIER:1.5}
+    default-weekly-multiplier: ${HR_DEFAULT_OT_WEEKLY_MULTIPLIER:1.5}
+    default-holiday-multiplier: ${HR_DEFAULT_OT_HOLIDAY_MULTIPLIER:2.0}
+    default-requires-approval: ${HR_DEFAULT_OT_REQUIRES_APPROVAL:true}
 
 inventory:
   block-when-insufficient: ${INVENTORY_BLOCK_WHEN_INSUFFICIENT:true}

@@ -51,6 +51,8 @@ public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID>,
 
     List<EmployeeEntity> findByIdIn(Collection<UUID> ids);
 
+    List<EmployeeEntity> findByPrimaryBranchId(UUID branchId);
+
     /** Rows of [primaryBranchId (nullable), employmentStatus, count] for the branch workforce summary. */
     @Query("select e.primaryBranch.id, e.employmentStatus, count(e) from EmployeeEntity e left join e.primaryBranch "
             + "group by e.primaryBranch.id, e.employmentStatus")

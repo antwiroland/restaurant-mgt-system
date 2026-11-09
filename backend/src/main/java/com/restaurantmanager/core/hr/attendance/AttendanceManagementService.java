@@ -57,13 +57,15 @@ public class AttendanceManagementService {
     private final ClockPinService pinService;
     private final HrAccessService accessService;
     private final HrAuditService audit;
+    private final com.restaurantmanager.core.hr.timesheet.TimesheetGuard timesheetGuard;
 
     public AttendanceManagementService(TimeEntryRepository entryRepository, AttendanceCorrectionRepository correctionRepository,
                                        AttendanceBreakRepository breakRepository, WorkScheduleRepository scheduleRepository,
                                        EmployeeRepository employeeRepository, EmployeeService employeeService,
                                        BranchAssignmentRepository assignmentRepository, AttendanceService attendanceService,
                                        AttendancePolicyService policyService, ClockGateway gateway, ClockPinService pinService,
-                                       HrAccessService accessService, HrAuditService audit) {
+                                       HrAccessService accessService, HrAuditService audit,
+                                       com.restaurantmanager.core.hr.timesheet.TimesheetGuard timesheetGuard) {
         this.entryRepository = entryRepository;
         this.correctionRepository = correctionRepository;
         this.breakRepository = breakRepository;
@@ -77,6 +79,7 @@ public class AttendanceManagementService {
         this.pinService = pinService;
         this.accessService = accessService;
         this.audit = audit;
+        this.timesheetGuard = timesheetGuard;
     }
 
     // ------------------------------------------------------------ manager views
@@ -246,6 +249,7 @@ public class AttendanceManagementService {
         if (r.clockOutAt() == null && entry == null) {
             throw new ApiException(400, "A missing record needs both clock-in and clock-out times");
         }
+        timesheetGuard.assertEditable(employeeId, day(r.clockInAt()), entry == null ? null : day(entry.getClockInAt()));
         int breaks = r.breakMinutes() == null ? 0 : r.breakMinutes();
         if (r.clockOutAt() != null && breaks >= Duration.between(r.clockInAt(), r.clockOutAt()).toMinutes()) {
             throw new ApiException(400, "Unpaid break time is longer than the shift");
@@ -305,8 +309,13 @@ public class AttendanceManagementService {
         return views(List.of(c)).get(0);
     }
 
+    private LocalDate day(Instant instant) {
+        return instant == null ? null : instant.atZone(attendanceService.zone()).toLocalDate();
+    }
+
     /** Applies a correction: the original values stay on the correction row; the entry takes the corrected values. */
     private void apply(AttendanceCorrectionEntity c, UUID actorId, String note) {
+        timesheetGuard.assertEditable(c.getEmployeeId(), day(c.getCorrectedClockIn()), day(c.getOriginalClockIn()));
         TimeEntryEntity entry;
         if (c.getTimeEntryId() != null) {
             entry = entryRepository.findById(c.getTimeEntryId()).orElseThrow(() -> new ApiException(409, "The attendance record no longer exists"));
