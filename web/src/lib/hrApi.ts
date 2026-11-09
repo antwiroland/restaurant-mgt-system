@@ -364,3 +364,101 @@ export const cancelMySwap = (s: StaffSession, id: string) => apiRequest<SwapRequ
 export const getSwapRequests = (s: StaffSession, status?: SwapStatus) => apiRequest<SwapRequest[]>(`/hr/shift-swaps${query({ status })}`, auth(s));
 export const decideSwap = (s: StaffSession, id: string, body: { approve: boolean; note?: string; acknowledgeWarnings?: boolean }) =>
   scheduleCall<SwapRequest>(s, `/hr/shift-swaps/${id}/decision`, "POST", body);
+
+// ---------------------------------------------------------------------------
+// Attendance (Phase 4)
+// ---------------------------------------------------------------------------
+
+export type ClockAction = "CLOCK_IN" | "CLOCK_OUT" | "BREAK_START" | "BREAK_END";
+export type BreakType = "MEAL" | "REST" | "OTHER";
+export type AttendanceMetrics = {
+  elapsedMinutes: number; unpaidBreakMinutes: number; paidMinutes: number; lateMinutes: number;
+  earlyLeaveMinutes: number; overtimeMinutes: number; missedClockOut: boolean;
+};
+export type AttendanceBreak = { id: string; type: BreakType; paid: boolean; startedAt: string; endedAt?: string | null; minutes: number };
+export type AttendanceEntry = {
+  id: string; employeeId?: string | null; employeeName?: string | null; branchId?: string | null; scheduleId?: string | null;
+  shiftStartsAt?: string | null; shiftEndsAt?: string | null; clockInAt: string; clockOutAt?: string | null;
+  source: string; clockOutSource?: string | null; terminalId?: string | null; unscheduled: boolean; onBreak: boolean;
+  breaks: AttendanceBreak[]; metrics: AttendanceMetrics; status: "ON_SHIFT" | "ON_BREAK" | "COMPLETED" | "MISSED_CLOCK_OUT";
+  editReason?: string | null;
+};
+export type ClockResult = { eventId: string; action: ClockAction; at: string; duplicate: boolean; entry?: AttendanceEntry | null; message: string };
+export type RosterEntry = {
+  employeeId: string; displayName: string; positionTitle?: string | null; hasPin: boolean; state: "OFF" | "ON_SHIFT" | "ON_BREAK";
+  nextShiftAt?: string | null;
+};
+export type PosSummary = {
+  employeeId: string; displayName: string; current?: AttendanceEntry | null;
+  upcomingShifts: { id: string; branchId: string; startsAt: string; endsAt: string; breakMinutes: number }[];
+};
+export type AttendancePolicy = {
+  lateGraceMinutes: number; earlyLeaveGraceMinutes: number; earlyClockInMinutes: number; unscheduledClockIn: "ALLOW" | "BLOCK";
+  requireCorrectionApproval: boolean; mealBreakPaid: boolean; restBreakPaid: boolean; allowSelfClock: boolean;
+  missedClockOutMinutes: number; source: string;
+};
+export type DayRow = {
+  employeeId?: string | null; employeeName?: string | null; shiftStartsAt?: string | null; shiftEndsAt?: string | null;
+  entry?: AttendanceEntry | null; status: string; late: boolean;
+};
+export type AttendanceDay = { branchId: string; date: string; rows: DayRow[]; counts: Record<string, number>; lateArrivals: number; policy: AttendancePolicy };
+export type CorrectionStatus = "PENDING" | "APPLIED" | "REJECTED";
+export type AttendanceCorrection = {
+  id: string; timeEntryId?: string | null; employeeId: string; employeeName?: string | null; branchId?: string | null;
+  originalClockIn?: string | null; originalClockOut?: string | null; originalBreakMinutes?: number | null;
+  correctedClockIn: string; correctedClockOut?: string | null; correctedBreakMinutes: number; reason: string;
+  status: CorrectionStatus; requestedBy?: string | null; decidedAt?: string | null; decisionNote?: string | null; createdAt: string;
+};
+export type PinStatus = { set: boolean; setAt?: string | null; lockedUntil?: string | null };
+
+/** Unique request key for idempotent clock actions. Works on plain-HTTP POS tablets where crypto.randomUUID is unavailable. */
+export function newRequestKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export const getPosRoster = (s: StaffSession) => apiRequest<RosterEntry[]>("/hr/pos/roster", auth(s));
+export const posClock = (
+  s: StaffSession,
+  body: { employeeId: string; pin: string; action: ClockAction; breakType?: BreakType; idempotencyKey: string; terminalId?: string },
+) => apiRequest<ClockResult>("/hr/pos/clock", { ...auth(s), method: "POST", body });
+export const posSummary = (s: StaffSession, body: { employeeId: string; pin: string }) =>
+  apiRequest<PosSummary>("/hr/pos/me", { ...auth(s), method: "POST", body });
+
+export const getAttendanceDay = (s: StaffSession, branchId: string, date: string) =>
+  apiRequest<AttendanceDay>(`/hr/attendance/day${query({ branchId, date })}`, auth(s));
+export const getAttendanceEntries = (s: StaffSession, branchId: string, from: string, to: string, employeeId?: string) =>
+  apiRequest<AttendanceEntry[]>(`/hr/attendance/entries${query({ branchId, from, to, employeeId })}`, auth(s));
+export const clockForEmployee = (
+  s: StaffSession,
+  body: { employeeId: string; branchId: string; action: ClockAction; breakType?: BreakType; idempotencyKey: string; reason?: string },
+) => apiRequest<ClockResult>("/hr/attendance/clock", { ...auth(s), method: "POST", body });
+export const getCorrections = (s: StaffSession, status?: CorrectionStatus) =>
+  apiRequest<AttendanceCorrection[]>(`/hr/attendance/corrections${query({ status })}`, auth(s));
+export const requestCorrection = (
+  s: StaffSession,
+  body: { timeEntryId?: string; employeeId?: string; branchId?: string; clockInAt: string; clockOutAt?: string | null; breakMinutes?: number; reason: string },
+) => apiRequest<AttendanceCorrection>("/hr/attendance/corrections", { ...auth(s), method: "POST", body });
+export const decideCorrection = (s: StaffSession, id: string, body: { approve: boolean; note?: string }) =>
+  apiRequest<AttendanceCorrection>(`/hr/attendance/corrections/${id}/decision`, { ...auth(s), method: "POST", body });
+export const getAttendancePolicy = (s: StaffSession, branchId?: string) =>
+  apiRequest<AttendancePolicy>(`/hr/attendance-policy${query({ branchId })}`, auth(s));
+export const saveAttendancePolicy = (s: StaffSession, body: Omit<AttendancePolicy, "source"> & { branchId?: string | null }) =>
+  apiRequest<AttendancePolicy>("/hr/attendance-policy", { ...auth(s), method: "PUT", body });
+
+export const getClockPin = (s: StaffSession, employeeId: string) => apiRequest<PinStatus>(`/hr/employees/${employeeId}/clock-pin`, auth(s));
+export const setClockPin = (s: StaffSession, employeeId: string, pin: string) =>
+  apiRequest<PinStatus>(`/hr/employees/${employeeId}/clock-pin`, { ...auth(s), method: "PUT", body: { pin } });
+export const clearClockPin = (s: StaffSession, employeeId: string) =>
+  apiRequest<PinStatus>(`/hr/employees/${employeeId}/clock-pin`, { ...auth(s), method: "DELETE" });
+
+export const getMyAttendanceStatus = (s: StaffSession) => apiRequest<AttendanceEntry | undefined>("/hr/me/attendance/status", auth(s));
+export const getMyAttendance = (s: StaffSession, from: string, to: string) =>
+  apiRequest<AttendanceEntry[]>(`/hr/me/attendance${query({ from, to })}`, auth(s));
+export const selfClock = (s: StaffSession, body: { action: ClockAction; breakType?: BreakType; idempotencyKey: string }) =>
+  apiRequest<ClockResult>("/hr/me/clock", { ...auth(s), method: "POST", body });
+export const getMyClockPin = (s: StaffSession) => apiRequest<PinStatus>("/hr/me/clock-pin", auth(s));
+export const setMyClockPin = (s: StaffSession, body: { currentPin?: string; newPin: string }) =>
+  apiRequest<PinStatus>("/hr/me/clock-pin", { ...auth(s), method: "PUT", body });

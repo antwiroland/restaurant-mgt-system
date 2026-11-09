@@ -9,6 +9,7 @@ import { useStaffSession } from "@/components/SessionProvider";
 import { useHrAccess } from "@/features/hr/HrAccessContext";
 import { HrGuard, Field, errorMessage, formatDate } from "@/features/hr/ui";
 import { IssuesList } from "@/features/hr/schedule/ShiftDialog";
+import { MyTimeClock } from "@/features/hr/attendance/MyTimeClock";
 import { DAY_CODES, shiftLabel, trimTime } from "@/features/hr/schedule/scheduleUtils";
 import { addDays, formatMinutes, isoDate } from "@/features/workforce/time";
 import {
@@ -92,9 +93,11 @@ function MySchedule() {
 
   return (
     <div className="grid gap-6">
-      <PageHeader eyebrow="Human Resources" title="My Schedule" icon="calendar" description="Your published shifts for the next four weeks, swap requests and availability." />
+      <PageHeader eyebrow="Human Resources" title="My Schedule" icon="calendar" description="Your time clock, published shifts for the next four weeks, swap requests and availability." />
       {notice ? <p className="alert alert-success" role="status">{notice}</p> : null}
       {error ? <ErrorState message={error} onRetry={load} /> : null}
+
+      <MyTimeClock />
 
       <section className="panel grid gap-3">
         <SectionHeader title="Upcoming shifts" description={shifts ? `${shifts.length} shift${shifts.length === 1 ? "" : "s"} · ${formatMinutes(totalMinutes)} paid` : undefined} />
