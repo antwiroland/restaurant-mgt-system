@@ -92,8 +92,8 @@ Default departments/positions from the restaurant category list are seeded by th
 | `POST /hr/employees/{id}/status` | `hr.employee.update`; exit statuses need `hr.employee.archive` |
 | `POST /hr/employees/{id}/link-user` / `DELETE .../link-user` | `hr.employee.update` |
 | `GET /hr/employees/linkable-users` | `hr.employee.create` |
-| `POST /hr/employees/import-users` | `hr.employee.create` + `hr.branch.all` |
-| `GET /hr/employees/{id}/contracts`, `GET /hr/contracts/expiring?days=` | `hr.contract.view` |
+| `POST /hr/employees/import-users` (body: `employmentType`, `hireDate`) | `hr.employee.create`; only staff accounts in the caller's branches |
+| `GET /hr/employees/{id}/contracts`, `GET /hr/contracts/due?days=` (end or probation date within N days, plus overdue) | `hr.contract.view` |
 | `POST /hr/employees/{id}/contracts`, `PUT /hr/contracts/{id}`, `POST /hr/contracts/{id}/activate|renew|end` | `hr.contract.manage` |
 | `GET /hr/employees/{id}/documents`, `GET /hr/documents/{id}/download` | `hr.document.view` |
 | `POST /hr/employees/{id}/documents` (multipart), `POST /hr/documents/{id}/archive` | `hr.document.manage` |
@@ -119,8 +119,36 @@ Paged responses: `{ "items": [...], "page": 0, "size": 25, "total": 123 }`.
 HR events use the shared `audit_logs` table with `AuditAction.HR_*` values. Metadata never contains salary figures, PINs or
 document contents; salary changes are recorded as "changed" without amounts.
 
-## 7. Deployment considerations
+## 7. Web application (Phase 1)
+
+| Route | Purpose | Shown when |
+|---|---|---|
+| `/hr/employees` | Directory, filters, paging, create, import staff accounts | `hr.employee.view` |
+| `/hr/employees/[id]` | Profile: overview, contracts, documents, history; edit, status, login link | `hr.employee.view` (tabs/actions per permission) |
+| `/hr/organisation` | Departments and positions | `hr.employee.view` or department/position manage |
+| `/hr/access` | Per-user HR permission grants | ADMIN role |
+| `/hr/me` | Self-service read-only profile | account linked to an employee |
+
+- `features/hr/HrAccessContext.tsx` loads `/hr/me/access` once per signed-in user; `lib/navigation.ts` items carry an `hr`
+  requirement (`"self"` = linked employee). Hiding is cosmetic; the API enforces everything.
+- Data layer: `lib/hrApi.ts` (reuses `apiRequest`, `downloadFile`, `rawError` from `lib/apiClient.ts`).
+- The `/api/rm` proxy forwards `X-Content-Type-Options` and `Cache-Control` so document downloads keep their protections.
+
+## 8. Tests (Phase 1)
+
+| Suite | Scope |
+|---|---|
+| `HrUnitTest` | Role defaults, branch scope rules, permission codes, file-signature detection |
+| `HrEmployeeIntegrationTest` (16) | Registry CRUD, numbering, duplicates, branch isolation, grants, exits, optimistic locking, reporting loops, org validation, user linking, import, audit scoping |
+| `HrContractDocumentIntegrationTest` (7) | Pay masking, lifecycle, renewal, expiry job, document validation/download/IDOR, cross-employee document refs |
+| `HrPostgresFlywayIntegrationTest` | Same flows on the Flyway schema (tag `postgres`, run with `-Ppostgres-it`) |
+| `web/src/features/hr/hr.test.tsx` (9) | Permission-filtered navigation, employee form validation and payload |
+
+## 9. Deployment considerations
 
 - `hr.documents.dir` (env `HR_DOCUMENTS_DIR`, default `hr-documents`) must be a persistent, **non-public** volume. In a
   multi-instance deployment it must be shared storage. It must not be served by any static file server.
 - Run Flyway (`V27+`) before starting the new build.
+- `docker-compose.yml` mounts the named volume `hr_documents` at `/app/hr-documents` (`HR_DOCUMENTS_DIR`).
+- `HR_CONTRACT_EXPIRY_CRON` (default `0 15 1 * * *`, in `app.timezone`) schedules the contract expiry job.
+- Running `-Ppostgres-it` against Docker Engine 29+ needs `DOCKER_API_VERSION=1.44` (older docker-java default is rejected).
