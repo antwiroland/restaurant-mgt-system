@@ -67,6 +67,8 @@
 | `feature/restaurant-hr-management` | `a068f60` | docs(hr): record Phase 1 commit hashes | 2026-11-09 | Phase 1 docs |
 | `feature/hr-multi-branch` | `5d9e484` | feat(hr): add multi-branch assignments, transfers and branch scope | 2026-11-09 | Phase 2 backend |
 | `feature/hr-multi-branch` | `1baa588` | feat(hr): add branch history, transfers and branch workforce screens | 2026-11-09 | Phase 2 web |
+| `feature/hr-multi-branch` | `977adb2` | docs(hr): record Phase 2 multi-branch design, tests and progress | 2026-11-09 | Phase 2 docs |
+| `feature/restaurant-hr-management` | `6bb1538` | Merge of `feature/hr-multi-branch` (no fast-forward) | 2026-11-09 | Phase 2 integration |
 
 ## Development Log
 
