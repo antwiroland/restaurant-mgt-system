@@ -10,6 +10,10 @@ import com.restaurantmanager.core.common.Role;
 import com.restaurantmanager.core.hr.access.HrAccessService;
 import com.restaurantmanager.core.hr.access.HrAccessService.HrAccess;
 import com.restaurantmanager.core.hr.access.HrPermission;
+import com.restaurantmanager.core.hr.branch.AssignmentType;
+import com.restaurantmanager.core.hr.branch.BranchAssignmentEntity;
+import com.restaurantmanager.core.hr.branch.BranchAssignmentRecorder;
+import com.restaurantmanager.core.hr.branch.BranchAssignmentRepository;
 import com.restaurantmanager.core.hr.common.HrAuditService;
 import com.restaurantmanager.core.hr.common.HrSequenceService;
 import com.restaurantmanager.core.hr.common.PageResponse;
@@ -66,12 +70,15 @@ public class EmployeeService {
     private final HrAccessService accessService;
     private final HrSequenceService sequenceService;
     private final HrAuditService audit;
+    private final BranchAssignmentRecorder assignmentRecorder;
+    private final BranchAssignmentRepository assignmentRepository;
     private final ZoneId zone;
 
     public EmployeeService(EmployeeRepository employeeRepository, DepartmentRepository departmentRepository,
                            PositionRepository positionRepository, BranchRepository branchRepository, UserRepository userRepository,
                            AuditLogRepository auditLogRepository, HrAccessService accessService, HrSequenceService sequenceService,
-                           HrAuditService audit, @Value("${app.timezone:Africa/Accra}") String timeZone) {
+                           HrAuditService audit, BranchAssignmentRecorder assignmentRecorder,
+                           BranchAssignmentRepository assignmentRepository, @Value("${app.timezone:Africa/Accra}") String timeZone) {
         this.employeeRepository = employeeRepository;
         this.departmentRepository = departmentRepository;
         this.positionRepository = positionRepository;
@@ -81,6 +88,8 @@ public class EmployeeService {
         this.accessService = accessService;
         this.sequenceService = sequenceService;
         this.audit = audit;
+        this.assignmentRecorder = assignmentRecorder;
+        this.assignmentRepository = assignmentRepository;
         this.zone = ZoneId.of(timeZone);
     }
 
@@ -93,23 +102,46 @@ public class EmployeeService {
             throw new ApiException(403, "You do not have access to this branch");
         }
         PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_PAGE_SIZE), sortOf(sort));
-        return PageResponse.of(employeeRepository.findAll(spec(filter, access), pageable), EmployeeService::toSummary);
+        return PageResponse.of(employeeRepository.findAll(spec(filter, access, LocalDate.now(zone)), pageable), EmployeeService::toSummary);
     }
 
     @Transactional(readOnly = true)
     public EmployeeDetail get(UserPrincipal principal, UUID id) {
         HrAccess access = accessService.require(principal, HrPermission.EMPLOYEE_VIEW);
-        return toDetail(loadInScope(id, access));
+        EmployeeEntity employee = loadVisible(id, access);
+        return toDetail(employee, access.canSeeBranch(employee.primaryBranchId()));
     }
 
     @Transactional(readOnly = true)
     public EmployeeDetail myProfile(UserPrincipal principal) {
         EmployeeEntity employee = employeeRepository.findByUserId(principal.userId())
                 .orElseThrow(() -> new ApiException(404, "No employee record is linked to your account"));
-        return toDetail(employeeRepository.findDetailedById(employee.getId()).orElseThrow());
+        return toDetail(employeeRepository.findDetailedById(employee.getId()).orElseThrow(), false);
     }
 
-    /** Loads an employee that the caller may see; out-of-scope records are reported as missing. */
+    /**
+     * Read access: the employee's primary branch is in scope, or they hold an active secondary/temporary assignment at a
+     * branch in scope (so a covering branch can see who works there). Out-of-scope records are reported as missing.
+     */
+    @Transactional(readOnly = true)
+    public EmployeeEntity loadVisible(UUID id, HrAccess access) {
+        EmployeeEntity employee = employeeRepository.findDetailedById(id)
+                .orElseThrow(() -> new ApiException(404, "Employee not found"));
+        if (access.canSeeBranch(employee.primaryBranchId())) {
+            return employee;
+        }
+        boolean assignedHere = assignmentRepository.findActiveSecondary(id, LocalDate.now(zone)).stream()
+                .anyMatch(a -> access.canSeeBranch(a.getBranchId()));
+        if (!assignedHere) {
+            throw new ApiException(404, "Employee not found");
+        }
+        return employee;
+    }
+
+    /**
+     * Management access: the employee's primary branch must be in scope. Used for edits, contracts, documents and history,
+     * which stay with the home branch even when the employee also works elsewhere.
+     */
     @Transactional(readOnly = true)
     public EmployeeEntity loadInScope(UUID id, HrAccess access) {
         EmployeeEntity employee = employeeRepository.findDetailedById(id)
@@ -170,10 +202,11 @@ public class EmployeeService {
         }
         employee.setEmploymentStatus(EmploymentStatus.ACTIVE);
         employee.setCreatedBy(access.userId());
-        EmployeeEntity saved = employeeRepository.save(employee);
+        EmployeeEntity saved = employeeRepository.saveAndFlush(employee);
+        assignmentRecorder.openPrimary(saved.getId(), saved.primaryBranchId(), positionId(saved), saved.getHireDate(), "Hired", access.userId());
         audit.log(access.userId(), AuditAction.HR_EMPLOYEE_CREATED, "Employee", saved.getId(),
                 Map.of("employeeNumber", saved.getEmployeeNumber(), "branchId", String.valueOf(saved.primaryBranchId())));
-        return toDetail(saved);
+        return toDetail(saved, true);
     }
 
     @Transactional
@@ -185,10 +218,8 @@ public class EmployeeService {
         }
         Map<String, Object> before = snapshot(employee);
         if (!Objects.equals(request.primaryBranchId(), employee.primaryBranchId())) {
-            if (!access.has(HrPermission.EMPLOYEE_TRANSFER)) {
-                throw new ApiException(403, "You do not have permission to move employees between branches");
-            }
-            applyBranch(employee, request.primaryBranchId(), access);
+            // a branch change from the edit form is a transfer effective today, recorded in the assignment history
+            transferInternal(employee, request.primaryBranchId(), LocalDate.now(zone), "Changed on employee record", access);
         }
         String number = blankToNull(request.employeeNumber());
         if (number != null && !number.equalsIgnoreCase(employee.getEmployeeNumber())) {
@@ -206,7 +237,43 @@ public class EmployeeService {
             }
             audit.log(access.userId(), AuditAction.HR_EMPLOYEE_UPDATED, "Employee", id, meta);
         }
-        return toDetail(employeeRepository.saveAndFlush(employee));
+        return toDetail(employeeRepository.saveAndFlush(employee), true);
+    }
+
+    /** Moves the employee's home branch from a given date, closing the old primary assignment and opening a new one. */
+    @Transactional
+    public EmployeeDetail transfer(UserPrincipal principal, UUID id, TransferRequest request) {
+        HrAccess access = accessService.require(principal, HrPermission.EMPLOYEE_UPDATE);
+        EmployeeEntity employee = loadInScope(id, access);
+        if (employee.getEmploymentStatus().isExit()) {
+            throw new ApiException(400, "Former employees cannot be transferred");
+        }
+        LocalDate effective = request.effectiveDate() != null ? request.effectiveDate() : LocalDate.now(zone);
+        transferInternal(employee, request.toBranchId(), effective, blankToNull(request.reason()), access);
+        return toDetail(employeeRepository.saveAndFlush(employee), access.canSeeBranch(employee.primaryBranchId()));
+    }
+
+    private void transferInternal(EmployeeEntity employee, UUID toBranchId, LocalDate effective, String reason, HrAccess access) {
+        if (!access.has(HrPermission.EMPLOYEE_TRANSFER)) {
+            throw new ApiException(403, "You do not have permission to move employees between branches");
+        }
+        if (effective.isAfter(LocalDate.now(zone))) {
+            throw new ApiException(400, "Transfers cannot be dated in the future");
+        }
+        if (effective.isBefore(employee.getHireDate())) {
+            throw new ApiException(400, "The transfer date cannot be before the hire date");
+        }
+        UUID from = employee.primaryBranchId();
+        applyBranch(employee, toBranchId, access);
+        assignmentRecorder.switchPrimary(employee.getId(), toBranchId, positionId(employee), effective, reason, access.userId());
+        Map<String, Object> meta = new LinkedHashMap<>();
+        meta.put("fromBranchId", String.valueOf(from));
+        meta.put("toBranchId", String.valueOf(toBranchId));
+        meta.put("effectiveDate", effective.toString());
+        if (reason != null) {
+            meta.put("reason", reason);
+        }
+        audit.log(access.userId(), AuditAction.HR_EMPLOYEE_TRANSFERRED, "Employee", employee.getId(), meta);
     }
 
     @Transactional
@@ -216,7 +283,7 @@ public class EmployeeService {
         EmploymentStatus from = employee.getEmploymentStatus();
         EmploymentStatus to = request.status();
         if (from == to) {
-            return toDetail(employee);
+            return toDetail(employee, true);
         }
         if ((to.isExit() || from.isExit()) && !access.has(HrPermission.EMPLOYEE_ARCHIVE)) {
             throw new ApiException(403, "You do not have permission to record exits or rehires");
@@ -231,9 +298,12 @@ public class EmployeeService {
             }
             employee.setExitDate(exitDate);
             employee.setExitReason(request.reason().trim());
+            assignmentRecorder.closeAll(id, exitDate, "Employment ended: " + to.name().toLowerCase(Locale.ROOT), access.userId());
         } else if (from.isExit()) {
             employee.setExitDate(null);
             employee.setExitReason(null);
+            assignmentRecorder.openPrimary(id, employee.primaryBranchId(), positionId(employee),
+                    request.effectiveDate() != null ? request.effectiveDate() : LocalDate.now(zone), "Re-hired", access.userId());
         }
         employee.setEmploymentStatus(to);
         Map<String, Object> meta = new LinkedHashMap<>();
@@ -243,7 +313,7 @@ public class EmployeeService {
             meta.put("reason", request.reason().trim());
         }
         audit.log(access.userId(), AuditAction.HR_EMPLOYEE_STATUS_CHANGED, "Employee", id, meta);
-        return toDetail(employeeRepository.saveAndFlush(employee));
+        return toDetail(employeeRepository.saveAndFlush(employee), true);
     }
 
     @Transactional
@@ -256,7 +326,7 @@ public class EmployeeService {
         UserEntity user = validateLinkableUser(userId, id, access);
         employee.setUserId(user.getId());
         audit.log(access.userId(), AuditAction.HR_EMPLOYEE_USER_LINKED, "Employee", id, Map.of("userId", user.getId().toString()));
-        return toDetail(employeeRepository.saveAndFlush(employee));
+        return toDetail(employeeRepository.saveAndFlush(employee), true);
     }
 
     @Transactional
@@ -264,12 +334,12 @@ public class EmployeeService {
         HrAccess access = accessService.require(principal, HrPermission.EMPLOYEE_UPDATE);
         EmployeeEntity employee = loadInScope(id, access);
         if (employee.getUserId() == null) {
-            return toDetail(employee);
+            return toDetail(employee, true);
         }
         UUID previous = employee.getUserId();
         employee.setUserId(null);
         audit.log(access.userId(), AuditAction.HR_EMPLOYEE_USER_UNLINKED, "Employee", id, Map.of("userId", previous.toString()));
-        return toDetail(employeeRepository.saveAndFlush(employee));
+        return toDetail(employeeRepository.saveAndFlush(employee), true);
     }
 
     /**
@@ -312,6 +382,7 @@ public class EmployeeService {
             employee.setHireDate(request.hireDate());
             employee.setCreatedBy(access.userId());
             EmployeeEntity saved = employeeRepository.saveAndFlush(employee);
+            assignmentRecorder.openPrimary(saved.getId(), saved.primaryBranchId(), null, saved.getHireDate(), "Imported from staff account", access.userId());
             audit.log(access.userId(), AuditAction.HR_EMPLOYEE_CREATED, "Employee", saved.getId(),
                     Map.of("employeeNumber", saved.getEmployeeNumber(), "source", "user-import", "userId", user.getId().toString()));
             created.add(saved.getId());
@@ -452,7 +523,22 @@ public class EmployeeService {
         return user;
     }
 
-    private static Specification<EmployeeEntity> spec(EmployeeFilter filter, HrAccess access) {
+    /** EXISTS an active secondary/temporary assignment of the employee at one of {@code branches} on {@code day}. */
+    private static Predicate assignedAt(jakarta.persistence.criteria.Root<EmployeeEntity> root,
+                                        jakarta.persistence.criteria.CriteriaQuery<?> query,
+                                        jakarta.persistence.criteria.CriteriaBuilder cb, Set<UUID> branches, LocalDate day) {
+        jakarta.persistence.criteria.Subquery<UUID> sub = query.subquery(UUID.class);
+        jakarta.persistence.criteria.Root<BranchAssignmentEntity> a = sub.from(BranchAssignmentEntity.class);
+        sub.select(a.get("id")).where(
+                cb.equal(a.get("employeeId"), root.get("id")),
+                cb.notEqual(a.get("assignmentType"), AssignmentType.PRIMARY),
+                a.get("branchId").in(branches),
+                cb.lessThanOrEqualTo(a.<LocalDate>get("startDate"), day),
+                cb.or(cb.isNull(a.get("endDate")), cb.greaterThanOrEqualTo(a.<LocalDate>get("endDate"), day)));
+        return cb.exists(sub);
+    }
+
+    private static Specification<EmployeeEntity> spec(EmployeeFilter filter, HrAccess access, LocalDate today) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             Set<UUID> branches = access.branchFilter();
@@ -460,10 +546,11 @@ public class EmployeeService {
                 if (branches.isEmpty()) {
                     return cb.disjunction();
                 }
-                predicates.add(root.get("primaryBranch").get("id").in(branches));
+                predicates.add(cb.or(root.get("primaryBranch").get("id").in(branches), assignedAt(root, query, cb, branches, today)));
             }
             if (filter.branchId() != null) {
-                predicates.add(cb.equal(root.get("primaryBranch").get("id"), filter.branchId()));
+                predicates.add(cb.or(cb.equal(root.get("primaryBranch").get("id"), filter.branchId()),
+                        assignedAt(root, query, cb, Set.of(filter.branchId()), today)));
             }
             if (filter.departmentId() != null) {
                 predicates.add(cb.equal(root.get("department").get("id"), filter.departmentId()));
@@ -554,7 +641,11 @@ public class EmployeeService {
                 e.getPrimaryBranch() == null ? null : e.getPrimaryBranch().getName(), e.getUserId() != null);
     }
 
-    private EmployeeDetail toDetail(EmployeeEntity e) {
+    private static UUID positionId(EmployeeEntity e) {
+        return e.getPosition() == null ? null : e.getPosition().getId();
+    }
+
+    private EmployeeDetail toDetail(EmployeeEntity e, boolean manageable) {
         LinkedUser linkedUser = e.getUserId() == null ? null : userRepository.findById(e.getUserId())
                 .map(u -> new LinkedUser(u.getId(), u.getName(), u.getRole().name(), u.isActive()))
                 .orElse(null);
@@ -564,7 +655,7 @@ public class EmployeeService {
                 manager == null ? null : manager.getId(), manager == null ? null : manager.fullName(),
                 e.getQualifications(), e.getExperience(),
                 e.getEmergencyContacts().stream().map(c -> new EmergencyContactView(c.getId(), c.getName(), c.getRelationship(), c.getPhone(), c.getEmail())).toList(),
-                linkedUser, e.getVersion(), e.getCreatedAt(), e.getUpdatedAt());
+                linkedUser, manageable, e.getVersion(), e.getCreatedAt(), e.getUpdatedAt());
     }
 
     private static AuditEntry toAuditEntry(AuditLogEntity a) {
@@ -607,6 +698,8 @@ public class EmployeeService {
 
     public record LinkUserRequest(@NotNull UUID userId) {}
 
+    public record TransferRequest(UUID toBranchId, @PastOrPresent LocalDate effectiveDate, @Size(max = 500) String reason) {}
+
     /** Defaults applied to every imported record; HR reviews and corrects each record afterwards. */
     public record ImportRequest(@NotNull EmploymentType employmentType, @NotNull @PastOrPresent LocalDate hireDate) {}
 
@@ -628,7 +721,8 @@ public class EmployeeService {
     public record EmployeeDetail(EmployeeSummary summary, String firstName, String middleName, String lastName, Gender gender,
                                  LocalDate dateOfBirth, String address, LocalDate exitDate, String exitReason,
                                  UUID reportingManagerId, String reportingManagerName, String qualifications, String experience,
-                                 List<EmergencyContactView> emergencyContacts, LinkedUser linkedUser, long version,
+                                 List<EmergencyContactView> emergencyContacts, LinkedUser linkedUser,
+                                 boolean manageable, long version,
                                  Instant createdAt, Instant updatedAt) {}
 
     public record AuditEntry(UUID id, String action, String actorName, String metadata, Instant createdAt) {}

@@ -37,14 +37,20 @@ public class HrAccessController {
 
     private final HrAccessService accessService;
     private final HrUserPermissionRepository grantRepository;
+    private final HrUserBranchAccessRepository branchAccessRepository;
+    private final com.restaurantmanager.core.branch.BranchRepository branchRepository;
     private final UserRepository userRepository;
     private final EmployeeRepository employeeRepository;
     private final HrAuditService audit;
 
-    public HrAccessController(HrAccessService accessService, HrUserPermissionRepository grantRepository, UserRepository userRepository,
+    public HrAccessController(HrAccessService accessService, HrUserPermissionRepository grantRepository,
+                              HrUserBranchAccessRepository branchAccessRepository,
+                              com.restaurantmanager.core.branch.BranchRepository branchRepository, UserRepository userRepository,
                               EmployeeRepository employeeRepository, HrAuditService audit) {
         this.accessService = accessService;
         this.grantRepository = grantRepository;
+        this.branchAccessRepository = branchAccessRepository;
+        this.branchRepository = branchRepository;
         this.userRepository = userRepository;
         this.employeeRepository = employeeRepository;
         this.audit = audit;
@@ -75,9 +81,13 @@ public class HrAccessController {
     @Transactional(readOnly = true)
     public List<UserGrants> grants() {
         List<UserEntity> users = userRepository.findByRoleInAndActiveTrueOrderByNameAsc(STAFF_ROLES);
-        Map<UUID, List<HrUserPermissionEntity>> byUser = grantRepository.findByUserIdIn(users.stream().map(UserEntity::getId).toList())
+        List<UUID> ids = users.stream().map(UserEntity::getId).toList();
+        Map<UUID, List<HrUserPermissionEntity>> byUser = grantRepository.findByUserIdIn(ids)
                 .stream().collect(Collectors.groupingBy(HrUserPermissionEntity::getUserId));
-        return users.stream().map(u -> toGrants(u, byUser.getOrDefault(u.getId(), List.of()))).toList();
+        Map<UUID, List<HrUserBranchAccessEntity>> branchesByUser = branchAccessRepository.findByUserIdIn(ids)
+                .stream().collect(Collectors.groupingBy(HrUserBranchAccessEntity::getUserId));
+        return users.stream().map(u -> toGrants(u, byUser.getOrDefault(u.getId(), List.of()),
+                branchesByUser.getOrDefault(u.getId(), List.of()))).toList();
     }
 
     @PutMapping("/access/grants/{userId}")
@@ -107,15 +117,52 @@ public class HrAccessController {
         if (!added.isEmpty() || !removed.isEmpty()) {
             audit.log(principal.userId(), AuditAction.HR_PERMISSIONS_CHANGED, "User", userId, Map.of("added", added, "removed", removed));
         }
-        return toGrants(user, grantRepository.findByUserId(userId));
+        return toGrants(user, grantRepository.findByUserId(userId), branchAccessRepository.findByUserId(userId));
     }
 
-    private static UserGrants toGrants(UserEntity u, List<HrUserPermissionEntity> grants) {
+    /**
+     * Replaces the extra branches in a staff account's HR scope (in addition to the branch on their account). Used for
+     * managers covering more than one branch without giving them every branch.
+     */
+    @PutMapping("/access/branches/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public UserGrants replaceBranches(@PathVariable UUID userId, @Valid @RequestBody BranchScopeRequest request,
+                                      @AuthenticationPrincipal UserPrincipal principal) {
+        UserEntity user = userRepository.findById(userId).orElseThrow(() -> new ApiException(404, "User not found"));
+        if (!STAFF_ROLES.contains(user.getRole())) {
+            throw new ApiException(400, user.getRole() == Role.ADMIN
+                    ? "Admins already see every branch"
+                    : "Branch access can only be granted to staff accounts");
+        }
+        Set<UUID> requested = new java.util.HashSet<>(request.branchIds());
+        if (user.getBranch() != null) {
+            requested.remove(user.getBranch().getId());
+        }
+        if (branchRepository.findAllById(requested).size() != requested.size()) {
+            throw new ApiException(404, "Branch not found");
+        }
+        List<HrUserBranchAccessEntity> existing = branchAccessRepository.findByUserId(userId);
+        Set<UUID> before = existing.stream().map(HrUserBranchAccessEntity::getBranchId).collect(Collectors.toSet());
+        branchAccessRepository.deleteAll(existing.stream().filter(a -> !requested.contains(a.getBranchId())).toList());
+        requested.stream().filter(b -> !before.contains(b))
+                .forEach(b -> branchAccessRepository.save(new HrUserBranchAccessEntity(userId, b, principal.userId())));
+        branchAccessRepository.flush();
+        Set<String> added = requested.stream().filter(b -> !before.contains(b)).map(UUID::toString).collect(Collectors.toCollection(TreeSet::new));
+        Set<String> removed = before.stream().filter(b -> !requested.contains(b)).map(UUID::toString).collect(Collectors.toCollection(TreeSet::new));
+        if (!added.isEmpty() || !removed.isEmpty()) {
+            audit.log(principal.userId(), AuditAction.HR_BRANCH_ACCESS_CHANGED, "User", userId, Map.of("added", added, "removed", removed));
+        }
+        return toGrants(user, grantRepository.findByUserId(userId), branchAccessRepository.findByUserId(userId));
+    }
+
+    private static UserGrants toGrants(UserEntity u, List<HrUserPermissionEntity> grants, List<HrUserBranchAccessEntity> branches) {
         BranchEntity branch = u.getBranch();
         return new UserGrants(u.getId(), u.getName(), u.getRole().name(), branch == null ? null : branch.getId(),
                 branch == null ? null : branch.getName(),
                 HrAccessService.defaultsFor(u.getRole()).stream().map(HrPermission::code).collect(Collectors.toCollection(TreeSet::new)),
-                grants.stream().map(g -> g.getPermission().code()).collect(Collectors.toCollection(TreeSet::new)));
+                grants.stream().map(g -> g.getPermission().code()).collect(Collectors.toCollection(TreeSet::new)),
+                branches.stream().map(HrUserBranchAccessEntity::getBranchId).collect(Collectors.toSet()));
     }
 
     public record MyAccess(Set<String> permissions, boolean allBranches, Set<UUID> branchIds, UUID employeeId) {}
@@ -123,7 +170,9 @@ public class HrAccessController {
     public record PermissionView(String code, String description, boolean managerDefault) {}
 
     public record UserGrants(UUID userId, String name, String role, UUID branchId, String branchName,
-                             Set<String> rolePermissions, Set<String> grantedPermissions) {}
+                             Set<String> rolePermissions, Set<String> grantedPermissions, Set<UUID> extraBranchIds) {}
 
     public record GrantRequest(@NotNull Set<String> permissions) {}
+
+    public record BranchScopeRequest(@NotNull Set<UUID> branchIds) {}
 }
