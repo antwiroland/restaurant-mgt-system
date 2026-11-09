@@ -143,6 +143,13 @@ media:
     api-secret: ${CLOUDINARY_API_SECRET:}
     folder: ${CLOUDINARY_FOLDER:restaurant-menu}
 
+hr:
+  documents:
+    # Private directory for employee documents. Must be persistent, shared between instances, and never web-served.
+    dir: ${HR_DOCUMENTS_DIR:hr-documents}
+  contracts:
+    expiry-cron: ${HR_CONTRACT_EXPIRY_CRON:0 15 1 * * *}
+
 inventory:
   block-when-insufficient: ${INVENTORY_BLOCK_WHEN_INSUFFICIENT:true}
 

@@ -57,7 +57,7 @@ async function proxy(request: NextRequest, path: string[]): Promise<NextResponse
   } else {
     forwardHeaders.set("content-type", "application/json");
   }
-  for (const header of ["x-page", "x-size", "x-total-elements", "x-total-pages", "content-disposition", "retry-after"]) {
+  for (const header of ["x-page", "x-size", "x-total-elements", "x-total-pages", "content-disposition", "retry-after", "x-content-type-options", "cache-control"]) {
     const value = response.headers.get(header);
     if (value) {
       forwardHeaders.set(header, value);

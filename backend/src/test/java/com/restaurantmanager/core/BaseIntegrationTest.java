@@ -147,8 +147,12 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected com.restaurantmanager.core.favourite.FavouriteRepository favouriteRepository;
 
+    @Autowired
+    protected com.restaurantmanager.core.hr.HrTestCleanup hrTestCleanup;
+
     @BeforeEach
     void cleanupDb() {
+        hrTestCleanup.clean();
         serviceRequestRepository.deleteAll();
         printerRepository.deleteAll();
         pushDeviceRepository.deleteAll();

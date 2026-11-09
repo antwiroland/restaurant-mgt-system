@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { useBrand } from "@/components/BrandProvider";
 import type { StaffRole } from "@/lib/apiClient";
 import { isActivePath, navForRole, navItemForPath, roleLabel } from "@/lib/navigation";
+import { useHrAccess } from "@/features/hr/HrAccessContext";
 
 type NavSidebarProps = {
   role?: StaffRole;
@@ -32,7 +33,8 @@ export function BrandMark({ size = 36 }: { size?: number }) {
 export function NavSidebar({ role, userName, collapsed = false, onNavigate, onSignOut, mobile = false }: NavSidebarProps) {
   const brand = useBrand();
   const pathname = usePathname();
-  const groups = navForRole(role);
+  const { can } = useHrAccess();
+  const groups = navForRole(role, can);
   const current = navItemForPath(pathname);
 
   return (

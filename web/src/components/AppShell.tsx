@@ -12,6 +12,7 @@ import { ServiceRequestsBell } from "@/components/ServiceRequestsBell";
 import { StaffAlerts } from "@/components/StaffAlerts";
 import { routeByRole } from "@/features/auth/auth";
 import { useBrand } from "@/components/BrandProvider";
+import { HrAccessProvider } from "@/features/hr/HrAccessContext";
 import { bottomNavForRole, canAccessPath, isActivePath, navItemForPath } from "@/lib/navigation";
 
 const COLLAPSE_KEY = "staff-nav-collapsed";
@@ -134,6 +135,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const homeHref = role ? routeByRole(role as Parameters<typeof routeByRole>[0]) : "/login";
 
   return (
+    <HrAccessProvider>
     <div className={`min-h-dvh ${immersive ? "bg-night" : "bg-canvas"} text-ink`}>
       {/* Desktop sidebar */}
       <aside
@@ -259,5 +261,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       ) : null}
     </div>
+    </HrAccessProvider>
   );
 }
