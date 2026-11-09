@@ -59,8 +59,8 @@
 | `feature/restaurant-hr-management` | `d028ed6` | docs(hr): document existing architecture and HR integration analysis | 2026-11-09 | Phase 0 |
 | `feature/hr-employee-management` | `c23471a` | feat(hr): add employee registry, org structure, contracts and documents | 2026-11-09 | Phase 1 backend |
 | `feature/hr-employee-management` | `add23e3` | feat(hr): add HR web screens for employees, organisation and access | 2026-11-09 | Phase 1 web |
-| `feature/hr-employee-management` | see `git log` | docs(hr): record Phase 1 progress and technical documentation | 2026-11-09 | Phase 1 docs |
-| `feature/restaurant-hr-management` | see `git log` | Merge of `feature/hr-employee-management` (no fast-forward) | 2026-11-09 | Phase 1 integration |
+| `feature/hr-employee-management` | `867d2f8` | docs(hr): record Phase 1 progress and technical documentation | 2026-11-09 | Phase 1 docs |
+| `feature/restaurant-hr-management` | `3a23c86` | Merge of `feature/hr-employee-management` (no fast-forward) | 2026-11-09 | Phase 1 integration |
 
 ## Development Log
 
