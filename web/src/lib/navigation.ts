@@ -14,6 +14,11 @@ export type NavItem = {
   icon: IconName;
   roles: StaffRole[];
   description?: string;
+  /**
+   * HR items: shown only when the user holds at least one of these HR permission codes
+   * ("self" = the account is linked to an employee record). Checked against /hr/me/access.
+   */
+  hr?: string[];
 };
 
 export type NavGroup = { title: string; items: NavItem[] };
@@ -59,6 +64,15 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
+    title: "Human Resources",
+    items: [
+      { label: "Employees", href: "/hr/employees", icon: "users", roles: STAFF, hr: ["hr.employee.view"], description: "Employee directory" },
+      { label: "Departments & Positions", href: "/hr/organisation", icon: "clipboard", roles: STAFF, hr: ["hr.employee.view", "hr.department.manage", "hr.position.manage"] },
+      { label: "HR Access", href: "/hr/access", icon: "shield", roles: ["ADMIN"], description: "Grant HR permissions" },
+      { label: "My HR Profile", href: "/hr/me", icon: "user", roles: STAFF, hr: ["self"], description: "Your employment record" },
+    ],
+  },
+  {
     title: "Admin",
     items: [
       { label: "Staff & Users", href: "/users", icon: "users", roles: ["ADMIN"] },
@@ -78,10 +92,17 @@ export const navGroups: NavGroup[] = [
 
 const allItems = navGroups.flatMap((group) => group.items);
 
-export function navForRole(role: StaffRole | undefined): NavGroup[] {
+/**
+ * Navigation for a role. HR items additionally require a matching HR permission; pass the checker from
+ * useHrAccess(). Without a checker (access not loaded yet) HR items stay hidden.
+ */
+export function navForRole(role: StaffRole | undefined, canHr?: (...anyOf: string[]) => boolean): NavGroup[] {
   if (!role) return [];
   return navGroups
-    .map((group) => ({ ...group, items: group.items.filter((item) => item.roles.includes(role)) }))
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.roles.includes(role) && (!item.hr || (canHr ? canHr(...item.hr) : false))),
+    }))
     .filter((group) => group.items.length > 0);
 }
 

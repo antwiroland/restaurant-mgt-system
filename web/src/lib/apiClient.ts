@@ -452,7 +452,7 @@ type RequestOptions = {
   token?: string;
 };
 
-const API_PREFIX = "/api/rm";
+export const API_PREFIX = "/api/rm";
 
 export function withRetryAfterRefresh(statusCode: number): boolean {
   return statusCode === 401;
@@ -475,7 +475,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
   }
 }
 
-async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers();
   if (options.body !== undefined) {
     headers.set("Content-Type", "application/json");
@@ -1559,13 +1559,13 @@ export async function getDeliveryTracking(session: StaffSession, orderId: string
 
 export type DownloadedFile = { blob: Blob; filename: string };
 
-async function rawError(response: Response, fallback: string): Promise<Error> {
+export async function rawError(response: Response, fallback: string): Promise<Error> {
   const payload = await parseResponse<{ message?: string } | string | undefined>(response).catch(() => undefined);
   const message = typeof payload === "object" && payload?.message ? payload.message : `${fallback} (status ${response.status})`;
   return new Error(message);
 }
 
-async function downloadFile(session: StaffSession, path: string, fallbackName: string): Promise<DownloadedFile> {
+export async function downloadFile(session: StaffSession, path: string, fallbackName: string): Promise<DownloadedFile> {
   const response = await fetch(`${API_PREFIX}${path}`, {
     headers: { Authorization: `Bearer ${session.accessToken}` },
     cache: "no-store",
