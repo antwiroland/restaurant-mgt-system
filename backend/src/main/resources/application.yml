@@ -149,6 +149,12 @@ hr:
     dir: ${HR_DOCUMENTS_DIR:hr-documents}
   contracts:
     expiry-cron: ${HR_CONTRACT_EXPIRY_CRON:0 15 1 * * *}
+  scheduling:
+    # Fallback limits when no organisation or branch policy has been saved (Settings > Scheduling policy).
+    # Business configuration only: set these to the labour rules that apply to you.
+    default-min-rest-minutes: ${HR_DEFAULT_MIN_REST_MINUTES:480}
+    default-max-shift-minutes: ${HR_DEFAULT_MAX_SHIFT_MINUTES:720}
+    default-max-weekly-minutes: ${HR_DEFAULT_MAX_WEEKLY_MINUTES:2880}
 
 inventory:
   block-when-insufficient: ${INVENTORY_BLOCK_WHEN_INSUFFICIENT:true}

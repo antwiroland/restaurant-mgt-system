@@ -72,13 +72,16 @@ public class EmployeeService {
     private final HrAuditService audit;
     private final BranchAssignmentRecorder assignmentRecorder;
     private final BranchAssignmentRepository assignmentRepository;
+    private final com.restaurantmanager.core.workforce.WorkScheduleRepository scheduleRepository;
     private final ZoneId zone;
 
     public EmployeeService(EmployeeRepository employeeRepository, DepartmentRepository departmentRepository,
                            PositionRepository positionRepository, BranchRepository branchRepository, UserRepository userRepository,
                            AuditLogRepository auditLogRepository, HrAccessService accessService, HrSequenceService sequenceService,
                            HrAuditService audit, BranchAssignmentRecorder assignmentRecorder,
-                           BranchAssignmentRepository assignmentRepository, @Value("${app.timezone:Africa/Accra}") String timeZone) {
+                           BranchAssignmentRepository assignmentRepository,
+                           com.restaurantmanager.core.workforce.WorkScheduleRepository scheduleRepository,
+                           @Value("${app.timezone:Africa/Accra}") String timeZone) {
         this.employeeRepository = employeeRepository;
         this.departmentRepository = departmentRepository;
         this.positionRepository = positionRepository;
@@ -90,6 +93,7 @@ public class EmployeeService {
         this.audit = audit;
         this.assignmentRecorder = assignmentRecorder;
         this.assignmentRepository = assignmentRepository;
+        this.scheduleRepository = scheduleRepository;
         this.zone = ZoneId.of(timeZone);
     }
 
@@ -203,6 +207,9 @@ public class EmployeeService {
         employee.setEmploymentStatus(EmploymentStatus.ACTIVE);
         employee.setCreatedBy(access.userId());
         EmployeeEntity saved = employeeRepository.saveAndFlush(employee);
+        if (saved.getUserId() != null) {
+            scheduleRepository.attachEmployee(saved.getUserId(), saved.getId());
+        }
         assignmentRecorder.openPrimary(saved.getId(), saved.primaryBranchId(), positionId(saved), saved.getHireDate(), "Hired", access.userId());
         audit.log(access.userId(), AuditAction.HR_EMPLOYEE_CREATED, "Employee", saved.getId(),
                 Map.of("employeeNumber", saved.getEmployeeNumber(), "branchId", String.valueOf(saved.primaryBranchId())));
@@ -325,6 +332,7 @@ public class EmployeeService {
         }
         UserEntity user = validateLinkableUser(userId, id, access);
         employee.setUserId(user.getId());
+        scheduleRepository.attachEmployee(user.getId(), employee.getId());
         audit.log(access.userId(), AuditAction.HR_EMPLOYEE_USER_LINKED, "Employee", id, Map.of("userId", user.getId().toString()));
         return toDetail(employeeRepository.saveAndFlush(employee), true);
     }
@@ -382,6 +390,7 @@ public class EmployeeService {
             employee.setHireDate(request.hireDate());
             employee.setCreatedBy(access.userId());
             EmployeeEntity saved = employeeRepository.saveAndFlush(employee);
+            scheduleRepository.attachEmployee(user.getId(), saved.getId());
             assignmentRecorder.openPrimary(saved.getId(), saved.primaryBranchId(), null, saved.getHireDate(), "Imported from staff account", access.userId());
             audit.log(access.userId(), AuditAction.HR_EMPLOYEE_CREATED, "Employee", saved.getId(),
                     Map.of("employeeNumber", saved.getEmployeeNumber(), "source", "user-import", "userId", user.getId().toString()));

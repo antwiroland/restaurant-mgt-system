@@ -219,7 +219,88 @@ def seed_hr(api, admin_token: str, branches: dict, users_by_phone: dict, step=pr
     if abena:
         api.call("PUT", f"/hr/access/grants/{abena['id']}", {"permissions": ["hr.employee.view", "hr.document.view"]}, A)
 
-    return {"imported": result["created"], "created": len(people), "skipped": result["skipped"]}
+    schedule_summary = seed_scheduling(api, A, branches, people, step)
+    return {"imported": result["created"], "created": len(people), "skipped": result["skipped"], **schedule_summary}
+
+
+def seed_scheduling(api, A: str, branches: dict, people: dict, step=print) -> dict:
+    """Templates, a published current week, next week in draft, availability and a pending swap."""
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    next_monday = monday + timedelta(days=7)
+    osu, elg = branches["OSU"]["id"], branches["ELG"]["id"]
+
+    def eid(name):
+        return people[name]["summary"]["id"]
+
+    step("HR: shift templates")
+    every_day = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+    breakfast = api.call("POST", "/hr/shift-templates", {"name": "Breakfast", "shiftType": "MORNING", "branchId": osu, "startTime": "07:00",
+                                                          "endTime": "15:00", "breakMinutes": 30, "days": every_day, "minStaff": 2, "maxStaff": 4}, A)
+    evening = api.call("POST", "/hr/shift-templates", {"name": "Evening service", "shiftType": "EVENING", "branchId": osu, "startTime": "15:00",
+                                                        "endTime": "23:00", "breakMinutes": 30, "days": every_day, "minStaff": 3, "maxStaff": 5}, A)
+    late_bar = api.call("POST", "/hr/shift-templates", {"name": "Late bar", "shiftType": "NIGHT", "branchId": osu, "startTime": "20:00",
+                                                         "endTime": "02:00", "breakMinutes": 15, "days": ["FRI", "SAT"], "minStaff": 1, "maxStaff": 2}, A)
+    lunch = api.call("POST", "/hr/shift-templates", {"name": "Lunch", "shiftType": "AFTERNOON", "branchId": elg, "startTime": "10:00",
+                                                      "endTime": "18:00", "breakMinutes": 45, "days": every_day, "minStaff": 2}, A)
+
+    # name -> (template, weekday indexes 0=Mon); deliberately leaves some slots short so coverage warnings show up
+    pattern = {
+        "Kwesi Arthur": (breakfast, [0, 1, 2, 3, 4]),
+        "Maame Ofori": (breakfast, [5, 6]),
+        "Gifty Amoah": (breakfast, [1, 3, 5]),
+        "Fiifi Mensah": (evening, [0, 1, 2, 3, 4]),
+        "Dzifa Tetteh": (evening, [2, 3, 4, 5, 6]),
+        "Afia Boakye": (evening, [4, 5, 6]),
+        "Kobby Ansah": (late_bar, [4, 5]),
+        "Adjoa Badu": (lunch, [0, 1, 2, 3, 4]),
+        "Kojo Asamoah": (lunch, [2, 3, 4, 5, 6]),
+        "Ewurabena Quansah": (lunch, [5, 6]),
+    }
+
+    def place(week_start):
+        created = 0
+        for name, (template, days) in pattern.items():
+            for d in days:
+                body = {"employeeId": eid(name), "branchId": template["branchId"], "templateId": template["id"],
+                        "date": (week_start + timedelta(days=d)).isoformat(), "acknowledgeWarnings": True}
+                res = api.call("POST", "/hr/schedules", body, A, ok=False)
+                if isinstance(res, dict) and "_error" not in res:
+                    created += 1
+        return created
+
+    step("HR: this week's schedule (published)")
+    this_week = place(monday)
+    for branch in (osu, elg):
+        api.call("POST", "/hr/schedules/publish", {"branchId": branch, "from": monday.isoformat(), "to": (monday + timedelta(days=6)).isoformat()}, A)
+
+    step("HR: next week's schedule (draft)")
+    next_week = place(next_monday)
+    # two open evening shifts nobody has picked up yet
+    for d in (4, 5):
+        api.call("POST", "/hr/schedules", {"branchId": osu, "templateId": evening["id"], "date": (next_monday + timedelta(days=d)).isoformat()}, A)
+
+    step("HR: availability")
+    api.call("POST", f"/hr/employees/{eid('Gifty Amoah')}/availability",
+             {"kind": "UNAVAILABLE", "dayOfWeek": "SAT", "note": "Weekend classes"}, A)
+    api.call("POST", f"/hr/employees/{eid('Afia Boakye')}/availability",
+             {"kind": "PREFERRED", "dayOfWeek": "FRI", "startTime": "15:00", "endTime": "23:00", "note": "Prefers evenings"}, A)
+
+    step("HR: swap request")
+    swap_note = "none (no suitable shift)"
+    time.sleep(1.1)
+    kofi = api.call("POST", "/auth/login", {"phone": "+233200000003", "password": "Passw0rd!"}, ok=False)
+    if isinstance(kofi, dict) and "accessToken" in kofi:
+        K = kofi["accessToken"]
+        api.call("POST", "/hr/me/availability", {"kind": "UNAVAILABLE", "dayOfWeek": "SUN", "note": "Church"}, K, ok=False)
+        mine = api.call("GET", f"/hr/me/shifts?from={(today + timedelta(days=1)).isoformat()}&to={(today + timedelta(days=6)).isoformat()}", token=K)
+        for shift in mine:
+            res = api.call("POST", "/hr/me/swaps", {"scheduleId": shift["id"], "colleagueEmployeeId": eid("Selorm Agbeko"),
+                                                    "reason": "Family funeral in Kumasi"}, K, ok=False)
+            if isinstance(res, dict) and "_error" not in res:
+                swap_note = "Kofi -> Selorm, pending"
+                break
+    return {"shifts_this_week": this_week, "shifts_next_week": next_week, "swap": swap_note}
 
 
 def print_hr_summary(summary: dict):
@@ -227,8 +308,10 @@ def print_hr_summary(summary: dict):
     print(f"    {summary['imported']} staff logins imported as employees, {summary['created']} employees without logins")
     print("    Try: Yaw (manager, Osu) sees Osu staff + Nii Lartey read-only (East Legon, covering Osu); no pay figures")
     print("         Ama (admin) sees everything incl. pay; Abena (cashier) has HR view + documents only (granted)")
-    print("         Kofi (cashier) has no HR menu except 'My HR profile'")
+    print("         Kofi (cashier) only has self-service: 'My Schedule' and 'My HR profile'")
     print("         Contracts due within 30 days: Edem Kpodo, Fiifi Mensah, Kojo Asamoah (probation); draft: Maame Ofori")
+    print(f"    Schedule: {summary.get('shifts_this_week', 0)} shifts published this week, {summary.get('shifts_next_week', 0)} drafted for next week (+2 open)")
+    print(f"         Swap request: {summary.get('swap')}. Kofi has 'unavailable Sundays'; Gifty unavailable Saturdays")
 
 
 def main():

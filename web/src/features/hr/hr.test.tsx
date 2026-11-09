@@ -18,7 +18,7 @@ describe("HR navigation", () => {
     const unlinked = access([]);
     const linked = access([], "emp-1");
     expect(hrItems(navForRole("CASHIER", (...c) => hasHrRequirement(unlinked, c)))).toEqual([]);
-    expect(hrItems(navForRole("CASHIER", (...c) => hasHrRequirement(linked, c)))).toEqual(["/hr/me"]);
+    expect(hrItems(navForRole("CASHIER", (...c) => hasHrRequirement(linked, c)))).toEqual(["/hr/my-schedule", "/hr/me"]);
   });
 
   test("givenCashierGrantedEmployeeView_whenBuildingNav_thenDirectoryShownButNotAdminAccessPage", () => {
@@ -28,7 +28,7 @@ describe("HR navigation", () => {
 
   test("givenAdmin_whenBuildingNav_thenAccessPageShown", () => {
     const admin = access(["hr.employee.view", "hr.department.manage"], "emp-9");
-    expect(hrItems(navForRole("ADMIN", (...c) => hasHrRequirement(admin, c)))).toEqual(["/hr/employees", "/hr/branches", "/hr/organisation", "/hr/access", "/hr/me"]);
+    expect(hrItems(navForRole("ADMIN", (...c) => hasHrRequirement(admin, c)))).toEqual(["/hr/employees", "/hr/branches", "/hr/organisation", "/hr/access", "/hr/my-schedule", "/hr/me"]);
     expect(canAccessPath("MANAGER", "/hr/access")).toBe(false);
     expect(canAccessPath("CASHIER", "/hr/employees/123")).toBe(true); // the page itself enforces HR permissions
   });

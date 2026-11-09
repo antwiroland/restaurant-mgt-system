@@ -232,3 +232,135 @@ export const endAssignment = (s: StaffSession, id: string, body: { endDate?: str
 export const transferEmployee = (s: StaffSession, employeeId: string, body: { toBranchId: string | null; effectiveDate?: string; reason?: string }) =>
   apiRequest<EmployeeDetail>(`/hr/employees/${employeeId}/transfer`, { ...auth(s), method: "POST", body });
 export const getBranchWorkforce = (s: StaffSession) => apiRequest<BranchWorkforce[]>("/hr/branches/workforce", auth(s));
+
+// ---------------------------------------------------------------------------
+// Scheduling (Phase 3)
+// ---------------------------------------------------------------------------
+
+export type ScheduleStatus = "DRAFT" | "PUBLISHED" | "CANCELLED";
+export type ShiftType = "MORNING" | "AFTERNOON" | "EVENING" | "NIGHT" | "SPLIT" | "CUSTOM";
+export const SHIFT_TYPES: ShiftType[] = ["MORNING", "AFTERNOON", "EVENING", "NIGHT", "SPLIT", "CUSTOM"];
+export const WEEK_DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const;
+export type WeekDay = (typeof WEEK_DAYS)[number];
+
+export type ScheduleIssue = { code: string; severity: "BLOCKING" | "WARNING"; message: string };
+export type SchedulingPolicy = { minRestMinutes: number; maxShiftMinutes: number; maxWeeklyMinutes: number; source: string };
+
+export type Shift = {
+  id: string; employeeId?: string | null; employeeName?: string | null; branchId: string; startsAt: string; endsAt: string;
+  breakMinutes: number; paidMinutes: number; status: ScheduleStatus; templateId?: string | null; templateName?: string | null;
+  departmentId?: string | null; positionId?: string | null; positionTitle?: string | null; notes?: string | null;
+  publishedAt?: string | null; cancelReason?: string | null; version: number;
+};
+export type BoardEmployee = { id: string; name: string; positionTitle?: string | null; status: string; homeBranch: boolean };
+export type CoverageCell = {
+  date: string; templateId: string; templateName: string; minStaff: number; maxStaff?: number | null;
+  assigned: number; open: number; state: "OK" | "UNDERSTAFFED" | "OVERSTAFFED";
+};
+export type ScheduleBoard = {
+  branchId: string; from: string; to: string; shifts: Shift[]; employees: BoardEmployee[]; coverage: CoverageCell[]; policy: SchedulingPolicy;
+};
+export type ShiftInput = {
+  employeeId?: string | null; branchId: string; templateId?: string | null; date?: string | null;
+  startsAt?: string | null; endsAt?: string | null; breakMinutes?: number | null; positionId?: string | null;
+  notes?: string; acknowledgeWarnings?: boolean; version?: number;
+};
+export type ShiftTemplate = {
+  id: string; name: string; shiftType: ShiftType; branchId?: string | null; departmentId?: string | null; positionId?: string | null;
+  startTime: string; endTime: string; overnight: boolean; breakMinutes: number; days: WeekDay[]; minStaff: number;
+  maxStaff?: number | null; active: boolean;
+};
+export type ShiftTemplateInput = {
+  name: string; shiftType: ShiftType; branchId?: string | null; departmentId?: string | null; positionId?: string | null;
+  startTime: string; endTime: string; breakMinutes: number; days: WeekDay[]; minStaff: number; maxStaff?: number | null;
+};
+export type AvailabilityKind = "AVAILABLE" | "UNAVAILABLE" | "PREFERRED";
+export type Availability = {
+  id: string; employeeId: string; kind: AvailabilityKind; dayOfWeek?: WeekDay | null; specificDate?: string | null;
+  startTime?: string | null; endTime?: string | null; effectiveFrom?: string | null; effectiveTo?: string | null;
+  note?: string | null; createdAt: string;
+};
+export type AvailabilityInput = {
+  kind: AvailabilityKind; dayOfWeek?: WeekDay | null; specificDate?: string | null; startTime?: string | null; endTime?: string | null;
+  effectiveFrom?: string | null; effectiveTo?: string | null; note?: string;
+};
+export type SwapStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+export type SwapRequest = {
+  id: string; scheduleId: string; branchId?: string | null; startsAt?: string | null; endsAt?: string | null;
+  requesterEmployeeId: string; requesterName?: string | null; colleagueEmployeeId: string; colleagueName?: string | null;
+  colleagueScheduleId?: string | null; colleagueStartsAt?: string | null; colleagueEndsAt?: string | null;
+  reason: string; status: SwapStatus; decisionNote?: string | null; decidedAt?: string | null; createdAt: string;
+};
+export type SwapOption = {
+  employeeId: string; name: string; positionTitle?: string | null;
+  shifts: { id: string; branchId: string; startsAt: string; endsAt: string }[];
+};
+
+/** Thrown when the API refuses a schedule change with individual issues (409 blocking, 422 warnings to acknowledge). */
+export class ScheduleIssuesError extends Error {
+  readonly issues: ScheduleIssue[];
+  readonly blocking: boolean;
+
+  constructor(message: string, issues: ScheduleIssue[], blocking: boolean) {
+    super(message);
+    this.name = "ScheduleIssuesError";
+    this.issues = issues;
+    this.blocking = blocking;
+  }
+}
+
+async function scheduleCall<T>(s: StaffSession, path: string, method: "POST" | "PUT", body: unknown): Promise<T> {
+  const response = await fetch(`${API_PREFIX}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.accessToken}` },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (response.ok) return (await response.json()) as T;
+  if (response.status === 409 || response.status === 422) {
+    const payload = (await response.json().catch(() => null)) as { message?: string; issues?: ScheduleIssue[]; blocking?: boolean } | null;
+    if (payload?.issues) throw new ScheduleIssuesError(payload.message ?? "Schedule problem", payload.issues, !!payload.blocking);
+    throw new Error(payload?.message ?? `Request failed with status ${response.status}`);
+  }
+  throw await rawError(response, "Request failed");
+}
+
+export const getScheduleBoard = (s: StaffSession, branchId: string, from: string, to: string) =>
+  apiRequest<ScheduleBoard>(`/hr/schedules${query({ branchId, from, to })}`, auth(s));
+export const saveShift = (s: StaffSession, input: ShiftInput, id?: string) =>
+  scheduleCall<{ shift: Shift; acknowledgedWarnings: ScheduleIssue[] }>(s, id ? `/hr/schedules/${id}` : "/hr/schedules", id ? "PUT" : "POST", input);
+export const cancelShift = (s: StaffSession, id: string, reason?: string) =>
+  apiRequest<Shift>(`/hr/schedules/${id}/cancel`, { ...auth(s), method: "POST", body: { reason } });
+export const deleteDraftShift = (s: StaffSession, id: string) => apiRequest<void>(`/hr/schedules/${id}`, { ...auth(s), method: "DELETE" });
+export const publishSchedule = (s: StaffSession, branchId: string, from: string, to: string) =>
+  scheduleCall<{ published: number; openShifts: number; employeesNotified: number }>(s, "/hr/schedules/publish", "POST", { branchId, from, to });
+
+export const getShiftTemplates = (s: StaffSession, branchId?: string, includeArchived = false) =>
+  apiRequest<ShiftTemplate[]>(`/hr/shift-templates${query({ branchId, includeArchived })}`, auth(s));
+export const saveShiftTemplate = (s: StaffSession, input: ShiftTemplateInput, id?: string) =>
+  apiRequest<ShiftTemplate>(id ? `/hr/shift-templates/${id}` : "/hr/shift-templates", { ...auth(s), method: id ? "PUT" : "POST", body: input });
+export const setShiftTemplateActive = (s: StaffSession, id: string, active: boolean) =>
+  apiRequest<ShiftTemplate>(`/hr/shift-templates/${id}/${active ? "restore" : "archive"}`, { ...auth(s), method: "POST" });
+export const getSchedulingPolicy = (s: StaffSession, branchId?: string) =>
+  apiRequest<SchedulingPolicy>(`/hr/scheduling-policy${query({ branchId })}`, auth(s));
+export const saveSchedulingPolicy = (
+  s: StaffSession,
+  body: { branchId?: string | null; minRestMinutes: number; maxShiftMinutes: number; maxWeeklyMinutes: number },
+) => apiRequest<SchedulingPolicy>("/hr/scheduling-policy", { ...auth(s), method: "PUT", body });
+
+export const getEmployeeAvailability = (s: StaffSession, employeeId: string) =>
+  apiRequest<Availability[]>(`/hr/employees/${employeeId}/availability`, auth(s));
+export const getMyAvailability = (s: StaffSession) => apiRequest<Availability[]>("/hr/me/availability", auth(s));
+export const addMyAvailability = (s: StaffSession, input: AvailabilityInput) =>
+  apiRequest<Availability>("/hr/me/availability", { ...auth(s), method: "POST", body: input });
+export const deleteMyAvailability = (s: StaffSession, id: string) => apiRequest<void>(`/hr/me/availability/${id}`, { ...auth(s), method: "DELETE" });
+
+export const getMyShifts = (s: StaffSession, from: string, to: string) => apiRequest<Shift[]>(`/hr/me/shifts${query({ from, to })}`, auth(s));
+export const getMySwaps = (s: StaffSession) => apiRequest<SwapRequest[]>("/hr/me/swaps", auth(s));
+export const getSwapOptions = (s: StaffSession, scheduleId: string) => apiRequest<SwapOption[]>(`/hr/me/swap-options${query({ scheduleId })}`, auth(s));
+export const requestSwap = (s: StaffSession, body: { scheduleId: string; colleagueEmployeeId: string; colleagueScheduleId?: string | null; reason: string }) =>
+  scheduleCall<SwapRequest>(s, "/hr/me/swaps", "POST", body);
+export const cancelMySwap = (s: StaffSession, id: string) => apiRequest<SwapRequest>(`/hr/me/swaps/${id}/cancel`, { ...auth(s), method: "POST" });
+export const getSwapRequests = (s: StaffSession, status?: SwapStatus) => apiRequest<SwapRequest[]>(`/hr/shift-swaps${query({ status })}`, auth(s));
+export const decideSwap = (s: StaffSession, id: string, body: { approve: boolean; note?: string; acknowledgeWarnings?: boolean }) =>
+  scheduleCall<SwapRequest>(s, `/hr/shift-swaps/${id}/decision`, "POST", body);
