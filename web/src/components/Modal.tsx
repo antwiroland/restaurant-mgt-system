@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { Icon } from "@/components/Icon";
 
 type ModalProps = {
   open: boolean;
@@ -70,7 +71,7 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps) {
     <div className="fixed inset-0 z-[var(--z-modal)] flex items-end justify-center sm:items-center">
       <button
         aria-label="Close modal"
-        className="absolute inset-0 bg-[rgba(0,0,0,0.4)] backdrop-blur-[2px]"
+        className="absolute inset-0 bg-overlay backdrop-blur-[3px]"
         onClick={onClose}
       />
       <div
@@ -78,19 +79,19 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative z-10 grid w-full max-h-[100dvh] gap-4 overflow-y-auto rounded-t-[var(--radius-xl)] bg-surface p-4 shadow-xl
-                   animate-[modalIn_var(--duration-base)_var(--ease-out)] sm:max-h-[85dvh] sm:max-w-[480px] sm:rounded-[var(--radius-xl)] sm:p-5"
+        className="relative z-10 grid w-full max-h-[100dvh] gap-4 overflow-y-auto rounded-t-[var(--radius-modal)] border border-line bg-surface p-5 shadow-xl
+                   animate-[modalIn_var(--duration-base)_var(--ease-out)] sm:max-h-[85dvh] sm:max-w-[520px] sm:rounded-[var(--radius-modal)] sm:p-6"
       >
         {title ? (
           <div className="flex items-start justify-between gap-3">
-            <h2 className="text-xl font-semibold text-ink">{title}</h2>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close">
-              x
+            <h2 className="font-display text-xl font-bold text-ink">{title}</h2>
+            <button type="button" className="btn btn-ghost btn-icon btn-sm -mr-2 -mt-1" onClick={onClose} aria-label="Close">
+              <Icon name="close" />
             </button>
           </div>
         ) : null}
         <div>{children}</div>
-        {footer ? <div className="flex flex-wrap justify-end gap-2">{footer}</div> : null}
+        {footer ? <div className="-mx-5 -mb-5 flex flex-wrap justify-end gap-2 border-t border-line-subtle bg-ivory/70 px-5 py-4 sm:-mx-6 sm:-mb-6 sm:px-6">{footer}</div> : null}
       </div>
     </div>,
     document.body,

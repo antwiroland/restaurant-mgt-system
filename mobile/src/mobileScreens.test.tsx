@@ -70,6 +70,8 @@ const netInfoAddEventListener = vi.hoisted(() => vi.fn());
 
 vi.mock('react-native', () => rn);
 
+vi.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
+
 vi.mock('expo-router', () => ({
   router,
   useLocalSearchParams: () => ({ id: 'order-1', code: 'GROUP1' }),

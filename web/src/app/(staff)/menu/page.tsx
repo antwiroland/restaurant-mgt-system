@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { ConfirmModal } from "@/components/ConfirmModal";
-import { MenuItemExtrasDrawer } from "@/components/MenuItemExtrasDrawer";
 import { Modal } from "@/components/Modal";
 import { Skeleton } from "@/components/Skeleton";
 import { Spinner } from "@/components/Spinner";
+import { Icon } from "@/components/Icon";
+import { MenuImageUploader } from "@/components/MenuImageUploader";
+import { MenuItemExtrasDrawer } from "@/components/MenuItemExtrasDrawer";
+import { FoodImage } from "@/components/site/FoodImage";
+import { formatMoney } from "@/lib/brand";
 import { useStaffSession } from "@/components/SessionProvider";
 import {
   createMenuCategory,
@@ -187,21 +191,21 @@ export default function MenuManagementPage() {
   }
 
   if (!session) {
-    return <main className="shell"><section className="panel"><p className="kicker">Menu</p><h1 className="text-2xl font-semibold">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
+    return <main className="shell"><section className="panel"><p className="kicker">Menu</p><h1 className="heading-lg mt-1">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
   }
 
   return (
     <main className="shell grid gap-4">
       <section className="panel">
         <p className="kicker">Menu</p>
-        <h1 className="text-2xl font-semibold">Menu Management</h1>
+        <h1 className="heading-lg mt-1">Menu Management</h1>
         {error ? <p className="mt-3 alert alert-danger">{error}</p> : null}
         {message ? <p className="mt-3 alert alert-success">{message}</p> : null}
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">
         <article className="panel">
-          <h2 className="text-lg font-semibold">Create Category</h2>
+          <h2 className="font-display text-lg font-bold text-ink">Create Category</h2>
           <form className="mt-3 grid gap-2" onSubmit={(event) => void onCreateCategory(event)}>
             <input className="input" placeholder="Name" value={categoryForm.name} onChange={(e) => setCategoryForm((s) => ({ ...s, name: e.target.value }))} required />
             <input className="input" placeholder="Description" value={categoryForm.description} onChange={(e) => setCategoryForm((s) => ({ ...s, description: e.target.value }))} />
@@ -211,9 +215,9 @@ export default function MenuManagementPage() {
         </article>
 
         <article className="panel">
-          <h2 className="text-lg font-semibold">Create Item</h2>
+          <h2 className="font-display text-lg font-bold text-ink">Create Item</h2>
           <form className="mt-3 grid gap-2" onSubmit={(event) => void onCreateItem(event)}>
-            <select className="input" value={itemForm.categoryId} onChange={(e) => setItemForm((s) => ({ ...s, categoryId: e.target.value }))} required>
+            <select className="select" value={itemForm.categoryId} onChange={(e) => setItemForm((s) => ({ ...s, categoryId: e.target.value }))} required>
               {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
             </select>
             <input className="input" placeholder="Name" value={itemForm.name} onChange={(e) => setItemForm((s) => ({ ...s, name: e.target.value }))} required />
@@ -226,11 +230,11 @@ export default function MenuManagementPage() {
 
       <section className="grid gap-4 md:grid-cols-2">
         <article className="panel">
-          <h2 className="text-lg font-semibold">Categories</h2>
+          <h2 className="font-display text-lg font-bold text-ink">Categories</h2>
           <input className="mt-3 w-full input text-sm" placeholder="Search categories" value={categoryQuery} onChange={(e) => setCategoryQuery(e.target.value)} />
           <ul className="mt-3 grid gap-2">
             {filteredCategories.map((category) => (
-              <li key={category.id} className="input flex items-center justify-between gap-2">
+              <li key={category.id} className="rounded-xl border border-line bg-surface p-3 flex items-center justify-between gap-2">
                 <div>
                   <p className="font-medium">{category.name}</p>
                   <p className="text-xs text-ink-soft">order {category.displayOrder} - {category.active ? "active" : "inactive"}</p>
@@ -259,14 +263,14 @@ export default function MenuManagementPage() {
         </article>
 
         <article className="panel">
-          <h2 className="text-lg font-semibold">Items</h2>
+          <h2 className="font-display text-lg font-bold text-ink">Items</h2>
           <div className="mt-3 grid gap-2 md:grid-cols-3">
             <input className="input text-sm" placeholder="Search items or category" value={itemQuery} onChange={(e) => setItemQuery(e.target.value)} />
-            <select className="input text-sm" value={itemCategoryFilter} onChange={(e) => setItemCategoryFilter(e.target.value)}>
+            <select className="select text-sm" value={itemCategoryFilter} onChange={(e) => setItemCategoryFilter(e.target.value)}>
               <option value="">All categories</option>
               {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
             </select>
-            <select className="input text-sm" value={availabilityFilter} onChange={(e) => setAvailabilityFilter(e.target.value as "ALL" | "AVAILABLE" | "UNAVAILABLE")}>
+            <select className="select text-sm" value={availabilityFilter} onChange={(e) => setAvailabilityFilter(e.target.value as "ALL" | "AVAILABLE" | "UNAVAILABLE")}>
               <option value="ALL">All availability</option>
               <option value="AVAILABLE">Available</option>
               <option value="UNAVAILABLE">Unavailable</option>
@@ -274,42 +278,51 @@ export default function MenuManagementPage() {
           </div>
           <ul className="mt-3 grid gap-2">
             {filteredItems.map((item) => (
-              <li key={item.id} className="input">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-3">
-                    {item.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- images come from the configured media store
-                      <img src={item.imageUrl} alt="" className="h-12 w-12 rounded-md border border-line object-cover" />
-                    ) : null}
-                    <div>
-                    <p className="font-medium">{item.name}</p>
-                    <p className="text-xs text-ink-soft">GHS {item.price} - {item.available ? "available" : "unavailable"}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => {
-                        setEditingItem(item);
-                        setEditingItemForm({
-                          categoryId: item.categoryId,
-                          name: item.name,
-                          description: item.description ?? "",
-                          price: String(item.price),
-                          imageUrl: item.imageUrl ?? "",
-                          available: item.available,
-                        });
-                      }}
-                    >
-                      Edit
-                    </button>
-                    {canManageMenu ? (
-                      <button className="btn btn-secondary btn-sm" onClick={() => setExtrasItem(item)}>Photo &amp; recipe</button>
-                    ) : null}
-                    <button className="btn btn-secondary btn-sm" onClick={() => void authenticatedFetch((s) => updateMenuItemAvailability(s, item.id, !item.available)).then(loadAll)}>{item.available ? "Disable" : "Enable"}</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => setDeletingItem(item)}>Delete</button>
-                  </div>
+              <li key={item.id} className="flex items-center gap-3 rounded-xl border border-line bg-surface p-2.5 pr-3 transition-colors hover:border-line-strong">
+                <FoodImage src={item.imageUrl} alt={item.name} ratio="aspect-square" className="w-14 shrink-0 rounded-lg" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold text-ink">{item.name}</p>
+                  <p className="truncate text-xs text-ink-soft">
+                    <span className="money text-ink">{formatMoney(item.price)}</span> · {item.categoryName}
+                    {!item.imageUrl ? <span className="text-ink-muted"> · no photo</span> : null}
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={item.available}
+                  aria-label={`${item.name} available today`}
+                  title={item.available ? "Available — click to mark sold out" : "Sold out — click to make available"}
+                  onClick={() => void authenticatedFetch((s) => updateMenuItemAvailability(s, item.id, !item.available)).then(loadAll).catch((err) => setError(err instanceof Error ? err.message : "Could not update availability"))}
+                  className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${item.available ? "bg-success" : "bg-line-strong"}`}
+                >
+                  <span className={`absolute top-1 h-5 w-5 rounded-full bg-surface shadow-sm transition-[left] ${item.available ? "left-6" : "left-1"}`} />
+                </button>
+                <button
+                  className="btn btn-ghost btn-icon btn-sm"
+                  aria-label={`Edit ${item.name}`}
+                  onClick={() => {
+                    setEditingItem(item);
+                    setEditingItemForm({
+                      categoryId: item.categoryId,
+                      name: item.name,
+                      description: item.description ?? "",
+                      price: String(item.price),
+                      imageUrl: item.imageUrl ?? "",
+                      available: item.available,
+                    });
+                  }}
+                >
+                  <Icon name="edit" size={18} />
+                </button>
+                {canManageMenu ? (
+                  <button className="btn btn-ghost btn-icon btn-sm" aria-label={`Recipe and stock for ${item.name}`} title="Photo & recipe" onClick={() => setExtrasItem(item)}>
+                    <Icon name="clipboard" size={18} />
+                  </button>
+                ) : null}
+                <button className="btn btn-ghost btn-icon btn-sm text-ink-muted hover:text-danger-on" aria-label={`Delete ${item.name}`} onClick={() => setDeletingItem(item)}>
+                  <Icon name="trash" size={18} />
+                </button>
               </li>
             ))}
             {filteredItems.length === 0 ? <li className="rounded-xl border border-dashed border-line p-3 text-sm text-ink-soft">No menu items match the current filters.</li> : null}
@@ -409,7 +422,7 @@ export default function MenuManagementPage() {
 
       <Modal
         open={!!editingItem}
-        title={editingItem ? `Edit Item: ${editingItem.name}` : "Edit Item"}
+        title={editingItem ? `Edit ${editingItem.name}` : "Edit dish"}
         onClose={() => setEditingItem(null)}
         footer={
           <>
@@ -428,6 +441,16 @@ export default function MenuManagementPage() {
         }
       >
         <div className="grid gap-3">
+          {editingItem ? (
+            <MenuImageUploader
+              menuItemId={editingItem.id}
+              imageUrl={editingItemForm.imageUrl || undefined}
+              onChange={(imageUrl) => {
+                setEditingItemForm((form) => ({ ...form, imageUrl }));
+                void loadAll();
+              }}
+            />
+          ) : null}
           <label className="field">
             <span className="field-label">Category</span>
             <select className="select" value={editingItemForm.categoryId} onChange={(e) => setEditingItemForm((s) => ({ ...s, categoryId: e.target.value }))}>
@@ -440,7 +463,7 @@ export default function MenuManagementPage() {
           </label>
           <label className="field">
             <span className="field-label">Description</span>
-            <input className="input" value={editingItemForm.description} onChange={(e) => setEditingItemForm((s) => ({ ...s, description: e.target.value }))} />
+            <textarea className="textarea min-h-[80px]" maxLength={1000} value={editingItemForm.description} onChange={(e) => setEditingItemForm((s) => ({ ...s, description: e.target.value }))} />
           </label>
           <label className="field">
             <span className="field-label">Price</span>

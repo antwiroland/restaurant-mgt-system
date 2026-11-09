@@ -9,6 +9,13 @@ public record PaymentInitiateResponse(
         PaymentStatus status,
         String paystackReference,
         String authorizationUrl,
-        String message
+        String message,
+        /** CASH only: change to hand back (null for other methods). */
+        java.math.BigDecimal changeDue
 ) {
+    public PaymentInitiateResponse(UUID paymentId, PaymentStatus status, String paystackReference,
+                                   String authorizationUrl, String message) {
+        this(paymentId, status, paystackReference, authorizationUrl, message, null);
+    }
+
 }

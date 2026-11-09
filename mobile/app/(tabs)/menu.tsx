@@ -18,6 +18,11 @@ import { useCartStore } from '../../src/store/cart';
 import { useOfflineStore } from '../../src/store/offline';
 import { OfflineBanner } from '../../src/components/OfflineBanner';
 import type { MenuCategory, MenuItem, MenuModifierGroup } from '../../src/types/api';
+import { brand, colors, money, radius, shadow } from '../../src/theme';
+import { fetchFavourites, setFavourite } from '../../src/api/favourites';
+import { t } from '../../src/i18n';
+import { useAuthStore } from '../../src/store/auth';
+import { Ionicons } from '@expo/vector-icons';
 
 const MENU_CACHE_KEY = 'menu_cache';
 const MENU_CACHE_TS_KEY = 'menu_cache_ts';
@@ -59,6 +64,31 @@ export default function MenuScreen() {
   const [modalError, setModalError] = useState('');
   const { addItem, itemCount } = useCartStore();
   const { isOnline } = useOfflineStore();
+  const canFavourite = useAuthStore((st) => st.isAuthenticated && st.role === 'CUSTOMER');
+  const [favouriteIds, setFavouriteIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!canFavourite) return;
+    fetchFavourites().then((items) => setFavouriteIds(new Set(items.map((i) => i.id)))).catch(() => {});
+  }, [canFavourite]);
+
+  async function toggleFavourite(item: MenuItem) {
+    const next = !favouriteIds.has(item.id);
+    setFavouriteIds((current) => {
+      const copy = new Set(current);
+      if (next) copy.add(item.id); else copy.delete(item.id);
+      return copy;
+    });
+    try {
+      await setFavourite(item.id, next);
+    } catch {
+      setFavouriteIds((current) => {
+        const copy = new Set(current);
+        if (next) copy.delete(item.id); else copy.add(item.id);
+        return copy;
+      });
+    }
+  }
 
   useEffect(() => {
     loadMenu();
@@ -186,121 +216,179 @@ export default function MenuScreen() {
     setModalError('');
   }
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const count = itemCount();
+  const modalGroups = modifierItem ? modifierGroupsByItemId[modifierItem.id] ?? [] : [];
+
   return (
     <View style={styles.container}>
       <OfflineBanner />
-      {stale && (
-        <View style={styles.staleBanner}>
-          <Text style={styles.staleText}>Menu shown from last update (offline)</Text>
-        </View>
-      )}
-
-      <TextInput
-        style={styles.search}
-        placeholder="Search menu..."
-        value={search}
-        onChangeText={setSearch}
-      />
 
       <FlatList
-        horizontal
-        data={categoryTabs}
-        keyExtractor={(category) => category.id ?? 'all'}
-        renderItem={({ item: category }) => (
-          <TouchableOpacity
-            style={[styles.catChip, selectedCat === category.id && styles.catChipActive]}
-            onPress={() => setSelectedCat(category.id)}
-          >
-            <Text style={[styles.catText, selectedCat === category.id && styles.catTextActive]}>
-              {category.name}
-            </Text>
-          </TouchableOpacity>
-        )}
-        style={styles.cats}
-        showsHorizontalScrollIndicator={false}
-      />
+        data={loading ? [] : items}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ paddingBottom: count > 0 ? 120 : 32 }}
+        ListHeaderComponent={
+          <View>
+            {/* Hero header */}
+            <View style={styles.hero}>
+              <Text style={styles.heroEyebrow}>{greeting}</Text>
+              <Text style={styles.heroTitle}>What would you like from {brand.name}?</Text>
+              <TextInput
+                style={styles.search}
+                placeholder="Search dishes"
+                placeholderTextColor={colors.inkMuted}
+                value={search}
+                onChangeText={setSearch}
+                accessibilityLabel="Search dishes"
+              />
+            </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color="#2563EB" style={{ flex: 1 }} />
-      ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} onPress={() => void beginAdd(item)}>
-              {item.imageUrl ? (
-                <Image source={{ uri: item.imageUrl }} style={styles.cardImage} />
-              ) : (
-                <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
-                  <Text style={styles.cardImageText}>Plate</Text>
-                </View>
-              )}
-              <View style={styles.cardBody}>
-                <Text style={styles.cardName} numberOfLines={2}>{item.name}</Text>
-                <Text style={styles.cardPrice}>GHS {item.price}</Text>
-                <TouchableOpacity style={styles.addBtn} onPress={() => void beginAdd(item)}>
+            {/* Quick actions */}
+            <View style={styles.quickRow}>
+              <TouchableOpacity style={styles.quickCard} onPress={() => router.push('/qr-scan')} accessibilityRole="button">
+                <Text style={styles.quickTitle}>At the restaurant?</Text>
+                <Text style={styles.quickText}>Scan your table code</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.quickCard, styles.quickCardAlt]} onPress={() => router.push('/reservation')} accessibilityRole="button">
+                <Text style={[styles.quickTitle, { color: colors.espressoInk }]}>Book a table</Text>
+                <Text style={[styles.quickText, { color: colors.espressoSoft }]}>Reserve for later</Text>
+              </TouchableOpacity>
+            </View>
+
+            {stale && (
+              <View style={styles.staleBanner}>
+                <Text style={styles.staleText}>{"Showing the menu from your last visit — you're offline."}</Text>
+              </View>
+            )}
+
+            {/* Categories */}
+            <FlatList
+              horizontal
+              data={categoryTabs}
+              keyExtractor={(category) => category.id ?? 'all'}
+              renderItem={({ item: category }) => {
+                const active = selectedCat === category.id;
+                return (
+                  <TouchableOpacity
+                    style={[styles.catChip, active && styles.catChipActive]}
+                    onPress={() => setSelectedCat(category.id)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.catText, active && styles.catTextActive]}>{category.name}</Text>
+                  </TouchableOpacity>
+                );
+              }}
+              contentContainerStyle={styles.cats}
+              showsHorizontalScrollIndicator={false}
+            />
+
+            <Text style={styles.sectionTitle}>
+              {selectedCat ? categoryTabs.find((c) => c.id === selectedCat)?.name : 'On the menu today'}
+            </Text>
+
+            {loading ? (
+              <View style={{ paddingHorizontal: 16, gap: 12 }}>
+                {[0, 1, 2, 3].map((key) => (
+                  <View key={key} style={styles.skeleton} />
+                ))}
+                <ActivityIndicator color={colors.brand} />
+              </View>
+            ) : null}
+
+            {!loading && items.length === 0 ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyTitle}>{search ? 'No dishes match' : 'Nothing here yet'}</Text>
+                <Text style={styles.emptyText}>{search ? 'Try a different word.' : 'Dishes will appear when the kitchen publishes them.'}</Text>
+              </View>
+            ) : null}
+          </View>
+        }
+        renderItem={({ item }) => (
+          <TouchableOpacity style={styles.row} onPress={() => void beginAdd(item)} activeOpacity={0.85} accessibilityLabel={`${item.name}, ${money(item.price)}`}>
+            {item.imageUrl ? (
+              <Image source={{ uri: item.imageUrl }} style={styles.rowImage} />
+            ) : (
+              <View style={[styles.rowImage, styles.rowImagePlaceholder]}>
+                <Text style={styles.rowImageLetter}>{item.name.charAt(0).toUpperCase()}</Text>
+              </View>
+            )}
+            <View style={styles.rowBody}>
+              <Text style={styles.rowName} numberOfLines={2}>{item.name}</Text>
+              {item.description ? <Text style={styles.rowDesc} numberOfLines={2}>{item.description}</Text> : null}
+              <View style={styles.rowFooter}>
+                <Text style={styles.rowPrice}>{money(item.price)}</Text>
+                {canFavourite ? (
+                  <TouchableOpacity
+                    onPress={() => void toggleFavourite(item)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={favouriteIds.has(item.id) ? t('favourites.remove') : t('favourites.add')}
+                    style={{ marginLeft: 'auto', marginRight: 12 }}
+                  >
+                    <Ionicons name={favouriteIds.has(item.id) ? 'heart' : 'heart-outline'} size={22} color={colors.brand} />
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity style={styles.addBtn} onPress={() => void beginAdd(item)} accessibilityLabel={`Add ${item.name}`} hitSlop={8}>
                   <Text style={styles.addBtnText}>Add</Text>
                 </TouchableOpacity>
               </View>
-            </TouchableOpacity>
-          )}
-          contentContainerStyle={{ padding: 8 }}
-        />
-      )}
+            </View>
+          </TouchableOpacity>
+        )}
+      />
 
-      {itemCount() > 0 && (
-        <TouchableOpacity style={styles.cartFab} onPress={() => router.push('/cart')}>
-          <Text style={styles.cartFabText}>View Cart ({itemCount()})</Text>
+      {count > 0 && (
+        <TouchableOpacity style={styles.cartBar} onPress={() => router.push('/cart')} activeOpacity={0.9} accessibilityRole="button">
+          <View style={styles.cartCount}>
+            <Text style={styles.cartCountText}>{count}</Text>
+          </View>
+          <Text style={styles.cartBarText}>View order</Text>
+          <Text style={styles.cartBarTotal}>{money(useCartStore.getState().total())}</Text>
         </TouchableOpacity>
       )}
 
       <Modal visible={!!modifierItem} transparent animationType="slide" onRequestClose={() => setModifierItem(null)}>
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
             <Text style={styles.modalTitle}>{modifierItem?.name}</Text>
-            <ScrollView style={{ maxHeight: 360 }}>
-              {(modifierItem ? modifierGroupsByItemId[modifierItem.id] : [])?.map((group) => (
+            {modifierItem ? <Text style={styles.sheetPrice}>{money(modifierItem.price)}</Text> : null}
+            <ScrollView style={{ maxHeight: 420 }}>
+              {modalGroups.map((group) => (
                 <View key={group.id} style={styles.groupBlock}>
-                  <Text style={styles.groupTitle}>{group.name}</Text>
+                  <View style={styles.groupHead}>
+                    <Text style={styles.groupTitle}>{group.name}</Text>
+                    <Text style={[styles.groupBadge, group.required ? styles.groupBadgeRequired : null]}>
+                      {group.required ? 'Required' : 'Optional'}
+                    </Text>
+                  </View>
                   <Text style={styles.groupHint}>
-                    {group.selectionType === 'SINGLE' ? 'Pick one' : `Pick ${group.minSelect ?? 0}-${group.maxSelect ?? group.options.length}`}
+                    {group.selectionType === 'SINGLE' ? 'Choose one' : `Choose up to ${group.maxSelect ?? group.options.length}`}
                   </Text>
-                  {group.selectionType === 'SINGLE' ? (
-                    <View style={styles.optionRowWrap}>
-                      {group.options.map((option) => {
-                        const selected = (selection[group.id] ?? []).includes(option.id);
-                        return (
-                          <TouchableOpacity
-                            key={option.id}
-                            style={[styles.optionChip, selected && styles.optionChipSelected]}
-                            onPress={() => setSelection((current) => ({ ...current, [group.id]: [option.id] }))}
-                          >
-                            <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
-                              {option.name} ({toNumber(option.priceDelta) >= 0 ? '+' : ''}GHS {option.priceDelta})
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  ) : (
-                    <View style={styles.optionRowWrap}>
-                      {group.options.map((option) => {
-                        const selected = (selection[group.id] ?? []).includes(option.id);
-                        return (
-                          <TouchableOpacity
-                            key={option.id}
-                            style={[styles.optionChip, selected && styles.optionChipSelected]}
-                            onPress={() => toggleMulti(group, option.id)}
-                          >
-                            <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
-                              {option.name} ({toNumber(option.priceDelta) >= 0 ? '+' : ''}GHS {option.priceDelta})
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  )}
+                  {group.options.map((option) => {
+                    const selected = (selection[group.id] ?? []).includes(option.id);
+                    const delta = toNumber(option.priceDelta);
+                    return (
+                      <TouchableOpacity
+                        key={option.id}
+                        style={[styles.optionRow, selected && styles.optionRowSelected]}
+                        onPress={() =>
+                          group.selectionType === 'SINGLE'
+                            ? setSelection((current) => ({ ...current, [group.id]: [option.id] }))
+                            : toggleMulti(group, option.id)
+                        }
+                        accessibilityRole={group.selectionType === 'SINGLE' ? 'radio' : 'checkbox'}
+                        accessibilityState={{ checked: selected }}
+                      >
+                        <View style={[styles.optionMark, group.selectionType === 'SINGLE' && styles.optionMarkRound, selected && styles.optionMarkOn]} />
+                        <Text style={[styles.optionText, selected && styles.optionTextSelected]}>{option.name}</Text>
+                        <Text style={styles.optionPrice}>{delta > 0 ? `+${money(delta)}` : ''}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               ))}
             </ScrollView>
@@ -310,7 +398,7 @@ export default function MenuScreen() {
                 <Text style={styles.modalBtnGhostText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={confirmModifiers}>
-                <Text style={styles.modalBtnPrimaryText}>Add to Cart</Text>
+                <Text style={styles.modalBtnPrimaryText}>Add to order</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -321,98 +409,107 @@ export default function MenuScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
-  staleBanner: { backgroundColor: '#FEF3C7', padding: 6, alignItems: 'center' },
-  staleText: { color: '#92400E', fontSize: 12 },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  hero: { backgroundColor: colors.espresso, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 24, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  heroEyebrow: { color: colors.gold, fontSize: 12, fontWeight: '700', letterSpacing: 1.4, textTransform: 'uppercase' },
+  heroTitle: { color: colors.espressoInk, fontSize: 26, fontWeight: '800', letterSpacing: -0.5, marginTop: 6, lineHeight: 32 },
   search: {
-    margin: 12,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    marginTop: 18,
+    height: 48,
+    paddingHorizontal: 16,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    color: colors.ink,
+    fontSize: 15,
   },
-  cats: { paddingHorizontal: 12, marginBottom: 8, maxHeight: 40 },
+  quickRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, marginTop: 16 },
+  quickCard: { flex: 1, borderRadius: radius.lg, padding: 14, backgroundColor: colors.brandSubtle, borderWidth: 1, borderColor: colors.brandSoft, minHeight: 72, justifyContent: 'center' },
+  quickCardAlt: { backgroundColor: colors.espressoRaised, borderColor: colors.espressoRaised },
+  quickTitle: { fontSize: 15, fontWeight: '700', color: colors.ink },
+  quickText: { fontSize: 13, color: colors.inkSoft, marginTop: 2 },
+  staleBanner: { marginHorizontal: 16, marginTop: 12, backgroundColor: colors.warningSubtle, padding: 10, borderRadius: radius.md },
+  staleText: { color: colors.warningOn, fontSize: 13 },
+  cats: { paddingHorizontal: 16, paddingTop: 18, gap: 8 },
   catChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    marginRight: 8,
-    borderRadius: 20,
-    backgroundColor: '#E5E7EB',
-  },
-  catChipActive: { backgroundColor: '#2563EB' },
-  catText: { color: '#374151', fontSize: 13 },
-  catTextActive: { color: '#fff' },
-  card: {
-    flex: 1,
-    margin: 6,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  cardImage: { width: '100%', height: 110 },
-  cardImagePlaceholder: { backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
-  cardImageText: { fontSize: 18, color: '#6B7280', fontWeight: '600' },
-  cardBody: { padding: 10 },
-  cardName: { fontSize: 13, fontWeight: '600', color: '#111827', marginBottom: 4 },
-  cardPrice: { fontSize: 14, color: '#2563EB', fontWeight: '700', marginBottom: 8 },
-  addBtn: {
-    backgroundColor: '#2563EB',
-    borderRadius: 6,
-    padding: 6,
-    alignItems: 'center',
-  },
-  addBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  cartFab: {
-    position: 'absolute',
-    bottom: 20,
-    left: 24,
-    right: 24,
-    backgroundColor: '#2563EB',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#2563EB',
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  cartFabText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  modalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 16,
-  },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: '#111827', marginBottom: 12 },
-  groupBlock: { marginBottom: 10 },
-  groupTitle: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
-  groupHint: { fontSize: 12, color: '#6B7280', marginBottom: 6 },
-  optionRowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  optionChip: {
+    height: 40,
+    paddingHorizontal: 16,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 18,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderColor: colors.line,
+    justifyContent: 'center',
   },
-  optionChipSelected: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
-  optionText: { fontSize: 12, color: '#374151' },
-  optionTextSelected: { color: '#1D4ED8', fontWeight: '600' },
-  modalError: { color: '#B91C1C', fontSize: 12, marginTop: 8 },
-  modalButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 12 },
-  modalBtn: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  modalBtnGhost: { backgroundColor: '#E5E7EB' },
-  modalBtnPrimary: { backgroundColor: '#2563EB' },
-  modalBtnGhostText: { color: '#374151', fontWeight: '600' },
-  modalBtnPrimaryText: { color: '#fff', fontWeight: '700' },
+  catChipActive: { backgroundColor: colors.espresso, borderColor: colors.espresso },
+  catText: { color: colors.inkSoft, fontSize: 14, fontWeight: '600' },
+  catTextActive: { color: colors.espressoInk },
+  sectionTitle: { fontSize: 20, fontWeight: '800', color: colors.ink, letterSpacing: -0.3, paddingHorizontal: 16, marginTop: 22, marginBottom: 10 },
+  skeleton: { height: 108, borderRadius: radius.lg, backgroundColor: colors.sunken },
+  empty: { margin: 16, padding: 24, borderRadius: radius.lg, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.lineStrong, alignItems: 'center' },
+  emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.ink },
+  emptyText: { fontSize: 13, color: colors.inkSoft, marginTop: 4, textAlign: 'center' },
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 10,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  rowImage: { width: 96, height: 96, borderRadius: radius.md },
+  rowImagePlaceholder: { backgroundColor: colors.cream, alignItems: 'center', justifyContent: 'center' },
+  rowImageLetter: { fontSize: 32, color: colors.brand, fontWeight: '600' },
+  rowBody: { flex: 1, justifyContent: 'space-between' },
+  rowName: { fontSize: 15, fontWeight: '700', color: colors.ink },
+  rowDesc: { fontSize: 13, color: colors.inkSoft, marginTop: 2, lineHeight: 18 },
+  rowFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  rowPrice: { fontSize: 15, fontWeight: '700', color: colors.ink },
+  addBtn: { height: 36, paddingHorizontal: 16, borderRadius: radius.pill, backgroundColor: colors.brand, justifyContent: 'center' },
+  addBtnText: { color: colors.white, fontSize: 14, fontWeight: '700' },
+  cartBar: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    right: 16,
+    height: 60,
+    backgroundColor: colors.espresso,
+    borderRadius: radius.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    gap: 12,
+    ...shadow.lifted,
+  },
+  cartCount: { minWidth: 32, height: 32, borderRadius: 16, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  cartCountText: { color: colors.white, fontWeight: '800' },
+  cartBarText: { flex: 1, color: colors.espressoInk, fontSize: 16, fontWeight: '700' },
+  cartBarTotal: { color: colors.espressoInk, fontSize: 16, fontWeight: '800' },
+  modalBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' },
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32 },
+  sheetHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.lineStrong, marginBottom: 14 },
+  modalTitle: { fontSize: 22, fontWeight: '800', color: colors.ink, letterSpacing: -0.3 },
+  sheetPrice: { fontSize: 16, fontWeight: '700', color: colors.brand, marginTop: 4, marginBottom: 14 },
+  groupBlock: { marginBottom: 16 },
+  groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  groupTitle: { fontSize: 16, fontWeight: '700', color: colors.ink },
+  groupBadge: { fontSize: 11, fontWeight: '700', color: colors.inkSoft, backgroundColor: colors.sunken, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, overflow: 'hidden' },
+  groupBadgeRequired: { color: colors.warningOn, backgroundColor: colors.warningSubtle },
+  groupHint: { fontSize: 12, color: colors.inkMuted, marginTop: 2, marginBottom: 8 },
+  optionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 50, paddingHorizontal: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, marginBottom: 8 },
+  optionRowSelected: { borderColor: colors.brand, backgroundColor: colors.brandSubtle },
+  optionMark: { width: 20, height: 20, borderRadius: 5, borderWidth: 2, borderColor: colors.lineStrong },
+  optionMarkRound: { borderRadius: 10 },
+  optionMarkOn: { borderColor: colors.brand, backgroundColor: colors.brand },
+  optionText: { flex: 1, fontSize: 15, color: colors.ink },
+  optionTextSelected: { fontWeight: '700' },
+  optionPrice: { fontSize: 13, color: colors.inkSoft },
+  modalError: { color: colors.dangerOn, fontSize: 13, marginTop: 4 },
+  modalButtons: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  modalBtn: { flex: 1, height: 52, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  modalBtnGhost: { backgroundColor: colors.sunken },
+  modalBtnPrimary: { backgroundColor: colors.brand, flex: 2 },
+  modalBtnGhostText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
+  modalBtnPrimaryText: { color: colors.white, fontWeight: '800', fontSize: 15 },
 });

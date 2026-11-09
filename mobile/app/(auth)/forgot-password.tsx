@@ -5,6 +5,7 @@ import {
 import { router } from 'expo-router';
 import { requestPasswordReset, resetPassword } from '../../src/api/auth';
 import { extractResetToken } from '../../src/features/auth/auth';
+import { colors } from '../../src/theme';
 
 type Step = 'request' | 'reset' | 'done';
 
@@ -80,7 +81,7 @@ export default function ForgotPasswordScreen() {
               accessibilityLabel="Phone or email"
             />
             <TouchableOpacity style={styles.button} onPress={handleRequest} disabled={loading} accessibilityRole="button">
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Send reset link</Text>}
+              {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Send reset link</Text>}
             </TouchableOpacity>
             <TouchableOpacity style={styles.link} onPress={() => { setError(''); setStep('reset'); }}>
               <Text style={styles.linkText}>I already have a reset link</Text>
@@ -119,7 +120,7 @@ export default function ForgotPasswordScreen() {
               accessibilityLabel="Confirm new password"
             />
             <TouchableOpacity style={styles.button} onPress={handleReset} disabled={loading} accessibilityRole="button">
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Set new password</Text>}
+              {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>Set new password</Text>}
             </TouchableOpacity>
             <TouchableOpacity style={styles.link} onPress={() => { setError(''); setStep('request'); }}>
               <Text style={styles.linkText}>Send a new link</Text>
@@ -151,15 +152,15 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
-  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 8, color: '#111827' },
-  subtitle: { fontSize: 15, textAlign: 'center', color: '#6B7280', marginBottom: 24 },
-  info: { fontSize: 14, color: '#065F46', backgroundColor: '#D1FAE5', borderRadius: 8, padding: 12, marginBottom: 16 },
-  input: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 14, marginBottom: 16, fontSize: 16 },
-  button: { backgroundColor: '#2563EB', borderRadius: 8, padding: 16, alignItems: 'center', marginBottom: 12, minHeight: 48 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  container: { flexGrow: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.white },
+  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 8, color: colors.ink },
+  subtitle: { fontSize: 15, textAlign: 'center', color: colors.inkMuted, marginBottom: 24 },
+  info: { fontSize: 14, color: colors.success, backgroundColor: colors.successSubtle, borderRadius: 8, padding: 12, marginBottom: 16 },
+  input: { borderWidth: 1, borderColor: colors.lineStrong, borderRadius: 8, padding: 14, marginBottom: 16, fontSize: 16 },
+  button: { backgroundColor: colors.brand, borderRadius: 8, padding: 16, alignItems: 'center', marginBottom: 12, minHeight: 48 },
+  buttonText: { color: colors.white, fontSize: 16, fontWeight: '600' },
   link: { alignItems: 'center', paddingVertical: 10, minHeight: 44 },
-  linkText: { color: '#2563EB', fontSize: 14 },
-  backText: { color: '#6B7280', fontSize: 14, textDecorationLine: 'underline' },
-  error: { color: '#B91C1C', fontSize: 14, textAlign: 'center', marginTop: 4 },
+  linkText: { color: colors.brand, fontSize: 14 },
+  backText: { color: colors.inkMuted, fontSize: 14, textDecorationLine: 'underline' },
+  error: { color: colors.dangerOn, fontSize: 14, textAlign: 'center', marginTop: 4 },
 });

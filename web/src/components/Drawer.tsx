@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { Icon } from "@/components/Icon";
 
 type DrawerProps = {
   open: boolean;
@@ -70,7 +71,7 @@ export function Drawer({ open, title, onClose, children, footer }: DrawerProps) 
     <div className="fixed inset-0 z-[var(--z-drawer)]">
       <button
         aria-label="Close drawer"
-        className="absolute inset-0 bg-[rgba(0,0,0,0.35)] backdrop-blur-[2px]"
+        className="absolute inset-0 bg-overlay backdrop-blur-[3px]"
         onClick={onClose}
       />
       <div
@@ -78,12 +79,14 @@ export function Drawer({ open, title, onClose, children, footer }: DrawerProps) 
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="absolute inset-x-0 bottom-0 z-10 grid max-h-[90dvh] gap-4 overflow-y-auto rounded-t-[var(--radius-xl)] bg-surface p-4 shadow-xl
-                   animate-[modalIn_var(--duration-base)_var(--ease-out)] sm:inset-y-0 sm:right-0 sm:left-auto sm:h-full sm:max-h-none sm:w-[min(92vw,var(--layout-panel-max))] sm:rounded-none sm:p-5"
+        className="absolute inset-x-0 bottom-0 z-10 grid max-h-[90dvh] gap-4 overflow-y-auto rounded-t-[var(--radius-modal)] bg-surface p-5 shadow-xl
+                   animate-[modalIn_var(--duration-base)_var(--ease-out)] sm:inset-y-0 sm:right-0 sm:left-auto sm:h-full sm:max-h-none sm:w-[min(92vw,var(--layout-panel-max))] sm:rounded-none sm:border-l sm:border-line sm:p-6"
       >
         <div className="flex items-start justify-between gap-3">
-          <h2 className="text-xl font-semibold text-ink">{title}</h2>
-          <button className="btn btn-secondary btn-sm" onClick={onClose}>Close</button>
+          <h2 className="font-display text-xl font-bold text-ink">{title}</h2>
+          <button type="button" className="btn btn-ghost btn-icon btn-sm -mr-2 -mt-1" onClick={onClose} aria-label="Close">
+            <Icon name="close" />
+          </button>
         </div>
         <div>{children}</div>
         {footer ? <div className="flex flex-wrap justify-end gap-2">{footer}</div> : null}

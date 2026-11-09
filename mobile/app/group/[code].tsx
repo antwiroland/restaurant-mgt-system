@@ -5,6 +5,7 @@ import { fetchGroupSession, finalizeGroupSession } from '../../src/api/group';
 import { useCartStore } from '../../src/store/cart';
 import { fallbackPollMs, useRealtimeTopics } from '../../src/realtime/realtime';
 import type { GroupSessionDetail } from '../../src/types/api';
+import { colors } from '../../src/theme';
 
 export default function GroupSessionScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
@@ -56,7 +57,7 @@ export default function GroupSessionScreen() {
   }
 
   if (loading) {
-    return <ActivityIndicator size="large" color="#2563EB" style={{ flex: 1, marginTop: 40 }} />;
+    return <ActivityIndicator size="large" color={colors.brand} style={{ flex: 1, marginTop: 40 }} />;
   }
 
   if (!session) {
@@ -114,7 +115,7 @@ export default function GroupSessionScreen() {
 
       {session.status === 'OPEN' ? (
         <TouchableOpacity style={styles.finalizeBtn} onPress={handleFinalize} disabled={finalizing}>
-          {finalizing ? <ActivityIndicator color="#fff" /> : <Text style={styles.finalizeBtnText}>Finalize & Place Order</Text>}
+          {finalizing ? <ActivityIndicator color={colors.white} /> : <Text style={styles.finalizeBtnText}>Finalize & Place Order</Text>}
         </TouchableOpacity>
       ) : null}
     </View>
@@ -122,30 +123,30 @@ export default function GroupSessionScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   placedCard: { paddingHorizontal: 12, paddingTop: 8 },
-  placedText: { fontSize: 13, color: '#374151', marginHorizontal: 12 },
+  placedText: { fontSize: 13, color: colors.inkSoft, marginHorizontal: 12 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { fontSize: 16, color: '#374151' },
-  header: { backgroundColor: '#fff', padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  code: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  status: { fontSize: 13, color: '#2563EB', fontWeight: '600' },
+  error: { fontSize: 16, color: colors.inkSoft },
+  header: { backgroundColor: colors.white, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  code: { fontSize: 18, fontWeight: '700', color: colors.ink },
+  status: { fontSize: 13, color: colors.brand, fontWeight: '600' },
   participantCard: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10,
-    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
+    backgroundColor: colors.white, borderRadius: 12, padding: 14, marginBottom: 10,
+    shadowColor: colors.black, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
   },
-  participantName: { fontSize: 15, fontWeight: '700', color: '#111827', marginBottom: 4 },
-  participantTotal: { fontSize: 14, fontWeight: '600', color: '#2563EB', marginBottom: 8 },
-  participantItem: { fontSize: 13, color: '#6B7280', marginBottom: 2 },
+  participantName: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 4 },
+  participantTotal: { fontSize: 14, fontWeight: '600', color: colors.brand, marginBottom: 8 },
+  participantItem: { fontSize: 13, color: colors.inkMuted, marginBottom: 2 },
   totalCard: {
-    backgroundColor: '#EFF6FF', borderRadius: 12, padding: 16, margin: 12,
+    backgroundColor: colors.brandSubtle, borderRadius: 12, padding: 16, margin: 12,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  totalLabel: { fontSize: 16, fontWeight: '700', color: '#1D4ED8' },
-  totalValue: { fontSize: 22, fontWeight: '800', color: '#1D4ED8' },
+  totalLabel: { fontSize: 16, fontWeight: '700', color: colors.brandPressed },
+  totalValue: { fontSize: 22, fontWeight: '800', color: colors.brandPressed },
   finalizeBtn: {
-    margin: 12, backgroundColor: '#2563EB', borderRadius: 12,
+    margin: 12, backgroundColor: colors.brand, borderRadius: 12,
     padding: 18, alignItems: 'center',
   },
-  finalizeBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  finalizeBtnText: { color: colors.white, fontSize: 17, fontWeight: '700' },
 });

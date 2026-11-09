@@ -2,292 +2,213 @@
 @config "../../tailwind.config.ts";
 
 /* ============================================================
-   RESTAURANT MANAGER — DESIGN TOKEN SYSTEM
-   Tailwind v4: tokens in @theme become real utility classes.
+   RESTAURANT MANAGER — DESIGN TOKEN SYSTEM  ("Hearth")
+   Premium · modern · elegant · food-inspired.
 
-   Naming rules so generated classes stay readable:
-     --color-brand       → bg-brand  text-brand  border-brand
-     --color-ink         → text-ink  (foreground)
-     --color-surface     → bg-surface
-     --color-line        → border-line
-     --radius-card       → rounded-card
-     --shadow-card       → shadow-card
-     --font-display      → font-display
+   Palette roles
+     Ivory / cream      → customer canvases, warm surfaces
+     Espresso           → primary text, dark surfaces (sidebar, KDS)
+     Terracotta         → primary actions, food accents
+     Muted gold         → premium highlights, offers
+     Sage               → freshness, success, positive states
+     Warm stone greys   → borders, secondary information
+
+   Tailwind v4: every token inside @theme becomes a utility class.
+     --color-brand   → bg-brand  text-brand  border-brand
+     --color-ink     → text-ink
+     --color-surface → bg-surface
+     --color-line    → border-line
+     --radius-card   → rounded-card
+     --shadow-card   → shadow-card
+     --font-display  → font-display
+   Token NAMES are stable — pages depend on them. Change values only.
    ============================================================ */
 
 
-/* ----------------------------------------------------------
-   RAW COLOR SCALES  (internal palette — not Tailwind utilities)
-   Reference these only inside @theme values below.
-   Naming: --clr-{hue}-{step}  lower = darker, higher = lighter
----------------------------------------------------------- */
-:root {
-  /* Emerald — brand primary (vibrant, fresh, restaurant-green) */
-  --clr-green-0:  #022c22;
-  --clr-green-1:  #064e3b;
-  --clr-green-2:  #065f46;
-  --clr-green-3:  #047857;
-  --clr-green-4:  #059669;
-  --clr-green-5:  #10b981;
-  --clr-green-6:  #34d399;
-  --clr-green-7:  #6ee7b7;
-  --clr-green-8:  #a7f3d0;
-  --clr-green-9:  #d1fae5;
-  --clr-green-10: #ecfdf5;
-  --clr-green-11: #f0fdf4;
-  --clr-green-12: #f7fffe;
-  --clr-green-13: #ffffff;
-
-  /* Slate — neutral surface (clean, modern grays) */
-  --clr-sage-0: #0f172a;
-  --clr-sage-1: #1e293b;
-  --clr-sage-2: #334155;
-  --clr-sage-3: #475569;
-  --clr-sage-4: #64748b;
-  --clr-sage-5: #94a3b8;
-  --clr-sage-6: #cbd5e1;
-  --clr-sage-7: #e2e8f0;
-  --clr-sage-8: #f1f5f9;
-  --clr-sage-9: #f8fafc;
-  --clr-sage-10: #ffffff;
-
-  /* Amber — warnings */
-  --clr-amber-0: #451a03;
-  --clr-amber-1: #78350f;
-  --clr-amber-2: #92400e;
-  --clr-amber-3: #b45309;
-  --clr-amber-4: #d97706;
-  --clr-amber-5: #f59e0b;
-  --clr-amber-6: #fbbf24;
-  --clr-amber-7: #fcd34d;
-  --clr-amber-8: #fde68a;
-  --clr-amber-9: #fef3c7;
-  --clr-amber-10: #fffbeb;
-
-  /* Golden Amber — accent / CTA (warm, inviting) */
-  --clr-terra-0: #451a03;
-  --clr-terra-1: #78350f;
-  --clr-terra-2: #92400e;
-  --clr-terra-3: #b45309;
-  --clr-terra-4: #d97706;
-  --clr-terra-5: #f59e0b;
-  --clr-terra-6: #fbbf24;
-  --clr-terra-7: #fcd34d;
-  --clr-terra-8: #fde68a;
-  --clr-terra-9: #fef9e7;
-  --clr-terra-10: #fffbf0;
-
-  /* Crimson — errors / danger */
-  --clr-red-0: #3b0202;
-  --clr-red-1: #7f1d1d;
-  --clr-red-2: #991b1b;
-  --clr-red-3: #b91c1c;
-  --clr-red-4: #dc2626;
-  --clr-red-5: #ef4444;
-  --clr-red-6: #f87171;
-  --clr-red-7: #fca5a5;
-  --clr-red-8: #fecaca;
-  --clr-red-9: #fee2e2;
-  --clr-red-10: #fff5f5;
-
-  /* Sky — info / confirmed */
-  --clr-sky-0: #082040;
-  --clr-sky-1: #0c4a6e;
-  --clr-sky-2: #075985;
-  --clr-sky-3: #0369a1;
-  --clr-sky-4: #0284c7;
-  --clr-sky-5: #0ea5e9;
-  --clr-sky-6: #38bdf8;
-  --clr-sky-7: #7dd3fc;
-  --clr-sky-8: #bae6fd;
-  --clr-sky-9: #e0f2fe;
-  --clr-sky-10: #f0f9ff;
-
-  /* Neutral — grays */
-  --clr-neutral-0:  #060606;
-  --clr-neutral-1:  #111827;
-  --clr-neutral-2:  #1f2937;
-  --clr-neutral-3:  #374151;
-  --clr-neutral-4:  #4b5563;
-  --clr-neutral-5:  #6b7280;
-  --clr-neutral-6:  #9ca3af;
-  --clr-neutral-7:  #d1d5db;
-  --clr-neutral-8:  #e5e7eb;
-  --clr-neutral-9:  #f3f4f6;
-  --clr-neutral-10: #f9fafb;
-
-  /* Cream — warm accent whites */
-  --clr-cream-0: #c8b97a;
-  --clr-cream-1: #e2d4a0;
-  --clr-cream-2: #f0e8c2;
-  --clr-cream-3: #f7f0d4;
-  --clr-cream-4: #faf5e4;
-  --clr-cream-5: #fdf9ef;
-  --clr-cream-6: #fffbf0;
-}
-
-
-/* ----------------------------------------------------------
-   TAILWIND THEME EXTENSIONS
-   Every token here generates real Tailwind utility classes.
-   e.g.  --color-brand  → bg-brand  text-brand  border-brand
-         --radius-card  → rounded-card
-         --shadow-card  → shadow-card
-         --font-display → font-display
----------------------------------------------------------- */
 @theme {
 
   /* ---- FONTS ------------------------------------------ */
-  --font-display: "Space Grotesk", sans-serif;
-  --font-mono:    "IBM Plex Mono", monospace;
+  /* Set by next/font in app/layout.tsx; fallbacks keep SSR sane. */
+  --font-display: var(--font-manrope), "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-sans:    var(--font-manrope), "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-serif:   var(--font-fraunces), "Fraunces", ui-serif, Georgia, serif;
+  --font-mono:    var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
 
-  /* ---- COLORS — Surfaces (bg-canvas, bg-surface …) ---- */
-  --color-canvas:    #f8fafc;   /* page background — clean slate  */
-  --color-surface:   #ffffff;   /* card / panel background        */
-  --color-sunken:    #f1f5f9;   /* recessed section               */
-  --color-muted:     #f0fdf4;   /* muted background — soft green  */
-  --color-overlay:   rgba(15, 23, 42, 0.50);
+  /* ---- COLORS — Surfaces ------------------------------ */
+  --color-canvas:    #f7f3ec;   /* warm stone page background      */
+  --color-ivory:     #fbf7f0;   /* customer-facing canvas          */
+  --color-cream:     #f4ead9;   /* warm band / highlight surface   */
+  --color-surface:   #ffffff;   /* card / panel                    */
+  --color-sunken:    #f1ebe1;   /* recessed section, table header  */
+  --color-muted:     #f4efe7;   /* muted fill (skeletons, chips)   */
+  --color-overlay:   rgba(28, 21, 17, 0.55);
 
-  /* ---- COLORS — Ink / foreground (text-ink …) --------- */
-  --color-ink:          #0f172a;  /* primary text — deep slate    */
-  --color-ink-soft:     #475569;  /* secondary text               */
-  --color-ink-muted:    #94a3b8;  /* tertiary / placeholder       */
-  --color-ink-disabled: #cbd5e1;  /* disabled label               */
-  --color-ink-inverse:  #ffffff;  /* text on dark backgrounds     */
+  /* ---- COLORS — Espresso dark surfaces ---------------- */
+  --color-espresso:        #231a15;  /* sidebar, hero bands         */
+  --color-espresso-raised: #2f241e;  /* raised on espresso          */
+  --color-espresso-line:   #43362e;  /* borders on espresso         */
+  --color-espresso-ink:    #f6efe6;  /* text on espresso            */
+  --color-espresso-soft:   #c2b3a5;  /* secondary text on espresso  */
 
-  /* ---- COLORS — Brand (bg-brand, text-brand …) -------- */
-  --color-brand:        #059669;  /* emerald-600 — vibrant green  */
-  --color-brand-hover:  #047857;  /* emerald-700                  */
-  --color-brand-active: #065f46;  /* emerald-800                  */
-  --color-brand-subtle: #ecfdf5;  /* emerald-50                   */
-  --color-brand-on:     #ffffff;  /* text on brand bg             */
+  /* ---- COLORS — Night (KDS / boards, high contrast) --- */
+  --color-night:        #15110e;
+  --color-night-raised: #211a16;
+  --color-night-card:   #2a221d;
+  --color-night-line:   #3d322b;
+  --color-night-ink:    #fbf6ef;
+  --color-night-soft:   #cbbcae;
 
-  /* ---- COLORS — Accent / CTA (bg-accent …) ------------ */
-  --color-accent:        #d97706;  /* amber-600 — warm golden      */
-  --color-accent-hover:  #b45309;  /* amber-700                    */
-  --color-accent-subtle: #fffbeb;  /* amber-50                     */
-  --color-accent-on:     #ffffff;
+  /* ---- COLORS — Ink ----------------------------------- */
+  --color-ink:          #241b16;  /* espresso — primary text      */
+  --color-ink-soft:     #65574d;  /* secondary text  (≈6.4:1)     */
+  --color-ink-muted:    #8a7b70;  /* tertiary / meta (≈3.9:1)     */
+  --color-ink-disabled: #b9ada2;
+  --color-ink-inverse:  #ffffff;
 
-  /* ---- COLORS — Borders (border-line …) --------------- */
-  --color-line:         #e2e8f0;  /* slate-200 — clean border     */
-  --color-line-subtle:  #f1f5f9;  /* slate-100 — hairline         */
-  --color-line-strong:  #cbd5e1;  /* slate-300 — strong border    */
-  --color-line-input:   #d1fae5;  /* emerald-100 — input border   */
-  --color-line-focus:   #059669;  /* emerald-600 — focused border */
+  /* ---- COLORS — Brand: terracotta --------------------- */
+  --color-brand:        #b4532a;  /* white on brand ≈ 4.9:1       */
+  --color-brand-hover:  #9c4521;
+  --color-brand-active: #82391b;
+  --color-brand-subtle: #f8ebe3;
+  --color-brand-soft:   #efd3c3;
+  --color-brand-on:     #ffffff;
+
+  /* ---- COLORS — Accent: muted gold -------------------- */
+  --color-accent:        #a9853c;
+  --color-accent-hover:  #8f6f2f;
+  --color-accent-subtle: #f6eedb;
+  --color-accent-on:     #231a15;  /* espresso text on gold       */
+  --color-gold:          #c9a45c;
+
+  /* ---- COLORS — Sage ---------------------------------- */
+  --color-sage:        #5f7d5a;
+  --color-sage-subtle: #e7eee3;
+
+  /* ---- COLORS — Borders ------------------------------- */
+  --color-line:         #e6ddd0;
+  --color-line-subtle:  #f0e9df;
+  --color-line-strong:  #d3c6b5;
+  --color-line-input:   #dcd1c2;
+  --color-line-focus:   #b4532a;
 
   /* ---- COLORS — Semantic status ----------------------- */
-  /* Success */
-  --color-success:        #059669;
-  --color-success-subtle: #d1fae5;
-  --color-success-border: #6ee7b7;
-  --color-success-on:     #065f46;
+  --color-success:        #4f7a4a;
+  --color-success-subtle: #e6efe2;
+  --color-success-border: #b9cfb2;
+  --color-success-on:     #35552f;
 
-  /* Warning */
-  --color-warning:        #d97706;
-  --color-warning-subtle: #fef3c7;
-  --color-warning-border: #fcd34d;
-  --color-warning-on:     #92400e;
+  --color-warning:        #b07418;
+  --color-warning-subtle: #fbf0d8;
+  --color-warning-border: #ead09a;
+  --color-warning-on:     #744b0b;
 
-  /* Danger */
-  --color-danger:        #dc2626;
-  --color-danger-subtle: #fee2e2;
-  --color-danger-border: #fca5a5;
-  --color-danger-on:     #991b1b;
+  --color-danger:        #b3261e;
+  --color-danger-subtle: #f9e4e1;
+  --color-danger-border: #ecb7b0;
+  --color-danger-on:     #8a1c16;
 
-  /* Info */
-  --color-info:        #0284c7;
-  --color-info-subtle: #f0f9ff;
-  --color-info-border: #bae6fd;
-  --color-info-on:     #075985;
+  --color-info:        #3d6a87;
+  --color-info-subtle: #e5eef4;
+  --color-info-border: #b9cfde;
+  --color-info-on:     #2a4e66;
 
-  /* ---- COLORS — Order status chips -------------------- */
-  --color-pending:        #d97706;
-  --color-pending-subtle: #fef3c7;
-
-  --color-confirmed:        #0284c7;
-  --color-confirmed-subtle: #f0f9ff;
-
-  --color-preparing:        #ea580c;
-  --color-preparing-subtle: #fff7ed;
-
-  --color-ready:        #0369a1;
-  --color-ready-subtle: #e0f2fe;
-
-  --color-completed:        #059669;
-  --color-completed-subtle: #d1fae5;
-
-  --color-cancelled:        #dc2626;
-  --color-cancelled-subtle: #fee2e2;
-
-  --color-voided:        #64748b;
-  --color-voided-subtle: #f1f5f9;
+  /* ---- COLORS — Order status -------------------------- */
+  --color-pending:          #9a6612;
+  --color-pending-subtle:   #fbf0d8;
+  --color-confirmed:        #2f5f7e;
+  --color-confirmed-subtle: #e5eef4;
+  --color-preparing:        #a2481f;
+  --color-preparing-subtle: #f8e6dc;
+  --color-ready:            #24705f;
+  --color-ready-subtle:     #dcefe9;
+  --color-completed:        #46693f;
+  --color-completed-subtle: #e6efe2;
+  --color-cancelled:        #a3241c;
+  --color-cancelled-subtle: #f9e4e1;
+  --color-voided:           #6c6259;
+  --color-voided-subtle:    #efebe6;
 
   /* ---- COLORS — Table status -------------------------- */
-  --color-available:        #059669;
-  --color-available-subtle: #d1fae5;
+  --color-available:        #46693f;
+  --color-available-subtle: #e6efe2;
+  --color-occupied:         #a2481f;
+  --color-occupied-subtle:  #f8e6dc;
+  --color-reserved:         #8f6a1f;
+  --color-reserved-subtle:  #f6eedb;
+  --color-closed:           #6c6259;
+  --color-closed-subtle:    #efebe6;
 
-  --color-occupied:        #dc2626;
-  --color-occupied-subtle: #fee2e2;
+  /* ---- COLORS — Charts (categorical, fixed order) ------
+     Validated with the dataviz palette checker (light, on #fff):
+     lightness band, chroma floor, CVD ΔE ≥ 14.8, normal ΔE ≥ 25.
+     Slot 3 (gold) is < 3:1 on white → always pair with text values.
+     More than 5 categories fold into "Other" (chart-other).      */
+  --color-chart-1: #b4532a;
+  --color-chart-2: #2f6db5;
+  --color-chart-3: #c08f22;
+  --color-chart-4: #8a4fa3;
+  --color-chart-5: #3d8a55;
+  --color-chart-other: #a89a8e;
 
-  --color-reserved:        #d97706;
-  --color-reserved-subtle: #fef3c7;
+  /* ---- RADII — restrained; pills only for badges/chips  */
+  --radius-xs:    0.25rem;   /* 4  */
+  --radius-sm:    0.375rem;  /* 6  */
+  --radius-md:    0.5rem;    /* 8  */
+  --radius-lg:    0.75rem;   /* 12 */
+  --radius-xl:    1rem;      /* 16 */
+  --radius-2xl:   1.25rem;   /* 20 */
+  --radius-card:  0.75rem;
+  --radius-panel: 0.875rem;
+  --radius-modal: 1rem;
+  --radius-pill:  9999px;
 
-  --color-closed:        #64748b;
-  --color-closed-subtle: #f1f5f9;
-
-  /* ---- BORDER RADIUS ---------------------------------- */
-  /* Adds rounded-card, rounded-panel, rounded-modal, rounded-pill
-     alongside Tailwind's built-in rounded-sm/md/lg/xl/2xl        */
-  --radius-xs:   0.25rem;   /* 4px  */
-  --radius-sm:   0.5rem;    /* 8px  */
-  --radius-md:   0.75rem;   /* 12px */
-  --radius-lg:   1rem;      /* 16px */
-  --radius-xl:   1.25rem;   /* 20px */
-  --radius-2xl:  1.5rem;    /* 24px */
-  --radius-card:  1rem;     /* alias — use on cards         */
-  --radius-panel: 1rem;     /* alias — use on panels        */
-  --radius-modal: 1.25rem;  /* alias — use on modals/drawers*/
-  --radius-pill:  9999px;   /* fully-rounded pill           */
-
-  /* ---- SHADOWS ---------------------------------------- */
-  /* Adds shadow-xs … shadow-xl, shadow-focus, shadow-focus-danger
-     alongside Tailwind's built-in shadow-sm/md/lg               */
-  --shadow-xs:    0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-sm:    0 2px 6px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.05);
-  --shadow-card:  0 4px 14px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.05);
-  --shadow-panel: 0 4px 14px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.05);
-  --shadow-lg:    0 10px 26px rgba(15, 23, 42, 0.10), 0 4px 12px rgba(15, 23, 42, 0.06);
-  --shadow-xl:    0 20px 48px rgba(15, 23, 42, 0.12), 0 8px 18px rgba(15, 23, 42, 0.07);
-  --shadow-inner: inset 0 2px 6px rgba(15, 23, 42, 0.06);
-  --shadow-focus: 0 0 0 3px rgba(5, 150, 105, 0.28);
-  --shadow-focus-danger: 0 0 0 3px rgba(220, 38, 38, 0.25);
+  /* ---- SHADOWS — warm, low, controlled ---------------- */
+  --shadow-xs:    0 1px 2px rgba(36, 27, 22, 0.05);
+  --shadow-sm:    0 1px 2px rgba(36, 27, 22, 0.05), 0 2px 6px rgba(36, 27, 22, 0.05);
+  --shadow-card:  0 1px 2px rgba(36, 27, 22, 0.04), 0 6px 18px rgba(36, 27, 22, 0.07);
+  --shadow-panel: 0 1px 2px rgba(36, 27, 22, 0.04), 0 1px 1px rgba(36, 27, 22, 0.02);
+  --shadow-lg:    0 4px 10px rgba(36, 27, 22, 0.06), 0 14px 32px rgba(36, 27, 22, 0.10);
+  --shadow-xl:    0 8px 18px rgba(36, 27, 22, 0.08), 0 24px 56px rgba(36, 27, 22, 0.16);
+  --shadow-inner: inset 0 1px 3px rgba(36, 27, 22, 0.08);
+  --shadow-focus: 0 0 0 3px rgba(180, 83, 42, 0.30);
+  --shadow-focus-danger: 0 0 0 3px rgba(179, 38, 30, 0.28);
 
   /* ---- EASING ----------------------------------------- */
   --ease-default: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in:      cubic-bezier(0.4, 0, 1, 1);
   --ease-out:     cubic-bezier(0, 0, 0.2, 1);
   --ease-bounce:  cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ---- ANIMATIONS ------------------------------------- */
+  --animate-fade-up: fadeUp 420ms var(--ease-default) both;
+  --animate-pop: pop 260ms var(--ease-bounce);
 }
 
 
 /* ----------------------------------------------------------
-   EXTRA :ROOT VARS  (not Tailwind utilities — used only in
-   @layer components or inline CSS var() references)
+   NON-UTILITY VARS (referenced with var() in components)
 ---------------------------------------------------------- */
 :root {
-  /* Touch target heights — used in component layer below */
-  --touch-xs:   36px;   /* minimum small control            */
-  --touch-sm:   44px;   /* minimum interactive (Apple HIG)  */
-  --touch-md:   48px;   /* comfortable control              */
-  --touch-lg:   56px;   /* primary action button            */
-  --touch-xl:   64px;   /* large CTA                        */
-  --touch-card: 80px;   /* tappable card min-height         */
+  /* Touch targets */
+  --touch-xs:   36px;
+  --touch-sm:   44px;   /* Apple HIG minimum */
+  --touch-md:   48px;
+  --touch-lg:   56px;
+  --touch-xl:   64px;
+  --touch-card: 80px;
 
   /* Layout */
-  --layout-shell-max:   1280px;
-  --layout-sidebar:     260px;
+  --layout-shell-max:   1320px;
+  --layout-sidebar:     264px;
+  --layout-sidebar-rail: 76px;
   --layout-panel-max:   480px;
   --layout-content-max: 760px;
+  --layout-site-max:    1200px;
+
+  /* Icon sizes */
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --icon-lg: 24px;
 
   /* Motion */
   --duration-fast:   120ms;
@@ -306,9 +227,9 @@
   --z-toast:  400;
   --z-top:    9999;
 
-  /* Legacy aliases — keep old code working during migration */
+  /* Legacy aliases — keep old code working */
   --bg-0:     var(--color-canvas);
-  --bg-1:     #e2e8f0;
+  --bg-1:     var(--color-sunken);
   --ink:      var(--color-ink);
   --ink-soft: var(--color-ink-soft);
   --card:     var(--color-surface);
@@ -317,13 +238,11 @@
 
 
 /* ============================================================
-   BASE LAYER — resets and global defaults
+   BASE LAYER
    ============================================================ */
 
 @layer base {
-  *, *::before, *::after {
-    box-sizing: border-box;
-  }
+  *, *::before, *::after { box-sizing: border-box; }
 
   html {
     -webkit-text-size-adjust: 100%;
@@ -334,355 +253,285 @@
   body {
     min-height: 100dvh;
     margin: 0;
-    background:
-      radial-gradient(circle at 18% 12%, #ecfdf5 0%, transparent 30%),
-      radial-gradient(circle at 82% 85%, #fffbeb 0%, transparent 30%),
-      linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+    background: var(--color-canvas);
     color: var(--color-ink);
-    font-family: var(--font-display), sans-serif;
+    font-family: var(--font-sans);
     font-size: 0.9375rem; /* 15px */
-    line-height: 1.5;
+    line-height: 1.55;
+    font-feature-settings: "ss01", "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Remove tap highlight on touch devices */
-  a, button, [role="button"] {
-    -webkit-tap-highlight-color: transparent;
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+    color: var(--color-ink);
   }
 
-  /* Prevent double-tap zoom on interactive elements */
-  button, a, input, select, textarea, [role="button"] {
-    touch-action: manipulation;
-  }
+  ::selection { background: var(--color-brand-soft); color: var(--color-ink); }
 
-  /* Keyboard-only focus ring using the theme shadow token */
+  a, button, [role="button"] { -webkit-tap-highlight-color: transparent; }
+  button, a, input, select, textarea, [role="button"] { touch-action: manipulation; }
+
+  /* Keyboard-only focus ring */
   :focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
     border-radius: var(--radius-sm);
   }
 
-  /* Thin themed scrollbars */
-  ::-webkit-scrollbar        { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track  { background: var(--color-sunken); border-radius: var(--radius-pill); }
-  ::-webkit-scrollbar-thumb  { background: #a7f3d0; border-radius: var(--radius-pill); }
-  ::-webkit-scrollbar-thumb:hover { background: #6ee7b7; }
+  ::-webkit-scrollbar        { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { background: var(--color-line-strong); border-radius: var(--radius-pill); border: 2px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-ink-disabled); background-clip: content-box; }
 
   @keyframes modalIn {
-    from {
-      opacity: 0;
-      transform: scale(0.97);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
+    from { opacity: 0; transform: translateY(6px) scale(0.985); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.18); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shimmer {
+    from { background-position: -400px 0; }
+    to   { background-position: 400px 0; }
+  }
+  @keyframes pulseRing {
+    0%   { box-shadow: 0 0 0 0 rgba(179, 38, 30, 0.45); }
+    70%  { box-shadow: 0 0 0 10px rgba(179, 38, 30, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(179, 38, 30, 0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+      scroll-behavior: auto !important;
     }
   }
 }
 
 
 /* ============================================================
-   COMPONENT LAYER — reusable UI primitives
-   Build these with @apply so they stay consistent with the
-   utility classes generated from @theme above.
+   COMPONENT LAYER
    ============================================================ */
 
 @layer components {
 
-  /* ------ LAYOUT SHELL ---------------------------------- */
-
+  /* ------ LAYOUT ---------------------------------------- */
   .shell {
-    @apply max-w-[1280px] mx-auto p-4 grid gap-4;
+    @apply mx-auto grid w-full gap-5;
+    max-width: var(--layout-shell-max);
   }
+  .shell-sm { @apply mx-auto w-full max-w-[480px] p-4; }
 
-  .shell-sm {
-    @apply max-w-[480px] mx-auto p-4;
-  }
-
-  @media (max-width: 640px) {
-    .shell {
-      @apply p-3 gap-3;
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .shell {
-      @apply p-6 gap-6;
-    }
+  /* Public / customer-facing container */
+  .site {
+    @apply mx-auto w-full px-4 sm:px-6 lg:px-8;
+    max-width: var(--layout-site-max);
   }
 
   /* ------ PANELS ---------------------------------------- */
-
   .panel {
-    @apply bg-surface border border-line rounded-panel shadow-panel p-4;
+    @apply rounded-panel border border-line bg-surface p-5 shadow-panel;
   }
+  .panel-flat  { @apply rounded-panel border border-line-subtle bg-surface p-5; }
+  .panel-muted { @apply rounded-panel border border-line bg-sunken p-5; }
 
-  .panel-flat {
-    @apply bg-surface border border-line-subtle rounded-panel p-4;
-  }
-
-  .panel-muted {
-    @apply bg-muted border border-line rounded-panel p-4;
+  @media (max-width: 640px) {
+    .panel, .panel-flat, .panel-muted { @apply p-4; }
   }
 
   /* ------ TYPOGRAPHY ------------------------------------ */
-
-  /* Monospaced section kicker: OPERATIONS, TABLES, etc. */
   .kicker {
-    @apply font-mono text-ink-soft uppercase tracking-widest text-xs font-medium;
+    @apply font-sans text-[11px] font-bold uppercase tracking-[0.14em] text-ink-soft;
   }
-
-  .heading-xl {
-    @apply text-4xl font-semibold leading-tight tracking-tight text-ink;
+  .eyebrow {
+    @apply font-sans text-xs font-bold uppercase tracking-[0.18em] text-brand;
   }
+  .heading-xl   { @apply font-display text-4xl font-extrabold leading-[1.1] tracking-tight text-ink; }
+  .heading-lg   { @apply font-display text-[1.75rem] font-extrabold leading-tight tracking-tight text-ink; }
+  .heading-md   { @apply font-display text-xl font-bold leading-snug text-ink; }
+  .heading-serif { @apply font-serif font-medium tracking-[-0.02em] text-ink; }
+  .body-sm      { @apply text-sm leading-relaxed text-ink-soft; }
+  .label        { @apply text-sm font-semibold text-ink; }
+  .tabular      { font-variant-numeric: tabular-nums; }
+  .money        { @apply font-semibold; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 
-  .heading-lg {
-    @apply text-3xl font-semibold leading-tight tracking-tight text-ink;
-  }
-
-  .heading-md {
-    @apply text-xl font-semibold leading-snug text-ink;
-  }
-
-  .body-sm {
-    @apply text-sm leading-relaxed text-ink-soft;
-  }
-
-  .label {
-    @apply text-sm font-medium text-ink tracking-wide;
-  }
-
-  /* ------ BUTTON SYSTEM --------------------------------- */
-  /*
-   * Touch targets: min-height enforced via padding + line-height.
-   * On touch devices, the active press shrinks to 97% for tactile
-   * feedback without layout shift.
-   *
-   * Usage:
-   *   <button className="btn btn-primary">Save</button>
-   *   <button className="btn btn-secondary btn-sm">Edit</button>
-   *   <button className="btn btn-danger btn-lg btn-block">Delete</button>
-   */
-
+  /* ------ BUTTONS --------------------------------------- */
   .btn {
-    @apply inline-flex items-center justify-center gap-2
-           px-4 rounded-pill
-           font-display text-base font-medium leading-none
-           whitespace-nowrap cursor-pointer no-underline
-           select-none border border-transparent
-           transition-all duration-150;
-    min-height: var(--touch-sm);     /* 44px — Apple HIG minimum */
+    @apply inline-flex cursor-pointer select-none items-center justify-center gap-2
+           whitespace-nowrap rounded-[10px] border border-transparent px-4
+           font-sans text-[0.9375rem] font-semibold leading-none no-underline
+           transition-[background-color,border-color,color,box-shadow,transform] duration-150;
+    min-height: var(--touch-sm);
   }
+  .btn:active:not(:disabled) { transform: scale(0.98); }
+  .btn:disabled { @apply pointer-events-none cursor-not-allowed opacity-50; }
+  .btn svg { flex-shrink: 0; }
 
-  .btn:active:not(:disabled) {
-    @apply scale-[0.97];
-  }
+  .btn-primary { @apply border-brand bg-brand text-brand-on; box-shadow: 0 1px 0 rgba(255,255,255,0.15) inset, var(--shadow-xs); }
+  .btn-primary:hover:not(:disabled) { @apply border-brand-hover bg-brand-hover; }
 
-  .btn:disabled {
-    @apply opacity-50 cursor-not-allowed pointer-events-none;
-  }
+  .btn-secondary { @apply border-line-strong bg-surface text-ink shadow-xs; }
+  .btn-secondary:hover:not(:disabled) { @apply border-ink-disabled bg-sunken; }
 
-  /* Variants */
-  .btn-primary {
-    @apply bg-brand border-brand text-brand-on shadow-xs;
-  }
-  .btn-primary:hover:not(:disabled) {
-    @apply bg-brand-hover border-brand-hover shadow-sm;
-  }
+  .btn-outline { @apply border-brand bg-transparent text-brand; }
+  .btn-outline:hover:not(:disabled) { @apply bg-brand-subtle; }
 
-  .btn-secondary {
-    @apply bg-transparent border-brand text-brand;
-  }
-  .btn-secondary:hover:not(:disabled) {
-    @apply bg-brand-subtle;
-  }
+  .btn-dark { @apply border-espresso bg-espresso text-espresso-ink; }
+  .btn-dark:hover:not(:disabled) { @apply bg-espresso-raised; }
 
-  .btn-danger {
-    @apply bg-transparent border-danger text-danger-on;
-  }
-  .btn-danger:hover:not(:disabled) {
-    @apply bg-danger-subtle;
-  }
+  .btn-danger { @apply border-danger-border bg-surface text-danger-on; }
+  .btn-danger:hover:not(:disabled) { @apply border-danger bg-danger-subtle; }
 
-  .btn-accent {
-    @apply bg-accent border-accent text-accent-on shadow-xs;
-  }
-  .btn-accent:hover:not(:disabled) {
-    @apply bg-accent-hover border-accent-hover;
-  }
+  .btn-danger-solid { @apply border-danger bg-danger text-white; }
+  .btn-danger-solid:hover:not(:disabled) { @apply bg-danger-on; }
 
-  .btn-ghost {
-    @apply bg-transparent border-transparent text-ink-soft;
-  }
-  .btn-ghost:hover:not(:disabled) {
-    @apply bg-sunken text-ink;
-  }
+  .btn-accent { @apply border-accent bg-accent text-white; }
+  .btn-accent:hover:not(:disabled) { @apply border-accent-hover bg-accent-hover; }
 
-  /* Sizes */
-  .btn-sm {
-    @apply px-3 text-sm;
-    min-height: var(--touch-sm);     /* 44px */
-  }
+  .btn-success { @apply border-success bg-success text-white; }
+  .btn-success:hover:not(:disabled) { @apply bg-success-on; }
 
-  .btn-md {
-    @apply px-4 text-base;
-    min-height: var(--touch-md);     /* 48px */
-  }
+  .btn-ghost { @apply border-transparent bg-transparent text-ink-soft; }
+  .btn-ghost:hover:not(:disabled) { @apply bg-sunken text-ink; }
 
-  .btn-lg {
-    @apply px-6 text-lg font-semibold rounded-xl;
-    min-height: var(--touch-lg);     /* 56px */
-  }
+  .btn-icon { @apply px-0; width: var(--touch-sm); }
 
-  .btn-xl {
-    @apply px-8 text-xl font-semibold rounded-2xl;
-    min-height: var(--touch-xl);     /* 64px */
-  }
-
-  .btn-block {
-    @apply w-full rounded-lg;
-  }
+  .btn-sm { @apply rounded-lg px-3 text-sm; min-height: var(--touch-sm); }
+  .btn-md { @apply px-5 text-[0.9375rem]; min-height: var(--touch-md); }
+  .btn-lg { @apply rounded-xl px-6 text-base; min-height: var(--touch-lg); }
+  .btn-xl { @apply rounded-xl px-8 text-lg; min-height: var(--touch-xl); }
+  .btn-block { @apply w-full; }
 
   /* ------ FORM CONTROLS --------------------------------- */
-  /*
-   * All form controls are at least 44px tall for touch-friendliness.
-   *
-   * Usage:
-   *   <input  className="input"  />
-   *   <select className="select" />
-   *   <textarea className="textarea" />
-   *   <label  className="field">
-   *     <span className="field-label">Name</span>
-   *     <input className="input" />
-   *     <span className="field-hint">Optional</span>
-   *   </label>
-   */
-
-  .input,
-  .select,
-  .textarea {
-    @apply block w-full px-4 py-3
-           bg-surface border border-line-input rounded-md
-           text-ink text-base leading-normal font-display
-           appearance-none transition-colors duration-150;
-    min-height: var(--touch-sm);     /* 44px */
+  .input, .select, .textarea {
+    @apply block w-full appearance-none rounded-[10px] border border-line-input bg-surface px-3.5 py-2.5
+           font-sans text-[0.9375rem] leading-normal text-ink shadow-xs
+           transition-[border-color,box-shadow] duration-150;
+    min-height: var(--touch-sm);
   }
-
-  .input:focus,
-  .select:focus,
-  .textarea:focus {
-    @apply outline-none border-line-focus shadow-focus;
+  .input:hover, .select:hover, .textarea:hover { @apply border-line-strong; }
+  .input:focus, .select:focus, .textarea:focus {
+    @apply border-line-focus outline-none;
+    box-shadow: var(--shadow-focus);
   }
-
-  .input::placeholder,
-  .textarea::placeholder {
-    @apply text-ink-disabled;
+  .input::placeholder, .textarea::placeholder { @apply text-ink-muted; }
+  .input:disabled, .select:disabled, .textarea:disabled { @apply cursor-not-allowed bg-sunken text-ink-muted; }
+  .select {
+    @apply pr-10;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2365574d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.85rem center;
   }
+  .textarea { min-height: 100px; @apply resize-y; }
+  .input-error { @apply border-danger; }
+  .input-error:focus { box-shadow: var(--shadow-focus-danger); }
+  input[aria-invalid="true"].input, textarea[aria-invalid="true"].textarea { @apply border-danger; }
 
-  .textarea {
-    @apply min-h-[100px] resize-y;
-    min-height: 100px;
-  }
-
-  .input-error {
-    @apply border-danger;
-  }
-  .input-error:focus {
-    box-shadow: var(--shadow-focus-danger);
-  }
-
-  /* Field wrapper */
-  .field       { @apply grid gap-2; }
-  .field-label { @apply text-sm font-medium text-ink; }
+  .field       { @apply grid gap-1.5; }
+  .field-label { @apply text-[13px] font-semibold text-ink; }
   .field-hint  { @apply text-xs text-ink-soft; }
-  .field-error { @apply text-xs text-danger-on; }
+  .field-error { @apply text-xs font-medium text-danger-on; }
 
-  /* ------ STATUS BADGES --------------------------------- */
-  /*
-   * Usage: <span className="badge badge-pending">PENDING</span>
-   */
-
+  /* ------ BADGES ---------------------------------------- */
   .badge {
-    @apply inline-flex items-center gap-1
-           px-3 py-1 rounded-pill
-           text-xs font-semibold tracking-wide uppercase
-           whitespace-nowrap;
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-pill px-2.5 py-1
+           text-[11px] font-bold uppercase leading-none tracking-[0.06em];
   }
-
-  /* Order statuses */
-  .badge-pending   { @apply bg-pending-subtle text-pending;   }
+  .badge-dot::before {
+    content: ""; @apply inline-block h-1.5 w-1.5 rounded-full bg-current;
+  }
+  .badge-pending   { @apply bg-pending-subtle text-pending; }
   .badge-confirmed { @apply bg-confirmed-subtle text-confirmed; }
   .badge-preparing { @apply bg-preparing-subtle text-preparing; }
-  .badge-ready     { @apply bg-ready-subtle text-ready;       }
+  .badge-ready     { @apply bg-ready-subtle text-ready; }
   .badge-completed { @apply bg-completed-subtle text-completed; }
   .badge-cancelled { @apply bg-cancelled-subtle text-cancelled; }
-  .badge-voided    { @apply bg-voided-subtle text-voided;     }
-
-  /* Table statuses */
+  .badge-voided    { @apply bg-voided-subtle text-voided; }
   .badge-available { @apply bg-available-subtle text-available; }
-  .badge-occupied  { @apply bg-occupied-subtle text-occupied;   }
-  .badge-reserved  { @apply bg-reserved-subtle text-reserved;   }
-  .badge-closed    { @apply bg-closed-subtle text-closed;       }
-
-  /* Generic semantic */
+  .badge-occupied  { @apply bg-occupied-subtle text-occupied; }
+  .badge-reserved  { @apply bg-reserved-subtle text-reserved; }
+  .badge-closed    { @apply bg-closed-subtle text-closed; }
   .badge-success { @apply bg-success-subtle text-success-on; }
   .badge-warning { @apply bg-warning-subtle text-warning-on; }
-  .badge-danger  { @apply bg-danger-subtle text-danger-on;   }
-  .badge-info    { @apply bg-info-subtle text-info-on;       }
-  .badge-neutral { @apply bg-muted text-ink-soft;            }
+  .badge-danger  { @apply bg-danger-subtle text-danger-on; }
+  .badge-info    { @apply bg-info-subtle text-info-on; }
+  .badge-neutral { @apply bg-muted text-ink-soft; }
+  .badge-gold    { @apply bg-accent-subtle text-accent-hover; }
 
-  /* ------ ALERT / INLINE BANNERS ------------------------ */
-  /*
-   * Usage: <div className="alert alert-danger">Something failed</div>
-   */
-
+  /* ------ ALERTS ---------------------------------------- */
   .alert {
-    @apply flex items-start gap-3
-           px-4 py-3 rounded-md
-           text-sm border leading-relaxed;
+    @apply flex items-start gap-3 rounded-[10px] border px-4 py-3 text-sm leading-relaxed;
   }
-
-  .alert-success { @apply bg-success-subtle text-success-on border-success-border; }
-  .alert-warning { @apply bg-warning-subtle text-warning-on border-warning-border; }
-  .alert-danger  { @apply bg-danger-subtle  text-danger-on  border-danger-border;  }
-  .alert-info    { @apply bg-info-subtle    text-info-on    border-info-border;    }
+  .alert-success { @apply border-success-border bg-success-subtle text-success-on; }
+  .alert-warning { @apply border-warning-border bg-warning-subtle text-warning-on; }
+  .alert-danger  { @apply border-danger-border  bg-danger-subtle  text-danger-on; }
+  .alert-info    { @apply border-info-border    bg-info-subtle    text-info-on; }
 
   /* ------ CARDS ----------------------------------------- */
-  /*
-   * .card           — static display card
-   * .card-interactive — tappable/clickable card (hover + press)
-   *
-   * Usage:
-   *   <article className="card">...</article>
-   *   <button  className="card card-interactive">...</button>
-   */
-
   .card {
-    @apply bg-surface border border-line rounded-card shadow-xs p-4
-           transition-shadow duration-150;
+    @apply rounded-card border border-line bg-surface p-4 shadow-xs transition-[box-shadow,border-color,transform] duration-200;
   }
+  .card-interactive { @apply cursor-pointer select-none; }
+  .card-interactive:hover { @apply border-line-strong shadow-card; }
+  .card-interactive:active { transform: scale(0.995); }
 
-  .card-interactive {
-    @apply cursor-pointer select-none;
-  }
-  .card-interactive:hover {
-    @apply border-line-strong shadow-card;
-  }
-  .card-interactive:active {
-    @apply scale-[0.99] shadow-xs;
-  }
-
-  /* Nav tile on dashboard — square card with icon + label */
   .nav-tile {
-    @apply bg-surface border border-line rounded-card shadow-xs
-           flex flex-col items-start gap-2 p-4 min-h-[80px]
-           cursor-pointer select-none transition-all duration-150;
+    @apply flex min-h-[80px] cursor-pointer select-none flex-col items-start gap-2 rounded-card border border-line bg-surface p-4 shadow-xs transition-all duration-150;
   }
-  .nav-tile:hover {
-    @apply border-line-strong shadow-card;
+  .nav-tile:hover { @apply border-line-strong shadow-card; }
+
+  /* KPI tile */
+  .stat { @apply grid gap-1 rounded-card border border-line bg-surface p-4 shadow-panel; }
+  .stat-label { @apply text-[13px] font-semibold text-ink-soft; }
+  .stat-value { @apply font-display text-[1.75rem] font-extrabold leading-tight tracking-tight text-ink; font-variant-numeric: tabular-nums; }
+  .stat-meta  { @apply text-xs text-ink-muted; }
+
+  /* ------ CHIPS / SEGMENTED ----------------------------- */
+  .chip {
+    @apply inline-flex min-h-[38px] cursor-pointer items-center gap-2 whitespace-nowrap rounded-pill border border-line bg-surface px-4
+           text-sm font-semibold text-ink-soft transition-colors duration-150;
   }
-  .nav-tile:active {
-    @apply scale-[0.99] shadow-xs;
+  .chip:hover { @apply border-line-strong text-ink; }
+  .chip[aria-pressed="true"], .chip[aria-selected="true"], .chip-active {
+    @apply border-espresso bg-espresso text-espresso-ink;
   }
+
+  .segmented { @apply inline-flex gap-1 rounded-xl border border-line bg-sunken p-1; }
+  .segmented > button, .segmented > a {
+    @apply inline-flex min-h-[40px] items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-ink-soft transition-colors;
+  }
+  .segmented > [aria-pressed="true"], .segmented > [aria-selected="true"], .segmented > [aria-current="page"] {
+    @apply bg-surface text-ink shadow-sm;
+  }
+
+  /* ------ DATA TABLE ------------------------------------ */
+  .data-table { @apply w-full border-collapse text-left text-sm; }
+  .data-table thead th {
+    @apply sticky top-0 border-b border-line bg-sunken px-4 py-3 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-soft;
+  }
+  .data-table tbody td { @apply border-b border-line-subtle px-4 py-3 align-middle text-ink; }
+  .data-table tbody tr { @apply transition-colors; }
+  .data-table tbody tr:hover { @apply bg-ivory; }
+  .data-table td.num, .data-table th.num { @apply text-right; font-variant-numeric: tabular-nums; }
+
+  /* ------ SKELETON -------------------------------------- */
+  .skeleton {
+    background: linear-gradient(90deg, var(--color-muted) 0px, var(--color-line-subtle) 120px, var(--color-muted) 240px);
+    background-size: 800px 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+
+  /* ------ DIVIDER --------------------------------------- */
+  .divider { @apply h-px w-full bg-line; }
 }

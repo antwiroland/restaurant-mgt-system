@@ -92,6 +92,8 @@ public class OrderService {
     private final TableSessionService tableSessionService;
     private final DeliveryService deliveryService;
     private final com.restaurantmanager.core.inventory.InventoryService inventoryService;
+    private final OrderBranchResolver branchResolver;
+    private final com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications;
 
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
@@ -111,7 +113,11 @@ public class OrderService {
                         OrderPricingService pricingService,
                         TableSessionService tableSessionService,
                         DeliveryService deliveryService,
-                        com.restaurantmanager.core.inventory.InventoryService inventoryService) {
+                        com.restaurantmanager.core.inventory.InventoryService inventoryService,
+                        OrderBranchResolver branchResolver,
+            com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications) {
+        this.pushNotifications = pushNotifications;
+        this.branchResolver = branchResolver;
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderItemModifierRepository = orderItemModifierRepository;
@@ -180,6 +186,45 @@ public class OrderService {
         return toResponses(List.of(order)).get(0);
     }
 
+    /**
+     * Kitchen marks one item ready (or not ready). The first item marked ready moves an accepted order to
+     * PREPARING; when every item is ready the order moves to READY. Status changes go through
+     * {@link #updateStatus} so their usual side effects and realtime events apply.
+     */
+    @Transactional
+    public OrderResponse setItemReady(UUID orderId, UUID itemId, boolean ready, UserPrincipal principal) {
+        OrderEntity order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ApiException(404, "Order not found"));
+        assertOrderAccess(order, principal);
+        if (order.getStatus() == OrderStatus.PENDING) {
+            throw new ApiException(409, "Accept the order before marking items ready");
+        }
+        if (order.getStatus() != OrderStatus.CONFIRMED && order.getStatus() != OrderStatus.PREPARING
+                && order.getStatus() != OrderStatus.READY) {
+            throw new ApiException(409, "Order is already " + order.getStatus().name().toLowerCase().replace('_', ' '));
+        }
+        List<OrderItemEntity> items = orderItemRepository.findByOrderIdIn(List.of(orderId));
+        OrderItemEntity item = items.stream().filter(candidate -> candidate.getId().equals(itemId)).findFirst()
+                .orElseThrow(() -> new ApiException(404, "Item not found on this order"));
+        item.setReadyAt(ready ? (item.getReadyAt() == null ? Instant.now() : item.getReadyAt()) : null);
+        orderItemRepository.save(item);
+
+        OrderStatus status = order.getStatus();
+        if (ready && status == OrderStatus.CONFIRMED) {
+            updateStatus(orderId, new OrderStatusUpdateRequest(OrderStatus.PREPARING), principal);
+            status = OrderStatus.PREPARING;
+        }
+        boolean allReady = items.stream().allMatch(candidate -> candidate.getReadyAt() != null);
+        if (allReady && status == OrderStatus.PREPARING) {
+            return updateStatus(orderId, new OrderStatusUpdateRequest(OrderStatus.READY), principal);
+        }
+        if (status == order.getStatus()) {
+            // No status change: still tell kitchen screens to refresh.
+            realtimePublisher.publishOrderStatusChanged(orderId, status, status, tableToken(order));
+        }
+        return getOrder(orderId, principal);
+    }
+
     @Transactional
     public OrderResponse updateStatus(UUID id, OrderStatusUpdateRequest request, UserPrincipal principal) {
         OrderEntity order = orderRepository.findById(id)
@@ -193,6 +238,7 @@ public class OrderService {
         OrderEntity saved = orderRepository.save(order);
         realtimePublisher.publishOrderStatusChanged(saved.getId(), previous, saved.getStatus(), tableToken(saved));
         notifyReadyForPickup(saved, previous);
+        pushNotifications.orderStatusChanged(saved, saved.getStatus());
         return toResponse(saved);
     }
 
@@ -223,6 +269,7 @@ public class OrderService {
         inventoryService.restoreForOrder(order, previous);
         OrderEntity saved = orderRepository.save(order);
         realtimePublisher.publishOrderStatusChanged(saved.getId(), previous, saved.getStatus(), tableToken(saved));
+        pushNotifications.orderStatusChanged(saved, OrderStatus.CANCELLED);
 
         boolean returnBody = previous != OrderStatus.PENDING;
         return new CancelResult(returnBody, toResponse(saved));
@@ -610,6 +657,10 @@ public class OrderService {
         }
         order.setSubtotal(subtotal);
         deliveryService.applyZone(order, request.deliveryZoneId());
+        if (order.getBranch() == null) {
+            // Customer app / guest orders: pick a branch so branch-scoped staff can handle them.
+            branchResolver.resolve(request.branchId(), order.getDeliveryZoneId()).ifPresent(order::setBranch);
+        }
         order.recalculateTotal();
         OrderEntity saved = orderRepository.save(order);
 
@@ -862,7 +913,8 @@ public class OrderService {
                             item.getPriceSnapshot(),
                             item.getQuantity(),
                             item.getNotes(),
-                            modifiersByItemId.getOrDefault(item.getId(), List.of())
+                            modifiersByItemId.getOrDefault(item.getId(), List.of()),
+                            item.getReadyAt()
                     ))
                     .toList();
 
@@ -979,11 +1031,10 @@ public class OrderService {
             }
             return;
         }
-        if (isBranchScopedStaff(principal)) {
-            UUID branchId = principal.branchId();
-            if (order.getBranch() == null || !branchId.equals(order.getBranch().getId())) {
-                throw new ApiException(403, "Forbidden");
-            }
+        // Orders without a branch are a shared queue that any branch's staff may handle.
+        if (isBranchScopedStaff(principal) && order.getBranch() != null
+                && !principal.branchId().equals(order.getBranch().getId())) {
+            throw new ApiException(403, "Forbidden");
         }
     }
 

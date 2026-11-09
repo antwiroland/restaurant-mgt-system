@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { fetchOrderFeedback, submitFeedback } from '../api/billing';
 import type { Feedback, OrderType } from '../types/api';
+import { colors } from '../theme';
 
 type Props = { orderId: string; orderType: OrderType };
 
@@ -108,27 +109,27 @@ export function RateOrder({ orderId, orderType }: Props) {
       />
       {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
       <TouchableOpacity style={styles.submit} onPress={submit} disabled={busy} accessibilityRole="button">
-        {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Send rating</Text>}
+        {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.submitText}>Send rating</Text>}
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { backgroundColor: '#fff', margin: 12, borderRadius: 12, padding: 16 },
-  title: { fontSize: 15, fontWeight: '700', color: '#111827', marginBottom: 12 },
+  section: { backgroundColor: colors.white, margin: 12, borderRadius: 12, padding: 16 },
+  title: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 12 },
   starRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  starLabel: { fontSize: 14, color: '#374151' },
+  starLabel: { fontSize: 14, color: colors.inkSoft },
   stars: { flexDirection: 'row' },
   starButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  star: { fontSize: 24, color: '#D1D5DB' },
-  starOn: { color: '#F59E0B' },
-  input: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, fontSize: 14, minHeight: 72, marginTop: 8 },
-  error: { color: '#B91C1C', marginTop: 8, fontSize: 13 },
-  submit: { marginTop: 12, backgroundColor: '#2563EB', borderRadius: 10, padding: 14, alignItems: 'center' },
-  submitText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  comment: { fontSize: 14, color: '#374151', marginTop: 6 },
-  hint: { fontSize: 12, color: '#6B7280', marginTop: 6 },
-  reply: { marginTop: 10, backgroundColor: '#F3F4F6', borderRadius: 8, padding: 10 },
-  replyLabel: { fontSize: 12, fontWeight: '700', color: '#4B5563' },
+  star: { fontSize: 24, color: colors.lineStrong },
+  starOn: { color: colors.warning },
+  input: { borderWidth: 1, borderColor: colors.lineStrong, borderRadius: 8, padding: 12, fontSize: 14, minHeight: 72, marginTop: 8 },
+  error: { color: colors.dangerOn, marginTop: 8, fontSize: 13 },
+  submit: { marginTop: 12, backgroundColor: colors.brand, borderRadius: 10, padding: 14, alignItems: 'center' },
+  submitText: { color: colors.white, fontWeight: '700', fontSize: 15 },
+  comment: { fontSize: 14, color: colors.inkSoft, marginTop: 6 },
+  hint: { fontSize: 12, color: colors.inkMuted, marginTop: 6 },
+  reply: { marginTop: 10, backgroundColor: colors.sunken, borderRadius: 8, padding: 10 },
+  replyLabel: { fontSize: 12, fontWeight: '700', color: colors.inkSoft },
 });

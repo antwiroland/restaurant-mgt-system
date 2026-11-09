@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { billRows, type BillProps } from '../features/billing/billing';
+import { colors } from '../theme';
 
 export function BillLines(props: BillProps) {
   return (
@@ -20,10 +21,10 @@ export function BillLines(props: BillProps) {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  label: { fontSize: 13, color: '#4B5563' },
-  value: { fontSize: 13, color: '#111827' },
-  muted: { color: '#9CA3AF' },
-  totalLine: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 8, marginTop: 4 },
-  totalLabel: { fontSize: 15, fontWeight: '700', color: '#111827' },
-  totalValue: { fontSize: 16, fontWeight: '800', color: '#2563EB' },
+  label: { fontSize: 13, color: colors.inkSoft },
+  value: { fontSize: 13, color: colors.ink },
+  muted: { color: colors.inkMuted },
+  totalLine: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 8, marginTop: 4 },
+  totalLabel: { fontSize: 15, fontWeight: '700', color: colors.ink },
+  totalValue: { fontSize: 16, fontWeight: '800', color: colors.brand },
 });

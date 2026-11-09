@@ -155,8 +155,12 @@ public abstract class BasePostgresIntegrationTest {
     @Autowired
     protected SecurityGuardService securityGuardService;
 
+    @Autowired
+    protected com.restaurantmanager.core.hr.HrTestCleanup hrTestCleanup;
+
     @BeforeEach
     void cleanupDb() {
+        hrTestCleanup.cleanEmployees();
         paymentWebhookEventRepository.deleteAll();
         paymentRepository.deleteAll();
         paymentSplitRepository.deleteAll();

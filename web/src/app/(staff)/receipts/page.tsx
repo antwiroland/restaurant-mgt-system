@@ -37,13 +37,13 @@ export default function ReceiptsPage() {
   }
 
   if (loading) return <main className="shell"><section className="panel grid gap-3"><Skeleton className="h-6 w-40" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></section></main>;
-  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Receipts</p><h1 className="text-2xl font-semibold">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
+  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Receipts</p><h1 className="heading-lg mt-1">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
 
   return (
     <main className="shell grid gap-4 md:grid-cols-2">
       <section className="panel">
         <p className="kicker">Receipts</p>
-        <h1 className="text-2xl font-semibold">Receipt Center</h1>
+        <h1 className="heading-lg mt-1">Receipt Center</h1>
         <p className="mt-2 text-ink-soft">Fetch receipts by order ID or payment ID.</p>
 
         <div className="mt-4 grid gap-2">
@@ -57,7 +57,7 @@ export default function ReceiptsPage() {
       </section>
 
       <section className="panel">
-        <h2 className="text-xl font-semibold">Receipt Details</h2>
+        <h2 className="heading-md">Receipt Details</h2>
         {receipt ? (
           <div className="mt-3 input text-sm">
             <p><span className="font-semibold">Receipt:</span> {receipt.receiptNumber}</p>

@@ -4,15 +4,16 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { fetchPublicTableBill, fetchPublicTableTracking } from '../../src/api/orders';
 import { fallbackPollMs, useRealtimeTopics } from '../../src/realtime/realtime';
 import type { PublicOrderTracking, TableBill } from '../../src/types/api';
+import { colors } from '../../src/theme';
 
 const STATUS_COLORS: Record<string, string> = {
-  PENDING: '#F59E0B',
-  CONFIRMED: '#3B82F6',
-  PREPARING: '#8B5CF6',
-  READY: '#10B981',
-  COMPLETED: '#6B7280',
-  CANCELLED: '#EF4444',
-  VOIDED: '#EF4444',
+  PENDING: colors.warning,
+  CONFIRMED: colors.brand,
+  PREPARING: colors.gold,
+  READY: colors.success,
+  COMPLETED: colors.inkMuted,
+  CANCELLED: colors.danger,
+  VOIDED: colors.danger,
 };
 
 export default function PublicTableTrackingScreen() {
@@ -54,7 +55,7 @@ export default function PublicTableTrackingScreen() {
   }
 
   if (loading) {
-    return <ActivityIndicator size="large" color="#2563EB" style={{ flex: 1, marginTop: 40 }} />;
+    return <ActivityIndicator size="large" color={colors.brand} style={{ flex: 1, marginTop: 40 }} />;
   }
 
   return (
@@ -87,7 +88,7 @@ export default function PublicTableTrackingScreen() {
             <View key={order.orderId} style={styles.orderCard}>
               <View style={styles.orderHeader}>
                 <Text style={styles.orderId}>#{order.orderId.slice(0, 8)}</Text>
-                <View style={[styles.badge, { backgroundColor: STATUS_COLORS[order.status] ?? '#6B7280' }]}>
+                <View style={[styles.badge, { backgroundColor: STATUS_COLORS[order.status] ?? colors.inkMuted }]}>
                   <Text style={styles.badgeText}>{order.status}</Text>
                 </View>
               </View>
@@ -107,25 +108,25 @@ export default function PublicTableTrackingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
-  section: { backgroundColor: '#fff', margin: 12, borderRadius: 12, padding: 16 },
-  heading: { fontSize: 22, fontWeight: '800', color: '#111827' },
-  meta: { fontSize: 13, color: '#6B7280', marginTop: 4 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#111827', marginBottom: 12 },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  section: { backgroundColor: colors.white, margin: 12, borderRadius: 12, padding: 16 },
+  heading: { fontSize: 22, fontWeight: '800', color: colors.ink },
+  meta: { fontSize: 13, color: colors.inkMuted, marginTop: 4 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 12 },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  label: { fontSize: 14, color: '#6B7280' },
-  value: { fontSize: 14, color: '#111827', fontWeight: '600' },
-  labelStrong: { fontSize: 16, color: '#111827', fontWeight: '700' },
-  valueStrong: { fontSize: 18, color: '#2563EB', fontWeight: '800' },
-  empty: { fontSize: 14, color: '#6B7280' },
-  orderCard: { borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 12, marginTop: 12 },
+  label: { fontSize: 14, color: colors.inkMuted },
+  value: { fontSize: 14, color: colors.ink, fontWeight: '600' },
+  labelStrong: { fontSize: 16, color: colors.ink, fontWeight: '700' },
+  valueStrong: { fontSize: 18, color: colors.brand, fontWeight: '800' },
+  empty: { fontSize: 14, color: colors.inkMuted },
+  orderCard: { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 12, marginTop: 12 },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  orderId: { fontSize: 14, fontWeight: '700', color: '#111827' },
+  orderId: { fontSize: 14, fontWeight: '700', color: colors.ink },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  notes: { fontSize: 13, color: '#374151', marginBottom: 4 },
-  cancel: { fontSize: 13, color: '#EF4444', marginBottom: 4 },
-  time: { fontSize: 12, color: '#9CA3AF' },
-  cta: { margin: 12, backgroundColor: '#2563EB', borderRadius: 12, padding: 16, alignItems: 'center' },
-  ctaText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  badgeText: { color: colors.white, fontSize: 11, fontWeight: '700' },
+  notes: { fontSize: 13, color: colors.inkSoft, marginBottom: 4 },
+  cancel: { fontSize: 13, color: colors.danger, marginBottom: 4 },
+  time: { fontSize: 12, color: colors.inkMuted },
+  cta: { margin: 12, backgroundColor: colors.brand, borderRadius: 12, padding: 16, alignItems: 'center' },
+  ctaText: { color: colors.white, fontWeight: '700', fontSize: 16 },
 });

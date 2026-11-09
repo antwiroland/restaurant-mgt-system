@@ -4,3 +4,7 @@ app:
 
 media:
   local-dir: target/test-uploads
+
+hr:
+  documents:
+    dir: target/test-hr-documents

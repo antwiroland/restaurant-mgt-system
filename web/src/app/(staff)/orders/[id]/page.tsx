@@ -7,12 +7,13 @@ import { Skeleton } from "@/components/Skeleton";
 import { useStaffSession } from "@/components/SessionProvider";
 import { BillBreakdown } from "@/components/BillBreakdown";
 import { SplitBillPanel } from "@/components/SplitBillPanel";
-import { cancelOrder, getOrderById, getOrderFeedback, type FeedbackRecord, type OrderRecord } from "@/lib/apiClient";
+import { cancelOrder, getOrderById, sendOrderToPrinter, getOrderFeedback, type FeedbackRecord, type OrderRecord } from "@/lib/apiClient";
 
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
   const { session, loading, authenticatedFetch } = useStaffSession();
   const [order, setOrder] = useState<OrderRecord | null>(null);
+  const [printNotice, setPrintNotice] = useState("");
   const [feedback, setFeedback] = useState<FeedbackRecord | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -65,22 +66,41 @@ export default function OrderDetailPage() {
   }
 
   if (loading) return <main className="shell"><section className="panel grid gap-3"><Skeleton className="h-6 w-40" /><Skeleton className="h-32 w-full" /><Skeleton className="h-24 w-full" /></section></main>;
-  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Order</p><h1 className="text-2xl font-semibold">Staff access required</h1><Link className="mt-4 inline-flex btn btn-primary" href="/login">Open Login</Link></section></main>;
+  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Order</p><h1 className="heading-lg mt-1">Staff access required</h1><Link className="mt-4 inline-flex btn btn-primary" href="/login">Open Login</Link></section></main>;
+
+  async function sendToPrinter(kind: "receipt" | "kitchen") {
+    if (!order) return;
+    setPrintNotice("");
+    try {
+      const result = await authenticatedFetch((activeSession) => sendOrderToPrinter(activeSession, order.id, kind));
+      setPrintNotice(result.message);
+    } catch (err) {
+      setPrintNotice(err instanceof Error ? err.message : "Could not print");
+    }
+  }
 
   return (
     <main className="shell grid gap-4">
+      {printNotice ? <p className="alert alert-info" role="status">{printNotice}</p> : null}
       <section className="panel">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="kicker">Order Detail</p>
-            <h1 className="text-2xl font-semibold">{order ? `#${order.id.slice(0, 8).toUpperCase()}` : "Order not found"}</h1>
+            <h1 className="heading-lg mt-1">{order ? `#${order.id.slice(0, 8).toUpperCase()}` : "Order not found"}</h1>
             {order ? (
               <p className="mt-1 text-sm text-ink-soft">
                 {order.type} - {order.status} - Created {new Date(order.createdAt).toLocaleString()}
               </p>
             ) : null}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {order ? (
+              <>
+                <a className="btn btn-secondary" href={`/print/receipt/${order.id}`} target="_blank" rel="noreferrer">Print receipt</a>
+                <a className="btn btn-secondary" href={`/print/kitchen/${order.id}`} target="_blank" rel="noreferrer">Print kitchen ticket</a>
+                <button type="button" className="btn btn-secondary" onClick={() => void sendToPrinter("receipt")}>Send receipt to printer</button>
+              </>
+            ) : null}
             <button
               type="button"
               className="btn btn-secondary disabled:opacity-60"
@@ -110,10 +130,10 @@ export default function OrderDetailPage() {
           </section>
 
           <section className="panel">
-            <h2 className="text-xl font-semibold">Items</h2>
+            <h2 className="heading-md">Items</h2>
             <ul className="mt-4 grid gap-2">
               {order.items.map((item) => (
-                <li key={item.id} className="input">
+                <li key={item.id} className="rounded-xl border border-line bg-surface p-3">
                   <div className="flex items-center justify-between">
                     <p className="font-medium">{item.name} x{item.quantity}</p>
                     <p className="text-sm text-ink-soft">GHS {(Number.parseFloat(item.price) * item.quantity).toFixed(2)}</p>
@@ -163,7 +183,7 @@ export default function OrderDetailPage() {
 
           {order.status !== "CANCELLED" && order.status !== "COMPLETED" ? (
             <section className="panel">
-              <h2 className="text-lg font-semibold">Cancel Order</h2>
+              <h2 className="font-display text-lg font-bold text-ink">Cancel Order</h2>
               <p className="mt-1 text-sm text-ink-soft">Provide reason before cancellation.</p>
               <textarea
                 className="mt-3 min-h-24 w-full input text-sm"

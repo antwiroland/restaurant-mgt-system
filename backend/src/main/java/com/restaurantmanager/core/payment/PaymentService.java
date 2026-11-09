@@ -61,6 +61,7 @@ public class PaymentService {
     private final TableSessionService tableSessionService;
     private final com.restaurantmanager.core.billing.BillingService billingService;
     private final com.restaurantmanager.core.payment.split.SplitService splitService;
+    private final com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications;
 
     public PaymentService(PaymentRepository paymentRepository,
                           PaymentWebhookEventRepository paymentWebhookEventRepository,
@@ -78,7 +79,9 @@ public class PaymentService {
                           LoyaltyAccountService loyaltyAccountService,
                           TableSessionService tableSessionService,
                           com.restaurantmanager.core.billing.BillingService billingService,
-                          com.restaurantmanager.core.payment.split.SplitService splitService) {
+                          com.restaurantmanager.core.payment.split.SplitService splitService,
+            com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications) {
+        this.pushNotifications = pushNotifications;
         this.paymentRepository = paymentRepository;
         this.paymentWebhookEventRepository = paymentWebhookEventRepository;
         this.orderRepository = orderRepository;
@@ -100,7 +103,16 @@ public class PaymentService {
 
     @Transactional
     public PaymentInitiateResponse initiate(PaymentInitiateRequest request, UserPrincipal principal) {
-        ensureProviderConfigured();
+        boolean cash = request.method() == PaymentMethod.CASH;
+        if (cash && principal.role() == Role.CUSTOMER) {
+            throw new ApiException(400, "Cash is paid to staff at the counter");
+        }
+        if (request.method() == PaymentMethod.MOBILE_MONEY && (request.momoPhone() == null || request.momoPhone().isBlank())) {
+            throw new ApiException(400, "momoPhone is required for MOBILE_MONEY");
+        }
+        if (!cash) {
+            ensureProviderConfigured();
+        }
         String key = request.idempotencyKey().trim();
         PaymentEntity existing = paymentRepository.findByIdempotencyKey(key).orElse(null);
         if (existing != null) {
@@ -139,7 +151,45 @@ public class PaymentService {
             assertOrderAccess(order, principal);
         }
 
-        return start(order, amount, splitId, request.method(), request.momoPhone().trim(), key);
+        if (cash) {
+            return recordCash(order, amount, splitId, key, request.amountTendered(), principal);
+        }
+        return start(order, amount, splitId, request.method(), trimToNull(request.momoPhone()), key);
+    }
+
+    /**
+     * Cash taken at the counter: no provider round-trip. The payment is recorded as successful straight away
+     * and goes through the same success path as a confirmed provider payment (order confirmation, split,
+     * table occupancy, loyalty, realtime events).
+     */
+    private PaymentInitiateResponse recordCash(OrderEntity order, BigDecimal amount, UUID splitId, String key,
+                                               BigDecimal tendered, UserPrincipal principal) {
+        if (order.getStatus() == OrderStatus.CANCELLED || order.getVoidedAt() != null) {
+            throw new ApiException(409, "Order is " + order.getStatus().name().toLowerCase());
+        }
+        if (tendered != null && tendered.compareTo(amount) < 0) {
+            throw new ApiException(400, "Amount tendered is less than the amount due (" + amount + ")");
+        }
+        PaymentEntity payment = new PaymentEntity();
+        payment.setOrder(order);
+        payment.setSplitId(splitId);
+        payment.setAmount(amount);
+        payment.setCurrency(paymentProps.getDefaultCurrency());
+        payment.setMethod(PaymentMethod.CASH);
+        payment.setStatus(PaymentStatus.INITIATED);
+        payment.setPaystackReference("CASH-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        payment.setIdempotencyKey(key);
+        payment.setReceivedBy(principal.userId());
+        if (tendered != null) {
+            payment.setAmountTendered(tendered);
+            payment.setChangeDue(tendered.subtract(amount));
+        }
+        payment = paymentRepository.save(payment);
+        applyStatusChange(payment, PaymentStatus.SUCCESS, "Cash received");
+        PaymentEntity saved = paymentRepository.save(payment);
+        realtimePublisher.publishPaymentStatusChanged(saved.getId(), order.getId(), PaymentStatus.INITIATED,
+                PaymentStatus.SUCCESS, saved.getAmount(), saved.getMethod());
+        return toInitiateResponse(saved);
     }
 
     /**
@@ -251,7 +301,7 @@ public class PaymentService {
         }
 
         PaystackClient.InitiateResult result = paystackClient.initiate(
-                key, existing.getAmount(), existing.getCurrency(), request.momoPhone().trim()
+                key, existing.getAmount(), existing.getCurrency(), trimToNull(request.momoPhone())
         );
 
         PaymentEntity retry = new PaymentEntity();
@@ -264,7 +314,7 @@ public class PaymentService {
         retry.setPaystackReference(result.reference());
         retry.setIdempotencyKey(key);
         retry.setAuthorizationUrl(result.authorizationUrl());
-        retry.setMomoPhone(request.momoPhone().trim());
+        retry.setMomoPhone(trimToNull(request.momoPhone()));
         retry.setProviderMessage(result.message());
         return toInitiateResponse(paymentRepository.save(retry));
     }
@@ -368,6 +418,7 @@ public class PaymentService {
             if (order.getStatus() == OrderStatus.PENDING && paidTotal(order, payment).compareTo(order.getTotal()) >= 0) {
                 order.setStatus(OrderStatus.CONFIRMED);
                 orderRepository.save(order);
+                pushNotifications.orderStatusChanged(order, OrderStatus.CONFIRMED);
             }
             refreshTableOccupancy(order);
             awardLoyaltyIfFullyPaid(order, payment);
@@ -599,7 +650,8 @@ public class PaymentService {
                 payment.getStatus(),
                 payment.getPaystackReference(),
                 payment.getAuthorizationUrl(),
-                payment.getProviderMessage() == null ? "Approve payment on your phone" : payment.getProviderMessage()
+                payment.getProviderMessage() == null ? "Approve payment on your phone" : payment.getProviderMessage(),
+                payment.getChangeDue()
         );
     }
 
@@ -714,5 +766,9 @@ public class PaymentService {
         return userRepository.findById(customerId)
                 .map(UserEntity::getPhone)
                 .filter(phone -> phone != null && !phone.isBlank());
+    }
+
+    private static String trimToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

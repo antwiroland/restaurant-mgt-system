@@ -72,16 +72,16 @@ export default function BranchesPage() {
   }
 
   if (loading) return <main className="shell"><section className="panel">Loading branches...</section></main>;
-  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Branches</p><h1 className="text-2xl font-semibold">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
+  if (!session) return <main className="shell"><section className="panel"><p className="kicker">Branches</p><h1 className="heading-lg mt-1">Staff access required</h1><Link href="/login" className="mt-4 inline-flex btn btn-primary">Open Login</Link></section></main>;
 
   return (
     <main className="shell grid gap-4">
       <section className="panel">
         <p className="kicker">Branches</p>
-        <h1 className="text-2xl font-semibold">Branch Management</h1>
+        <h1 className="heading-lg mt-1">Branch Management</h1>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           <input className="input text-sm" placeholder="Search code or branch name" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <select className="input text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "ALL" | "ACTIVE" | "INACTIVE")}>
+          <select className="select text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "ALL" | "ACTIVE" | "INACTIVE")}>
             <option value="ALL">All statuses</option>
             <option value="ACTIVE">Active only</option>
             <option value="INACTIVE">Inactive only</option>
@@ -93,7 +93,7 @@ export default function BranchesPage() {
 
       <section className="grid gap-4 md:grid-cols-2">
         <article className="panel">
-          <h2 className="text-lg font-semibold">Create Branch</h2>
+          <h2 className="font-display text-lg font-bold text-ink">Create Branch</h2>
           <form className="mt-3 grid gap-2" onSubmit={(event) => void handleCreate(event)}>
             <input className="input" placeholder="Code" value={form.code} onChange={(e) => setForm((s) => ({ ...s, code: e.target.value }))} required />
             <input className="input" placeholder="Name" value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} required />
@@ -103,10 +103,10 @@ export default function BranchesPage() {
         </article>
 
         <article className="panel">
-          <h2 className="text-lg font-semibold">Existing Branches</h2>
+          <h2 className="font-display text-lg font-bold text-ink">Existing Branches</h2>
           <ul className="mt-3 grid gap-2">
             {filteredBranches.map((branch) => (
-              <li key={branch.id} className="input flex items-center justify-between gap-2">
+              <li key={branch.id} className="rounded-xl border border-line bg-surface p-3 flex items-center justify-between gap-2">
                 <div>
                   <p className="font-medium">{branch.name}</p>
                   <p className="text-xs text-ink-soft">{branch.code} · {branch.active ? "active" : "inactive"}</p>

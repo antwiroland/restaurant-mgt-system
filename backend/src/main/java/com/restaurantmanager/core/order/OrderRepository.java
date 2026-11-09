@@ -45,7 +45,7 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
             where (:customerId is null or o.customerUserId = :customerId
                      or exists (select 1 from GroupSessionParticipantEntity p
                                 where p.session = o.groupSession and p.userId = :customerId))
-              and (:branchId is null or (o.branch is not null and o.branch.id = :branchId))
+              and (:branchId is null or o.branch is null or o.branch.id = :branchId)
               and (:status is null or o.status = :status)
               and (:type is null or o.type = :type)
               and o.createdAt >= :from
@@ -56,7 +56,7 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
             where (:customerId is null or o.customerUserId = :customerId
                      or exists (select 1 from GroupSessionParticipantEntity p
                                 where p.session = o.groupSession and p.userId = :customerId))
-              and (:branchId is null or (o.branch is not null and o.branch.id = :branchId))
+              and (:branchId is null or o.branch is null or o.branch.id = :branchId)
               and (:status is null or o.status = :status)
               and (:type is null or o.type = :type)
               and o.createdAt >= :from
@@ -79,7 +79,7 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
             LEFT JOIN FETCH o.branch
             WHERE o.type IN :types
               AND o.status IN :statuses
-              AND (:branchId IS NULL OR (o.branch IS NOT NULL AND o.branch.id = :branchId))
+              AND (:branchId IS NULL OR o.branch IS NULL OR o.branch.id = :branchId)
             ORDER BY o.createdAt ASC
             """)
     List<OrderEntity> findForKdsBoard(@Param("types") List<OrderType> types,

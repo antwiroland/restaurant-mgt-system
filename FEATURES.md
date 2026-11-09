@@ -177,19 +177,45 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - `/analytics/*`: revenue, top items, peak hours, average order value, overview
 - Web dashboard with charts
 
+### Design system ("Hearth")
+- Shared tokens for web (`web/src/app/globals.css`) and mobile (`mobile/src/theme.ts`): ivory and cream surfaces, espresso ink and dark surfaces, terracotta for actions, muted gold for highlights, sage for success. Order and table status colours are the same on every screen
+- Type: Manrope for the interface, Fraunces for headings on customer pages, IBM Plex Mono for order numbers
+- Components: icon set (`components/Icon.tsx`), `PageHeader`, `StatCard`, `EmptyState`, `ErrorState`, `StatusBadge`, data table, chips, segmented controls, skeletons, modal/bottom sheet, drawer, image uploader
+- Chart colours checked for colour-blind separation; every chart has hover values, and the revenue chart can be shown as a table
+- Restaurant name, tagline, address, phone, hours and hero photo come from `NEXT_PUBLIC_RESTAURANT_*` (web) and `EXPO_PUBLIC_RESTAURANT_*` (mobile). Anything not set is left off the page instead of showing placeholder data
+
+### Customer Web (Next.js, no sign-in)
+- Homepage (`/`) built from the live menu: dishes available today, categories, how table ordering works, reservations, about and visit sections
+- Menu (`/explore`) with search, category filter, sorting, an "available now" filter, grid and list views, and filters kept in the URL. Dish page (`/explore/[id]`) shows modifier groups with their prices
+- Reservations (`/reserve`): book by date, time slot, party size and table; manage or cancel a booking by phone number
+- QR table ordering (`/scan/[token]`), designed for phones: options in a bottom sheet, floating cart, kitchen notes, a live progress tracker for each order, paying your own share of a split bill, and rating a finished order
+- Running bill (`/bill/[token]`) and a dark display-screen order board (`/orders-status`)
+- Account pages for the links the backend sends: `/forgot-password`, `/reset-password`, `/verify-email`
+
 ### Staff Web App (Next.js)
-- Persistent app shell with a role-aware sidebar; riders only see their own page
-- Design tokens in `globals.css`, with no hard-coded hex colours
-- Modals and drawers instead of `window.prompt/alert/confirm`. Dialogs trap focus and return it when they close
-- Accessibility checklist complete:
-  - Errors linked to their inputs and announced
-  - Collapsed nav links have accessible names
-  - Live regions on the KDS
-  - 44 px touch targets
-- Loading skeletons, and a touch-friendly POS with categories, promo codes and delivery
-- Pages: login, dashboard, POS, orders, pickup, KDS, tables, table bill and QR, reservations, group ordering, delivery, rider, menu, offers, payments, financial, receipts, shifts, users, branches, audit, admin, billing, inventory, schedule, feedback, reports, account, and public forgot/reset password and verify email
+- App shell with a dark sidebar, collapsible icon rail and a phone bottom bar. What each role sees matches the backend permissions:
+  - Cashiers go straight to the POS and don't see owner analytics or admin pages
+  - Riders only see their deliveries
+  - Users is admin-only
+- The shell handles loading, sign-in and "not available for your role" for every page. The API still enforces access
+- Owner dashboard: live tiles (new, cooking, ready, tables in use), KPIs, revenue trend with hover values, best sellers, payment and channel mix, busiest hours, order outcomes, recent orders, and a branch table when there is more than one branch
+- POS with menu and ticket side by side:
+  - Option picker that enforces required groups
+  - Kitchen notes per item and for the whole order
+  - Pricing from `/orders/quote` (offers, promo, delivery fee, service charge, tax lines)
+  - Table picker as a grid of buttons; `/pos?table=` preselects the table
+  - Keyboard search (`/`, then Enter adds the top result)
+  - Separate payment step
+- Kitchen display: dark high-contrast board, waiting timers that tick, late tickets highlighted, item notes and options shown, full-screen mode, swipe to advance
+- Orders: status tabs with counts, channel and date filters, table view on desktop and cards on phones
+- Floor plan with status counts, seat dots and running totals per table, plus "Take order" and "View bill" shortcuts
+- Menu builder with dish photo upload (drag and drop, replace, remove) and an availability switch
+- Staff page: admins can send a password-reset link (not to themselves); My Account for changing your own password
+- Menu items have a "Photo & recipe" drawer that links ingredients to stock
 - Live manager alerts for low stock, items taken off the menu, and low ratings
-- Backend proxy route `/api/rm/[...path]`
+- Modals and drawers instead of `window.prompt/alert/confirm`. Dialogs trap focus and return focus when they close; errors are linked to their inputs and announced; 44 px touch targets
+- Pages: login, dashboard, POS, orders, pickup, KDS, tables, table bill and QR, reservations, group ordering, delivery, rider, menu, offers, payments, financial, receipts, shifts, users, branches, audit, admin, billing, inventory, schedule, feedback, reports, account
+- Backend proxy route `/api/rm/[...path]` passes binary files through unchanged (image uploads, QR PDFs and PNGs)
 
 ### Customer Mobile App (Expo)
 - Two-step sign-up with SMS verification and a resend timer, sign-in with a password or an SMS code, and guest mode
@@ -217,9 +243,20 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Actuator health and Prometheus metrics, Zipkin tracing, OpenAPI/Swagger UI
 - Tests:
   - 258 backend tests (H2), including integration suites for financial operations, order pricing, OTP, delivery, QR sessions, billing, split payments, inventory, feedback, reports, workforce and account recovery, plus HTTP client tests against mock servers
-  - Web: 29 Vitest tests and a production build
-  - Mobile: 44 Vitest tests and a typecheck
+  - Web: 39 Vitest tests and a production build (39 routes)
+  - Mobile: 48 Vitest tests and a typecheck
   - An optional Postgres + Flyway smoke profile (`-Ppostgres-it`)
+- **Local development without Docker** (`scripts/dev/`):
+  - `run-backend-local.sh` runs the backend on an H2 file database. It needs no Postgres or Redis; payments use the Paystack stub, and SMS, WhatsApp and email are only logged
+  - `seed_local.py` loads related test data through the real API:
+    - 6 staff accounts covering every role, plus 5 customers
+    - 2 branches, 16 tables, a 17-dish menu with options, and recipes linked to stock
+    - Billing settings: 5% service charge, NHIL, GETFund levy and VAT
+    - 3 delivery zones, promo codes and a buy-X-get-Y offer
+    - About 90 orders with 30 days of history: kitchen tickets at every stage, deliveries assigned to riders, customer reviews
+    - Reservations, a week of staff rota, an open cash shift and an open group-order session
+  - `run-web-local.sh` builds the web app for a given backend port and serves it
+  - Steps are in `documentation/DEPLOYMENT_READINESS.md` → "Local test environment"
 
 ---
 
@@ -230,8 +267,18 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - **Native rider app** (riders currently use the web `/rider` page) and an in-app map view (customers get a map link)
 - **Third-party delivery integration** (e.g. Bolt Food, Glovo)
 - **Printable / thermal receipts** (ESC/POS) and kitchen ticket printing
-- **Customer-facing web ordering for pickup and delivery** (web customer pages only cover dine-in QR)
+- **Customer-facing web ordering for pickup and delivery** (the web customer pages cover browsing, reservations and dine-in QR ordering only)
+- **Customer accounts on the web** (sign-in, saved addresses, order history and favourites are only in the mobile app; favourites don't exist anywhere)
+- **Guest "call a waiter" / service requests** (there is no backend endpoint; the old button that only showed a message has been removed)
+- **Cash as an offline payment**: every payment method, cash included, goes through the payment provider and needs a payer phone number
+- **Item-level "ready" on the KDS** (the API tracks status per order, not per item)
+- **Restaurant profile API** (name, hours and address are set with environment variables)
 - **Multi-language / localization**
+
+### Known issues (found while seeding local test data)
+- ~~Orders from the mobile app had no branch~~ ✅ Fixed. Every order now gets a branch, tried in this order: the dine-in table, the staff member who created it, an optional `branchId` on the request, the delivery zone's branch, `ORDER_DEFAULT_BRANCH_CODE`, and finally the only active branch if there is just one. Orders that still have no branch (older orders, or several branches with no default) are a shared queue: staff assigned to any branch can see and process them, while orders that belong to another branch stay off-limits
+- **Two logins in the same second fail with a 500 error.** Refresh tokens have no unique ID (`jti`) and their issue time is in whole seconds, so two logins by the same user within one second produce the same token and break the unique index. A double-tap on "Sign in" can trigger it, and it makes `AccountRecoveryIntegrationTest` fail depending on timing. Fix: add `.id(UUID.randomUUID().toString())` to the token builder in `JwtService`
+- ~~Dashboard "Best sellers" names were blank~~ ✅ Fixed: the API sends top items as `name` but the web read `itemName`; the web client now accepts both
 
 ### Platform & operations
 - **CI/CD pipeline**: no `.github/workflows` or other CI config yet
@@ -254,7 +301,8 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 
 ## 3. Suggested Priority
 
-1. **Verify before merging**: the Postgres Flyway check for V9–V19, then a click-through of the new web pages and mobile flows
-2. **Sandbox the providers**: Paystack test keys, a WhatsApp Cloud API test number, a Hubtel or Arkesel sender ID, an SMTP account, and Cloudinary (or a mounted volume for local images)
-3. **CI/CD and production hardening**: secrets, TLS, lock down admin tools, and a pipeline running backend, web and mobile tests plus the Postgres check
-4. **Push notifications**, then receipt printing and customer web ordering
+1. **Verify before merging**: the Postgres Flyway check for V9–V19, then a click-through of the web and mobile flows using the seeded local environment (`scripts/dev/`)
+2. **Fix the remaining known issue** above: the same-second refresh-token collision
+3. **Sandbox the providers**: Paystack test keys, a WhatsApp Cloud API test number, a Hubtel or Arkesel sender ID, an SMTP account, and Cloudinary (or a mounted volume for local images)
+4. **CI/CD and production hardening**: secrets, TLS, lock down admin tools, and a pipeline running backend, web and mobile tests plus the Postgres check
+5. **Push notifications**, then receipt printing and customer web ordering

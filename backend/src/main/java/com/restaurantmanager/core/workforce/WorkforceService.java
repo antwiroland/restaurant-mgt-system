@@ -31,14 +31,26 @@ public class WorkforceService {
     private final WorkScheduleRepository scheduleRepository;
     private final TimeEntryRepository entryRepository;
     private final UserRepository userRepository;
+    private final com.restaurantmanager.core.hr.employee.EmployeeRepository employeeRepository;
+    private final com.restaurantmanager.core.hr.attendance.AttendanceCorrectionRepository correctionRepository;
+    private final com.restaurantmanager.core.hr.attendance.AttendancePolicyService attendancePolicyService;
+    private final com.restaurantmanager.core.hr.timesheet.TimesheetGuard timesheetGuard;
     private final ZoneId zone;
 
     public WorkforceService(WorkScheduleRepository scheduleRepository, TimeEntryRepository entryRepository,
                             UserRepository userRepository,
+                            com.restaurantmanager.core.hr.employee.EmployeeRepository employeeRepository,
+                            com.restaurantmanager.core.hr.attendance.AttendanceCorrectionRepository correctionRepository,
+                            com.restaurantmanager.core.hr.attendance.AttendancePolicyService attendancePolicyService,
+                            com.restaurantmanager.core.hr.timesheet.TimesheetGuard timesheetGuard,
                             @org.springframework.beans.factory.annotation.Value("${app.time-zone:Africa/Accra}") String timeZone) {
         this.scheduleRepository = scheduleRepository;
         this.entryRepository = entryRepository;
         this.userRepository = userRepository;
+        this.employeeRepository = employeeRepository;
+        this.correctionRepository = correctionRepository;
+        this.attendancePolicyService = attendancePolicyService;
+        this.timesheetGuard = timesheetGuard;
         this.zone = ZoneId.of(timeZone);
     }
 
@@ -69,7 +81,8 @@ public class WorkforceService {
         }
         WorkScheduleEntity schedule = id == null ? new WorkScheduleEntity()
                 : scheduleRepository.findById(id).orElseThrow(() -> new ApiException(404, "Shift not found"));
-        boolean overlaps = scheduleRepository.findOverlapping(request.startsAt(), request.endsAt(), request.userId()).stream()
+        // drafts from HR scheduling count too, so the quick rota cannot double-book someone
+        boolean overlaps = scheduleRepository.findActiveForUser(request.startsAt(), request.endsAt(), request.userId()).stream()
                 .anyMatch(other -> !other.getId().equals(schedule.getId()));
         if (overlaps) {
             throw new ApiException(409, staff.getName() + " already has a shift that overlaps this time");
@@ -80,8 +93,13 @@ public class WorkforceService {
         schedule.setEndsAt(request.endsAt());
         schedule.setPosition(blankToNull(request.position()));
         schedule.setNotes(blankToNull(request.notes()));
+        employeeRepository.findByUserId(staff.getId()).ifPresent(e -> schedule.setEmployeeId(e.getId()));
         if (id == null) {
+            // the quick rota has no draft stage: its shifts are live immediately
             schedule.setCreatedBy(manager.userId());
+            schedule.setStatus(ScheduleStatus.PUBLISHED);
+            schedule.setPublishedAt(java.time.Instant.now());
+            schedule.setPublishedBy(manager.userId());
         }
         return toView(scheduleRepository.save(schedule), staff);
     }
@@ -105,9 +123,20 @@ public class WorkforceService {
         if (entryRepository.findFirstByUserIdAndClockOutAtIsNull(principal.userId()).isPresent()) {
             throw new ApiException(409, "You are already clocked in");
         }
+        var employee = employeeRepository.findByUserId(principal.userId()).orElse(null);
+        if (employee != null) {
+            // HR attendance (e.g. the POS staff clock) may already have an open record for this person
+            if (entryRepository.findFirstByEmployeeIdAndClockOutAtIsNull(employee.getId()).isPresent()) {
+                throw new ApiException(409, "You are already clocked in");
+            }
+            if (!attendancePolicyService.effective(principal.branchId()).allowSelfClock()) {
+                throw new ApiException(403, "Clock in and out at the POS terminal at your branch");
+            }
+        }
         Instant now = Instant.now();
         TimeEntryEntity entry = new TimeEntryEntity();
         entry.setUserId(principal.userId());
+        entry.setEmployeeId(employee == null ? null : employee.getId());
         entry.setBranchId(principal.branchId());
         entry.setClockInAt(now);
         entry.setNotes(blankToNull(notes));
@@ -149,6 +178,27 @@ public class WorkforceService {
         int breaks = request.breakMinutes() != null ? request.breakMinutes() : entry.getBreakMinutes();
         if (breaks < 0 || (out != null && breaks > Duration.between(in, out).toMinutes())) {
             throw new ApiException(400, "Break time is longer than the shift");
+        }
+        timesheetGuard.assertEditable(entry.getEmployeeId(), entry.getClockInAt().atZone(zone).toLocalDate(), in.atZone(zone).toLocalDate());
+        if (entry.getEmployeeId() != null) {
+            // keep the original values on record as an applied correction (HR attendance history)
+            var correction = new com.restaurantmanager.core.hr.attendance.AttendanceCorrectionEntity();
+            correction.setTimeEntryId(entry.getId());
+            correction.setEmployeeId(entry.getEmployeeId());
+            correction.setBranchId(entry.getBranchId());
+            correction.setOriginalClockIn(entry.getClockInAt());
+            correction.setOriginalClockOut(entry.getClockOutAt());
+            correction.setOriginalBreakMinutes(entry.getBreakMinutes());
+            correction.setCorrectedClockIn(in);
+            correction.setCorrectedClockOut(out);
+            correction.setCorrectedBreakMinutes(breaks);
+            correction.setReason(request.reason().trim());
+            correction.setStatus(com.restaurantmanager.core.hr.attendance.CorrectionStatus.APPLIED);
+            correction.setRequestedBy(manager.userId());
+            correction.setDecidedBy(manager.userId());
+            correction.setDecidedAt(Instant.now());
+            correction.setDecisionNote("Edited in the quick time clock");
+            correctionRepository.save(correction);
         }
         entry.setClockInAt(in);
         entry.setClockOutAt(out);

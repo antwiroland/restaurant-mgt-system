@@ -14,6 +14,8 @@ type SessionContextValue = {
   loading: boolean;
   login: (phone: string, password: string) => Promise<StaffSession>;
   logout: () => Promise<void>;
+  /** Store a session obtained another way (OTP sign-in, registration). */
+  adopt: (session: StaffSession) => void;
   authenticatedFetch: <T>(run: (session: StaffSession) => Promise<T>) => Promise<T>;
 };
 
@@ -96,8 +98,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     loading,
     login,
     logout,
+    adopt: applySession,
     authenticatedFetch,
-  }), [authenticatedFetch, loading, login, logout, session]);
+  }), [applySession, authenticatedFetch, loading, login, logout, session]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

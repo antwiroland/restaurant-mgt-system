@@ -24,8 +24,9 @@ async function proxy(request: NextRequest, path: string[]): Promise<NextResponse
   };
 
   if (request.method !== "GET" && request.method !== "HEAD") {
-    // Read raw bytes so multipart uploads (menu images) and other binary bodies pass through intact.
-    init.body = await request.arrayBuffer();
+    // ArrayBuffer keeps binary payloads (multipart image uploads) intact.
+    const raw = await request.arrayBuffer();
+    if (raw.byteLength > 0) init.body = raw;
   }
 
   let response: Response;
@@ -40,7 +41,7 @@ async function proxy(request: NextRequest, path: string[]): Promise<NextResponse
 
   let body: ArrayBuffer;
   try {
-    // Raw bytes keep PDF/CSV downloads intact.
+    // Binary-safe: PDFs (table cards) and PNGs (QR images) pass through untouched.
     body = await response.arrayBuffer();
   } catch {
     return NextResponse.json(
@@ -56,7 +57,7 @@ async function proxy(request: NextRequest, path: string[]): Promise<NextResponse
   } else {
     forwardHeaders.set("content-type", "application/json");
   }
-  for (const header of ["content-disposition", "x-page", "x-size", "x-total-elements", "x-total-pages"]) {
+  for (const header of ["x-page", "x-size", "x-total-elements", "x-total-pages", "content-disposition", "retry-after", "x-content-type-options", "cache-control"]) {
     const value = response.headers.get(header);
     if (value) {
       forwardHeaders.set(header, value);

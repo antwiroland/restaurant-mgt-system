@@ -15,4 +15,6 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     Optional<UserEntity> findByEmailIgnoreCase(String email);
 
     java.util.List<UserEntity> findByRoleAndActiveTrueOrderByNameAsc(com.restaurantmanager.core.common.Role role);
+
+    java.util.List<UserEntity> findByRoleInAndActiveTrueOrderByNameAsc(java.util.Collection<com.restaurantmanager.core.common.Role> roles);
 }

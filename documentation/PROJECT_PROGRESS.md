@@ -14,6 +14,11 @@
 | 8     | Ghana-Specific Features    | Complete    | 2026-03-24 |
 | 9     | Financial Controls         | Complete    | 2026-03-24 |
 | 10    | Analytics, Testing, Deploy | Complete    | 2026-03-24 |
+| 11    | Feature Completion & Operations Expansion | Complete | 2026-11-07 |
+| 12    | Platform UI/UX Redesign ("Hearth")        | Complete | 2026-11-07 |
+| 13    | Local Test Environment & Seed Data        | Complete | 2026-11-07 |
+
+**Current focus:** fix the remaining issue found while seeding (two logins in the same second collide on the refresh token), check the redesign visually in a browser and the mobile app on a device, then production hardening (see `DEPLOYMENT_READINESS.md`).
 
 ---
 
@@ -317,4 +322,87 @@
 
 ### Verification
 - `cd backend && mvn test -q` -> PASS
+
+---
+
+## Phase 11 - Feature Completion & Operations Expansion (Complete)
+
+**Completed:** 2026-11-07
+
+### Deliverables produced
+- The 16 features that were stubbed or simulated are now real, and the `phase8`/`phase9`/`phase10` packages were renamed to domain names (`/promotions`, `/loyalty`, `/qr`, `/financial`, `/analytics`, `/security`)
+- SMS OTP phone verification and passwordless customer login (Hubtel or Arkesel; only logged unless a provider is set)
+- Delivery zones with fees and minimum orders, rider dispatch, the rider workflow, and live rider location with customer tracking
+- Live STOMP updates in the mobile app, with polling as a fallback
+- Billing and tax: service charge, tax rates (including compound taxes), tips, and tax lines on orders
+- Split payments for group and table bills, including guests paying their own share
+- Inventory: ingredients, recipes, stock movements, items taken off the menu automatically when stock runs out, and low-stock alerts
+- Menu photo upload (local disk or Cloudinary)
+- Customer feedback and ratings, with manager replies
+- Reports with CSV or PDF downloads (sales, reconciliation, audit, timesheets), staff scheduling, time clock and timesheets
+- Account recovery: forgot/reset password by email or SMS link, email verification, password change, and an admin-triggered reset
+- Web and mobile screens for all of the above; k6 load tests replace the mocked load-test endpoint
+- Flyway migrations V13–V19
+
+### Verification
+- 258 backend tests (H2), plus web and mobile Vitest suites and typechecks
+
+---
+
+## Phase 12 - Platform UI/UX Redesign ("Hearth") (Complete)
+
+**Completed:** 2026-11-07
+
+### Deliverables produced
+- **Design system** shared by web (`web/src/app/globals.css`) and mobile (`mobile/src/theme.ts`):
+  - Colours: ivory, espresso, terracotta, muted gold and sage
+  - Fonts: Manrope and Fraunces
+  - Order and table status colours that are the same everywhere
+  - A chart palette checked for colour-blind users
+  - An icon set and shared components (`PageHeader`, `StatCard`, `EmptyState`, `ErrorState`, `StatusBadge`, data table, chips, segmented controls, skeletons, modal/bottom sheet, drawer, image uploader)
+- **Customer web:**
+  - New homepage built from the live menu, menu explorer, dish pages, and reservations with manage/cancel by phone number
+  - QR table ordering redesigned for phones
+  - Receipt-style running bill and a dark display-screen order board
+  - Account pages for the links the backend sends
+- **Staff web:**
+  - App shell where what each role sees matches the backend permissions, with central handling of loading, sign-in and role checks
+  - POS: menu and ticket side by side, required options enforced, kitchen notes, live pricing from `/orders/quote`, table picker, separate payment step
+  - Dark high-contrast KDS; redesigned dashboard, orders, floor plan, menu builder (photo upload) and staff pages
+- **Mobile:** every screen moved to the shared palette; the menu home, tab bar and headers were redesigned
+- **Fixes found during the redesign:**
+  - The POS could not sell dishes that have required options
+  - Cash and card payments failed without a payer phone number
+  - The API proxy corrupted binary uploads and downloads
+  - The backend's reset and verify links pointed at pages that didn't exist
+  - A "Request Service" button only showed a message and notified nobody; it was removed
+  - Guest bookings needed a table ID, which customers couldn't know (the table `id` is now in `/tables/public`)
+- The redesign was merged with the operations-expansion work. Both sides' features were kept: tips on the POS, guest split pay and ratings on the QR page, the recipe drawer, staff alerts, and the new nav entries
+
+### Verification
+- Web: 39 tests, `tsc`, production build (39 routes). Mobile: 48 tests and `tsc`. Backend table suites pass
+- Every route and the main flows were checked over HTTP against a live, seeded backend. A visual check in a browser is still pending
+
+---
+
+## Phase 13 - Local Test Environment & Seed Data (Complete)
+
+**Completed:** 2026-11-07
+
+### Deliverables produced
+- `scripts/dev/run-backend-local.sh`: backend on an H2 file database. It needs no Docker, PostgreSQL or Redis; payments use the stub, and SMS, WhatsApp and email are only logged
+- `scripts/dev/seed_local.py`: related test data loaded through the real API:
+  - Every staff role plus customers, 2 branches, 16 tables
+  - A menu with options and recipes linked to stock
+  - Billing settings and Ghana taxes, delivery zones, promo codes and offers
+  - About 90 orders: 30 days of history plus live tickets at every kitchen stage
+  - Reservations, a staff rota, feedback, a cash shift and a group-order session
+  - Payments are confirmed with signed Paystack webhooks
+- `scripts/dev/run-web-local.sh`: builds the web app for a given backend port and serves it
+- Steps and test accounts are in `DEPLOYMENT_READINESS.md` → "Local Test Environment"
+
+### Issues found and status
+- Fixed: the dashboard "Best sellers" names were blank (the API sends `name` and the web read `itemName`)
+- Fixed: orders from the mobile app had no branch. They now take the requested branch, the delivery zone's branch, the configured default or the only active branch, and any remaining unassigned orders are a shared queue for branch staff (`OrderBranchResolver`, `OrderBranchAssignmentIntegrationTest`)
+- Open: two logins in the same second produce the same refresh token and return 500
 

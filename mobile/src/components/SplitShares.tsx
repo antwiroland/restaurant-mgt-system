@@ -4,6 +4,7 @@ import { fetchSplits, splitByItems } from '../api/billing';
 import { initiatePayment } from '../api/payment';
 import { canSplitByItems, myPendingShare } from '../features/billing/billing';
 import type { Order, PaymentSplit } from '../types/api';
+import { colors } from '../theme';
 
 type Props = {
   order: Order;
@@ -115,7 +116,7 @@ export function SplitShares({ order, userId, onPaymentStarted }: Props) {
                 accessibilityLabel="MoMo number for your share"
               />
               <TouchableOpacity style={styles.primary} onPress={payMine} disabled={busy} accessibilityRole="button">
-                {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Pay my share · GHS {Number(mine.amount).toFixed(2)}</Text>}
+                {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryText}>Pay my share · GHS {Number(mine.amount).toFixed(2)}</Text>}
               </TouchableOpacity>
             </View>
           ) : null}
@@ -128,20 +129,20 @@ export function SplitShares({ order, userId, onPaymentStarted }: Props) {
 }
 
 const styles = StyleSheet.create({
-  section: { backgroundColor: '#fff', margin: 12, borderRadius: 12, padding: 16 },
-  title: { fontSize: 15, fontWeight: '700', color: '#111827', marginBottom: 8 },
-  hint: { fontSize: 12, color: '#6B7280', marginTop: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  name: { flex: 1, fontSize: 14, color: '#111827' },
-  amount: { fontSize: 14, fontWeight: '600', color: '#111827' },
+  section: { backgroundColor: colors.white, margin: 12, borderRadius: 12, padding: 16 },
+  title: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 8 },
+  hint: { fontSize: 12, color: colors.inkMuted, marginTop: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.sunken },
+  name: { flex: 1, fontSize: 14, color: colors.ink },
+  amount: { fontSize: 14, fontWeight: '600', color: colors.ink },
   badge: { fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, overflow: 'hidden' },
-  paid: { backgroundColor: '#D1FAE5', color: '#065F46' },
-  pending: { backgroundColor: '#FEF3C7', color: '#92400E' },
-  input: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, fontSize: 15 },
-  primary: { marginTop: 8, backgroundColor: '#2563EB', borderRadius: 10, padding: 14, alignItems: 'center', minHeight: 44 },
-  primaryText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  secondary: { marginTop: 10, backgroundColor: '#EFF6FF', borderRadius: 10, padding: 14, alignItems: 'center', minHeight: 44 },
-  secondaryText: { color: '#1D4ED8', fontWeight: '700' },
-  error: { color: '#B91C1C', marginTop: 8, fontSize: 13 },
-  message: { color: '#065F46', marginTop: 8, fontSize: 13 },
+  paid: { backgroundColor: colors.successSubtle, color: colors.success },
+  pending: { backgroundColor: colors.warningSubtle, color: colors.warningOn },
+  input: { borderWidth: 1, borderColor: colors.lineStrong, borderRadius: 8, padding: 12, fontSize: 15 },
+  primary: { marginTop: 8, backgroundColor: colors.brand, borderRadius: 10, padding: 14, alignItems: 'center', minHeight: 44 },
+  primaryText: { color: colors.white, fontWeight: '700', fontSize: 15 },
+  secondary: { marginTop: 10, backgroundColor: colors.brandSubtle, borderRadius: 10, padding: 14, alignItems: 'center', minHeight: 44 },
+  secondaryText: { color: colors.brandPressed, fontWeight: '700' },
+  error: { color: colors.dangerOn, marginTop: 8, fontSize: 13 },
+  message: { color: colors.success, marginTop: 8, fontSize: 13 },
 });

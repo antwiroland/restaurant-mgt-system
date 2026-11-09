@@ -6,6 +6,7 @@ import { logoutCustomer } from '../../src/api/auth';
 import { fetchLoyaltyBalance, fetchLoyaltyTransactions } from '../../src/api/loyalty';
 import { fetchCurrentUser, updateCurrentUser } from '../../src/api/user';
 import type { CurrentUser, LoyaltyBalance, LoyaltyTransaction } from '../../src/types/api';
+import { colors } from '../../src/theme';
 
 export default function ProfileScreen() {
   const { isAuthenticated, name, phone, email, clear, setUser } = useAuthStore();
@@ -126,34 +127,34 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  header: { alignItems: 'center', padding: 24, backgroundColor: '#fff', marginBottom: 12 },
+  header: { alignItems: 'center', padding: 24, backgroundColor: colors.white, marginBottom: 12 },
   avatar: {
-    width: 72, height: 72, borderRadius: 36, backgroundColor: '#2563EB',
+    width: 72, height: 72, borderRadius: 36, backgroundColor: colors.brand,
     justifyContent: 'center', alignItems: 'center', marginBottom: 12,
   },
-  avatarText: { color: '#fff', fontSize: 28, fontWeight: '700' },
-  name: { fontSize: 20, fontWeight: '700', color: '#111827' },
+  avatarText: { color: colors.white, fontSize: 28, fontWeight: '700' },
+  name: { fontSize: 20, fontWeight: '700', color: colors.ink },
   loyaltyCard: {
-    margin: 12, padding: 16, backgroundColor: '#EFF6FF',
+    margin: 12, padding: 16, backgroundColor: colors.brandSubtle,
     borderRadius: 12, alignItems: 'center',
   },
-  loyaltyTitle: { fontSize: 14, color: '#1D4ED8', marginBottom: 4 },
-  loyaltyPoints: { fontSize: 36, fontWeight: '800', color: '#1D4ED8' },
-  section: { backgroundColor: '#fff', margin: 12, borderRadius: 12, padding: 16 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 12 },
-  input: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 15 },
-  primaryBtn: { backgroundColor: '#2563EB', borderRadius: 10, padding: 14, alignItems: 'center' },
-  primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  actionRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  actionText: { fontSize: 15, color: '#111827' },
+  loyaltyTitle: { fontSize: 14, color: colors.brandPressed, marginBottom: 4 },
+  loyaltyPoints: { fontSize: 36, fontWeight: '800', color: colors.brandPressed },
+  section: { backgroundColor: colors.white, margin: 12, borderRadius: 12, padding: 16 },
+  sectionTitle: { fontSize: 14, fontWeight: '700', color: colors.inkSoft, marginBottom: 12 },
+  input: { borderWidth: 1, borderColor: colors.lineStrong, borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 15 },
+  primaryBtn: { backgroundColor: colors.brand, borderRadius: 10, padding: 14, alignItems: 'center' },
+  primaryBtnText: { color: colors.white, fontWeight: '700', fontSize: 15 },
+  actionRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.sunken },
+  actionText: { fontSize: 15, color: colors.ink },
   txRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 },
-  txType: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  txDate: { fontSize: 12, color: '#9CA3AF' },
-  title: { fontSize: 20, fontWeight: '700', color: '#374151', marginBottom: 16 },
-  btn: { backgroundColor: '#2563EB', borderRadius: 8, paddingHorizontal: 24, paddingVertical: 12 },
-  btnText: { color: '#fff', fontWeight: '600' },
-  logoutBtn: { margin: 12, padding: 16, backgroundColor: '#FEE2E2', borderRadius: 12, alignItems: 'center' },
-  logoutText: { color: '#EF4444', fontWeight: '700', fontSize: 16 },
+  txType: { fontSize: 14, fontWeight: '600', color: colors.ink },
+  txDate: { fontSize: 12, color: colors.inkMuted },
+  title: { fontSize: 20, fontWeight: '700', color: colors.inkSoft, marginBottom: 16 },
+  btn: { backgroundColor: colors.brand, borderRadius: 8, paddingHorizontal: 24, paddingVertical: 12 },
+  btnText: { color: colors.white, fontWeight: '600' },
+  logoutBtn: { margin: 12, padding: 16, backgroundColor: colors.dangerSubtle, borderRadius: 12, alignItems: 'center' },
+  logoutText: { color: colors.danger, fontWeight: '700', fontSize: 16 },
 });

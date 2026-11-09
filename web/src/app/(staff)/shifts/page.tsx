@@ -124,7 +124,7 @@ export default function ShiftsPage() {
       <main className="shell">
         <section className="panel">
           <p className="kicker">Shifts</p>
-          <h1 className="text-2xl font-semibold">Staff access required</h1>
+          <h1 className="heading-lg mt-1">Staff access required</h1>
           <Link className="mt-4 inline-flex btn btn-primary" href="/login">Open Login</Link>
         </section>
       </main>
@@ -135,7 +135,7 @@ export default function ShiftsPage() {
     <main className="shell grid gap-4 md:grid-cols-[1fr,1.4fr]">
       <section className="panel">
         <p className="kicker">Shift Management</p>
-        <h1 className="text-2xl font-semibold">Open Shift</h1>
+        <h1 className="heading-lg mt-1">Open Shift</h1>
         <p className="mt-2 text-sm text-ink-soft">Start cashier shift and capture opening drawer amount.</p>
 
         <div className="mt-4 grid gap-3">
@@ -191,10 +191,10 @@ export default function ShiftsPage() {
 
       <section className="panel">
         <p className="kicker">Active Shifts</p>
-        <h2 className="text-xl font-semibold">Open Drawers</h2>
+        <h2 className="heading-md">Open Drawers</h2>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           <input className="input text-sm" placeholder="Search cashier or branch" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <select className="input text-sm" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
+          <select className="select text-sm" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
             <option value="">All branches</option>
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>

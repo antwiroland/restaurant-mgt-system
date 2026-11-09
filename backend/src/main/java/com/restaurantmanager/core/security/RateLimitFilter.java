@@ -65,7 +65,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (!"POST".equalsIgnoreCase(method)) {
             return null;
         }
-        if ("/qr/sessions/link".equals(path) || (path.startsWith("/orders/public/") && path.endsWith("/feedback"))) {
+        if ("/qr/sessions/link".equals(path) || (path.startsWith("/orders/public/") && path.endsWith("/feedback"))
+                || (path.startsWith("/tables/public/") && path.endsWith("/requests"))) {
             return new LimitSpec("public", rateLimitProps.getPublicRequests(), rateLimitProps.getPublicWindowSeconds() * 1000L);
         }
         if ("/auth/login".equals(path) || "/auth/register".equals(path) || "/auth/refresh".equals(path)
@@ -73,6 +74,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 || "/auth/password/forgot".equals(path) || "/auth/password/reset".equals(path)
                 || "/auth/email/verify".equals(path)) {
             return new LimitSpec("auth", rateLimitProps.getAuthRequests(), rateLimitProps.getAuthWindowSeconds() * 1000L);
+        }
+        if ("/hr/pos/clock".equals(path) || "/hr/pos/me".equals(path)) {
+            return new LimitSpec("hrclock", rateLimitProps.getHrClockRequests(), rateLimitProps.getHrClockWindowSeconds() * 1000L);
         }
         if ("/auth/pin/verify".equals(path) || USER_PIN_PATH.matcher(path).matches()) {
             return new LimitSpec("pin", rateLimitProps.getPinRequests(), rateLimitProps.getPinWindowSeconds() * 1000L);
