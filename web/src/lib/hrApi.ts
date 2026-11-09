@@ -65,7 +65,20 @@ export type EmployeeDetail = {
   qualifications?: string | null; experience?: string | null;
   emergencyContacts: EmergencyContact[];
   linkedUser?: { id: string; name: string; role: string; active: boolean } | null;
+  /** False when the employee is visible only through a secondary/temporary assignment at one of your branches. */
+  manageable: boolean;
   version: number; createdAt: string; updatedAt: string;
+};
+
+export type AssignmentType = "PRIMARY" | "SECONDARY" | "TEMPORARY";
+export type BranchAssignment = {
+  id: string; employeeId: string; branchId: string; branchName?: string | null; assignmentType: AssignmentType;
+  positionId?: string | null; positionTitle?: string | null; startDate: string; endDate?: string | null; current: boolean;
+  reason?: string | null; endReason?: string | null; createdAt: string;
+};
+export type BranchWorkforce = {
+  branchId: string | null; code?: string | null; name: string; active: boolean; currentEmployees: number;
+  activeCount: number; onLeave: number; suspended: number; coveringFromOtherBranches: number;
 };
 
 export type EmployeeInput = {
@@ -108,7 +121,7 @@ export type EmployeeDocument = {
 export type PermissionInfo = { code: string; description: string; managerDefault: boolean };
 export type UserGrants = {
   userId: string; name: string; role: string; branchId?: string | null; branchName?: string | null;
-  rolePermissions: string[]; grantedPermissions: string[];
+  rolePermissions: string[]; grantedPermissions: string[]; extraBranchIds: string[];
 };
 
 // ---------------------------------------------------------------------------
@@ -203,3 +216,19 @@ export const getPermissionCatalogue = (s: StaffSession) => apiRequest<Permission
 export const getUserGrants = (s: StaffSession) => apiRequest<UserGrants[]>("/hr/access/grants", auth(s));
 export const saveUserGrants = (s: StaffSession, userId: string, permissions: string[]) =>
   apiRequest<UserGrants>(`/hr/access/grants/${userId}`, { ...auth(s), method: "PUT", body: { permissions } });
+
+export const saveUserBranches = (s: StaffSession, userId: string, branchIds: string[]) =>
+  apiRequest<UserGrants>(`/hr/access/branches/${userId}`, { ...auth(s), method: "PUT", body: { branchIds } });
+
+export const getAssignments = (s: StaffSession, employeeId: string) =>
+  apiRequest<BranchAssignment[]>(`/hr/employees/${employeeId}/assignments`, auth(s));
+export const assignBranch = (
+  s: StaffSession,
+  employeeId: string,
+  body: { branchId: string; assignmentType: Exclude<AssignmentType, "PRIMARY">; positionId?: string | null; startDate?: string; endDate?: string | null; reason?: string },
+) => apiRequest<BranchAssignment>(`/hr/employees/${employeeId}/assignments`, { ...auth(s), method: "POST", body });
+export const endAssignment = (s: StaffSession, id: string, body: { endDate?: string; reason?: string }) =>
+  apiRequest<BranchAssignment>(`/hr/assignments/${id}/end`, { ...auth(s), method: "POST", body });
+export const transferEmployee = (s: StaffSession, employeeId: string, body: { toBranchId: string | null; effectiveDate?: string; reason?: string }) =>
+  apiRequest<EmployeeDetail>(`/hr/employees/${employeeId}/transfer`, { ...auth(s), method: "POST", body });
+export const getBranchWorkforce = (s: StaffSession) => apiRequest<BranchWorkforce[]>("/hr/branches/workforce", auth(s));

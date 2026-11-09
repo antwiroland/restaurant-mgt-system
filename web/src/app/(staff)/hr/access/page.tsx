@@ -7,7 +7,8 @@ import { EmptyState, ErrorState, PageHeader, humanize } from "@/components/ui";
 import { useStaffSession } from "@/components/SessionProvider";
 import { useHrAccess } from "@/features/hr/HrAccessContext";
 import { errorMessage } from "@/features/hr/ui";
-import { getPermissionCatalogue, getUserGrants, saveUserGrants, type PermissionInfo, type UserGrants } from "@/lib/hrApi";
+import { getBranches, type BranchRecord } from "@/lib/apiClient";
+import { getPermissionCatalogue, getUserGrants, saveUserBranches, saveUserGrants, type PermissionInfo, type UserGrants } from "@/lib/hrApi";
 
 /** Admin-only: grant extra HR permissions to staff accounts (e.g. payroll rights for an accountant). */
 export default function HrAccessPage() {
@@ -19,6 +20,8 @@ export default function HrAccessPage() {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<UserGrants | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [branches, setBranches] = useState<BranchRecord[]>([]);
+  const [extraBranches, setExtraBranches] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [notice, setNotice] = useState("");
@@ -27,9 +30,10 @@ export default function HrAccessPage() {
     setError("");
     try {
       await authenticatedFetch(async (s) => {
-        const [c, u] = await Promise.all([getPermissionCatalogue(s), getUserGrants(s)]);
+        const [c, u, b] = await Promise.all([getPermissionCatalogue(s), getUserGrants(s), getBranches(s).catch(() => [] as BranchRecord[])]);
         setCatalogue(c);
         setUsers(u);
+        setBranches(b);
       });
     } catch (err) {
       setError(errorMessage(err, "Could not load HR access"));
@@ -58,6 +62,7 @@ export default function HrAccessPage() {
   function open(user: UserGrants) {
     setEditing(user);
     setSelected(new Set(user.grantedPermissions));
+    setExtraBranches(new Set(user.extraBranchIds));
     setSaveError("");
   }
 
@@ -66,7 +71,10 @@ export default function HrAccessPage() {
     setSaving(true);
     setSaveError("");
     try {
-      const updated = await authenticatedFetch((s) => saveUserGrants(s, editing.userId, [...selected]));
+      const updated = await authenticatedFetch(async (s) => {
+        await saveUserGrants(s, editing.userId, [...selected]);
+        return saveUserBranches(s, editing.userId, [...extraBranches]);
+      });
       setUsers((list) => (list ?? []).map((u) => (u.userId === updated.userId ? updated : u)));
       setEditing(null);
       setNotice(`HR access updated for ${updated.name}. They will see the change the next time they load the app.`);
@@ -99,7 +107,10 @@ export default function HrAccessPage() {
                 {filtered.map((u) => (
                   <tr key={u.userId}>
                     <td><span className="font-semibold">{u.name}</span><p className="text-xs text-ink-muted">{humanize(u.role)}</p></td>
-                    <td>{u.branchName ?? <span className="text-ink-muted">No branch</span>}</td>
+                    <td>
+                      {u.branchName ?? <span className="text-ink-muted">No branch</span>}
+                      {u.extraBranchIds.length ? <p className="text-xs text-ink-muted">+{u.extraBranchIds.length} more for HR</p> : null}
+                    </td>
                     <td className="tabular">{u.rolePermissions.length}</td>
                     <td>
                       {u.grantedPermissions.length ? (
@@ -130,8 +141,26 @@ export default function HrAccessPage() {
           <div className="grid gap-5">
             {saveError ? <p className="alert alert-danger" role="alert">{saveError}</p> : null}
             {!editing.branchId ? (
-              <p className="alert alert-warning">This account has no branch. Without “Access HR data for every branch” it cannot see any branch&apos;s HR records.</p>
+              <p className="alert alert-warning">This account has no branch. Without extra branches below or “Access HR data for every branch” it cannot see any branch&apos;s HR records.</p>
             ) : null}
+            <fieldset className="grid gap-2">
+              <legend className="kicker mb-1">Extra branches</legend>
+              <p className="text-xs text-ink-soft">HR data for these branches in addition to {editing.branchName ?? "their own branch"}. Not needed with “Access HR data for every branch”.</p>
+              {branches.filter((b) => b.id !== editing.branchId).map((b) => (
+                <label key={b.id} className="flex items-center gap-3 rounded-lg p-2 hover:bg-muted text-sm">
+                  <input
+                    type="checkbox"
+                    checked={extraBranches.has(b.id)}
+                    onChange={(e) => setExtraBranches((set) => {
+                      const next = new Set(set);
+                      if (e.target.checked) next.add(b.id); else next.delete(b.id);
+                      return next;
+                    })}
+                  />
+                  <span><span className="font-semibold">{b.name}</span> <span className="text-xs text-ink-muted">{b.code}{b.active ? "" : " · inactive"}</span></span>
+                </label>
+              ))}
+            </fieldset>
             {groups.map(([area, perms]) => (
               <fieldset key={area} className="grid gap-2">
                 <legend className="kicker mb-1">{humanize(area.toUpperCase())}</legend>
