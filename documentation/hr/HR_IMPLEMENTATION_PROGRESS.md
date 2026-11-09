@@ -85,6 +85,14 @@
 | `feature/hr-shift-scheduling` | `90a6b00` | chore(hr): seed shift templates, schedules, availability and a swap request | 2026-11-09 | Dev tooling |
 | `feature/hr-shift-scheduling` | `32a7178` | docs(hr): record Phase 3 scheduling design, tests and progress | 2026-11-09 | Phase 3 docs |
 | `feature/restaurant-hr-management` | `9d24358` | Merge of `feature/hr-shift-scheduling` (no fast-forward) | 2026-11-09 | Phase 3 integration |
+| `feature/restaurant-hr-management` | `c998a3a` | docs(hr): record Phase 3 commit hashes | 2026-11-09 | Phase 3 docs |
+| `feature/hr-attendance` | `16d0654` | feat(hr): add attendance with idempotent clock events, breaks and corrections | 2026-11-09 | Phase 4 backend |
+| `feature/hr-attendance` | `953b890` | feat(hr): add attendance board, corrections, rules and self-service time clock | 2026-11-09 | Phase 4 web |
+| `feature/hr-pos-integration` | `b41efea` | feat(hr): add POS staff clock panel | 2026-11-09 | Phase 4 POS |
+| `feature/hr-pos-integration` | `8f19d59` | chore(hr): seed clock PINs, attendance and a pending correction | 2026-11-09 | Dev tooling |
+| `feature/hr-pos-integration` | `78ccc19` | docs(hr): record Phase 4 attendance and POS design, tests and progress | 2026-11-09 | Phase 4 docs |
+| `feature/restaurant-hr-management` | `d0bddf2` | Merge of `feature/hr-attendance` (no fast-forward) | 2026-11-09 | Phase 4 integration |
+| `feature/restaurant-hr-management` | `6dde03f` | Merge of `feature/hr-pos-integration` (no fast-forward) | 2026-11-09 | Phase 4 integration |
 
 ## Development Log
 
