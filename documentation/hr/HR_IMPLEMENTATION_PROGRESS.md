@@ -8,17 +8,17 @@
 | Module | Human Resource & Workforce Management |
 | Integration branch | `feature/restaurant-hr-management` (from `feature/operations-expansion` @ `35ef1ed`) |
 | Implementation start | 2026-11-09 |
-| Current status | Phases 0–2 complete and merged into the integration branch; Phase 3 (shift scheduling) not started |
+| Current status | Phases 0–3 complete and merged into the integration branch; Phase 4 (attendance & POS clock-in) not started |
 | Last updated | 2026-11-09 |
 
 ## Overall Progress
 
 - [x] Repository analysis
 - [x] Architecture
-- [~] Database design — Phase 1–2 entities done (V27, V28); later-phase entities not designed in SQL yet
+- [~] Database design — Phase 1–3 entities done (V27–V29); later-phase entities not designed in SQL yet
 - [x] Employee management (registry, departments, positions, contracts, documents, user linking)
 - [x] Multi-branch management (assignment history, transfers, secondary/temporary assignments, covering-branch visibility, extra branch scope, branch workforce summary)
-- [ ] Shift scheduling (pre-existing basic rota in `workforce` is unchanged)
+- [x] Shift scheduling (templates, validation, drafts/publishing, coverage, availability, swaps, notifications; legacy rota kept compatible)
 - [ ] Attendance (pre-existing basic time clock in `workforce` is unchanged)
 - [ ] POS integration
 - [ ] Leave
@@ -30,7 +30,7 @@
 - [ ] Recruitment
 - [ ] Performance
 - [ ] Training
-- [~] Self-service — read-only "My HR profile" only
+- [~] Self-service — read-only profile, own schedule, availability, swap requests
 - [ ] Reporting / HR dashboard
 - [~] Security — HR permission model, branch isolation, private documents, audit done for Phase 1 scope
 - [ ] Performance optimization / benchmarking
@@ -53,6 +53,11 @@
 | Secondary / temporary assignments | [x] | [x] | [x] | [x] | [x] | Complete |
 | Extra HR branch scope per user | [x] | [x] | [x] | [x] | [x] | Complete |
 | Branch workforce summary | — | [x] | [x] | [x] | [x] | Complete (headcount; cost/attendance metrics come with later phases) |
+| Shift templates & scheduling policy | [x] | [x] | [x] | [x] | [x] | Complete |
+| Schedule board, validation, publishing | [x] | [x] | [x] | [x] | [x] | Complete (leave conflicts added in Phase 5) |
+| Availability | [x] | [x] | [x] | [x] | [x] | Complete |
+| Shift swaps | [x] | [x] | [x] | [x] | [x] | Complete |
+| Schedule notifications | — | [x] (push) | — | — | [~] | Sent through existing push; delivery itself not asserted in tests |
 | Scheduling … analytics (Phases 3–11) | [ ] | [ ] | [ ] | [ ] | [ ] | Not started |
 
 ## Git History
@@ -84,6 +89,11 @@
 | 2026-11-09 | V28 on PostgreSQL | Migrated a temporary Postgres to V27, inserted three employees (active, former, head office), then booted the app: V28 applied, backfill produced an open PRIMARY row, a closed row at the exit date, and none for head office. Smoke-tested transfer, secondary assignment, branch filter, workforce counts. **Found and fixed a PostgreSQL-only 500** (untyped null parameter in the overlap query); after the fix both overlap cases return 409 | Manual, passed after fix | `feature/hr-multi-branch` | `5d9e484` |
 | 2026-11-09 | Phase 2 web | Branches tab, read-only covering view, Branch Workforce page, extra branch scope in HR Access | `vitest` HR suite 9/9 pass; ESLint clean on changed files; `next build` passes | `feature/hr-multi-branch` | `1baa588` |
 
+| 2026-11-09 | Dev seed tooling | `seed_hr.py` (+ scheduling data), `seed_local.py` hook, HR docs dir for local backend | Seeded a fresh local backend end to end; scenarios verified via API | `feature/hr-dev-seed` → `feature/hr-shift-scheduling` | `0c34fe9`, `90a6b00` |
+| 2026-11-09 | Phase 3 backend | V29, `hr.schedule` package, legacy rota adjustments, login-link attach | Backend `mvn test`: **335 run, 0 failures, 0 errors** (315 + 8 rules + 12 scheduling) | `feature/hr-shift-scheduling` | `a582612` |
+| 2026-11-09 | V29 on PostgreSQL | Migrated to V28 with legacy rota rows (linked and unlinked logins), applied V29: rows became PUBLISHED, linked row got its employee. Smoke-tested templates, template-based draft, overlap with migrated shift (409), board/coverage, publish, self shifts, legacy my-shifts/list/timesheet, swap options, swaps list, availability, policy — no errors | Manual, passed | `feature/hr-shift-scheduling` | `a582612` |
+| 2026-11-09 | Phase 3 web | Schedule board/day/month, shift dialog, swaps/templates/limits tabs, My Schedule | `vitest` HR suites 14/14; ESLint and `tsc` clean; `next build` passes | `feature/hr-shift-scheduling` | `477bc39` |
+
 ## Outstanding Issues
 
 - **Not run — Testcontainers suite:** `HrPostgresFlywayIntegrationTest` (and the pre-existing `PostgresFlywayIntegrationTest`) could not start
@@ -97,6 +107,9 @@
 - **Pending decision — branch base:** HR is based on `feature/operations-expansion` (11 commits ahead of `main`); that branch must land before HR can be reviewed against `main`.
 - **H2 vs PostgreSQL gap:** H2 accepted a query that PostgreSQL rejects (null parameter typing). Until the Testcontainers suite runs in CI,
   each migration/query change is verified manually on PostgreSQL (see log). Treat `(:param is null or ...)` JPQL as forbidden.
+- **Leave conflicts:** scheduling warns on `ON_LEAVE` status only; approved leave periods will be checked once Phase 5 adds leave requests.
+- **Time zones:** the web board enters and shows times in the browser's local zone; devices should use the restaurant's zone.
+- **Notification delivery:** schedule notifications reuse Expo push (after commit, de-duplicated); there is no in-app inbox yet.
 - **Scheduled transfers:** transfers cannot be dated in the future (no job applies them yet); record them on the day.
 - **Contract reminders:** due/expiring contracts are listed via `GET /hr/contracts/due`; push/email reminders will be added with HR notifications.
 - **Known pre-existing:** `WorkforceService` reads `app.time-zone` while `application.yml` defines `app.timezone` (same default, no impact).
@@ -105,7 +118,8 @@
 
 ## Next Actions
 
-1. Phase 3 (`feature/hr-shift-scheduling`): extend `work_schedules` (publish state, templates, availability, swaps, validation) linking
-   shifts to employees and using branch assignments to decide who may be scheduled where; reuse `PushNotificationService`
-   for schedule notifications. Keep the existing `/scheduling` and `/timeclock` APIs working.
+1. Phase 4 (`feature/hr-attendance`, `feature/hr-pos-integration`): attendance events (idempotent, source, terminal), breaks,
+   late/early/overtime calculations against published shifts, corrections with approval, employee clock PIN (hashed,
+   lockout) and a POS staff-clock panel that never grants POS privileges or touches order attribution. Extend `time_entries`
+   rather than replace it; keep `/timeclock/*` working.
 2. Fix the Testcontainers environment or CI job so the `postgres` test group runs on every phase.
