@@ -8,19 +8,19 @@
 | Module | Human Resource & Workforce Management |
 | Integration branch | `feature/restaurant-hr-management` (from `feature/operations-expansion` @ `35ef1ed`) |
 | Implementation start | 2026-11-09 |
-| Current status | Phases 0–3 complete and merged into the integration branch; Phase 4 (attendance & POS clock-in) not started |
+| Current status | Phases 0–4 complete and merged into the integration branch; Phase 5 (timesheets, overtime, leave) not started |
 | Last updated | 2026-11-09 |
 
 ## Overall Progress
 
 - [x] Repository analysis
 - [x] Architecture
-- [~] Database design — Phase 1–3 entities done (V27–V29); later-phase entities not designed in SQL yet
+- [~] Database design — Phase 1–4 entities done (V27–V30); later-phase entities not designed in SQL yet
 - [x] Employee management (registry, departments, positions, contracts, documents, user linking)
 - [x] Multi-branch management (assignment history, transfers, secondary/temporary assignments, covering-branch visibility, extra branch scope, branch workforce summary)
 - [x] Shift scheduling (templates, validation, drafts/publishing, coverage, availability, swaps, notifications; legacy rota kept compatible)
-- [ ] Attendance (pre-existing basic time clock in `workforce` is unchanged)
-- [ ] POS integration
+- [x] Attendance (idempotent events, breaks, late/early/overtime, corrections with approval, policies; legacy time clock kept compatible)
+- [x] POS integration (staff clock panel, employee clock PIN with lockout, no effect on POS session or orders)
 - [ ] Leave
 - [ ] Timesheets
 - [ ] Overtime
@@ -30,7 +30,7 @@
 - [ ] Recruitment
 - [ ] Performance
 - [ ] Training
-- [~] Self-service — read-only profile, own schedule, availability, swap requests
+- [~] Self-service — read-only profile, own schedule, availability, swap requests, own time clock and PIN
 - [ ] Reporting / HR dashboard
 - [~] Security — HR permission model, branch isolation, private documents, audit done for Phase 1 scope
 - [ ] Performance optimization / benchmarking
@@ -58,6 +58,11 @@
 | Availability | [x] | [x] | [x] | [x] | [x] | Complete |
 | Shift swaps | [x] | [x] | [x] | [x] | [x] | Complete |
 | Schedule notifications | — | [x] (push) | — | — | [~] | Sent through existing push; delivery itself not asserted in tests |
+| Attendance events & time entries | [x] | [x] | [x] | [x] | [x] | Complete |
+| Breaks & attendance policy | [x] | [x] | [x] | [x] | [x] | Complete |
+| Corrections with approval | [x] | [x] | [x] | [x] | [x] | Complete |
+| POS staff clock & clock PIN | [x] | [x] | [x] | [x] | [x] | Complete (no offline queue: web POS has no offline mode) |
+| Missed clock-out / late notifications | — | [ ] | — | — | [ ] | Flags shown on the board; push alerts not built yet |
 | Scheduling … analytics (Phases 3–11) | [ ] | [ ] | [ ] | [ ] | [ ] | Not started |
 
 ## Git History
@@ -100,6 +105,10 @@
 | 2026-11-09 | V29 on PostgreSQL | Migrated to V28 with legacy rota rows (linked and unlinked logins), applied V29: rows became PUBLISHED, linked row got its employee. Smoke-tested templates, template-based draft, overlap with migrated shift (409), board/coverage, publish, self shifts, legacy my-shifts/list/timesheet, swap options, swaps list, availability, policy — no errors | Manual, passed | `feature/hr-shift-scheduling` | `a582612` |
 | 2026-11-09 | Phase 3 web | Schedule board/day/month, shift dialog, swaps/templates/limits tabs, My Schedule | `vitest` HR suites 14/14; ESLint and `tsc` clean; `next build` passes | `feature/hr-shift-scheduling` | `477bc39` |
 
+| 2026-11-09 | Phase 4 backend | V30, `hr.attendance` package, legacy time clock adjustments, `hrclock` rate-limit bucket | Backend `mvn test`: **354 run, 0 failures, 0 errors** (335 + 8 unit + 11 attendance). One real bug found by the tests and fixed (self PIN change after a failed attempt hit an optimistic-lock conflict) | `feature/hr-attendance` | `16d0654` |
+| 2026-11-09 | V30 on PostgreSQL | Migrated to V29 with legacy time entries (linked closed, unlinked open), applied V30: linked row got its employee, unlinked open row untouched. Smoke-tested PIN set, roster, POS clock-in (unscheduled flag), idempotent replay, meal break, clock-out, wrong PIN 401, day board, entries, correction (originals kept), corrections list, legacy timesheet/status, policy — no errors. Found that unlinked legacy entries appeared as nameless rows on the HR day board; fixed by excluding them from HR views | Manual, passed after fix | `feature/hr-attendance` | `16d0654` |
+| 2026-11-09 | Phase 4 web | Attendance page, PIN card, My time clock; POS staff clock panel | `vitest` HR suites 20/20; ESLint and `tsc` clean; `next build` passes | `feature/hr-attendance`, `feature/hr-pos-integration` | `953b890`, `b41efea` |
+
 ## Outstanding Issues
 
 - **Not run — Testcontainers suite:** `HrPostgresFlywayIntegrationTest` (and the pre-existing `PostgresFlywayIntegrationTest`) could not start
@@ -113,6 +122,11 @@
 - **Pending decision — branch base:** HR is based on `feature/operations-expansion` (11 commits ahead of `main`); that branch must land before HR can be reviewed against `main`.
 - **H2 vs PostgreSQL gap:** H2 accepted a query that PostgreSQL rejects (null parameter typing). Until the Testcontainers suite runs in CI,
   each migration/query change is verified manually on PostgreSQL (see log). Treat `(:param is null or ...)` JPQL as forbidden.
+- **Attendance alerts:** late arrivals and missed clock-outs are flagged on the board but no push alert is sent yet.
+- **Offline POS clocking:** not supported (the web POS has no offline mode); retries with the same key cover short network drops.
+- **Rate limiting behind the proxy:** all POS terminals share one `hrclock` bucket because the web proxy does not forward client IPs.
+- **Roster query cost:** the POS roster runs a small query per person (break, today's shift); fine for branch-sized rosters,
+  revisit if a branch has hundreds of staff.
 - **Leave conflicts:** scheduling warns on `ON_LEAVE` status only; approved leave periods will be checked once Phase 5 adds leave requests.
 - **Time zones:** the web board enters and shows times in the browser's local zone; devices should use the restaurant's zone.
 - **Notification delivery:** schedule notifications reuse Expo push (after commit, de-duplicated); there is no in-app inbox yet.
@@ -124,8 +138,7 @@
 
 ## Next Actions
 
-1. Phase 4 (`feature/hr-attendance`, `feature/hr-pos-integration`): attendance events (idempotent, source, terminal), breaks,
-   late/early/overtime calculations against published shifts, corrections with approval, employee clock PIN (hashed,
-   lockout) and a POS staff-clock panel that never grants POS privileges or touches order attribution. Extend `time_entries`
-   rather than replace it; keep `/timeclock/*` working.
+1. Phase 5 (`feature/hr-timesheets-overtime`, `feature/hr-leave-management`): timesheets built from time entries
+   (draft → submitted → reviewed → approved → locked), effective-dated overtime rules and approval, leave types, policies,
+   balances and accrual, leave requests with configurable approval chain, and approved leave as a scheduling conflict.
 2. Fix the Testcontainers environment or CI job so the `postgres` test group runs on every phase.

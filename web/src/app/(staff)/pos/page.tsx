@@ -39,6 +39,7 @@ import {
   type TableRecord,
 } from "@/lib/apiClient";
 import { formatMoney } from "@/lib/brand";
+import { StaffClockPanel } from "@/features/hr/attendance/StaffClockPanel";
 
 const ORDER_TYPES = [
   { value: "DINE_IN", label: "Dine in", icon: "table" as IconName },
@@ -63,6 +64,7 @@ const TABLE_TONE: Record<TableRecord["status"], string> = {
 
 export default function PosPage() {
   const { session, loading, authenticatedFetch } = useStaffSession();
+  const [staffClockOpen, setStaffClockOpen] = useState(false);
   const [menuItems, setMenuItems] = useState<MenuItemRecord[]>([]);
   const [menuLoaded, setMenuLoaded] = useState(false);
   const [tables, setTables] = useState<TableRecord[]>([]);
@@ -429,6 +431,11 @@ export default function PosPage() {
             />
             <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-line bg-sunken px-1.5 py-0.5 font-mono text-xs text-ink-muted sm:block">/</kbd>
           </label>
+          <div className="flex justify-end">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setStaffClockOpen(true)}>
+              <Icon name="clock" size={16} /> Staff clock
+            </button>
+          </div>
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 [scrollbar-width:none]" role="group" aria-label="Categories">
             {categories.map((category) => (
               <button
@@ -899,6 +906,8 @@ export default function PosPage() {
           }}
         />
       ) : null}
+      {/* Staff attendance is independent of the till: it never changes the signed-in account or the order in progress. */}
+      {staffClockOpen ? <StaffClockPanel onClose={() => setStaffClockOpen(false)} /> : null}
     </div>
   );
 }

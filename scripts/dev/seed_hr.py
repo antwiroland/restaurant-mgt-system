@@ -220,7 +220,53 @@ def seed_hr(api, admin_token: str, branches: dict, users_by_phone: dict, step=pr
         api.call("PUT", f"/hr/access/grants/{abena['id']}", {"permissions": ["hr.employee.view", "hr.document.view"]}, A)
 
     schedule_summary = seed_scheduling(api, A, branches, people, step)
-    return {"imported": result["created"], "created": len(people), "skipped": result["skipped"], **schedule_summary}
+    attendance_summary = seed_attendance(api, A, branches, people, linked, step)
+    return {"imported": result["created"], "created": len(people), "skipped": result["skipped"], **schedule_summary, **attendance_summary}
+
+
+TEST_CLOCK_PIN = "2580"
+
+
+def seed_attendance(api, A: str, branches: dict, people: dict, linked: dict, step=print) -> dict:
+    """Clock PINs, people clocked in today (manager and POS routes) and a missing record waiting for approval."""
+    import uuid as _uuid
+    from datetime import datetime, timezone
+    osu = branches["OSU"]["id"]
+    step("HR: clock PINs")
+    ids = [p["summary"]["id"] for p in people.values()] + [e["summary"]["id"] for e in linked.values()]
+    for employee_id in ids:
+        api.call("PUT", f"/hr/employees/{employee_id}/clock-pin", {"pin": TEST_CLOCK_PIN}, A, ok=False)
+
+    step("HR: attendance today")
+    clocked = []
+    for name in ("Kwesi Arthur", "Fiifi Mensah", "Gifty Amoah"):
+        res = api.call("POST", "/hr/attendance/clock", {"employeeId": people[name]["summary"]["id"], "branchId": osu, "action": "CLOCK_IN",
+                                                      "idempotencyKey": str(_uuid.uuid4()), "reason": "Seed data"}, A, ok=False)
+        if isinstance(res, dict) and "_error" not in res:
+            clocked.append(name)
+    # one person clocks in through the POS terminal signed in as Kofi (cashier), then takes a break
+    time.sleep(1.1)
+    kofi = api.call("POST", "/auth/login", {"phone": "+233200000003", "password": "Passw0rd!"}, ok=False)
+    if isinstance(kofi, dict) and "accessToken" in kofi:
+        K = kofi["accessToken"]
+        dzifa = people["Dzifa Tetteh"]["summary"]["id"]
+        res = api.call("POST", "/hr/pos/clock", {"employeeId": dzifa, "pin": TEST_CLOCK_PIN, "action": "CLOCK_IN",
+                                                "idempotencyKey": str(_uuid.uuid4()), "terminalId": "till-seed"}, K, ok=False)
+        if isinstance(res, dict) and "_error" not in res:
+            clocked.append("Dzifa Tetteh (POS)")
+            api.call("POST", "/hr/pos/clock", {"employeeId": dzifa, "pin": TEST_CLOCK_PIN, "action": "BREAK_START", "breakType": "MEAL",
+                                              "idempotencyKey": str(_uuid.uuid4()), "terminalId": "till-seed"}, K, ok=False)
+
+    step("HR: correction waiting for approval")
+    yesterday = date.today() - timedelta(days=1)
+    clock_in = datetime(yesterday.year, yesterday.month, yesterday.day, 7, 18, tzinfo=timezone.utc)
+    clock_out = datetime(yesterday.year, yesterday.month, yesterday.day, 15, 4, tzinfo=timezone.utc)
+    correction = api.call("POST", "/hr/attendance/corrections", {"employeeId": people["Kwesi Arthur"]["summary"]["id"], "branchId": osu,
+                                                                 "clockInAt": clock_in.isoformat().replace("+00:00", "Z"),
+                                                                 "clockOutAt": clock_out.isoformat().replace("+00:00", "Z"),
+                                                                 "breakMinutes": 30, "reason": "Tablet was offline at opening"}, A, ok=False)
+    pending = isinstance(correction, dict) and correction.get("status") == "PENDING"
+    return {"clocked_in": clocked, "correction_pending": pending}
 
 
 def seed_scheduling(api, A: str, branches: dict, people: dict, step=print) -> dict:
@@ -312,6 +358,8 @@ def print_hr_summary(summary: dict):
     print("         Contracts due within 30 days: Edem Kpodo, Fiifi Mensah, Kojo Asamoah (probation); draft: Maame Ofori")
     print(f"    Schedule: {summary.get('shifts_this_week', 0)} shifts published this week, {summary.get('shifts_next_week', 0)} drafted for next week (+2 open)")
     print(f"         Swap request: {summary.get('swap')}. Kofi has 'unavailable Sundays'; Gifty unavailable Saturdays")
+    print(f"    Attendance: every employee's POS clock PIN is {TEST_CLOCK_PIN} (test data). Clocked in now: {', '.join(summary.get('clocked_in', [])) or 'nobody'}")
+    print(f"         Missing record for Kwesi Arthur yesterday {'waiting for approval (requested by Ama; approve as Yaw)' if summary.get('correction_pending') else 'not created'}")
 
 
 def main():

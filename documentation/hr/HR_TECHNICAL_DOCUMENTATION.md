@@ -12,6 +12,9 @@ Describes only what is implemented. Sections for later phases are added as each 
   - `hr.document` — private employee document store
   - `hr.schedule` — shift templates, scheduling policies, `ScheduleRules` (pure validation), board/publish
     (`ScheduleService`), availability, shift swaps, notifications (`ScheduleNotifier`)
+  - `hr.attendance` — clock events (`AttendanceService`, `ClockGateway`), POS staff clock (`PosClockService`), clock PINs
+    (`ClockPinService`), breaks, corrections and policies (`AttendanceManagementService`, `AttendancePolicyService`),
+    pure calculations (`AttendanceCalculator`)
   - `hr.branch` — branch assignment history (`BranchAssignmentRecorder` keeps it consistent), secondary/temporary
     assignments, transfers, branch workforce summary
   - `hr.common` — `HrSequenceService` (gap-tolerant sequential numbers), shared helpers
@@ -220,12 +223,94 @@ organisation row → `hr.scheduling.default-*` configuration (480 / 720 / 2880 m
 | `GET /hr/shift-swaps?status`, `POST /hr/shift-swaps/{id}/decision` | `hr.shift.swap.approve` |
 | `GET /hr/me/shifts`, `GET/POST/DELETE /hr/me/availability`, `GET /hr/me/swap-options`, `GET/POST /hr/me/swaps`, `POST /hr/me/swaps/{id}/cancel` | linked employee |
 
+## 5c. Attendance and POS clock-in (Phase 4, `V30__hr_attendance.sql`)
+
+### Data
+
+`time_entries` (the existing time clock) is extended rather than replaced: `employee_id` (staff without a login can clock),
+`source` / `clock_out_source` (`POS`, `SELF_SERVICE`, `MANAGER`, `DEVICE`, `CORRECTION`), `terminal_id`, `unscheduled`,
+`version`; `user_id` became nullable and is kept equal to the employee's login. A partial unique index allows one open entry
+per employee. `break_minutes` keeps meaning *unpaid* break minutes, so the legacy timesheet maths is unchanged.
+
+| Table | Purpose |
+|---|---|
+| `hr_attendance_events` | Append-only log of every clock action as received: unique `idempotency_key`, type, device time, terminal, branch, entry, `ACCEPTED`/`REJECTED` + message, operator |
+| `hr_attendance_breaks` | MEAL / REST / OTHER breaks; `paid` is copied from the policy when the break starts; one open break per entry |
+| `hr_attendance_corrections` | Original and corrected clock-in/out/break, reason, `PENDING` / `APPLIED` / `REJECTED`, requester, decider |
+| `hr_attendance_policies` | Organisation default row (`branch_id NULL`) or branch override: grace periods, early clock-in window, unscheduled `ALLOW`/`BLOCK`, correction approval, paid break types, self-clock, missed clock-out threshold |
+| `hr_employees.clock_pin_*` | BCrypt hash, fail count, lock-until, set-at |
+
+### Clock actions (`AttendanceService`)
+
+1. **Idempotency.** Every action carries a client request key. A known key returns the first outcome (`duplicate: true`), or the
+   original refusal; a key reused for another employee or action is refused. Concurrent duplicates that both pass the check are
+   stopped by the unique constraints and answered by `ClockGateway` with the stored outcome.
+2. **Event time.** A queued device time (`occurredAt`) is accepted if it is at most 12 hours old and at most 2 minutes in the
+   future (clamped to now); actions may not be timed before the entry's last action.
+3. **Clock-in** requires an employable status (not exited/suspended), an assignment at the branch on that date, and no open
+   entry. It links the published shift whose window (start − early clock-in minutes … end) contains the time; without one it is
+   flagged `unscheduled` or refused per policy.
+4. **Breaks** need an open entry; ending a break recomputes unpaid minutes. **Clock-out** ends an open break.
+5. Rejected actions are written to the event log in their own transaction, so the trail survives the rollback.
+
+### Calculations (`AttendanceCalculator`)
+
+| Measure | Rule |
+|---|---|
+| Paid minutes | elapsed − unpaid breaks |
+| Late | clock-in after shift start + late grace → minutes since shift start |
+| Early leave | clock-out before shift end − early grace → minutes before shift end |
+| Overtime (provisional) | paid − scheduled paid (shift length − shift break), only once clocked out; approval comes with timesheets |
+| Missed clock-out | still open after shift end + policy minutes, or 16 h after clock-in when unscheduled |
+| Day board statuses | `ON_SHIFT`, `ON_BREAK`, `COMPLETED`, `LEFT_EARLY`, `MISSED_CLOCK_OUT`, `UNSCHEDULED`, `ABSENT` (published shift started, no entry), `NOT_STARTED` |
+
+### POS integration and permission separation
+
+- The POS terminal is the staff account signed in to the till (ADMIN, MANAGER or CASHIER); its branch is the terminal branch
+  (admins without a branch must name one). Riders cannot use it.
+- Employees pick their name from the roster (first name + last initial; active staff assigned today plus anyone still clocked
+  in) and enter their own clock PIN. One BCrypt check per attempt — PINs are never scanned or looked up by value.
+- Wrong PINs are counted in a separate transaction; after `hr.attendance.pin-max-attempts` (5) the PIN locks for
+  `pin-lockout-minutes` (15). `/hr/pos/clock` and `/hr/pos/me` have their own rate-limit bucket (`hrclock`, 60/min).
+- A successful clock returns only the attendance record and a message: no token, no role, no change to the signed-in account,
+  its permissions or order attribution. The panel is a separate component and separate requests, so attendance failures cannot
+  block orders or payments.
+- The web POS has no offline mode, so attendance is not queued offline; network failures are retried with the same request key
+  (safe because of idempotency). The PIN is held in memory only for the attempt and never written to storage.
+
+### Corrections
+
+Managers with `hr.attendance.correct` correct an entry or add a missing one (both times required). With
+`require_correction_approval` (default) the correction waits for a different person with the same permission; otherwise it is
+applied at once. Nobody may correct or decide on their own attendance, nor approve their own request. Applying copies the
+corrected values onto the entry (overlap with other entries refused, open breaks closed) while the correction row keeps the
+originals. The legacy `/timeclock/entries/{id}` editor now also records an applied correction.
+
+### Legacy compatibility
+
+`/timeclock/*` keeps its contract. Its clock-in also refuses when the linked employee already has an open HR entry and respects
+`allow_self_clock`; its timesheet ignores entries without a login. Linking a login attaches its earlier time entries to the employee.
+
+### Endpoints
+
+| Method & path | Permission |
+|---|---|
+| `GET /hr/pos/roster`, `POST /hr/pos/clock`, `POST /hr/pos/me` | POS operator role + employee PIN |
+| `GET /hr/attendance/day?branchId&date`, `GET /hr/attendance/entries?branchId&from&to[&employeeId]` | `hr.attendance.view` + branch |
+| `POST /hr/attendance/clock` | `hr.attendance.manage` + branch |
+| `GET/POST /hr/attendance/corrections`, `POST /hr/attendance/corrections/{id}/decision` | `hr.attendance.correct` (list also `view`) |
+| `GET/PUT /hr/attendance-policy` | `hr.attendance.view` / `hr.settings.manage` (organisation default: central only) |
+| `GET/PUT/DELETE /hr/employees/{id}/clock-pin` | `hr.attendance.manage` (status also `view`), manageable scope |
+| `GET /hr/me/attendance/status`, `GET /hr/me/attendance`, `POST /hr/me/clock`, `GET/PUT /hr/me/clock-pin` | linked employee |
+
 ## 6. Audit
 
 HR events use the shared `audit_logs` table with `AuditAction.HR_*` values (Phase 2 adds `HR_EMPLOYEE_TRANSFERRED`,
 `HR_BRANCH_ASSIGNMENT_CHANGED`, `HR_BRANCH_ACCESS_CHANGED`; Phase 3 adds `HR_SCHEDULE_CHANGED` and
 `HR_SCHEDULE_PUBLISHED` (entity types `Schedule` / `Branch`), `HR_SHIFT_SWAP_REQUESTED`, `HR_SHIFT_SWAP_DECIDED`,
-`HR_AVAILABILITY_CHANGED`, `HR_SETTINGS_CHANGED`). Metadata never contains salary figures, PINs or
+`HR_AVAILABILITY_CHANGED`, `HR_SETTINGS_CHANGED`; Phase 4 adds `HR_ATTENDANCE_RECORDED` (manager on behalf),
+`HR_ATTENDANCE_CORRECTION`, `HR_CLOCK_PIN_CHANGED` — PIN values never appear). Individual clock actions are audited in
+`hr_attendance_events` rather than the shared log. Metadata never contains salary figures, PINs or
 document contents; salary changes are recorded as "changed" without amounts.
 
 ## 7. Web application (Phase 1)
@@ -239,7 +324,11 @@ document contents; salary changes are recorded as "changed" without amounts.
 | `/hr/me` | Self-service read-only profile | account linked to an employee |
 | `/hr/branches` | Branch workforce headcount | `hr.branch.view` or `hr.employee.view` |
 | `/hr/schedule` | Week board (drag to move, coverage, hours, publish), day list, month overview; swap approvals, templates, limits tabs | `hr.schedule.view` |
-| `/hr/my-schedule` | Own published shifts, swap requests, availability | linked employee |
+| `/hr/my-schedule` | Own time clock and PIN, recent attendance, published shifts, swap requests, availability | linked employee |
+| `/hr/attendance` | Day board (status, shift vs actual, late/early/overtime, breaks, source), clock on behalf, corrections, rules | `hr.attendance.view` |
+| `/pos` → **Staff clock** | Roster, PIN pad, clock in/out and breaks, own shifts | POS operator |
+
+The employee profile shows a **POS clock PIN** card (set/reset/remove) for `hr.attendance.manage`.
 
 The profile has a **Branches** tab (history, transfer, add/end assignment). Employees visible only through an assignment
 open read-only with only the Overview and Branches tabs. The HR Access drawer also sets extra branches per account.
@@ -260,6 +349,9 @@ open read-only with only the Overview and Branches tabs. The HR Access drawer al
 | `ScheduleRulesTest` (8) | Every validation rule incl. overnight shifts, breaks in weekly hours, availability windows |
 | `HrSchedulingIntegrationTest` (12) | Draft/publish visibility incl. legacy APIs, blocking vs acknowledged warnings, templates and coverage, branch scope, cancel/delete, all-or-nothing publish, availability, swaps (exchange, refusal, party cannot approve), policy override, legacy rota compatibility, login linking |
 | `web/src/features/hr/schedule/schedule.test.tsx` (5) | Overnight time maths, weekly totals, issue grouping |
+| `AttendanceUnitTest` (8) | Paid time, late/early grace, overtime, missed clock-out, break pay, shift window, PIN rules, event-time limits |
+| `HrAttendanceIntegrationTest` (11) | POS full shift and account separation, idempotency, PIN lockout persistence, branch rules, unscheduled policy, day board, corrections (originals kept, second person, own record), missing record without approval, self/legacy/POS sharing one open record, manager clock and PIN management, legacy edit history |
+| `web/src/features/hr/attendance/attendance.test.tsx` (6) | Staff clock flow, state-based actions, retry with the same key on network failure, no retry on refusal |
 | `HrPostgresFlywayIntegrationTest` | Same flows on the Flyway schema (tag `postgres`, run with `-Ppostgres-it`) |
 | `web/src/features/hr/hr.test.tsx` (9) | Permission-filtered navigation, employee form validation and payload |
 
@@ -272,5 +364,9 @@ open read-only with only the Overview and Branches tabs. The HR Access drawer al
 - `HR_DEFAULT_MIN_REST_MINUTES`, `HR_DEFAULT_MAX_SHIFT_MINUTES`, `HR_DEFAULT_MAX_WEEKLY_MINUTES` set scheduling fallbacks
   until an organisation policy is saved.
 - Shift times are entered in the browser's local time; staff devices should use the restaurant's time zone (`app.timezone`).
+- `HR_DEFAULT_*` attendance fallbacks (grace, early clock-in, unscheduled, approval, paid breaks, self clock, missed
+  clock-out), `HR_CLOCK_PIN_MAX_ATTEMPTS`, `HR_CLOCK_PIN_LOCKOUT_MINUTES`, `RATE_LIMIT_HR_CLOCK_REQUESTS/WINDOW_SECONDS`.
+- Behind the web proxy every POS request reaches the backend from the proxy's address, so the `hrclock` rate-limit bucket is
+  shared by all terminals of one web server; size it for shift changes.
 - `HR_CONTRACT_EXPIRY_CRON` (default `0 15 1 * * *`, in `app.timezone`) schedules the contract expiry job.
 - Running `-Ppostgres-it` against Docker Engine 29+ needs `DOCKER_API_VERSION=1.44` (older docker-java default is rejected).
