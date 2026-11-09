@@ -462,3 +462,72 @@ export const selfClock = (s: StaffSession, body: { action: ClockAction; breakTyp
 export const getMyClockPin = (s: StaffSession) => apiRequest<PinStatus>("/hr/me/clock-pin", auth(s));
 export const setMyClockPin = (s: StaffSession, body: { currentPin?: string; newPin: string }) =>
   apiRequest<PinStatus>("/hr/me/clock-pin", { ...auth(s), method: "PUT", body });
+
+// ---------------------------------------------------------------------------
+// Timesheets & overtime (Phase 5)
+// ---------------------------------------------------------------------------
+
+export type TimesheetStatus = "DRAFT" | "SUBMITTED" | "REVIEWED" | "APPROVED" | "LOCKED";
+export type TimesheetSummary = {
+  id: string; employeeId: string; employeeName?: string | null; branchId?: string | null; periodStart: string; periodEnd: string;
+  status: TimesheetStatus; scheduledMinutes: number; paidMinutes: number; regularMinutes: number; overtimeComputedMinutes: number;
+  overtimeApprovedMinutes?: number | null; payableOvertimeMinutes: number; overtimeRequiresApproval: boolean;
+  holidayMinutes: number; weekendMinutes: number; nightMinutes: number; lateCount: number; absenceCount: number; version: number;
+};
+export type TimesheetLine = {
+  id: string; workDate: string; branchId?: string | null; timeEntryId?: string | null; scheduleId?: string | null;
+  shiftStart?: string | null; shiftEnd?: string | null; clockIn?: string | null; clockOut?: string | null;
+  scheduledMinutes: number; workedMinutes: number; unpaidBreakMinutes: number; paidMinutes: number;
+  lateMinutes: number; earlyLeaveMinutes: number; flags: string[];
+};
+export type TimesheetDetail = {
+  summary: TimesheetSummary; workedMinutes: number; unpaidBreakMinutes: number; dailyOvertimeMinutes: number; weeklyOvertimeMinutes: number;
+  preApprovedOvertimeMinutes: number; notes?: string | null; ruleSnapshot?: string | null; generatedAt: string; submittedAt?: string | null;
+  reviewedAt?: string | null; approvedAt?: string | null; lockedAt?: string | null; lines: TimesheetLine[]; dailyPaidMinutes: Record<string, number>;
+};
+export type OvertimeRule = {
+  id?: string | null; branchId?: string | null; effectiveFrom?: string | null; dailyThresholdMinutes?: number | null;
+  weeklyThresholdMinutes?: number | null; dailyMultiplier: number; weeklyMultiplier: number; weekendDays: string[];
+  weekendMultiplier?: number | null; holidayMultiplier?: number | null; nightStart?: string | null; nightEnd?: string | null;
+  nightMultiplier?: number | null; requiresApproval: boolean; note?: string | null; createdAt?: string | null;
+};
+export type OvertimeRuleInput = {
+  branchId?: string | null; effectiveFrom: string; dailyThresholdMinutes?: number | null; weeklyThresholdMinutes?: number | null;
+  dailyMultiplier: string; weeklyMultiplier: string; weekendDays?: string; weekendMultiplier?: string | null; holidayMultiplier?: string | null;
+  nightStart?: string | null; nightEnd?: string | null; nightMultiplier?: string | null; requiresApproval: boolean; note?: string;
+};
+export type PublicHoliday = { id: string; date: string; name: string; branchId?: string | null };
+export type OvertimeRequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+export type OvertimeRequest = {
+  id: string; employeeId: string; employeeName?: string | null; branchId?: string | null; workDate: string; minutes: number;
+  reason: string; status: OvertimeRequestStatus; decisionNote?: string | null; decidedAt?: string | null; createdAt: string;
+};
+
+export const getTimesheets = (s: StaffSession, branchId: string, from: string, to: string, status?: TimesheetStatus) =>
+  apiRequest<TimesheetSummary[]>(`/hr/timesheets${query({ branchId, from, to, status })}`, auth(s));
+export const generateTimesheets = (s: StaffSession, body: { branchId: string; from: string; to: string }) =>
+  apiRequest<{ created: number; refreshed: number; skipped: { employeeId: string; employeeName: string; reason: string }[] }>(
+    "/hr/timesheets/generate", { ...auth(s), method: "POST", body });
+export const getTimesheet = (s: StaffSession, id: string) => apiRequest<TimesheetDetail>(`/hr/timesheets/${id}`, auth(s));
+export const timesheetAction = (
+  s: StaffSession,
+  id: string,
+  action: "refresh" | "submit" | "review" | "approve" | "reopen" | "lock",
+  body: Record<string, unknown> = {},
+) => apiRequest<TimesheetDetail>(`/hr/timesheets/${id}/${action}`, { ...auth(s), method: "POST", body });
+export const getMyTimesheets = (s: StaffSession) => apiRequest<TimesheetSummary[]>("/hr/me/timesheets", auth(s));
+
+export const getOvertimeRules = (s: StaffSession, branchId?: string) =>
+  apiRequest<OvertimeRule[]>(`/hr/overtime-rules${query({ branchId })}`, auth(s));
+export const addOvertimeRule = (s: StaffSession, body: OvertimeRuleInput) =>
+  apiRequest<OvertimeRule>("/hr/overtime-rules", { ...auth(s), method: "POST", body });
+export const getHolidays = (s: StaffSession, year: number) => apiRequest<PublicHoliday[]>(`/hr/holidays${query({ year })}`, auth(s));
+export const addHoliday = (s: StaffSession, body: { date: string; name: string; branchId?: string | null }) =>
+  apiRequest<PublicHoliday>("/hr/holidays", { ...auth(s), method: "POST", body });
+export const deleteHoliday = (s: StaffSession, id: string) => apiRequest<void>(`/hr/holidays/${id}`, { ...auth(s), method: "DELETE" });
+export const getOvertimeRequests = (s: StaffSession, status?: OvertimeRequestStatus) =>
+  apiRequest<OvertimeRequest[]>(`/hr/overtime-requests${query({ status })}`, auth(s));
+export const requestOvertime = (s: StaffSession, body: { employeeId: string; branchId?: string; workDate: string; minutes: number; reason: string }) =>
+  apiRequest<OvertimeRequest>("/hr/overtime-requests", { ...auth(s), method: "POST", body });
+export const decideOvertime = (s: StaffSession, id: string, body: { approve: boolean; note?: string }) =>
+  apiRequest<OvertimeRequest>(`/hr/overtime-requests/${id}/decision`, { ...auth(s), method: "POST", body });

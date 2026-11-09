@@ -30,7 +30,8 @@ async function typePin(digits: string) {
   for (const d of digits) await userEvent.click(screen.getByRole("button", { name: d }));
 }
 
-describe("POS staff clock", () => {
+// These tests drive the on-screen keypad click by click, which can exceed the default 5 s on a busy machine.
+describe("POS staff clock", { timeout: 20000 }, () => {
   beforeEach(() => {
     api.getPosRoster.mockReset().mockResolvedValue(roster);
     api.posClock.mockReset();

@@ -10,6 +10,7 @@ import { useHrAccess } from "@/features/hr/HrAccessContext";
 import { HrGuard, Field, errorMessage, formatDate } from "@/features/hr/ui";
 import { IssuesList } from "@/features/hr/schedule/ShiftDialog";
 import { MyTimeClock } from "@/features/hr/attendance/MyTimeClock";
+import { MyTimesheets } from "@/features/hr/timesheets/MyTimesheets";
 import { DAY_CODES, shiftLabel, trimTime } from "@/features/hr/schedule/scheduleUtils";
 import { addDays, formatMinutes, isoDate } from "@/features/workforce/time";
 import {
@@ -98,6 +99,8 @@ function MySchedule() {
       {error ? <ErrorState message={error} onRetry={load} /> : null}
 
       <MyTimeClock />
+
+      <MyTimesheets />
 
       <section className="panel grid gap-3">
         <SectionHeader title="Upcoming shifts" description={shifts ? `${shifts.length} shift${shifts.length === 1 ? "" : "s"} · ${formatMinutes(totalMinutes)} paid` : undefined} />

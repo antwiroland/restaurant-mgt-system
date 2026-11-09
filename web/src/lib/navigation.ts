@@ -69,6 +69,7 @@ export const navGroups: NavGroup[] = [
       { label: "Employees", href: "/hr/employees", icon: "users", roles: STAFF, hr: ["hr.employee.view"], description: "Employee directory" },
       { label: "Shift Schedule", href: "/hr/schedule", icon: "calendar", roles: STAFF, hr: ["hr.schedule.view"], description: "Build and publish rotas" },
       { label: "Attendance", href: "/hr/attendance", icon: "clock", roles: STAFF, hr: ["hr.attendance.view"], description: "Clock-ins, lateness, corrections" },
+      { label: "Timesheets", href: "/hr/timesheets", icon: "note", roles: STAFF, hr: ["hr.timesheet.review", "hr.payroll.view", "hr.payroll.process"], description: "Review, approve, lock" },
       { label: "Branch Workforce", href: "/hr/branches", icon: "store", roles: STAFF, hr: ["hr.branch.view", "hr.employee.view"], description: "Headcount by branch" },
       { label: "Departments & Positions", href: "/hr/organisation", icon: "clipboard", roles: STAFF, hr: ["hr.employee.view", "hr.department.manage", "hr.position.manage"] },
       { label: "HR Access", href: "/hr/access", icon: "shield", roles: ["ADMIN"], description: "Grant HR permissions" },
