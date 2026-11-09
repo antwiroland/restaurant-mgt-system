@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/Skeleton";
 import { ErrorState, humanize } from "@/components/ui";
 import { useStaffSession } from "@/components/SessionProvider";
 import { BranchesPanel } from "@/features/hr/BranchesPanel";
+import { ClockPinCard } from "@/features/hr/attendance/AttendancePanels";
 import { ContractsPanel } from "@/features/hr/ContractsPanel";
 import { DocumentsPanel } from "@/features/hr/DocumentsPanel";
 import { EmployeeForm } from "@/features/hr/EmployeeForm";
@@ -196,6 +197,9 @@ function EmployeeProfile() {
       </div>
 
       <div className="panel">
+        {tab === "overview" && employee.manageable && can("hr.attendance.view", "hr.attendance.manage") ? (
+          <div className="mb-8"><ClockPinCard employeeId={id} /></div>
+        ) : null}
         {tab === "overview" ? (
           <EmployeeOverview
             employee={employee}

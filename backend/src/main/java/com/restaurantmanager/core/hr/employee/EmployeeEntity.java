@@ -107,6 +107,19 @@ public class EmployeeEntity {
     @Column(name = "created_by")
     private UUID createdBy;
 
+    /** BCrypt hash of the employee's clock PIN (POS clock-in only; grants no other access). Never exposed. */
+    @Column(name = "clock_pin_hash")
+    private String clockPinHash;
+
+    @Column(name = "clock_pin_fail_count", nullable = false)
+    private short clockPinFailCount;
+
+    @Column(name = "clock_pin_locked_until")
+    private Instant clockPinLockedUntil;
+
+    @Column(name = "clock_pin_set_at")
+    private Instant clockPinSetAt;
+
     @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sortOrder ASC")
     private List<EmergencyContactEntity> emergencyContacts = new ArrayList<>();
@@ -190,6 +203,14 @@ public class EmployeeEntity {
     public UUID getCreatedBy() { return createdBy; }
     public void setCreatedBy(UUID createdBy) { this.createdBy = createdBy; }
     public List<EmergencyContactEntity> getEmergencyContacts() { return emergencyContacts; }
+    public String getClockPinHash() { return clockPinHash; }
+    public void setClockPinHash(String clockPinHash) { this.clockPinHash = clockPinHash; }
+    public short getClockPinFailCount() { return clockPinFailCount; }
+    public void setClockPinFailCount(short clockPinFailCount) { this.clockPinFailCount = clockPinFailCount; }
+    public Instant getClockPinLockedUntil() { return clockPinLockedUntil; }
+    public void setClockPinLockedUntil(Instant clockPinLockedUntil) { this.clockPinLockedUntil = clockPinLockedUntil; }
+    public Instant getClockPinSetAt() { return clockPinSetAt; }
+    public void setClockPinSetAt(Instant clockPinSetAt) { this.clockPinSetAt = clockPinSetAt; }
     public long getVersion() { return version; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

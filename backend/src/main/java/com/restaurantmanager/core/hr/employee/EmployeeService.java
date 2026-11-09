@@ -73,6 +73,7 @@ public class EmployeeService {
     private final BranchAssignmentRecorder assignmentRecorder;
     private final BranchAssignmentRepository assignmentRepository;
     private final com.restaurantmanager.core.workforce.WorkScheduleRepository scheduleRepository;
+    private final com.restaurantmanager.core.workforce.TimeEntryRepository timeEntryRepository;
     private final ZoneId zone;
 
     public EmployeeService(EmployeeRepository employeeRepository, DepartmentRepository departmentRepository,
@@ -81,6 +82,7 @@ public class EmployeeService {
                            HrAuditService audit, BranchAssignmentRecorder assignmentRecorder,
                            BranchAssignmentRepository assignmentRepository,
                            com.restaurantmanager.core.workforce.WorkScheduleRepository scheduleRepository,
+                           com.restaurantmanager.core.workforce.TimeEntryRepository timeEntryRepository,
                            @Value("${app.timezone:Africa/Accra}") String timeZone) {
         this.employeeRepository = employeeRepository;
         this.departmentRepository = departmentRepository;
@@ -94,6 +96,7 @@ public class EmployeeService {
         this.assignmentRecorder = assignmentRecorder;
         this.assignmentRepository = assignmentRepository;
         this.scheduleRepository = scheduleRepository;
+        this.timeEntryRepository = timeEntryRepository;
         this.zone = ZoneId.of(timeZone);
     }
 
@@ -208,7 +211,7 @@ public class EmployeeService {
         employee.setCreatedBy(access.userId());
         EmployeeEntity saved = employeeRepository.saveAndFlush(employee);
         if (saved.getUserId() != null) {
-            scheduleRepository.attachEmployee(saved.getUserId(), saved.getId());
+            attachLoginHistory(saved.getUserId(), saved.getId());
         }
         assignmentRecorder.openPrimary(saved.getId(), saved.primaryBranchId(), positionId(saved), saved.getHireDate(), "Hired", access.userId());
         audit.log(access.userId(), AuditAction.HR_EMPLOYEE_CREATED, "Employee", saved.getId(),
@@ -332,7 +335,7 @@ public class EmployeeService {
         }
         UserEntity user = validateLinkableUser(userId, id, access);
         employee.setUserId(user.getId());
-        scheduleRepository.attachEmployee(user.getId(), employee.getId());
+        attachLoginHistory(user.getId(), employee.getId());
         audit.log(access.userId(), AuditAction.HR_EMPLOYEE_USER_LINKED, "Employee", id, Map.of("userId", user.getId().toString()));
         return toDetail(employeeRepository.saveAndFlush(employee), true);
     }
@@ -390,7 +393,7 @@ public class EmployeeService {
             employee.setHireDate(request.hireDate());
             employee.setCreatedBy(access.userId());
             EmployeeEntity saved = employeeRepository.saveAndFlush(employee);
-            scheduleRepository.attachEmployee(user.getId(), saved.getId());
+            attachLoginHistory(user.getId(), saved.getId());
             assignmentRecorder.openPrimary(saved.getId(), saved.primaryBranchId(), null, saved.getHireDate(), "Imported from staff account", access.userId());
             audit.log(access.userId(), AuditAction.HR_EMPLOYEE_CREATED, "Employee", saved.getId(),
                     Map.of("employeeNumber", saved.getEmployeeNumber(), "source", "user-import", "userId", user.getId().toString()));
@@ -648,6 +651,12 @@ public class EmployeeService {
                 e.getPosition() == null ? null : e.getPosition().getId(), e.getPosition() == null ? null : e.getPosition().getTitle(),
                 e.getEmploymentType(), e.getEmploymentStatus(), e.getHireDate(), e.primaryBranchId(),
                 e.getPrimaryBranch() == null ? null : e.getPrimaryBranch().getName(), e.getUserId() != null);
+    }
+
+    /** Rota entries and time-clock records made under a login before it was linked now belong to the employee too. */
+    private void attachLoginHistory(UUID userId, UUID employeeId) {
+        scheduleRepository.attachEmployee(userId, employeeId);
+        timeEntryRepository.attachEmployee(userId, employeeId);
     }
 
     private static UUID positionId(EmployeeEntity e) {
