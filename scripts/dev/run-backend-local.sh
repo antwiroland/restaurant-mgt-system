@@ -38,6 +38,7 @@ export MANAGEMENT_TRACING_ENABLED=false
 export MANAGEMENT_TRACING_SAMPLING_PROBABILITY=0
 export PUBLIC_WEB_URL="${PUBLIC_WEB_URL:-http://localhost:3000}"
 export MEDIA_LOCAL_DIR="${MEDIA_LOCAL_DIR:-$BACKEND/target/dev-uploads}"
+export HR_DOCUMENTS_DIR="${HR_DOCUMENTS_DIR:-$BACKEND/target/dev-hr-documents}"
 export CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:19006}"
 export WEBSOCKET_ALLOWED_ORIGIN_PATTERNS="${WEBSOCKET_ALLOWED_ORIGIN_PATTERNS:-http://localhost:3000,http://localhost:19006}"
 
