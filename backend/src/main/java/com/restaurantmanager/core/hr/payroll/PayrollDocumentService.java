@@ -136,6 +136,19 @@ public class PayrollDocumentService {
     }
 
     private PayoutDetails applyPayout(UserPrincipal principal, EmployeeEntity e, PayoutRequest r, boolean selfService) {
+        copyPayout(e, r);
+        employeeRepository.save(e);
+        // Never the numbers themselves in the audit trail.
+        audit.log(principal.userId(), AuditAction.HR_PAYOUT_DETAILS_CHANGED, "HR_EMPLOYEE", e.getId(),
+                Map.of("method", r.method().name(), "selfService", selfService));
+        return view(e, false);
+    }
+
+    /**
+     * Checks a payout request and copies it onto the employee (not saved). Shared by the Payout tab, self-service and
+     * adding an employee, so the rules are the same everywhere.
+     */
+    public static void copyPayout(EmployeeEntity e, PayoutRequest r) {
         if (r == null || r.method() == null) {
             throw new ApiException(400, "Choose how this person is paid");
         }
@@ -148,19 +161,17 @@ public class PayrollDocumentService {
         if (r.method() == PaymentMethod.MOBILE_MONEY && (blank(r.momoNetwork()) || blank(r.momoNumber()))) {
             throw new ApiException(400, "Mobile Money payments need the network and number");
         }
+        boolean bank = r.method() == PaymentMethod.BANK;
+        boolean momo = r.method() == PaymentMethod.MOBILE_MONEY;
+        // Keep only the fields for the chosen method, so stale bank details don't linger after a switch to Mobile Money.
         e.setPayoutMethod(r.method());
-        e.setBankName(trim(r.bankName()));
-        e.setBankBranch(trim(r.bankBranch()));
-        e.setBankAccountName(trim(r.bankAccountName()));
-        e.setBankAccountNumber(trim(r.bankAccountNumber()));
-        e.setMomoNetwork(trim(r.momoNetwork()));
-        e.setMomoNumber(r.momoNumber() == null || r.momoNumber().isBlank() ? null : digits(r.momoNumber()));
+        e.setBankName(bank ? trim(r.bankName()) : null);
+        e.setBankBranch(bank ? trim(r.bankBranch()) : null);
+        e.setBankAccountName(bank ? trim(r.bankAccountName()) : null);
+        e.setBankAccountNumber(bank ? trim(r.bankAccountNumber()) : null);
+        e.setMomoNetwork(momo ? trim(r.momoNetwork()) : null);
+        e.setMomoNumber(momo ? digits(r.momoNumber()) : null);
         e.setPayoutUpdatedAt(Instant.now());
-        employeeRepository.save(e);
-        // Never the numbers themselves in the audit trail.
-        audit.log(principal.userId(), AuditAction.HR_PAYOUT_DETAILS_CHANGED, "HR_EMPLOYEE", e.getId(),
-                Map.of("method", r.method().name(), "selfService", selfService));
-        return view(e, false);
     }
 
     // ================================================================ payment files

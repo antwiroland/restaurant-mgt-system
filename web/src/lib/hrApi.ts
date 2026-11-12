@@ -88,6 +88,8 @@ export type EmployeeInput = {
   departmentId?: string | null; positionId?: string | null; employmentType: EmploymentType; hireDate: string;
   reportingManagerId?: string | null; primaryBranchId?: string | null;
   qualifications?: string; experience?: string; emergencyContacts: EmergencyContact[]; version?: number;
+  /** Only when adding an employee: how they are paid, saved as their payout details. */
+  payout?: PayoutRequest;
 };
 
 export type EmployeeFilters = {

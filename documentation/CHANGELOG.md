@@ -647,3 +647,14 @@ Dine-in stays pay-at-the-end; guests are never prompted. Staff are told when to 
 
 ### Verified
 - Backend 438 tests, web 107, mobile 48. Live on Docker PostgreSQL: subscription rules per role, a rendered payslip PDF, V39.
+
+---
+
+## [Payout details when adding an employee] - 2026-11-12
+
+### Added
+- The add-employee form has an optional "How they're paid" section (bank transfer, Mobile Money or cash, with a shortcut to
+  use their phone as the Mobile Money number). Details given there become the employee's payout details, shown on the
+  Payout tab and used in payroll payment files. Same validation as the Payout tab; a half-filled method refuses the whole
+  request, so no employee is added with incomplete details. Audited like other payout changes.
+- `POST /hr/employees` accepts an optional `payout` object. Switching payout method clears the other method's details.
