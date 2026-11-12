@@ -180,6 +180,23 @@ export type HrDashboard = {
   }[];
   payVisible: boolean;
 };
+// ---------------------------------------------------------------- reports
+
+export type HrReportType = "EMPLOYEES" | "MOVEMENT" | "LEAVE" | "HOURS" | "PAYROLL";
+export type HrReportInfo = { type: HrReportType; title: string; description: string; periodic: boolean };
+export type HrReportQuery = { from?: string; to?: string; branchId?: string; includeExited?: boolean };
+export type HrReport = {
+  type: HrReportType; title: string; from?: string | null; to?: string | null; branchId?: string | null; branchName?: string | null;
+  columns: { key: string; label: string }[];
+  rows: Record<string, string | number | null>[];
+};
+const reportQuery = (q: HrReportQuery) => query({ from: q.from, to: q.to, branchId: q.branchId, includeExited: q.includeExited || undefined });
+export const getHrReports = (s: StaffSession) => apiRequest<HrReportInfo[]>("/hr/reports", auth(s));
+export const runHrReport = (s: StaffSession, type: HrReportType, q: HrReportQuery) =>
+  apiRequest<HrReport>(`/hr/reports/${type}${reportQuery(q)}`, auth(s));
+export const downloadHrReport = (s: StaffSession, type: HrReportType, q: HrReportQuery): Promise<DownloadedFile> =>
+  downloadFile(s, `/hr/reports/${type}/csv${reportQuery(q)}`, `hr-${type.toLowerCase()}.csv`);
+
 export const getHrDashboard = (s: StaffSession, branchId?: string) => apiRequest<HrDashboard>(`/hr/dashboard${query({ branchId })}`, auth(s));
 
 export const getDepartments = (s: StaffSession, includeArchived = false) =>

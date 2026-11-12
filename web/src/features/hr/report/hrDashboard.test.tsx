@@ -11,10 +11,14 @@ vi.mock("@/components/SessionProvider", () => ({
 vi.mock("@/features/hr/HrAccessContext", () => ({
   useHrAccess: () => ({ access: { allBranches: true, branchIds: [] }, loading: false, can: () => can.value }),
 }));
-const api = vi.hoisted(() => ({ getHrDashboard: vi.fn(), updateMyProfile: vi.fn(), getMyContracts: vi.fn(), getMyDocuments: vi.fn() }));
+const api = vi.hoisted(() => ({ getHrDashboard: vi.fn(), updateMyProfile: vi.fn(), getMyContracts: vi.fn(), getMyDocuments: vi.fn(),
+  getHrReports: vi.fn(), runHrReport: vi.fn(), downloadHrReport: vi.fn() }));
 vi.mock("@/lib/hrApi", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/hrApi")>()), ...api }));
+const client = vi.hoisted(() => ({ getBranches: vi.fn(), saveDownloadedFile: vi.fn() }));
+vi.mock("@/lib/apiClient", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/apiClient")>()), ...client }));
 
 import HrDashboardPage from "@/app/(staff)/hr/page";
+import HrReportsPage from "@/app/(staff)/hr/reports/page";
 import { routeByRole } from "@/features/auth/auth";
 import { MyContactDetails } from "@/features/hr/MySelfService";
 import { canAccessPath, navForRole } from "@/lib/navigation";
@@ -117,5 +121,42 @@ describe("Self-service contact details", () => {
       emergencyContacts: [{ name: "Ama", relationship: "Sister", phone: "+233201111111", email: null }], version: 3,
     });
     expect(onSaved).toHaveBeenCalled();
+  });
+});
+
+describe("HR reports", () => {
+  beforeEach(() => {
+    can.value = true;
+    client.getBranches.mockResolvedValue([{ id: "b1", code: "OSU", name: "Osu" }, { id: "b2", code: "ELG", name: "East Legon" }]);
+    api.getHrReports.mockResolvedValue([
+      { type: "EMPLOYEES", title: "Employee register", description: "Everyone", periodic: false },
+      { type: "LEAVE", title: "Leave", description: "Leave requests", periodic: true },
+    ]);
+  });
+
+  test("givenAvailableReports_whenLeaveRunForABranch_thenTableShowsWordsAndCsvUsesSameFilters", async () => {
+    api.runHrReport.mockResolvedValue({
+      type: "LEAVE", title: "Leave", from: "2026-11-01", to: "2026-11-12", branchId: "b2", branchName: "East Legon",
+      columns: [{ key: "name", label: "Name" }, { key: "status", label: "Status" }, { key: "days", label: "Days" }],
+      rows: [{ name: "Adjoa Badu", status: "PENDING", days: 1 }],
+    });
+    api.downloadHrReport.mockResolvedValue({ blob: new Blob(["x"]), filename: "hr-leave.csv" });
+    render(<HrReportsPage />);
+    expect(await screen.findByRole("radio", { name: /Employee register/ })).toBeChecked();
+    expect(screen.queryByRole("radio", { name: /Payroll/ })).not.toBeInTheDocument(); // only what the server offers
+    expect(screen.queryByLabelText("From")).not.toBeInTheDocument(); // the register has no period
+
+    await userEvent.click(screen.getByRole("radio", { name: /Leave/ }));
+    expect(screen.getByLabelText("From")).toBeInTheDocument();
+    await userEvent.selectOptions(await screen.findByLabelText("Branch"), "b2");
+    await userEvent.click(screen.getByRole("button", { name: "View report" }));
+    expect(api.runHrReport).toHaveBeenLastCalledWith(expect.anything(), "LEAVE", expect.objectContaining({ branchId: "b2", from: expect.any(String) }));
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("Adjoa Badu")).toBeInTheDocument();
+    expect(within(table).getByText("Pending")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Download CSV/ }));
+    expect(api.downloadHrReport).toHaveBeenLastCalledWith(expect.anything(), "LEAVE", expect.objectContaining({ branchId: "b2" }));
+    expect(client.saveDownloadedFile).toHaveBeenCalled();
   });
 });
