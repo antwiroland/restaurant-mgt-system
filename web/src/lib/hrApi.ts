@@ -751,3 +751,116 @@ export const getTipPool = (s: StaffSession, id: string) => apiRequest<TipPoolDet
 export const tipPoolAction = (s: StaffSession, id: string, action: "calculate" | "approve" | "reopen" | "cancel", body: Record<string, unknown> = {}) =>
   apiRequest<TipPoolDetail>(`/hr/tip-pools/${id}/${action}`, { ...auth(s), method: "POST", body });
 export const getMyTips = (s: StaffSession) => apiRequest<MyTipShare[]>("/hr/me/tips", auth(s));
+
+// ---------------------------------------------------------------------------
+// Recruitment (Phase 8)
+// ---------------------------------------------------------------------------
+
+export type VacancyStatus = "DRAFT" | "OPEN" | "ON_HOLD" | "FILLED" | "CLOSED" | "CANCELLED";
+export type CandidateSource = "WALK_IN" | "REFERRAL" | "JOB_BOARD" | "SOCIAL_MEDIA" | "AGENCY" | "OTHER";
+export type ApplicationStage = "APPLIED" | "SCREENING" | "INTERVIEW" | "TRIAL_SHIFT" | "OFFER" | "HIRED" | "REJECTED" | "WITHDRAWN";
+export type OfferStatus = "SENT" | "ACCEPTED" | "DECLINED";
+export type InterviewKind = "PHONE" | "IN_PERSON" | "VIDEO" | "TRIAL_SHIFT";
+export type InterviewOutcome = "SCHEDULED" | "PASSED" | "FAILED" | "NO_SHOW" | "CANCELLED";
+export const PIPELINE: ApplicationStage[] = ["APPLIED", "SCREENING", "INTERVIEW", "TRIAL_SHIFT", "OFFER"];
+export const CANDIDATE_SOURCES: CandidateSource[] = ["WALK_IN", "REFERRAL", "JOB_BOARD", "SOCIAL_MEDIA", "AGENCY", "OTHER"];
+
+export type VacancyInput = {
+  branchId: string; positionId?: string | null; title: string; description?: string; requirements?: string; employmentType: EmploymentType;
+  openings: number; salaryMin?: number | null; salaryMax?: number | null; closingDate?: string | null; hiringManagerId?: string | null;
+};
+export type VacancySummary = {
+  id: string; vacancyNumber: string; branchId: string; branchName?: string | null; positionId?: string | null; positionTitle?: string | null;
+  title: string; employmentType: EmploymentType; openings: number; hiredCount: number; salaryMin?: number | null; salaryMax?: number | null;
+  payVisible: boolean; status: VacancyStatus; closingDate?: string | null; hiringManagerId?: string | null; hiringManagerName?: string | null;
+  openedAt?: string | null; closedAt?: string | null; closeReason?: string | null; daysOpen: number; pipeline: Record<ApplicationStage, number>;
+  version: number;
+};
+export type ApplicationRow = {
+  id: string; candidateId: string; candidateName: string; phone?: string | null; source: CandidateSource; stage: ApplicationStage;
+  offerStatus?: OfferStatus | null; averageScore?: number | null; nextInterviewAt?: string | null; employeeId?: string | null; appliedAt: string;
+};
+export type VacancyDetail = { summary: VacancySummary; description?: string | null; requirements?: string | null; applications: ApplicationRow[] };
+export type CandidateInput = {
+  firstName: string; lastName?: string; phone?: string; email?: string; source: CandidateSource; referredByEmployeeId?: string | null; notes?: string;
+};
+export type CandidateSummary = {
+  id: string; fullName: string; phone?: string | null; email?: string | null; source: CandidateSource; openApplications: number;
+  applications: number; anonymised: boolean; createdAt: string;
+};
+export type CandidateDocument = { id: string; title: string; fileName: string; contentType: string; sizeBytes: number; uploadedAt: string };
+export type CandidateDetail = {
+  summary: CandidateSummary; notes?: string | null; referredByEmployeeId?: string | null; referredByName?: string | null;
+  applications: { id: string; vacancyId: string; vacancyTitle?: string | null; vacancyNumber?: string | null; stage: ApplicationStage; appliedAt: string }[];
+  documents: CandidateDocument[];
+};
+export type InterviewView = {
+  id: string; kind: InterviewKind; scheduledAt: string; durationMinutes: number; interviewerId?: string | null; interviewerName?: string | null;
+  location?: string | null; outcome: InterviewOutcome; score?: number | null; feedback?: string | null;
+};
+export type Offer = {
+  contractType?: ContractType | null; salaryType?: SalaryType | null; salaryAmount?: number | null; payHidden: boolean; weeklyHours?: number | null;
+  startDate?: string | null; status?: OfferStatus | null; sentAt?: string | null; respondedAt?: string | null;
+};
+export type ApplicationDetail = {
+  id: string; stage: ApplicationStage; rejectReason?: string | null; candidate: CandidateSummary; candidateNotes?: string | null;
+  vacancy: { id: string; vacancyNumber: string; title: string; status: VacancyStatus; branchId: string; branchName?: string | null };
+  events: { fromStage?: ApplicationStage | null; toStage: ApplicationStage; note?: string | null; actorName?: string | null; at: string }[];
+  interviews: InterviewView[]; offer?: Offer | null; documents: CandidateDocument[]; employeeId?: string | null; hiredAt?: string | null;
+  appliedAt: string; payVisible: boolean; canHire: boolean; canCreateContract: boolean;
+};
+export type HireResult = { employeeId: string; employeeNumber: string; contractCreated: boolean; contractNote?: string | null; documentsCopied: number };
+export type MyInterview = {
+  id: string; candidateName: string; vacancyTitle: string; kind: InterviewKind; scheduledAt: string; durationMinutes: number;
+  location?: string | null; outcome: InterviewOutcome; score?: number | null; feedback?: string | null;
+};
+
+export const getVacancies = (s: StaffSession, params: { branchId?: string; status?: VacancyStatus } = {}) =>
+  apiRequest<VacancySummary[]>(`/hr/vacancies${query(params)}`, auth(s));
+export const createVacancy = (s: StaffSession, body: VacancyInput) => apiRequest<VacancyDetail>("/hr/vacancies", { ...auth(s), method: "POST", body });
+export const updateVacancy = (s: StaffSession, id: string, body: VacancyInput) =>
+  apiRequest<VacancyDetail>(`/hr/vacancies/${id}`, { ...auth(s), method: "PUT", body });
+export const getVacancy = (s: StaffSession, id: string) => apiRequest<VacancyDetail>(`/hr/vacancies/${id}`, auth(s));
+export const setVacancyStatus = (s: StaffSession, id: string, body: { status: VacancyStatus; reason?: string }) =>
+  apiRequest<VacancyDetail>(`/hr/vacancies/${id}/status`, { ...auth(s), method: "POST", body });
+export const addApplication = (s: StaffSession, vacancyId: string, body: { candidateId?: string; candidate?: CandidateInput; note?: string }) =>
+  apiRequest<ApplicationDetail>(`/hr/vacancies/${vacancyId}/applications`, { ...auth(s), method: "POST", body });
+export const getApplication = (s: StaffSession, id: string) => apiRequest<ApplicationDetail>(`/hr/applications/${id}`, auth(s));
+export const moveApplication = (s: StaffSession, id: string, body: { stage: ApplicationStage; note?: string }) =>
+  apiRequest<ApplicationDetail>(`/hr/applications/${id}/stage`, { ...auth(s), method: "POST", body });
+export const scheduleInterview = (
+  s: StaffSession,
+  id: string,
+  body: { kind: InterviewKind; scheduledAt: string; durationMinutes?: number; interviewerId?: string | null; location?: string },
+) => apiRequest<ApplicationDetail>(`/hr/applications/${id}/interviews`, { ...auth(s), method: "POST", body });
+export const recordInterview = (s: StaffSession, id: string, body: { outcome: InterviewOutcome; score?: number | null; feedback?: string }) =>
+  apiRequest<InterviewView>(`/hr/interviews/${id}`, { ...auth(s), method: "PUT", body });
+export const sendOffer = (
+  s: StaffSession,
+  id: string,
+  body: { contractType?: ContractType | null; salaryType?: SalaryType | null; salaryAmount?: number | null; weeklyHours?: number | null; startDate: string },
+) => apiRequest<ApplicationDetail>(`/hr/applications/${id}/offer`, { ...auth(s), method: "PUT", body });
+export const respondToOffer = (s: StaffSession, id: string, body: { accepted: boolean; note?: string }) =>
+  apiRequest<ApplicationDetail>(`/hr/applications/${id}/offer-response`, { ...auth(s), method: "POST", body });
+export const hireApplicant = (s: StaffSession, id: string, body: { hireDate?: string; employeeNumber?: string } = {}) =>
+  apiRequest<HireResult>(`/hr/applications/${id}/hire`, { ...auth(s), method: "POST", body });
+export const getMyInterviews = (s: StaffSession) => apiRequest<MyInterview[]>("/hr/me/interviews", auth(s));
+export const searchCandidates = (s: StaffSession, q?: string) => apiRequest<CandidateSummary[]>(`/hr/candidates${query({ q })}`, auth(s));
+export const getCandidate = (s: StaffSession, id: string) => apiRequest<CandidateDetail>(`/hr/candidates/${id}`, auth(s));
+export const anonymiseCandidate = (s: StaffSession, id: string) =>
+  apiRequest<CandidateDetail>(`/hr/candidates/${id}/anonymise`, { ...auth(s), method: "POST", body: {} });
+export const downloadCandidateDocument = (s: StaffSession, id: string, fallbackName: string): Promise<DownloadedFile> =>
+  downloadFile(s, `/hr/candidate-documents/${id}/download`, fallbackName);
+
+export async function uploadCandidateDocument(s: StaffSession, candidateId: string, file: File, title: string): Promise<CandidateDetail> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(`${API_PREFIX}/hr/candidates/${candidateId}/documents${query({ title })}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${s.accessToken}` },
+    body: form,
+    cache: "no-store",
+  });
+  if (!response.ok) throw await rawError(response, "Upload failed");
+  return (await response.json()) as CandidateDetail;
+}
