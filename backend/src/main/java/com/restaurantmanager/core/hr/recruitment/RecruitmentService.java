@@ -595,7 +595,7 @@ public class RecruitmentService {
         Map<UUID, String> positions = new HashMap<>();
         positionRepository.findAll().forEach(p -> positions.put(p.getId(), p.getTitle()));
         Map<UUID, String> users = new HashMap<>();
-        userRepository.findByRoleInAndActiveTrueOrderByNameAsc(List.of(Role.ADMIN, Role.MANAGER, Role.CASHIER, Role.RIDER))
+        userRepository.findByRoleInAndActiveTrueOrderByNameAsc(List.of(Role.ADMIN, Role.MANAGER, Role.CASHIER, Role.RIDER, Role.HR))
                 .forEach(u -> users.put(u.getId(), u.getName()));
         return new Lookups(branches, positions, users);
     }

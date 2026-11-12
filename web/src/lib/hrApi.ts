@@ -142,6 +142,63 @@ function query(params: Record<string, string | number | boolean | undefined | nu
 export const getHrAccess = (s: StaffSession) => apiRequest<HrAccess>("/hr/me/access", auth(s));
 export const getMyProfile = (s: StaffSession) => apiRequest<EmployeeDetail>("/hr/me/profile", auth(s));
 
+/** Self-service: only contact details and emergency contacts; everything else stays with HR. */
+export type MyProfileInput = {
+  email?: string | null; phone?: string | null; address?: string | null;
+  emergencyContacts: { name: string; relationship?: string | null; phone: string; email?: string | null }[];
+  version?: number;
+};
+export const updateMyProfile = (s: StaffSession, body: MyProfileInput) =>
+  apiRequest<EmployeeDetail>("/hr/me/profile", { ...auth(s), method: "PUT", body });
+export const getMyContracts = (s: StaffSession) => apiRequest<Contract[]>("/hr/me/contracts", auth(s));
+export const getMyDocuments = (s: StaffSession) => apiRequest<EmployeeDocument[]>("/hr/me/documents", auth(s));
+export const downloadMyDocument = (s: StaffSession, id: string, fallbackName: string): Promise<DownloadedFile> =>
+  downloadFile(s, `/hr/me/documents/${id}/download`, fallbackName);
+
+// ---------------------------------------------------------------- dashboard
+
+export type DashboardSlice = { label: string; count: number };
+export type DashboardPerson = { employeeId: string; name: string; date: string; detail?: string | null };
+export type HrDashboard = {
+  asOf: string; branchId?: string | null; branches: { id: string; name: string }[];
+  headcount: {
+    employed: number; startingSoon: number; byStatus: Record<string, number>;
+    byDepartment: DashboardSlice[]; byEmploymentType: DashboardSlice[]; byBranch: DashboardSlice[];
+  };
+  movement: { joiners: DashboardPerson[]; leavers: DashboardPerson[]; leaversLast12Months: number; turnoverPercent?: number | null };
+  trend: { month: string; headcount: number; joined: number; left: number }[];
+  /** Present only with attendance permission. */
+  today?: { counts: Record<string, number>; lateArrivals: number } | null;
+  actions: { key: string; label: string; count: number; href: string }[];
+  expiring: { kind: "CONTRACT_END" | "PROBATION_END" | "DOCUMENT"; employeeId: string; employeeName: string; detail: string; date: string; overdue: boolean }[];
+  /** Present only with recruitment permission. */
+  recruitment?: { openVacancies: number; published: number; openingsLeft: number; pipeline: Record<string, number>; interviewsNext7Days: number } | null;
+  /** Empty unless the viewer may see pay. */
+  labour: {
+    branchId: string; branchName?: string | null; runNumber: string; periodStart: string; periodEnd: string; status: string; employees: number;
+    grossPay: number; employerCost: number; totalCost: number; sales: number; labourPercent?: number | null; overtimeMinutes: number;
+  }[];
+  payVisible: boolean;
+};
+// ---------------------------------------------------------------- reports
+
+export type HrReportType = "EMPLOYEES" | "MOVEMENT" | "LEAVE" | "HOURS" | "PAYROLL";
+export type HrReportInfo = { type: HrReportType; title: string; description: string; periodic: boolean };
+export type HrReportQuery = { from?: string; to?: string; branchId?: string; includeExited?: boolean };
+export type HrReport = {
+  type: HrReportType; title: string; from?: string | null; to?: string | null; branchId?: string | null; branchName?: string | null;
+  columns: { key: string; label: string }[];
+  rows: Record<string, string | number | null>[];
+};
+const reportQuery = (q: HrReportQuery) => query({ from: q.from, to: q.to, branchId: q.branchId, includeExited: q.includeExited || undefined });
+export const getHrReports = (s: StaffSession) => apiRequest<HrReportInfo[]>("/hr/reports", auth(s));
+export const runHrReport = (s: StaffSession, type: HrReportType, q: HrReportQuery) =>
+  apiRequest<HrReport>(`/hr/reports/${type}${reportQuery(q)}`, auth(s));
+export const downloadHrReport = (s: StaffSession, type: HrReportType, q: HrReportQuery): Promise<DownloadedFile> =>
+  downloadFile(s, `/hr/reports/${type}/csv${reportQuery(q)}`, `hr-${type.toLowerCase()}.csv`);
+
+export const getHrDashboard = (s: StaffSession, branchId?: string) => apiRequest<HrDashboard>(`/hr/dashboard${query({ branchId })}`, auth(s));
+
 export const getDepartments = (s: StaffSession, includeArchived = false) =>
   apiRequest<Department[]>(`/hr/departments${query({ includeArchived })}`, auth(s));
 export const saveDepartment = (s: StaffSession, input: DepartmentInput, id?: string) =>

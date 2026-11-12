@@ -8,6 +8,7 @@
 | `MANAGER`  | Operational oversight. Approves financial overrides via PIN.     |
 | `CASHIER`  | Front-of-house operations. POS, order management, receipts.      |
 | `RIDER`    | Delivery staff. Sees and updates their assigned deliveries.      |
+| `HR`       | HR officer. Works only in the HR module (every HR permission by default); refused POS, orders, payments, menu, reports and all other areas. |
 | `CUSTOMER` | End user. Orders, reservations, payment, loyalty.                |
 
 ---
@@ -119,24 +120,35 @@
 HR uses its own permissions on top of the roles. Effective HR permissions = the role's defaults + per-user grants (`hr_user_permissions`),
 which only an `ADMIN` can change. `CUSTOMER` accounts never receive HR permissions. Full list: `documentation/hr/HR_TECHNICAL_DOCUMENTATION.md` §2.
 
-| HR permission group | ADMIN | MANAGER default | Others |
-|---|:-:|:-:|:-:|
-| Employees: view, register, edit; contracts and documents: view | ✓ | ✓ | grant |
-| Exits, transfers, departments/positions, contract and document management | ✓ | — | grant |
-| Pay figures (`hr.compensation.view`) | ✓ | — | grant |
-| Scheduling, publishing, shift swaps; attendance view/record/correct | ✓ | ✓ | grant |
-| Timesheet review, overtime approval, leave approval, recruitment, reports | ✓ | ✓ | grant |
-| Leave configuration (`hr.leave.manage`) | ✓ | — | grant |
-| Payroll view / process / approve / finalize / pay | ✓ | — | grant |
-| Tips, service charge | ✓ | — | grant |
-| HR settings, all branches (`hr.branch.all`) | ✓ | — | grant |
+| HR permission group | ADMIN | HR role | MANAGER default | Others |
+|---|:-:|:-:|:-:|:-:|
+| Employees: view, register, edit; contracts and documents: view | ✓ | ✓ | ✓ | grant |
+| Exits, transfers, departments/positions, contract and document management | ✓ | ✓ | — | grant |
+| Pay figures (`hr.compensation.view`) | ✓ | ✓ | — | grant |
+| Scheduling, publishing, shift swaps; attendance view/record/correct | ✓ | ✓ | ✓ | grant |
+| Timesheet review, overtime approval, leave approval, recruitment, HR dashboard and reports (`hr.reports.view`) | ✓ | ✓ | ✓ | grant |
+| Leave configuration (`hr.leave.manage`) | ✓ | ✓ | — | grant |
+| Payroll view / process / approve / finalize / pay | ✓ | ✓ | — | grant |
+| Tips, service charge | ✓ | ✓ | — | grant |
+| HR settings | ✓ | ✓ | — | grant |
+| All branches (`hr.branch.all`) | ✓ | when the account has no branch | — | grant |
+| Granting HR permissions to others | ✓ | — | — | — |
 
-**Branch scope:** `ADMIN` (or a holder of `hr.branch.all`) sees every branch. Everyone else sees only the branch on their account plus any
+**HR role isolation:** besides the HR module (`/hr/**`), an `HR` account may call only its own account endpoints (`/auth/**`,
+`/users/me`, push devices) and the two lookups HR screens use (`GET /branches`, `GET /scheduling/staff`). Every other request is
+refused with 403 by the security filter chain, whatever the endpoint's own rules, and the web app routes HR accounts to `/hr`.
+
+**Branch scope:** `ADMIN` (or a holder of `hr.branch.all`) sees every branch. An `HR` account without a branch is central HR (every
+branch); with a branch it is that branch's HR officer. Everyone else sees only the branch on their account plus any
 extra branches an admin added; a non-admin without a branch sees no branch data. Unlike the rest of the app, a manager without a branch
 does **not** see every branch in HR.
 
-**Self-service** (any staff account linked to an employee record): own profile, schedule, availability and swaps, time clock and PIN,
+**Self-service** (any staff account linked to an employee record): own profile, with their own phone, email, address and emergency
+contacts editable; own contracts (with their own pay) and documents; schedule, availability and swaps, time clock and PIN,
 timesheets, leave, payslips, tip shares, and interviews they run.
+
+**Reports:** each HR report also needs the permission behind its data (the payroll summary needs payroll access, so managers do not
+get it by default); CSV downloads are audited.
 
 **Four eyes:** nobody approves their own leave, overtime, timesheet, attendance correction, payroll run they calculated or are paid in,
 or a tip pool they calculated or share in.

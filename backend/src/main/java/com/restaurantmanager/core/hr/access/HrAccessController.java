@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/hr")
 public class HrAccessController {
-    private static final Set<Role> STAFF_ROLES = EnumSet.of(Role.MANAGER, Role.CASHIER, Role.RIDER);
+    private static final Set<Role> STAFF_ROLES = EnumSet.of(Role.MANAGER, Role.CASHIER, Role.RIDER, Role.HR);
 
     private final HrAccessService accessService;
     private final HrUserPermissionRepository grantRepository;
@@ -58,7 +58,7 @@ public class HrAccessController {
 
     /** What the signed-in user may do in HR; drives navigation and button visibility in the web app. */
     @GetMapping("/me/access")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER')")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER','HR')")
     @Transactional(readOnly = true)
     public MyAccess myAccess(@AuthenticationPrincipal UserPrincipal principal) {
         HrAccessService.HrAccess access = accessService.access(principal);

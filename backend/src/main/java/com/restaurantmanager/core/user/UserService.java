@@ -56,7 +56,8 @@ public class UserService {
         target.setRole(request.role());
         if (request.branchId() != null) {
             target.setBranch(branchService.require(request.branchId()));
-        } else if (request.role() == Role.CUSTOMER) {
+        } else if (request.role() == Role.CUSTOMER || request.role() == Role.HR) {
+            // an HR login without a branch is central HR (every branch)
             target.setBranch(null);
         }
         userRepository.save(target);

@@ -40,7 +40,7 @@ public class WorkforceController {
     }
 
     @GetMapping("/scheduling/staff")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','HR')")
     public List<WorkforceService.StaffMember> staff() {
         return workforceService.staff();
     }

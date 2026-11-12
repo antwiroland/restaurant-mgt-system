@@ -27,7 +27,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/hr")
-@PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER')")
+@PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER','HR')")
 public class HrDocumentController {
     private final HrDocumentService documentService;
 
@@ -61,9 +61,22 @@ public class HrDocumentController {
                 new HrDocumentService.UploadRequest(content, file.getOriginalFilename(), documentType, title, expiresOn, notes));
     }
 
+    @GetMapping("/me/documents")
+    public List<HrDocumentService.DocumentView> mine(@AuthenticationPrincipal UserPrincipal principal) {
+        return documentService.mine(principal);
+    }
+
+    @GetMapping("/me/documents/{id}/download")
+    public ResponseEntity<byte[]> downloadMine(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal) {
+        return file(documentService.downloadMine(principal, id));
+    }
+
     @GetMapping("/documents/{id}/download")
     public ResponseEntity<byte[]> download(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal) {
-        HrDocumentService.DownloadedDocument document = documentService.download(principal, id);
+        return file(documentService.download(principal, id));
+    }
+
+    private static ResponseEntity<byte[]> file(HrDocumentService.DownloadedDocument document) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.parseMediaType(document.contentType()));
         headers.setContentDisposition(ContentDisposition.attachment().filename(document.fileName()).build());

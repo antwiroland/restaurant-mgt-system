@@ -1,9 +1,10 @@
-export type StaffRole = "ADMIN" | "MANAGER" | "CASHIER" | "RIDER";
+export type StaffRole = "ADMIN" | "MANAGER" | "CASHIER" | "RIDER" | "HR";
 
 export function routeByRole(role: StaffRole): string {
   if (role === "ADMIN") return "/dashboard";
   if (role === "CASHIER") return "/pos";
   if (role === "RIDER") return "/rider";
+  if (role === "HR") return "/hr";
   return "/dashboard";
 }
 

@@ -51,6 +51,7 @@ STAFF = [
     ("+233200000004", "Abena Asante", "CASHIER", None),
     ("+233200000005", "Kwame Darko", "RIDER", None),
     ("+233200000006", "Esi Appiah", "RIDER", None),
+    ("+233200000007", "Efua Nyarko", "HR", "efua.hr@example.test"),  # HR officer: HR module only, every branch
 ]
 CUSTOMERS = [
     ("+233240000001", "Efua Quaye"),
@@ -299,7 +300,8 @@ def main():
 
     users = {u["phone"]: u for u in api.call("GET", "/users", token=A)}
     for phone, _name, role, _email in STAFF[1:]:
-        api.call("PATCH", f"/users/{users[phone]['id']}/role", {"role": role, "branchId": osu["id"]}, A)
+        # an HR login without a branch is central HR; everyone else works at Osu
+        api.call("PATCH", f"/users/{users[phone]['id']}/role", {"role": role, "branchId": None if role == "HR" else osu["id"]}, A)
     api.call("POST", f"/users/{users[STAFF[1][0]]['id']}/pin", {"pin": "2468"}, A)
 
     tokens = {}

@@ -10,7 +10,7 @@ import { roleLabel } from "@/lib/navigation";
 import { hasStaffRole, useStaffSession } from "@/components/SessionProvider";
 import { assignUserRole, getBranches, getUsers, registerUser, adminResetUserPassword, setUserPin, type BranchRecord, type StaffRole, type UserRecord } from "@/lib/apiClient";
 
-const STAFF_ROLES: StaffRole[] = ["ADMIN", "MANAGER", "CASHIER", "RIDER", "CUSTOMER"];
+const STAFF_ROLES: StaffRole[] = ["ADMIN", "MANAGER", "CASHIER", "RIDER", "HR", "CUSTOMER"];
 
 export default function UsersPage() {
   const { session, loading, authenticatedFetch } = useStaffSession();

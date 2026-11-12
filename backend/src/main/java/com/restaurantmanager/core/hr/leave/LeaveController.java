@@ -27,7 +27,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/hr")
-@PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER')")
+@PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER','HR')")
 public class LeaveController {
     private final LeaveService leaveService;
     private final LeaveSetupService setup;

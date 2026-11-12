@@ -5,10 +5,14 @@ import { Skeleton } from "@/components/Skeleton";
 import { EmptyState, ErrorState, PageHeader } from "@/components/ui";
 import { useStaffSession } from "@/components/SessionProvider";
 import { EmployeeOverview } from "@/features/hr/EmployeeOverview";
+import { MyContactDetails, MyContractsAndDocuments } from "@/features/hr/MySelfService";
 import { EmploymentBadge, errorMessage } from "@/features/hr/ui";
 import { getMyProfile, type EmployeeDetail } from "@/lib/hrApi";
 
-/** Employee self-service: read-only view of the signed-in person's own employment record. */
+/**
+ * Employee self-service: the signed-in person's own employment record. They may update their contact details and
+ * emergency contacts, and see their contracts and documents; everything else is maintained by HR.
+ */
 export default function MyHrProfilePage() {
   const { authenticatedFetch } = useStaffSession();
   const [profile, setProfile] = useState<EmployeeDetail | null>(null);
@@ -40,7 +44,7 @@ export default function MyHrProfilePage() {
         eyebrow="Human Resources"
         title="My HR profile"
         icon="user"
-        description="Your employment record as HR holds it. If something is wrong, ask your manager or HR to correct it."
+        description="Your employment record as HR holds it. Keep your contact details current here; for anything else, ask your manager or HR."
         actions={profile ? <EmploymentBadge status={profile.summary.employmentStatus} /> : null}
       />
       {state === "loading" ? <Skeleton className="h-64 w-full" /> : null}
@@ -48,7 +52,13 @@ export default function MyHrProfilePage() {
       {state === "missing" ? (
         <EmptyState icon="user" title="No employee record linked" description="Your login is not linked to an employee record yet. HR can link it from your employee profile." />
       ) : null}
-      {state === "ready" && profile ? <section className="panel"><EmployeeOverview employee={profile} /></section> : null}
+      {state === "ready" && profile ? (
+        <>
+          <MyContactDetails key={profile.version} employee={profile} onSaved={setProfile} />
+          <section className="panel"><EmployeeOverview employee={profile} /></section>
+          <MyContractsAndDocuments />
+        </>
+      ) : null}
     </div>
   );
 }

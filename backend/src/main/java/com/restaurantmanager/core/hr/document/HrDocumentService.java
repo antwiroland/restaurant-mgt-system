@@ -125,6 +125,27 @@ public class HrDocumentService {
         return toView(saved);
     }
 
+    /** Self-service: your own current documents. */
+    @Transactional(readOnly = true)
+    public List<DocumentView> mine(UserPrincipal principal) {
+        return repository.findByEmployeeIdAndArchivedFalseOrderByCreatedAtDesc(employeeService.myEmployeeId(principal)).stream()
+                .map(HrDocumentService::toView)
+                .toList();
+    }
+
+    /** Self-service download: only one of your own current documents; anything else is reported as missing. */
+    @Transactional
+    public DownloadedDocument downloadMine(UserPrincipal principal, UUID documentId) {
+        UUID me = employeeService.myEmployeeId(principal);
+        EmployeeDocumentEntity document = repository.findById(documentId)
+                .filter(d -> d.getEmployeeId().equals(me) && !d.isArchived())
+                .orElseThrow(() -> new ApiException(404, "Document not found"));
+        byte[] content = storage.read(document.getStorageKey());
+        audit.log(principal.userId(), AuditAction.HR_DOCUMENT_DOWNLOADED, "Employee", me,
+                Map.of("documentId", documentId.toString(), "selfService", true));
+        return new DownloadedDocument(document.getFileName(), document.getContentType(), content);
+    }
+
     @Transactional
     public DownloadedDocument download(UserPrincipal principal, UUID documentId) {
         HrAccess access = accessService.require(principal, HrPermission.DOCUMENT_VIEW);

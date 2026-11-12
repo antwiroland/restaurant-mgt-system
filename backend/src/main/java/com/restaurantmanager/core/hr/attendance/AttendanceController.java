@@ -25,7 +25,7 @@ import java.util.UUID;
 /** Attendance API: POS staff clock, manager views and corrections, self-service. The legacy /timeclock API stays available. */
 @RestController
 @RequestMapping("/hr")
-@PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER')")
+@PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER','HR')")
 public class AttendanceController {
     private final PosClockService posService;
     private final AttendanceManagementService managementService;

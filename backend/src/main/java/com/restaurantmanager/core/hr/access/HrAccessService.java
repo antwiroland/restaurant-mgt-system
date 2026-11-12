@@ -49,7 +49,8 @@ public class HrAccessService {
         if (role != Role.CUSTOMER && role != Role.ADMIN) {
             grantRepository.findByUserId(user.getId()).forEach(g -> permissions.add(g.getPermission()));
         }
-        boolean allBranches = role == Role.ADMIN || permissions.contains(HrPermission.BRANCH_ALL);
+        // central HR (an HR login without a branch) covers the organisation; a branch HR officer covers their branch
+        boolean allBranches = role == Role.ADMIN || (role == Role.HR && branchId == null) || permissions.contains(HrPermission.BRANCH_ALL);
         Set<UUID> branches = new java.util.HashSet<>();
         if (branchId != null) {
             branches.add(branchId);
@@ -86,6 +87,7 @@ public class HrAccessService {
         return switch (role) {
             case ADMIN -> EnumSet.allOf(HrPermission.class);
             case MANAGER -> EnumSet.copyOf(HrPermission.MANAGER_DEFAULTS);
+            case HR -> EnumSet.copyOf(HrPermission.HR_DEFAULTS);
             default -> EnumSet.noneOf(HrPermission.class);
         };
     }

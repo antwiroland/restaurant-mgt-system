@@ -22,7 +22,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/hr")
-@PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER')")
+@PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER','HR')")
 public class EmployeeController {
     private final EmployeeService employeeService;
 
@@ -100,5 +100,12 @@ public class EmployeeController {
     @GetMapping("/me/profile")
     public EmployeeService.EmployeeDetail myProfile(@AuthenticationPrincipal UserPrincipal principal) {
         return employeeService.myProfile(principal);
+    }
+
+    /** Self-service: own contact details and emergency contacts only. */
+    @PutMapping("/me/profile")
+    public EmployeeService.EmployeeDetail updateMyProfile(@Valid @RequestBody EmployeeService.MyProfileRequest request,
+                                                          @AuthenticationPrincipal UserPrincipal principal) {
+        return employeeService.updateMyProfile(principal, request);
     }
 }

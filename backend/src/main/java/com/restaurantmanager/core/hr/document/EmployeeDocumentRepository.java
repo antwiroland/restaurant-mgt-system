@@ -9,4 +9,7 @@ public interface EmployeeDocumentRepository extends JpaRepository<EmployeeDocume
     List<EmployeeDocumentEntity> findByEmployeeIdOrderByCreatedAtDesc(UUID employeeId);
 
     List<EmployeeDocumentEntity> findByEmployeeIdAndArchivedFalseOrderByCreatedAtDesc(UUID employeeId);
+
+    /** Current documents with an expiry date on or before {@code until} (already expired included). */
+    List<EmployeeDocumentEntity> findByArchivedFalseAndExpiresOnLessThanEqualOrderByExpiresOnAsc(java.time.LocalDate until);
 }

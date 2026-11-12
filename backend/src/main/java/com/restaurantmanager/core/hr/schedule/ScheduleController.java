@@ -24,7 +24,7 @@ import java.util.UUID;
 /** HR scheduling API. The legacy /scheduling and /timeclock endpoints keep working alongside it. */
 @RestController
 @RequestMapping("/hr")
-@PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER')")
+@PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER','HR')")
 public class ScheduleController {
     private final ScheduleService scheduleService;
     private final SchedulingSetupService setupService;
