@@ -88,6 +88,9 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
 
     List<OrderEntity> findByVoidedAtGreaterThanEqualAndVoidedAtLessThan(Instant from, Instant to);
 
+    @Query("SELECT o FROM OrderEntity o WHERE lower(cast(o.id as String)) LIKE :prefix ORDER BY o.createdAt DESC")
+    List<OrderEntity> findByIdPrefix(@Param("prefix") String prefix, org.springframework.data.domain.Pageable pageable);
+
     List<OrderEntity> findByTypeAndStatusAndCreatedAtBefore(OrderType type, OrderStatus status, Instant cutoff);
 
     /** Dine-in orders that may still be owed: not cancelled, not written off, placed since the cutoff. */

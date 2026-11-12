@@ -1371,6 +1371,11 @@ export async function cancelReservation(session: StaffSession, reservationId: st
   });
 }
 
+/** Find an order by the number on the ticket (e.g. 7D63D7F5, with or without #) or its full id. */
+export async function lookupOrder(session: StaffSession, number: string): Promise<OrderRecord> {
+  return apiRequest<OrderRecord>(`/orders/lookup?number=${encodeURIComponent(number.trim())}`, { token: session.accessToken });
+}
+
 export async function initiatePayment(
   session: StaffSession,
   payload: { orderId: string; method: PaymentMethod; momoPhone?: string; idempotencyKey: string; splitId?: string; amountTendered?: number },

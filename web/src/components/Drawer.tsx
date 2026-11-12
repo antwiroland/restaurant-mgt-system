@@ -79,7 +79,7 @@ export function Drawer({ open, title, onClose, children, footer }: DrawerProps) 
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="absolute inset-x-0 bottom-0 z-10 grid max-h-[90dvh] gap-4 overflow-y-auto rounded-t-[var(--radius-modal)] bg-surface p-5 shadow-xl
+        className="absolute inset-x-0 bottom-0 z-10 grid grid-cols-[minmax(0,1fr)] max-h-[90dvh] gap-4 overflow-y-auto overflow-x-hidden rounded-t-[var(--radius-modal)] bg-surface p-5 shadow-xl
                    animate-[modalIn_var(--duration-base)_var(--ease-out)] sm:inset-y-0 sm:right-0 sm:left-auto sm:h-full sm:max-h-none sm:w-[min(92vw,var(--layout-panel-max))] sm:rounded-none sm:border-l sm:border-line sm:p-6"
       >
         <div className="flex items-start justify-between gap-3">

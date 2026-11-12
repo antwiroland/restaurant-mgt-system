@@ -144,6 +144,16 @@ public class OrderController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Find an order by the number staff see (the first 8 characters of its id, e.g. 7D63D7F5) or by its full id.
+     * Lets the payment screens take what is printed on the ticket instead of a pasted id.
+     */
+    @GetMapping("/lookup")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
+    public OrderResponse lookup(@RequestParam String number, @AuthenticationPrincipal UserPrincipal principal) {
+        return orderService.lookupByNumber(number, principal);
+    }
+
     @GetMapping("/pickup/{pickupCode}")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
     public OrderResponse findByPickupCode(@PathVariable String pickupCode) {
