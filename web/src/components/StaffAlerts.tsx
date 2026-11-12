@@ -1,8 +1,8 @@
 "use client";
 
+import { createRealtimeClient, useAccessTokenGetter } from "@/lib/realtime";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Client } from "@stomp/stompjs";
 import { useStaffSession } from "@/components/SessionProvider";
 import { watchAlert } from "@/features/tables/paymentWatch";
 import { getTablePaymentWatch, type StaffRole } from "@/lib/apiClient";
@@ -23,6 +23,7 @@ const TABLE_WATCH_MS = 60_000;
 export function StaffAlerts({ role }: { role?: StaffRole }) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const { session, authenticatedFetch } = useStaffSession();
+  const getToken = useAccessTokenGetter();
   const managerAlerts = role === "ADMIN" || role === "MANAGER";
   const enabled = managerAlerts || role === "CASHIER";
   // Alerts a person dismissed stay hidden until the table's situation changes (a new id).
@@ -63,10 +64,8 @@ export function StaffAlerts({ role }: { role?: StaffRole }) {
 
   useEffect(() => {
     if (!managerAlerts) return;
-    const wsUrl = process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? "ws://localhost:8080/ws";
     const push = (alert: Alert) => setAlerts((current) => [alert, ...current.filter((a) => a.id !== alert.id)].slice(0, MAX_ALERTS));
-    const client = new Client({
-      brokerURL: wsUrl,
+    const client = createRealtimeClient({
       reconnectDelay: 10000,
       onConnect: () => {
         client.subscribe("/topic/inventory.alerts", (frame) => {
@@ -106,12 +105,12 @@ export function StaffAlerts({ role }: { role?: StaffRole }) {
           }
         });
       },
-    });
+    }, getToken);
     client.activate();
     return () => {
       void client.deactivate();
     };
-  }, [managerAlerts]);
+  }, [managerAlerts, getToken]);
 
   function dismiss(id: string) {
     dismissed.current.add(id);

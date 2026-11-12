@@ -1,7 +1,7 @@
 "use client";
 
+import { createRealtimeClient } from "@/lib/realtime";
 import { useEffect, useMemo, useState } from "react";
-import { Client } from "@stomp/stompjs";
 import { getPublicOrderStatus, type OrderPublicStatusView } from "@/lib/apiClient";
 import { BrandMark } from "@/components/NavSidebar";
 import { useBrand } from "@/components/BrandProvider";
@@ -40,14 +40,10 @@ export default function OrdersStatusPage() {
     const fetchInterval = setInterval(() => void load(), REFRESH_INTERVAL_MS);
     const clockInterval = setInterval(() => setTick((n) => n + 1), 30_000);
 
-    const wsUrl = process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? "ws://localhost:8080/ws";
-    const client = new Client({
-      brokerURL: wsUrl,
-      reconnectDelay: 5000,
+    const client = createRealtimeClient({
       onConnect: () => {
         setRealtimeConnected(true);
-        client.subscribe("/topic/orders.new", () => void load());
-        client.subscribe("/topic/orders.status", () => void load());
+        client.subscribe("/topic/public.pickup-board", () => void load());
       },
       onWebSocketClose: () => setRealtimeConnected(false),
       onStompError: () => setRealtimeConnected(false),
