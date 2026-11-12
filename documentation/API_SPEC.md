@@ -190,6 +190,20 @@ Public.
 ### GET `/orders/public/dine-in/tables/{tableToken}/tracking`
 Public. Each order also carries `total` and `amountPaid`.
 
+### GET `/orders/lookup?number=`
+Admin, manager, cashier. The order whose id starts with the given 6–8 characters (the number staff see, e.g.
+7D63D7F5, with or without `#`), or a full id. 400 malformed, 404 none, 409 more than one match.
+
+### GET `/payments/receipts/search?q=`
+Admin, manager, cashier. A receipt from the order number, receipt number (`RCP-yyyyMMdd-XXXXXXXX`), payment
+reference (`CASH-…`, provider reference) or a full order or payment id. 404 `Receipt not found` when the order is
+unpaid.
+
+### POST `/payments/initiate` (pay once)
+For an unsplit order the amount is what is still owed; an order already paid is 409. Any attempt still waiting for
+the same order or share is checked with the provider first: a success is recorded (then 409 already paid), otherwise
+it is closed as `Replaced by a new payment attempt`. Cash is recorded as received in one write.
+
 ### GET `/tables/payment-watch?branchId`
 Admin, manager, cashier (branch staff see their branch). Dine-in tables that still owe money: `outstanding`,
 `openOrders`, `allServed`, `lastServedAt` (when the kitchen marked the last order served), `billRequestedAt` (open
