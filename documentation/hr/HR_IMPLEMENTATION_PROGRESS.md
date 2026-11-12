@@ -8,7 +8,7 @@
 | Module | Human Resource & Workforce Management |
 | Integration branch | `feature/restaurant-hr-management` (from `feature/operations-expansion` @ `35ef1ed`) |
 | Implementation start | 2026-11-09 |
-| Current status | Phases 0–4 merged to `main`; Phase 5 timesheets/overtime merged (PR #4); Phase 5 leave on `feature/hr-leave-management`; Phase 6 payroll on `feature/hr-payroll` (branched from the leave branch); Phase 7 tips and service charge on `feature/hr-tips` (branched from payroll) |
+| Current status | Phases 0–4 merged to `main`; Phase 5 timesheets/overtime merged (PR #4); Phase 5 leave on `feature/hr-leave-management`; Phase 6 payroll on `feature/hr-payroll` (branched from the leave branch); Phase 7 tips and service charge on `feature/hr-tips` (branched from payroll); Phase 8 recruitment on `feature/hr-recruitment` (branched from tips) |
 | Last updated | 2026-11-12 |
 
 ## Overall Progress
@@ -27,10 +27,10 @@
 - [x] Payroll (rules, runs, payslips, adjustments, four-eyes approval, finalize, payments, self-service payslips)
 - [x] Tips (pools from paid orders, sharing rules, approval, paid through payroll)
 - [x] Service charges (same engine, separate permission and pools)
-- [ ] Recruitment
+- [x] Recruitment (vacancies, candidates, pipeline, interviews and trial shifts, offers, one-step hire, anonymisation)
 - [ ] Performance
 - [ ] Training
-- [~] Self-service — read-only profile, own schedule, availability, swap requests, own time clock and PIN, own timesheets, own leave, own payslips, own tip and service-charge shares
+- [~] Self-service — read-only profile, own schedule, availability, swap requests, own time clock and PIN, own timesheets, own leave, own payslips, own tip and service-charge shares, interviews they run
 - [ ] Reporting / HR dashboard
 - [~] Security — HR permission model, branch isolation, private documents, audit done for Phase 1 scope
 - [ ] Performance optimization / benchmarking
@@ -73,8 +73,11 @@
 | Tip & service-charge rules | [x] | [x] | [x] | [x] | [x] | Complete (nothing seeded by design) |
 | Tip & service-charge pools and shares | [x] | [x] | [x] | [x] | [x] | Complete |
 | Shares paid through payroll | [x] | [x] | [x] | — | [x] | Complete (home-branch payroll, reserved once) |
+| Vacancies & pipeline | [x] | [x] | [x] | [x] | [x] | Complete |
+| Candidates, documents & anonymisation | [x] | [x] | [x] | [x] | [x] | Complete (manual anonymisation; no automatic retention job yet) |
+| Interviews, offers & hire | [x] | [x] | [x] | [x] | [x] | Complete (draft contract only for open-ended types) |
 | Missed clock-out / late notifications | — | [ ] | — | — | [ ] | Flags shown on the board; push alerts not built yet |
-| Recruitment … analytics (Phases 8–11) | [ ] | [ ] | [ ] | [ ] | [ ] | Not started |
+| Performance … analytics (Phases 9–11) | [ ] | [ ] | [ ] | [ ] | [ ] | Not started |
 
 ## Git History
 
@@ -137,6 +140,9 @@
 | 2026-11-12 | V32 on PostgreSQL | Booted the packaged app on a temporary `postgres:16-alpine`: Flyway applied V1–V32, Hibernate `validate` passed, seven leave types seeded. API smoke test (entitlement, employee + login link, quote, request, overlap 409, awaiting-me, employee/branch lists, calendar, approve, balance and ledger, shift on approved leave 409, HR adjustment, negative-allowed sick leave, cancel): **28/28 passed** | Manual, passed | `feature/hr-leave-management` | `5cc6c91` |
 | 2026-11-12 | Phase 5 leave web | `/hr/leave`, `/hr/my-leave`, profile Leave tab, leave API client, nav entries, `LEAVE` timesheet flag | `vitest` HR suites **25/25** (4 new leave + 1 nav); full web suite 61/64 with the 3 pre-existing `guest.test.tsx` failures; `tsc` and ESLint clean; `next build` passes | `feature/hr-leave-management` | `b28f1a0` |
 | 2026-11-12 | Leave seed data | `seed_hr.py`: leave types when missing (H2 without Flyway), test entitlements, an HR adjustment, pending/approved/two-step/self-service sick requests | Seeded a fresh local H2 backend end to end; 4 requests in the expected states, approved leave reports its 2 clashing draft shifts | `feature/hr-leave-management` | see Git History |
+| 2026-11-12 | Phase 8 recruitment backend | V35, `hr.recruitment` package, `HrDocumentService.storeFile/attach` split, recruitment in MANAGER defaults, `HR_RECRUITMENT_CHANGED` | Backend `mvn test`: **408 run, 0 failures, 0 errors** (402 + 2 stage + 4 recruitment) | `feature/hr-recruitment` | see Git History |
+| 2026-11-12 | V35 on PostgreSQL | Booted the packaged app on a temporary `postgres:16-alpine`: Flyway V1–V35, Hibernate `validate` passed. Smoke test: vacancy with pay range hidden from the manager, new candidate, duplicate by email in another case refused, search, multipart CV upload, trial shift moving the stage, interviewer recording the result, offer with pay by HR, acceptance, hire creating employee + draft contract + CV copy, vacancy filled, anonymisation with the employee's copy still downloadable: **36/36 passed** | Manual, passed | `feature/hr-recruitment` | see Git History |
+| 2026-11-12 | Phase 8 recruitment web | `/hr/recruitment` (vacancies, pipeline drawer, application drawer, candidates), interviews on My Schedule, nav entry | `vitest` HR suites **38/38**; `tsc` and ESLint clean; `next build` passes (a first build attempt reported 3 Turbopack errors whose text was lost to an output filter; an immediate re-run without changes compiled cleanly) | `feature/hr-recruitment` | see Git History |
 | 2026-11-12 | Phase 7 tips backend | V34, `hr.tips` package, payroll earning lines for approved shares, `HR_TIPS_CHANGED` | Backend `mvn test`: **402 run, 0 failures, 0 errors** (394 + 5 calculator + 3 tips) | `feature/hr-tips` | see Git History |
 | 2026-11-12 | V34 on PostgreSQL | Booted the packaged app on a temporary `postgres:16-alpine`: Flyway V1–V34, Hibernate `validate` passed. Smoke test with SQL-inserted orders, payments (one fully refunded) and time entries: tips pool collected 100 from 2 orders, house 10 %, shares 60/30 by hours; service-charge pool on the default rule; calculator cannot approve; payroll gross includes the shares; pool locked while payroll uses it; pool paid after payroll finalized: **37/37 passed** | Manual, passed | `feature/hr-tips` | see Git History |
 | 2026-11-12 | Phase 7 tips web | `/hr/tips` (pools, pool drawer, sharing rules with position points), tips on My Payslips, nav entry | `vitest` HR suites **34/34**; `tsc` and ESLint clean; `next build` passes | `feature/hr-tips` | see Git History |
@@ -180,6 +186,11 @@
   orders are left out. Refunds after a pool is approved do not change it (return the pool to draft and recalculate if needed).
 - **Tips participants:** based on clocked time at the branch; staff who did not clock (or whose entries are open) get no share.
 - **Tips without a contract:** a share is paid only through payroll, so staff without a contract keep an unpaid approved share.
+- **Recruitment intake:** applicants are entered by staff; there is no public careers page or self-apply form yet.
+- **Candidate retention:** personal data is removed on demand (anonymise); there is no automatic retention period yet.
+- **Hire contracts:** only open-ended offers (permanent, probation, part-time) become a draft contract automatically; fixed-term,
+  casual, seasonal and internship contracts need an end date and are created from the employee profile.
+- **Interviewer list:** the web picker uses `/scheduling/staff` (managers and admins); others see an empty list.
 - **Small branches:** each approval step needs a different person and nobody approves a request they filed; HR can use
   "record as already approved" for leave agreed outside the system.
 - **Time zones:** the web board enters and shows times in the browser's local zone; devices should use the restaurant's zone.
@@ -192,7 +203,7 @@
 
 ## Next Actions
 
-1. Open PRs in order: `feature/hr-leave-management` → `main`, then `feature/hr-payroll`, then `feature/hr-tips` (each based on the previous).
+1. Open PRs in order: `feature/hr-leave-management` → `main`, then `feature/hr-payroll`, `feature/hr-tips`, `feature/hr-recruitment` (each based on the previous).
 2. Payroll follow-ups: payslip PDF, payroll seed data, bank/mobile-money payment file export.
-3. Phase 8 onwards: recruitment, performance, training, HR reporting dashboard.
+3. Phase 9 onwards: performance reviews, training and certifications, HR reporting dashboard.
 4. Fix the Testcontainers environment or CI job so the `postgres` test group runs on every phase.

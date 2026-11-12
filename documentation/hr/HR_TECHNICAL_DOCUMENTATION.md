@@ -21,6 +21,8 @@ Describes only what is implemented. Sections for later phases are added as each 
   - `hr.payroll` — deduction rules (`PayrollRuleService`), runs/payslips/adjustments (`PayrollService`), pure arithmetic
     (`PayrollCalculator`)
   - `hr.tips` — tips and service-charge sharing rules, pools and shares (`TipService`), pure sharing arithmetic (`TipCalculator`)
+  - `hr.recruitment` — vacancies, pipeline, interviews, offers and hiring (`RecruitmentService`), candidates, documents and
+    anonymisation (`CandidateService`); stage rules in `ApplicationStage`
   - `hr.branch` — branch assignment history (`BranchAssignmentRecorder` keeps it consistent), secondary/temporary
     assignments, transfers, branch workforce summary
   - `hr.common` — `HrSequenceService` (gap-tolerant sequential numbers), shared helpers
@@ -48,6 +50,7 @@ Defined in `HrPermission` (code → meaning). Effective permissions = role defau
 | `hr.document.manage` | Upload / archive documents | ✓ | |
 | `hr.compensation.view` | See salary figures | ✓ | |
 | `hr.branch.all` | Access every branch (central HR) | ✓ (implicit) | |
+| `hr.recruitment.manage` | Vacancies, candidates and hiring (branch-scoped) | ✓ | ✓ |
 | `hr.settings.manage` | HR settings | ✓ | |
 
 Further codes (`hr.schedule.*`, `hr.attendance.*`, `hr.payroll.*`, ...) are declared now so grants are stable, and are
@@ -527,6 +530,62 @@ None of these permissions are MANAGER defaults. Audit `HR_TIPS_CHANGED` records 
 | `/hr/tips` | Pools per branch (new pool, drawer with collected/house/shared, shares, approve/return/cancel) and sharing rules with position points | tips, service-charge or payroll permissions |
 | `/hr/my-payslips` | Adds "My tips & service charge" (approved, in payroll, paid) | linked employee |
 
+## 5h. Recruitment (Phase 8, `V35__hr_recruitment.sql`)
+
+### Data
+
+| Table | Purpose |
+|---|---|
+| `hr_vacancies` | `vacancy_number` (`VAC-000001`), branch, optional position, title, description, requirements, employment type, openings, hired count, optional pay range, status (`DRAFT`, `OPEN`, `ON_HOLD`, `FILLED`, `CLOSED`, `CANCELLED`), closing date, hiring manager, opened/closed time and reason. |
+| `hr_candidates` | One row per person: name, phone, email (stored lower case), source (walk-in, referral with the referring employee, job board, social media, agency, other), notes, `anonymised_at`. |
+| `hr_candidate_documents` | CVs and certificates; bytes in the private HR document store (same validation as employee documents). |
+| `hr_applications` | Candidate × vacancy (unique): stage (`APPLIED` → `SCREENING` → `INTERVIEW` → `TRIAL_SHIFT` → `OFFER` → `HIRED`, or `REJECTED` / `WITHDRAWN`), reject reason, offer terms (contract type, pay basis and amount, weekly hours, start date) and offer status (`SENT`, `ACCEPTED`, `DECLINED`), employee created on hire. |
+| `hr_application_events` | Append-only stage history with note and actor. |
+| `hr_interviews` | Phone / in person / video / trial shift, time, length, interviewer (any staff account), location, outcome (`SCHEDULED`, `PASSED`, `FAILED`, `NO_SHOW`, `CANCELLED`), score 1–5, feedback. |
+
+### Rules
+
+- **Vacancy status**: Draft → Open; Open ⇄ On hold; Open/On hold/Filled → Closed; Draft/Open/On hold → Cancelled; Closed (or Filled with
+  openings left) → Open. Closing or cancelling needs a reason and rejects every open application with it; refused while an accepted offer
+  is outstanding. Applications can only be added to open vacancies.
+- **Pipeline** (`ApplicationStage.refusal`): forward moves only (stages may be skipped); reject (reason required) or withdraw from any
+  open stage; a rejected/withdrawn application can be reconsidered back to screening; `HIRED` only through Hire. Closing an application
+  cancels its scheduled interviews. Scheduling an interview or trial shift moves an earlier application to that stage.
+- **Candidates**: matched by phone or email (case-insensitive) — a second registration of the same person is refused (409) so one person
+  has one history. Visible to central HR, to whoever registered them, and to anyone who can see a branch they applied to.
+- **Interviews**: the interviewer is notified by push and sees their interviews at `GET /hr/me/interviews` (on My Schedule) without any
+  recruitment permission; they or a recruitment manager record the outcome. Passed/failed needs a score.
+- **Pay**: setting or seeing a vacancy's pay range or an offer's pay needs `hr.compensation.view`; others see "hidden".
+- **Hire** (needs `hr.recruitment.manage` + `hr.employee.create`, offer accepted, vacancy open or on hold): creates the employee through
+  the normal employee service (duplicate email/phone checks, branch rules, primary branch assignment, audit) with the vacancy's branch,
+  position and employment type and the offer's start date (or a given date). If the hirer manages contracts and the offered type is
+  open-ended (permanent, probation, part-time), a **draft** contract with the offered terms is created; otherwise the result says why not.
+  Candidate documents are **copied** (new storage files) to the employee as CV documents. When every opening is filled the vacancy becomes
+  Filled and other open applications are rejected with "Position filled".
+- **Data protection**: `POST /hr/candidates/{id}/anonymise` (no open applications) deletes the name, contact details, notes and
+  documents (files removed from storage); the row and history stay for statistics. Employee records are unaffected.
+- Recruitment is in the MANAGER defaults (branch-scoped), since managers already register employees.
+- Audit `HR_RECRUITMENT_CHANGED` records operations and identifiers; candidate personal data and pay are never written to it.
+
+### Endpoints
+
+| Method & path | Permission |
+|---|---|
+| `GET/POST /hr/vacancies`, `GET/PUT /hr/vacancies/{id}`, `POST /hr/vacancies/{id}/status` | `hr.recruitment.manage` + branch |
+| `POST /hr/vacancies/{id}/applications` (existing `candidateId` or a new `candidate`) | same |
+| `GET /hr/applications/{id}`, `POST .../stage`, `POST .../interviews`, `PUT .../offer`, `POST .../offer-response` | same |
+| `POST /hr/applications/{id}/hire` | + `hr.employee.create` (contract only with `hr.contract.manage`) |
+| `PUT /hr/interviews/{id}` | the interviewer, or recruitment manager for the branch |
+| `GET/POST /hr/candidates`, `GET/PUT /hr/candidates/{id}`, `POST .../documents` (multipart), `GET /hr/candidate-documents/{id}/download`, `POST .../anonymise` | `hr.recruitment.manage` + candidate visibility |
+| `GET /hr/me/interviews` | any staff account |
+
+### Web
+
+| Route | Purpose | Shown when |
+|---|---|---|
+| `/hr/recruitment` | Vacancies per branch (new vacancy, drawer with pipeline columns, add applicant — new or existing, status actions) and Candidates (search, history, remove personal data). The application drawer covers documents, moves, interviews and results, offer, offer response and hire. | `hr.recruitment.manage` |
+| `/hr/my-schedule` | "Interviews I run" section with result recording | interviewer with a linked employee record |
+
 ## 6. Audit
 
 HR events use the shared `audit_logs` table with `AuditAction.HR_*` values (Phase 2 adds `HR_EMPLOYEE_TRANSFERRED`,
@@ -536,7 +595,7 @@ HR events use the shared `audit_logs` table with `AuditAction.HR_*` values (Phas
 `HR_ATTENDANCE_CORRECTION`, `HR_CLOCK_PIN_CHANGED` — PIN values never appear; Phase 5 adds `HR_TIMESHEET_CHANGED`,
 `HR_OVERTIME_DECIDED`, `HR_LEAVE_REQUESTED`, `HR_LEAVE_DECIDED`, `HR_LEAVE_CANCELLED`, `HR_LEAVE_BALANCE_ADJUSTED`; leave types and
 entitlements use `HR_SETTINGS_CHANGED`; Phase 6 adds `HR_PAYROLL_CHANGED` (operation, run number, counts; never amounts) and payroll
-rules use `HR_SETTINGS_CHANGED`; Phase 7 adds `HR_TIPS_CHANGED`). Individual clock actions are audited in
+rules use `HR_SETTINGS_CHANGED`; Phase 7 adds `HR_TIPS_CHANGED`; Phase 8 adds `HR_RECRUITMENT_CHANGED`). Individual clock actions are audited in
 `hr_attendance_events` rather than the shared log. Metadata never contains salary figures, PINs or
 document contents; salary changes are recorded as "changed" without amounts.
 
@@ -589,6 +648,9 @@ open read-only with only the Overview and Branches tabs. The HR Access drawer al
 | `TipCalculatorTest` (5) | House share, hours split with exact cents, position points and zero points, minimum time and equal split, nothing eligible |
 | `HrTipsIntegrationTest` (3) | Collection rules (refunds, other branch, outside period), hours split incl. a visiting employee, four-eyes approval, home-branch payroll for each share, pool locked while payroll uses it, pool paid after both payrolls; branch rule with points overriding the organisation rule, one pool per source and period, cancel; per-source permissions and branch scope |
 | `web/src/features/hr/tips/tips.test.tsx` (4) | Shares and unshared note, approve disabled for the calculator, no actions without the source permission, approve action |
+| `ApplicationStageTest` (2) | Forward moves and skips, no backwards or direct hire, close from any open stage, reconsider only to screening |
+| `HrRecruitmentIntegrationTest` (4) | Manager pipeline without pay rights, duplicate candidate, CV upload, interviewer without recruitment rights records the result, offer without pay, hire creating the employee and copying the CV, vacancy filled and others rejected, anonymising after hire keeps the employee's copy; HR hire with pay creating a draft contract (pay hidden from the manager); stage rules, closing with/without accepted offers, reopening, branch isolation; anonymisation needs closed applications |
+| `web/src/features/hr/recruitment/recruitment.test.tsx` (4) | Next-stage rules, reject needs a note and moves send the stage, hidden pay and hire result, pipeline grouping and closed toggle |
 | `HrPostgresFlywayIntegrationTest` | Same flows on the Flyway schema (tag `postgres`, run with `-Ppostgres-it`) |
 | `web/src/features/hr/hr.test.tsx` (9) | Permission-filtered navigation, employee form validation and payload |
 
