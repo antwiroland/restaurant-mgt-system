@@ -38,9 +38,9 @@ describe("HR navigation", () => {
     expect(hrItems(navForRole("MANAGER", (...c) => hasHrRequirement(approver, c)))).toEqual(["/hr/leave"]);
   });
 
-  test("givenPayrollClerk_whenBuildingNav_thenTimesheetsAndPayrollShownButNotLeave", () => {
+  test("givenPayrollClerk_whenBuildingNav_thenTimesheetsPayrollAndTipsShownButNotLeave", () => {
     const clerk = access(["hr.payroll.process"]);
-    expect(hrItems(navForRole("CASHIER", (...c) => hasHrRequirement(clerk, c)))).toEqual(["/hr/timesheets", "/hr/payroll"]);
+    expect(hrItems(navForRole("CASHIER", (...c) => hasHrRequirement(clerk, c)))).toEqual(["/hr/timesheets", "/hr/payroll", "/hr/tips"]);
   });
 
   test("givenExistingNavigation_whenBuildingWithoutHr_thenOtherGroupsUnchanged", () => {

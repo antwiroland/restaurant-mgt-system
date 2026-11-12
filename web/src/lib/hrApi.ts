@@ -706,3 +706,48 @@ export const removePayrollAdjustment = (s: StaffSession, id: string, adjustmentI
   apiRequest<PayrollRunDetail>(`/hr/payroll-runs/${id}/adjustments/${adjustmentId}`, { ...auth(s), method: "DELETE" });
 export const getPayslip = (s: StaffSession, id: string) => apiRequest<PayslipDetail>(`/hr/payslips/${id}`, auth(s));
 export const getMyPayslips = (s: StaffSession) => apiRequest<MyPayslip[]>("/hr/me/payslips", auth(s));
+
+// ---------------------------------------------------------------------------
+// Tips & service charge (Phase 7)
+// ---------------------------------------------------------------------------
+
+export type TipSource = "TIPS" | "SERVICE_CHARGE";
+export type TipMethod = "HOURS" | "POINTS" | "EQUAL";
+export type TipPoolStatus = "DRAFT" | "CALCULATED" | "APPROVED" | "PAID" | "CANCELLED";
+
+export type TipRule = {
+  id: string; branchId?: string | null; source: TipSource; method: TipMethod; housePercent: number; taxable: boolean; minMinutes: number;
+  positionPoints: Record<string, number>; effectiveFrom: string; note?: string | null; createdAt: string;
+};
+export type TipRuleInput = {
+  branchId?: string | null; source: TipSource; method: TipMethod; housePercent: number; taxable: boolean; minMinutes: number;
+  positionPoints: Record<string, number>; effectiveFrom: string; note?: string;
+};
+export type TipPoolSummary = {
+  id: string; poolNumber: string; branchId: string; branchName?: string | null; source: TipSource; periodStart: string; periodEnd: string;
+  status: TipPoolStatus; orderCount: number; collectedAmount: number; houseAmount: number; distributableAmount: number;
+  calculatedAt?: string | null; approvedAt?: string | null; cancelReason?: string | null; version: number;
+};
+export type TipAllocation = {
+  id: string; employeeId: string; employeeName?: string | null; positionTitle?: string | null; minutes: number; points: number; amount: number;
+  inPayroll: boolean;
+};
+export type TipPoolDetail = {
+  summary: TipPoolSummary;
+  rule?: { scope: string; method: TipMethod; housePercent: number; taxable: boolean; minMinutes: number; positionPoints: Record<string, number>; effectiveFrom?: string | null } | null;
+  allocations: TipAllocation[]; calculatedByMe: boolean;
+};
+export type MyTipShare = {
+  id: string; poolNumber: string; source: TipSource; branchName?: string | null; periodStart: string; periodEnd: string; minutes: number;
+  amount: number; status: TipPoolStatus; inPayroll: boolean;
+};
+
+export const getTipRules = (s: StaffSession) => apiRequest<TipRule[]>("/hr/tip-rules", auth(s));
+export const addTipRule = (s: StaffSession, body: TipRuleInput) => apiRequest<TipRule>("/hr/tip-rules", { ...auth(s), method: "POST", body });
+export const getTipPools = (s: StaffSession, branchId?: string) => apiRequest<TipPoolSummary[]>(`/hr/tip-pools${query({ branchId })}`, auth(s));
+export const createTipPool = (s: StaffSession, body: { branchId: string; source: TipSource; periodStart: string; periodEnd: string }) =>
+  apiRequest<TipPoolDetail>("/hr/tip-pools", { ...auth(s), method: "POST", body });
+export const getTipPool = (s: StaffSession, id: string) => apiRequest<TipPoolDetail>(`/hr/tip-pools/${id}`, auth(s));
+export const tipPoolAction = (s: StaffSession, id: string, action: "calculate" | "approve" | "reopen" | "cancel", body: Record<string, unknown> = {}) =>
+  apiRequest<TipPoolDetail>(`/hr/tip-pools/${id}/${action}`, { ...auth(s), method: "POST", body });
+export const getMyTips = (s: StaffSession) => apiRequest<MyTipShare[]>("/hr/me/tips", auth(s));
