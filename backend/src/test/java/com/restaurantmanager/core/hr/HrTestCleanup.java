@@ -20,6 +20,7 @@ public class HrTestCleanup {
         entityManager.createQuery("delete from ShiftTemplateEntity").executeUpdate();
         entityManager.createQuery("delete from SchedulingPolicyEntity").executeUpdate();
         entityManager.createQuery("delete from AttendancePolicyEntity").executeUpdate();
+        entityManager.createQuery("delete from PayrollRuleEntity").executeUpdate();
         entityManager.createQuery("delete from LeavePolicyEntity").executeUpdate();
         entityManager.createQuery("delete from LeaveTypeEntity").executeUpdate();
         entityManager.createQuery("delete from OvertimeRuleEntity").executeUpdate();
@@ -32,6 +33,11 @@ public class HrTestCleanup {
     /** Keeps migration-seeded departments, positions and sequences (PostgreSQL/Flyway tests). */
     @Transactional
     public void cleanEmployees() {
+        entityManager.createQuery("update TimesheetEntity t set t.payrollRunId = null").executeUpdate();
+        entityManager.createQuery("delete from PayslipLineEntity").executeUpdate();
+        entityManager.createQuery("delete from PayslipEntity").executeUpdate();
+        entityManager.createQuery("delete from PayrollAdjustmentEntity").executeUpdate();
+        entityManager.createQuery("delete from PayrollRunEntity").executeUpdate();
         entityManager.createQuery("delete from LeaveTransactionEntity").executeUpdate();
         entityManager.createQuery("delete from LeaveBalanceEntity").executeUpdate();
         entityManager.createQuery("delete from LeaveApprovalEntity").executeUpdate();

@@ -68,6 +68,8 @@ public class TimesheetEntity {
     @Column(name = "approved_at") private Instant approvedAt;
     @Column(name = "locked_by") private UUID lockedBy;
     @Column(name = "locked_at") private Instant lockedAt;
+    /** The payroll run that pays this timesheet (reserved when a run is calculated, cleared if the run is recalculated or cancelled). */
+    @Column(name = "payroll_run_id") private UUID payrollRunId;
 
     @Version
     private long version;
@@ -161,4 +163,6 @@ public class TimesheetEntity {
     public Instant getLockedAt() { return lockedAt; }
     public void setLockedAt(Instant v) { this.lockedAt = v; }
     public long getVersion() { return version; }
+    public UUID getPayrollRunId() { return payrollRunId; }
+    public void setPayrollRunId(UUID payrollRunId) { this.payrollRunId = payrollRunId; }
 }

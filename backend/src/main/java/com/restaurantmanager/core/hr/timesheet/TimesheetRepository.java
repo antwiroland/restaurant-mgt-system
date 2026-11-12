@@ -19,4 +19,10 @@ public interface TimesheetRepository extends JpaRepository<TimesheetEntity, UUID
     List<TimesheetEntity> findAtBranches(@Param("branchIds") Collection<UUID> branchIds, @Param("from") LocalDate from, @Param("to") LocalDate to);
 
     List<TimesheetEntity> findByEmployeeIdOrderByPeriodStartDesc(UUID employeeId);
+
+    List<TimesheetEntity> findByPayrollRunId(UUID payrollRunId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("update TimesheetEntity t set t.payrollRunId = null where t.payrollRunId = :runId")
+    void releaseRun(@Param("runId") UUID runId);
 }
