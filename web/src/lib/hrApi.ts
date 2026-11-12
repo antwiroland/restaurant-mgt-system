@@ -629,3 +629,80 @@ export async function attachLeaveDocument(s: StaffSession, id: string, file: Fil
   if (!response.ok) throw await rawError(response, "Upload failed");
   return (await response.json()) as LeaveRequest;
 }
+
+// ---------------------------------------------------------------------------
+// Payroll (Phase 6)
+// ---------------------------------------------------------------------------
+
+export type PayrollRunStatus = "DRAFT" | "CALCULATED" | "APPROVED" | "FINALIZED" | "PAID" | "CANCELLED";
+export type PayrollRuleKind = "EMPLOYEE_DEDUCTION" | "EMPLOYER_CONTRIBUTION";
+export type PayrollRuleMethod = "PERCENT" | "FIXED" | "BRACKETS";
+export type PayrollRuleBase = "BASIC" | "GROSS" | "TAXABLE";
+export type PaymentMethod = "BANK" | "MOBILE_MONEY" | "CASH" | "OTHER";
+export type AdjustmentKind = "EARNING" | "DEDUCTION";
+export const PAYMENT_METHODS: PaymentMethod[] = ["BANK", "MOBILE_MONEY", "CASH", "OTHER"];
+
+export type PayrollBracket = { upTo: number | null; ratePercent: number };
+export type PayrollRule = {
+  id: string; code: string; name: string; kind: PayrollRuleKind; method: PayrollRuleMethod; base: PayrollRuleBase;
+  ratePercent?: number | null; fixedAmount?: number | null; capAmount?: number | null; brackets: PayrollBracket[]; preTax: boolean;
+  employmentTypes: EmploymentType[]; branchId?: string | null; effectiveFrom: string; active: boolean; displayOrder: number;
+  note?: string | null; createdAt: string;
+};
+export type PayrollRuleInput = {
+  code: string; name?: string; kind?: PayrollRuleKind; method?: PayrollRuleMethod; base?: PayrollRuleBase; ratePercent?: number | null;
+  fixedAmount?: number | null; capAmount?: number | null; brackets?: PayrollBracket[]; preTax?: boolean; employmentTypes?: EmploymentType[];
+  branchId?: string | null; effectiveFrom: string; active?: boolean; displayOrder?: number; note?: string;
+};
+export type PayrollRunSummary = {
+  id: string; runNumber: string; branchId: string; branchName?: string | null; periodStart: string; periodEnd: string; payDate?: string | null;
+  status: PayrollRunStatus; currency: string; employeeCount: number; grossTotal: number; deductionsTotal: number; netTotal: number;
+  employerTotal: number; paidCount?: number | null; calculatedAt?: string | null; approvedAt?: string | null; finalizedAt?: string | null;
+  cancelReason?: string | null; notes?: string | null; version: number;
+};
+export type PayslipSummary = {
+  id: string; runId: string; employeeId: string; employeeName?: string | null; employeeNumber?: string | null; salaryType?: SalaryType | null;
+  rate?: number | null; paidMinutes: number; overtimeMinutes: number; workedDays: number; unpaidLeaveDays: number; basic: number; gross: number;
+  taxable: number; employeeDeductions: number; net: number; employerContributions: number; issues: string[];
+  paymentMethod?: PaymentMethod | null; paymentReference?: string | null; paidAt?: string | null;
+};
+export type PayrollAdjustment = {
+  id: string; employeeId: string; employeeName?: string | null; kind: AdjustmentKind; taxable: boolean; description: string; amount: number; createdAt: string;
+};
+export type PayrollRunDetail = {
+  summary: PayrollRunSummary; payslips: PayslipSummary[]; adjustments: PayrollAdjustment[];
+  skipped: { employeeId: string; name?: string | null; reason: string }[]; blockingPayslips: number; calculatedByMe: boolean;
+};
+export type PayslipLine = { kind: "EARNING" | "DEDUCTION" | "EMPLOYER"; code: string; description: string; quantity?: number | null; rate?: number | null; amount: number };
+export type PayslipDetail = {
+  summary: PayslipSummary; runNumber: string; runStatus: PayrollRunStatus; periodStart: string; periodEnd: string; payDate?: string | null;
+  currency: string; branchName?: string | null; hourlyRate?: number | null; lines: PayslipLine[];
+};
+export type MyPayslip = {
+  id: string; runNumber: string; periodStart: string; periodEnd: string; payDate?: string | null; currency: string;
+  gross: number; deductions: number; net: number; paidAt?: string | null;
+};
+
+export const getPayrollRules = (s: StaffSession) => apiRequest<PayrollRule[]>("/hr/payroll-rules", auth(s));
+export const addPayrollRule = (s: StaffSession, body: PayrollRuleInput) =>
+  apiRequest<PayrollRule>("/hr/payroll-rules", { ...auth(s), method: "POST", body });
+export const getPayrollRuns = (s: StaffSession, branchId?: string) =>
+  apiRequest<PayrollRunSummary[]>(`/hr/payroll-runs${query({ branchId })}`, auth(s));
+export const createPayrollRun = (s: StaffSession, body: { branchId: string; periodStart: string; periodEnd: string; payDate?: string; notes?: string }) =>
+  apiRequest<PayrollRunDetail>("/hr/payroll-runs", { ...auth(s), method: "POST", body });
+export const getPayrollRun = (s: StaffSession, id: string) => apiRequest<PayrollRunDetail>(`/hr/payroll-runs/${id}`, auth(s));
+export const payrollRunAction = (
+  s: StaffSession,
+  id: string,
+  action: "calculate" | "approve" | "reopen" | "finalize" | "pay" | "cancel",
+  body: Record<string, unknown> = {},
+) => apiRequest<PayrollRunDetail>(`/hr/payroll-runs/${id}/${action}`, { ...auth(s), method: "POST", body });
+export const addPayrollAdjustment = (
+  s: StaffSession,
+  id: string,
+  body: { employeeId: string; kind: AdjustmentKind; taxable: boolean; description: string; amount: number },
+) => apiRequest<PayrollRunDetail>(`/hr/payroll-runs/${id}/adjustments`, { ...auth(s), method: "POST", body });
+export const removePayrollAdjustment = (s: StaffSession, id: string, adjustmentId: string) =>
+  apiRequest<PayrollRunDetail>(`/hr/payroll-runs/${id}/adjustments/${adjustmentId}`, { ...auth(s), method: "DELETE" });
+export const getPayslip = (s: StaffSession, id: string) => apiRequest<PayslipDetail>(`/hr/payslips/${id}`, auth(s));
+export const getMyPayslips = (s: StaffSession) => apiRequest<MyPayslip[]>("/hr/me/payslips", auth(s));
