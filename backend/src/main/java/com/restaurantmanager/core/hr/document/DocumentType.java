@@ -9,5 +9,6 @@ public enum DocumentType {
     MEDICAL_FITNESS,
     TRAINING_CERTIFICATE,
     PHOTO,
+    LEAVE_SUPPORT,
     OTHER
 }

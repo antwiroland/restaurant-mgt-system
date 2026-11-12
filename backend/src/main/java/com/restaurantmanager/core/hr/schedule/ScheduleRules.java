@@ -33,13 +33,25 @@ public final class ScheduleRules {
 
     public record Policy(int minRestMinutes, int maxShiftMinutes, int maxWeeklyMinutes, String source) {}
 
+    /** A pending or approved leave request of the employee (inclusive dates; half flags apply to the first/last day). */
+    public record LeavePeriod(LocalDate start, LocalDate end, boolean startHalf, boolean endHalf, boolean approved, String typeName) {
+        boolean halfOn(LocalDate day) {
+            return (startHalf && day.equals(start)) || (endHalf && day.equals(end));
+        }
+    }
+
+    public static List<Issue> evaluate(Interval candidate, List<Interval> others, Policy policy, EmploymentStatus status,
+                                       boolean assignedToBranch, List<AvailabilityEntity> availability, ZoneId zone) {
+        return evaluate(candidate, others, policy, status, assignedToBranch, availability, List.of(), zone);
+    }
+
     /**
      * @param candidate      the shift being saved
      * @param others         the employee's other non-cancelled shifts around the candidate (not including it)
      * @param assignedToBranch whether the employee belongs to the shift's branch on that date (primary or active assignment)
      */
     public static List<Issue> evaluate(Interval candidate, List<Interval> others, Policy policy, EmploymentStatus status,
-                                       boolean assignedToBranch, List<AvailabilityEntity> availability, ZoneId zone) {
+                                       boolean assignedToBranch, List<AvailabilityEntity> availability, List<LeavePeriod> leave, ZoneId zone) {
         List<Issue> issues = new ArrayList<>();
         if (status != null && status.isExit()) {
             issues.add(new Issue("EMPLOYEE_LEFT", Severity.BLOCKING, "This person no longer works here"));
@@ -68,6 +80,7 @@ public final class ScheduleRules {
             issues.add(new Issue("WEEKLY_HOURS", Severity.WARNING,
                     "Brings the week to " + hours(weekly) + "; the limit is " + hours(policy.maxWeeklyMinutes())));
         }
+        leaveIssue(candidate, leave, zone).ifPresent(issues::add);
         for (AvailabilityEntity rule : availability) {
             if (rule.getKind() == AvailabilityKind.UNAVAILABLE && conflicts(rule, candidate, zone)) {
                 issues.add(new Issue("UNAVAILABLE", Severity.WARNING, "Marked unavailable" + (rule.getNote() == null ? "" : ": " + rule.getNote())));
@@ -75,6 +88,33 @@ public final class ScheduleRules {
             }
         }
         return issues;
+    }
+
+    /**
+     * Approved full-day leave on a day the shift touches blocks it; approved half-day leave and pending requests are
+     * warnings so the scheduler can still plan around them.
+     */
+    static java.util.Optional<Issue> leaveIssue(Interval shift, List<LeavePeriod> leave, ZoneId zone) {
+        LocalDate first = shift.start().atZone(zone).toLocalDate();
+        LocalDate last = shift.end().minusSeconds(1).atZone(zone).toLocalDate();
+        Issue warning = null;
+        for (LeavePeriod period : leave) {
+            for (LocalDate day = first; !day.isAfter(last); day = day.plusDays(1)) {
+                if (day.isBefore(period.start()) || day.isAfter(period.end())) {
+                    continue;
+                }
+                if (period.approved() && !period.halfOn(day)) {
+                    return java.util.Optional.of(new Issue("ON_APPROVED_LEAVE", Severity.BLOCKING,
+                            "On approved " + period.typeName().toLowerCase() + " (" + period.start() + " – " + period.end() + ")"));
+                }
+                if (warning == null) {
+                    warning = period.approved()
+                            ? new Issue("HALF_DAY_LEAVE", Severity.WARNING, "On approved half-day " + period.typeName().toLowerCase() + " on " + day)
+                            : new Issue("LEAVE_PENDING", Severity.WARNING, "Has a pending " + period.typeName().toLowerCase() + " request for " + day);
+                }
+            }
+        }
+        return java.util.Optional.ofNullable(warning);
     }
 
     static java.util.Optional<Issue> restIssue(Interval candidate, List<Interval> others, Policy policy) {

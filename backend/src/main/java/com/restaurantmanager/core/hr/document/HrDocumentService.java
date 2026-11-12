@@ -54,6 +54,15 @@ public class HrDocumentService {
     public DocumentView upload(UserPrincipal principal, UUID employeeId, UploadRequest request) {
         HrAccess access = accessService.require(principal, HrPermission.DOCUMENT_MANAGE);
         employeeService.loadInScope(employeeId, access);
+        return store(employeeId, access.userId(), request);
+    }
+
+    /**
+     * Validates and stores a document for an employee. Callers are responsible for authorisation; used by {@link #upload}
+     * and by features (leave) whose own rules decide who may attach a document to an employee's record.
+     */
+    @Transactional
+    public DocumentView store(UUID employeeId, UUID actorId, UploadRequest request) {
         byte[] content = request.content();
         if (content == null || content.length == 0) {
             throw new ApiException(400, "The file is empty");
@@ -91,13 +100,13 @@ public class HrDocumentService {
         document.setStorageKey(key);
         document.setExpiresOn(request.expiresOn());
         document.setNotes(request.notes() == null || request.notes().isBlank() ? null : request.notes().trim());
-        document.setUploadedBy(access.userId());
+        document.setUploadedBy(actorId);
         EmployeeDocumentEntity saved = repository.save(document);
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("documentId", saved.getId().toString());
         meta.put("documentType", saved.getDocumentType().name());
         meta.put("title", saved.getTitle());
-        audit.log(access.userId(), AuditAction.HR_DOCUMENT_UPLOADED, "Employee", employeeId, meta);
+        audit.log(actorId, AuditAction.HR_DOCUMENT_UPLOADED, "Employee", employeeId, meta);
         return toView(saved);
     }
 
