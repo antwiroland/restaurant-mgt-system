@@ -17,8 +17,9 @@
 | 11    | Feature Completion & Operations Expansion | Complete | 2026-11-07 |
 | 12    | Platform UI/UX Redesign ("Hearth")        | Complete | 2026-11-07 |
 | 13    | Local Test Environment & Seed Data        | Complete | 2026-11-07 |
+| 14    | Human Resources (HR phases 0–8)           | In review | 2026-11-12 |
 
-**Current focus:** fix the remaining issue found while seeding (two logins in the same second collide on the refresh token), check the redesign visually in a browser and the mobile app on a device, then production hardening (see `DEPLOYMENT_READINESS.md`).
+**Current focus:** review and merge the HR branches in order (leave → payroll → tips → recruitment), extend the HR seed data to payroll, tips and recruitment, check the redesign and the HR screens visually in a browser and the mobile app on a device, then production hardening (see `DEPLOYMENT_READINESS.md`).
 
 ---
 
@@ -404,5 +405,27 @@
 ### Issues found and status
 - Fixed: the dashboard "Best sellers" names were blank (the API sends `name` and the web read `itemName`)
 - Fixed: orders from the mobile app had no branch. They now take the requested branch, the delivery zone's branch, the configured default or the only active branch, and any remaining unassigned orders are a shared queue for branch staff (`OrderBranchResolver`, `OrderBranchAssignmentIntegrationTest`)
-- Open: two logins in the same second produce the same refresh token and return 500
+- Fixed later: two logins in the same second produced the same refresh token and returned 500 (JWTs now carry a random `jti`)
 
+---
+
+## Phase 14 - Human Resources (In review)
+
+**Last updated:** 2026-11-12. Detailed tracker, design and test records: `documentation/hr/` (`HR_IMPLEMENTATION_PROGRESS.md`, `HR_TECHNICAL_DOCUMENTATION.md`, `HR_IMPLEMENTATION_ANALYSIS.md`).
+
+### Deliverables produced
+- **Phases 0–4 (merged to `main`):** employee registry, departments and positions, contracts, private documents, HR permissions with branch scope, multi-branch assignments and transfers, shift scheduling with publishing and swaps, attendance with POS staff clock and corrections
+- **Phase 5:** timesheets and overtime (merged, PR #4); leave management (`feature/hr-leave-management`)
+- **Phase 6:** payroll (`feature/hr-payroll`)
+- **Phase 7:** tips and service charge (`feature/hr-tips`)
+- **Phase 8:** recruitment (`feature/hr-recruitment`)
+- Migrations `V27` to `V35`; web pages under `/hr/*`; HR data in the local seed up to leave
+
+### Verification
+- Backend: 408 tests pass (H2). Web: HR suites 38/38, `tsc`, ESLint and production build; the 3 pre-existing `guest.test.tsx` failures remain
+- Each HR migration was booted on a temporary PostgreSQL with Flyway and Hibernate validation, then exercised through the API (the Testcontainers suite cannot start containers on this machine)
+- Started locally with seed data; the HR screens have not yet been clicked through in a browser
+
+### Open
+- Phases 5 (leave) to 8 are stacked branches waiting for review, to be merged in order
+- Seed data for payroll, tips and recruitment; payslip PDF; performance reviews, training and an HR reporting dashboard (phases 9–11)

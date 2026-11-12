@@ -17,6 +17,12 @@ _Last verified: 2026-11-07, branch `feature/operations-expansion`._
   - End-to-end flows: POS order with options, notes and live quote → payment → kitchen stages; guest QR order → tracking; guest reservation → conflict check → cancel; menu photo upload (bytes match the original); QR PDF download; admin password reset → reset page → new password works
 - Not yet done: a visual check in a real browser, and running the mobile app on a device
 
+_HR module, last verified 2026-11-12 on `feature/hr-recruitment`:_
+
+- Backend: 408 tests pass (H2). Web: HR suites 38/38, `tsc`, ESLint and `next build`; the 3 pre-existing `guest.test.tsx` failures remain
+- Each HR migration `V27`–`V35` booted on a temporary PostgreSQL 16 with Flyway and Hibernate `validate`, then exercised through the API
+- Local stack started on H2 with `seed_local.py` (HR data up to leave); HR screens not yet clicked through in a browser
+
 ## Runtime Topology
 
 - `backend/`: Spring Boot API with PostgreSQL, Flyway, optional Redis caching
@@ -72,6 +78,24 @@ With `EMAIL_PROVIDER=log`, password reset links are only written to the backend 
 
 With `SMS_PROVIDER=log`, OTP codes are only written to the backend log. Set a real provider before you enable customer registration in production.
 
+### HR (optional; defaults are business settings, not legal advice)
+
+- `HR_DOCUMENTS_DIR` (default `hr-documents`): private store for employee and candidate documents. Must be persistent, shared between
+  instances and **never** web-served. `docker-compose.yml` mounts the `hr_documents` volume at `/app/hr-documents`
+- `HR_CONTRACT_EXPIRY_CRON` (default `0 15 1 * * *`, in `app.timezone`): contract expiry job
+- Scheduling fallbacks: `HR_DEFAULT_MIN_REST_MINUTES`, `HR_DEFAULT_MAX_SHIFT_MINUTES`, `HR_DEFAULT_MAX_WEEKLY_MINUTES`
+- Attendance fallbacks: `HR_DEFAULT_LATE_GRACE_MINUTES`, `HR_DEFAULT_EARLY_LEAVE_GRACE_MINUTES`, `HR_DEFAULT_EARLY_CLOCK_IN_MINUTES`,
+  `HR_DEFAULT_UNSCHEDULED_CLOCK_IN`, `HR_DEFAULT_REQUIRE_CORRECTION_APPROVAL`, `HR_DEFAULT_MEAL_BREAK_PAID`, `HR_DEFAULT_REST_BREAK_PAID`,
+  `HR_DEFAULT_ALLOW_SELF_CLOCK`, `HR_DEFAULT_MISSED_CLOCK_OUT_MINUTES`
+- POS clock PINs: `HR_CLOCK_PIN_MAX_ATTEMPTS`, `HR_CLOCK_PIN_LOCKOUT_MINUTES`, `RATE_LIMIT_HR_CLOCK_REQUESTS`, `RATE_LIMIT_HR_CLOCK_WINDOW_SECONDS`
+  (behind the web proxy all terminals share one bucket; size it for shift changes)
+- Overtime fallbacks: `HR_DEFAULT_OT_DAILY_THRESHOLD_MINUTES`, `HR_DEFAULT_OT_WEEKLY_THRESHOLD_MINUTES`, `HR_DEFAULT_OT_DAILY_MULTIPLIER`,
+  `HR_DEFAULT_OT_WEEKLY_MULTIPLIER`, `HR_DEFAULT_OT_HOLIDAY_MULTIPLIER`, `HR_DEFAULT_OT_REQUIRES_APPROVAL`
+- Leave: `HR_LEAVE_NON_WORKING_DAYS` (default `SAT,SUN`; restaurants that trade every day may want it empty)
+
+Before go-live, HR must configure in the app (nothing is seeded): leave entitlements, payroll deduction and contribution rules (income tax,
+pension, etc.), and tip/service-charge sharing rules.
+
 ## Web Environment Variables
 
 | Variable | When | Purpose |
@@ -125,6 +149,10 @@ Data covers:
 - Promo codes `WELCOME10`, `FEAST20` and the expired `EXPIRED5`, plus a "Kelewele 2 + 1" offer
 - About 90 orders, with finished ones back-dated across 30 days so the dashboard and reports show trends. Live tickets are at every kitchen stage, with guest QR orders on table 7, one delivery out with a rider and one waiting for dispatch
 - 6 reservations, 5 customer reviews (one low rating, to show the manager alert), a week of staff rota, an open cash shift and an open group-order session
+- HR (`scripts/dev/seed_hr.py`, run by `seed_local.py`): 22 employees (staff logins imported plus people without logins), contracts and documents,
+  branch moves, a permission grant, this week's published rota and next week's draft, availability and a swap request, clock PINs (`2580` for
+  everyone, test data), people clocked in, a correction to approve, and leave in every state with test entitlements. Payroll, tips and
+  recruitment are not seeded yet
 
 How the seed works:
 - **Payments** are confirmed the same way Paystack confirms them: a `charge.success` webhook, signed with the local development secret
@@ -137,7 +165,9 @@ How the seed works:
 ## Known Issues (fix before production)
 
 - ~~Orders from the mobile app had no branch~~ ✅ Fixed (see `ORDER_DEFAULT_BRANCH_CODE` below). With several branches, set a default branch, or send `branchId` from the apps, so pickup orders go to a specific branch instead of the shared queue
-- **Two logins by the same user in the same second return 500.** Refresh tokens have no `jti` and their issue time is in whole seconds. Add a random token ID in `JwtService`
+- ~~Two logins by the same user in the same second returned 500~~ ✅ Fixed: JWTs carry a random `jti` (`JwtService`)
+- **HR:** see `documentation/hr/HR_IMPLEMENTATION_PROGRESS.md` → Outstanding Issues (no offline POS clocking, no payslip PDF, no public
+  careers page, payments recorded but not sent, browser-local times on the schedule board)
 - **Cash is not recorded as an offline payment**: every method goes through the payment provider and needs a payer phone number
 
 ## Production Hardening Required
@@ -181,7 +211,9 @@ Gap:
 - default integration tests still run on H2 with `create-drop`, not PostgreSQL with Flyway
 
 Recommendation:
-- add a staging or CI path that runs migrations and smoke tests against PostgreSQL
+- add a staging or CI path that runs migrations and smoke tests against PostgreSQL. On this machine the Testcontainers profile cannot
+  start containers (Docker Engine 29 rejects docker-java's default API version; `DOCKER_API_VERSION=1.44` finds Docker but containers
+  still fail), so HR migrations `V27`–`V35` were checked by booting the app on a temporary PostgreSQL instead
 - the repository now includes a Docker-backed Maven profile for this path:
   `cd backend && mvn -q -Ppostgres-it -Dtest=PostgresFlywayIntegrationTest test`
 

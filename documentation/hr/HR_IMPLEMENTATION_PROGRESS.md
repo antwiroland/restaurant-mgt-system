@@ -6,7 +6,7 @@
 |---|---|
 | Project | Restaurant Manager |
 | Module | Human Resource & Workforce Management |
-| Integration branch | `feature/restaurant-hr-management` (from `feature/operations-expansion` @ `35ef1ed`) |
+| Integration branch | Phases 0–4: `feature/restaurant-hr-management` (from `feature/operations-expansion` @ `35ef1ed`), merged to `main`. From Phase 5 on: one feature branch per phase, each based on the previous one, reviewed into `main` in order |
 | Implementation start | 2026-11-09 |
 | Current status | Phases 0–4 merged to `main`; Phase 5 timesheets/overtime merged (PR #4); Phase 5 leave on `feature/hr-leave-management`; Phase 6 payroll on `feature/hr-payroll` (branched from the leave branch); Phase 7 tips and service charge on `feature/hr-tips` (branched from payroll); Phase 8 recruitment on `feature/hr-recruitment` (branched from tips) |
 | Last updated | 2026-11-12 |
@@ -114,6 +114,16 @@
 | `feature/hr-leave-management` | `5cc6c91` | feat(hr): add leave management with balances, approval chains and scheduling conflicts | 2026-11-12 | Phase 5 leave backend |
 | `feature/hr-leave-management` | `b28f1a0` | feat(hr): add leave screens for managers, staff and employee profiles | 2026-11-12 | Phase 5 leave web |
 | `feature/hr-leave-management` | `92319d6` | docs(hr): record Phase 5 timesheets and leave design, tests and progress | 2026-11-12 | Phase 5 docs |
+| `feature/hr-leave-management` | `40d2812` | chore(hr): seed leave entitlements, balances and requests | 2026-11-12 | Dev tooling |
+| `feature/hr-payroll` | `d288375` | feat(hr): add payroll runs, payslips and configurable deduction rules | 2026-11-12 | Phase 6 backend |
+| `feature/hr-payroll` | `a958633` | feat(hr): add payroll screens and self-service payslips | 2026-11-12 | Phase 6 web |
+| `feature/hr-payroll` | `feda47f` | docs(hr): record Phase 6 payroll design, tests and progress | 2026-11-12 | Phase 6 docs |
+| `feature/hr-tips` | `fe32270` | feat(hr): add tips and service charge pools paid through payroll | 2026-11-12 | Phase 7 backend |
+| `feature/hr-tips` | `9b3fec0` | feat(hr): add tips and service charge screens | 2026-11-12 | Phase 7 web |
+| `feature/hr-tips` | `64c464f` | docs(hr): record Phase 7 tips and service charge design, tests and progress | 2026-11-12 | Phase 7 docs |
+| `feature/hr-recruitment` | `27858d4` | feat(hr): add recruitment with vacancies, hiring pipeline, interviews and one-step hire | 2026-11-12 | Phase 8 backend |
+| `feature/hr-recruitment` | `a8e4afd` | feat(hr): add recruitment screens | 2026-11-12 | Phase 8 web |
+| `feature/hr-recruitment` | `be1b2e5` | docs(hr): record Phase 8 recruitment design, tests and progress | 2026-11-12 | Phase 8 docs |
 
 ## Development Log
 
@@ -139,16 +149,17 @@
 | 2026-11-12 | Phase 5 leave backend | `hr.leave` package on V32 (no new migration), `LEAVE_SUPPORT` document type, leave rule in `ScheduleRules`, leave lines on timesheets, `ON_LEAVE` on the day board, `HrDocumentService.store` extracted | Backend `mvn test`: **384 run, 0 failures, 0 errors**; leave suites 10 + 5 + 1 new | `feature/hr-leave-management` | `5cc6c91` |
 | 2026-11-12 | V32 on PostgreSQL | Booted the packaged app on a temporary `postgres:16-alpine`: Flyway applied V1–V32, Hibernate `validate` passed, seven leave types seeded. API smoke test (entitlement, employee + login link, quote, request, overlap 409, awaiting-me, employee/branch lists, calendar, approve, balance and ledger, shift on approved leave 409, HR adjustment, negative-allowed sick leave, cancel): **28/28 passed** | Manual, passed | `feature/hr-leave-management` | `5cc6c91` |
 | 2026-11-12 | Phase 5 leave web | `/hr/leave`, `/hr/my-leave`, profile Leave tab, leave API client, nav entries, `LEAVE` timesheet flag | `vitest` HR suites **25/25** (4 new leave + 1 nav); full web suite 61/64 with the 3 pre-existing `guest.test.tsx` failures; `tsc` and ESLint clean; `next build` passes | `feature/hr-leave-management` | `b28f1a0` |
-| 2026-11-12 | Leave seed data | `seed_hr.py`: leave types when missing (H2 without Flyway), test entitlements, an HR adjustment, pending/approved/two-step/self-service sick requests | Seeded a fresh local H2 backend end to end; 4 requests in the expected states, approved leave reports its 2 clashing draft shifts | `feature/hr-leave-management` | see Git History |
-| 2026-11-12 | Phase 8 recruitment backend | V35, `hr.recruitment` package, `HrDocumentService.storeFile/attach` split, recruitment in MANAGER defaults, `HR_RECRUITMENT_CHANGED` | Backend `mvn test`: **408 run, 0 failures, 0 errors** (402 + 2 stage + 4 recruitment) | `feature/hr-recruitment` | see Git History |
-| 2026-11-12 | V35 on PostgreSQL | Booted the packaged app on a temporary `postgres:16-alpine`: Flyway V1–V35, Hibernate `validate` passed. Smoke test: vacancy with pay range hidden from the manager, new candidate, duplicate by email in another case refused, search, multipart CV upload, trial shift moving the stage, interviewer recording the result, offer with pay by HR, acceptance, hire creating employee + draft contract + CV copy, vacancy filled, anonymisation with the employee's copy still downloadable: **36/36 passed** | Manual, passed | `feature/hr-recruitment` | see Git History |
-| 2026-11-12 | Phase 8 recruitment web | `/hr/recruitment` (vacancies, pipeline drawer, application drawer, candidates), interviews on My Schedule, nav entry | `vitest` HR suites **38/38**; `tsc` and ESLint clean; `next build` passes (a first build attempt reported 3 Turbopack errors whose text was lost to an output filter; an immediate re-run without changes compiled cleanly) | `feature/hr-recruitment` | see Git History |
-| 2026-11-12 | Phase 7 tips backend | V34, `hr.tips` package, payroll earning lines for approved shares, `HR_TIPS_CHANGED` | Backend `mvn test`: **402 run, 0 failures, 0 errors** (394 + 5 calculator + 3 tips) | `feature/hr-tips` | see Git History |
-| 2026-11-12 | V34 on PostgreSQL | Booted the packaged app on a temporary `postgres:16-alpine`: Flyway V1–V34, Hibernate `validate` passed. Smoke test with SQL-inserted orders, payments (one fully refunded) and time entries: tips pool collected 100 from 2 orders, house 10 %, shares 60/30 by hours; service-charge pool on the default rule; calculator cannot approve; payroll gross includes the shares; pool locked while payroll uses it; pool paid after payroll finalized: **37/37 passed** | Manual, passed | `feature/hr-tips` | see Git History |
-| 2026-11-12 | Phase 7 tips web | `/hr/tips` (pools, pool drawer, sharing rules with position points), tips on My Payslips, nav entry | `vitest` HR suites **34/34**; `tsc` and ESLint clean; `next build` passes | `feature/hr-tips` | see Git History |
-| 2026-11-12 | Phase 6 payroll backend | V33, `hr.payroll` package, `payroll_run_id` on timesheets, `HR_PAYROLL_CHANGED` | Backend `mvn test`: **394 run, 0 failures, 0 errors** (384 + 6 calculator + 4 payroll) | `feature/hr-payroll` | see Git History |
-| 2026-11-12 | V33 on PostgreSQL | Booted the packaged app on a temporary `postgres:16-alpine`: Flyway V1–V33, Hibernate `validate` passed. Smoke test (grant, employee + contract, percent/bracket/employer rules with employment-type limit, run, overlap 409, calculate with expected figures, adjustment + recalculate, calculator cannot approve, approve, finalize, employee payslip and lines, pay): **31/31 passed**. Found and fixed run numbers rendered as `PAY--000001` | Manual, passed after fix | `feature/hr-payroll` | see Git History |
-| 2026-11-12 | Phase 6 payroll web | `/hr/payroll` (runs, run drawer, payslip drawer, rules), `/hr/my-payslips`, nav entries | `vitest` HR suites **30/30**; `tsc` and ESLint clean; `next build` passes | `feature/hr-payroll` | see Git History |
+| 2026-11-12 | Leave seed data | `seed_hr.py`: leave types when missing (H2 without Flyway), test entitlements, an HR adjustment, pending/approved/two-step/self-service sick requests | Seeded a fresh local H2 backend end to end; 4 requests in the expected states, approved leave reports its 2 clashing draft shifts | `feature/hr-leave-management` | `40d2812` |
+| 2026-11-12 | Local run | `run-backend-local.sh` on a fresh H2 database, `seed_local.py` (restaurant data + HR up to leave), `run-web-local.sh` with the existing build | Backend started and seeded without errors; web `/login` 200, unauthenticated API call through the web proxy 401 (as expected). Payroll, tips and recruitment start empty (not seeded yet) | `feature/hr-recruitment` | `be1b2e5` |
+| 2026-11-12 | Phase 8 recruitment backend | V35, `hr.recruitment` package, `HrDocumentService.storeFile/attach` split, recruitment in MANAGER defaults, `HR_RECRUITMENT_CHANGED` | Backend `mvn test`: **408 run, 0 failures, 0 errors** (402 + 2 stage + 4 recruitment) | `feature/hr-recruitment` | `27858d4` |
+| 2026-11-12 | V35 on PostgreSQL | Booted the packaged app on a temporary `postgres:16-alpine`: Flyway V1–V35, Hibernate `validate` passed. Smoke test: vacancy with pay range hidden from the manager, new candidate, duplicate by email in another case refused, search, multipart CV upload, trial shift moving the stage, interviewer recording the result, offer with pay by HR, acceptance, hire creating employee + draft contract + CV copy, vacancy filled, anonymisation with the employee's copy still downloadable: **36/36 passed** | Manual, passed | `feature/hr-recruitment` | `27858d4` |
+| 2026-11-12 | Phase 8 recruitment web | `/hr/recruitment` (vacancies, pipeline drawer, application drawer, candidates), interviews on My Schedule, nav entry | `vitest` HR suites **38/38**; `tsc` and ESLint clean; `next build` passes (a first build attempt reported 3 Turbopack errors whose text was lost to an output filter; an immediate re-run without changes compiled cleanly) | `feature/hr-recruitment` | `a8e4afd` |
+| 2026-11-12 | Phase 7 tips backend | V34, `hr.tips` package, payroll earning lines for approved shares, `HR_TIPS_CHANGED` | Backend `mvn test`: **402 run, 0 failures, 0 errors** (394 + 5 calculator + 3 tips) | `feature/hr-tips` | `fe32270` |
+| 2026-11-12 | V34 on PostgreSQL | Booted the packaged app on a temporary `postgres:16-alpine`: Flyway V1–V34, Hibernate `validate` passed. Smoke test with SQL-inserted orders, payments (one fully refunded) and time entries: tips pool collected 100 from 2 orders, house 10 %, shares 60/30 by hours; service-charge pool on the default rule; calculator cannot approve; payroll gross includes the shares; pool locked while payroll uses it; pool paid after payroll finalized: **37/37 passed** | Manual, passed | `feature/hr-tips` | `fe32270` |
+| 2026-11-12 | Phase 7 tips web | `/hr/tips` (pools, pool drawer, sharing rules with position points), tips on My Payslips, nav entry | `vitest` HR suites **34/34**; `tsc` and ESLint clean; `next build` passes | `feature/hr-tips` | `9b3fec0` |
+| 2026-11-12 | Phase 6 payroll backend | V33, `hr.payroll` package, `payroll_run_id` on timesheets, `HR_PAYROLL_CHANGED` | Backend `mvn test`: **394 run, 0 failures, 0 errors** (384 + 6 calculator + 4 payroll) | `feature/hr-payroll` | `d288375` |
+| 2026-11-12 | V33 on PostgreSQL | Booted the packaged app on a temporary `postgres:16-alpine`: Flyway V1–V33, Hibernate `validate` passed. Smoke test (grant, employee + contract, percent/bracket/employer rules with employment-type limit, run, overlap 409, calculate with expected figures, adjustment + recalculate, calculator cannot approve, approve, finalize, employee payslip and lines, pay): **31/31 passed**. Found and fixed run numbers rendered as `PAY--000001` | Manual, passed after fix | `feature/hr-payroll` | `d288375` |
+| 2026-11-12 | Phase 6 payroll web | `/hr/payroll` (runs, run drawer, payslip drawer, rules), `/hr/my-payslips`, nav entries | `vitest` HR suites **30/30**; `tsc` and ESLint clean; `next build` passes | `feature/hr-payroll` | `a958633` |
 | 2026-11-09 | Phase 4 web | Attendance page, PIN card, My time clock; POS staff clock panel | `vitest` HR suites 20/20; ESLint and `tsc` clean; `next build` passes | `feature/hr-attendance`, `feature/hr-pos-integration` | `953b890`, `b41efea` |
 
 ## Outstanding Issues
@@ -160,8 +171,9 @@
 - **Pre-existing web test failures:** 3 tests in `web/src/features/guest.test.tsx` fail because `window.localStorage` is undefined in that
   test environment. Not caused by HR; left untouched.
 - **Pre-existing build cache issue:** stale `.next/dev/types` from an old dev server broke `next build` type checking; cleared locally (generated, gitignored).
-- **Not verified in a browser:** HR web screens are type-checked, linted, unit-tested and build, but were not exercised end-to-end in a running browser session.
-- **Pending decision — branch base:** HR is based on `feature/operations-expansion` (11 commits ahead of `main`); that branch must land before HR can be reviewed against `main`.
+- **Not verified in a browser:** HR web screens are type-checked, linted, unit-tested and build, and the app has been started locally with seed
+  data, but the screens have not been clicked through end-to-end in a browser session.
+- **Stacked branches:** Phases 5 (leave) to 8 each build on the previous branch; review and merge them in order (leave → payroll → tips → recruitment) so each PR shows only its own phase.
 - **H2 vs PostgreSQL gap:** H2 accepted a query that PostgreSQL rejects (null parameter typing). Until the Testcontainers suite runs in CI,
   each migration/query change is verified manually on PostgreSQL (see log). Treat `(:param is null or ...)` JPQL as forbidden.
 - **Attendance alerts:** late arrivals and missed clock-outs are flagged on the board but no push alert is sent yet.
@@ -181,7 +193,8 @@
   fully inside the period are paid.
 - **Payroll payments:** recorded only (method and reference); no bank or mobile-money transfer is made by the system.
 - **Payslip documents:** payslips are shown on screen; PDF export is not built yet.
-- **Payroll seed data:** `seed_hr.py` does not create payroll rules or runs.
+- **Seed data:** `seed_hr.py` covers HR up to leave; it does not create payroll rules or runs, tip/service-charge rules or pools, or
+  vacancies and candidates. Those screens start empty on a fresh local database.
 - **Tips basis:** an order counts in the period of its first successful payment; partially refunded orders count in full, fully refunded
   orders are left out. Refunds after a pool is approved do not change it (return the pool to draft and recalculate if needed).
 - **Tips participants:** based on clocked time at the branch; staff who did not clock (or whose entries are open) get no share.
@@ -204,6 +217,7 @@
 ## Next Actions
 
 1. Open PRs in order: `feature/hr-leave-management` → `main`, then `feature/hr-payroll`, `feature/hr-tips`, `feature/hr-recruitment` (each based on the previous).
-2. Payroll follow-ups: payslip PDF, payroll seed data, bank/mobile-money payment file export.
-3. Phase 9 onwards: performance reviews, training and certifications, HR reporting dashboard.
-4. Fix the Testcontainers environment or CI job so the `postgres` test group runs on every phase.
+2. Extend `seed_hr.py` with payroll rules and a calculated run, tip/service-charge rules and pools, and vacancies with candidates at each stage.
+3. Payroll follow-ups: payslip PDF, bank/mobile-money payment file export.
+4. Phase 9 onwards: performance reviews, training and certifications, HR reporting dashboard.
+5. Fix the Testcontainers environment or CI job so the `postgres` test group runs on every phase.
