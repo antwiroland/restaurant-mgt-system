@@ -284,7 +284,13 @@ export default function PosPage() {
       setShowExtras(false);
       setDeliveryAddress("");
       setDeliveryZoneId("");
-      if (orderType !== "DINE_IN") setTableId("");
+      if (created.tableId) {
+        // The table now has an open order: stop offering it for a new dine-in order.
+        const occupiedId = created.tableId;
+        setTables((current) => current.map((table) => (table.id === occupiedId ? { ...table, status: "OCCUPIED" } : table)));
+      }
+      setTableId("");
+      void authenticatedFetch((activeSession) => getTables(activeSession)).then(setTables).catch(() => undefined);
       const discount = Number(created.discountTotal ?? 0);
       setMessage({
         tone: "success",
@@ -570,27 +576,37 @@ export default function PosPage() {
                     <p className="text-sm text-ink-soft">No tables set up yet.</p>
                   ) : (
                     <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Table" aria-describedby={orderFieldErrors.tableId ? "pos-table-error" : undefined}>
-                      {dineInTables.map((table) => (
-                        <button
-                          key={table.id}
-                          type="button"
-                          role="radio"
-                          aria-checked={tableId === table.id}
-                          aria-label={`Table ${table.number}, ${table.status.toLowerCase()}`}
-                          title={`${table.zone} · ${table.capacity} seats · ${table.status.toLowerCase()}`}
-                          onClick={() => {
-                            setTableId(table.id);
-                            setOrderFieldErrors((errors) => ({ ...errors, tableId: undefined }));
-                          }}
-                          className={`relative grid h-12 place-items-center rounded-lg border font-display text-base font-bold transition-[box-shadow] ${TABLE_TONE[table.status]} ${
-                            tableId === table.id ? "ring-2 ring-espresso ring-offset-1" : ""
-                          }`}
-                        >
-                          {table.number}
-                        </button>
-                      ))}
+                      {dineInTables.map((table) => {
+                        // Only free tables can take a new order. A table opened from the floor plan
+                        // (/pos?table=...) stays selected so staff can add a round to it.
+                        const unavailable = table.status !== "AVAILABLE" && tableId !== table.id;
+                        return (
+                          <button
+                            key={table.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={tableId === table.id}
+                            aria-disabled={unavailable || undefined}
+                            disabled={unavailable}
+                            aria-label={`Table ${table.number}, ${table.status.toLowerCase()}`}
+                            title={`${table.zone} · ${table.capacity} seats · ${table.status.toLowerCase()}`}
+                            onClick={() => {
+                              setTableId(table.id);
+                              setOrderFieldErrors((errors) => ({ ...errors, tableId: undefined }));
+                            }}
+                            className={`relative grid h-12 place-items-center rounded-lg border font-display text-base font-bold transition-[box-shadow] ${TABLE_TONE[table.status]} ${
+                              tableId === table.id ? "ring-2 ring-espresso ring-offset-1" : ""
+                            } ${unavailable ? "cursor-not-allowed opacity-45" : ""}`}
+                          >
+                            {table.number}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
+                  {dineInTables.length > 0 && !dineInTables.some((table) => table.status === "AVAILABLE" || table.id === tableId) ? (
+                    <p className="mt-1.5 text-xs text-ink-soft">Every table is taken. Open a table from the floor plan to add to its order.</p>
+                  ) : null}
                   {orderFieldErrors.tableId ? <span id="pos-table-error" className="field-error mt-1.5 block" role="alert">{orderFieldErrors.tableId}</span> : null}
                 </fieldset>
               ) : null}

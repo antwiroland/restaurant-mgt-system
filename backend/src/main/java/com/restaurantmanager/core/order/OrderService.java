@@ -41,6 +41,7 @@ import com.restaurantmanager.core.security.JwtService;
 import com.restaurantmanager.core.security.UserPrincipal;
 import com.restaurantmanager.core.table.RestaurantTableEntity;
 import com.restaurantmanager.core.table.RestaurantTableRepository;
+import com.restaurantmanager.core.table.TableRealtimePublisher;
 import com.restaurantmanager.core.table.TableStatus;
 import com.restaurantmanager.core.table.qr.TableSessionService;
 import com.restaurantmanager.core.delivery.DeliveryService;
@@ -48,6 +49,7 @@ import com.restaurantmanager.core.user.UserEntity;
 import com.restaurantmanager.core.user.UserRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -61,10 +63,12 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -93,6 +97,8 @@ public class OrderService {
     private final DeliveryService deliveryService;
     private final com.restaurantmanager.core.inventory.InventoryService inventoryService;
     private final OrderBranchResolver branchResolver;
+    private final CacheManager cacheManager;
+    private final TableRealtimePublisher tableRealtimePublisher;
     private final com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications;
 
     public OrderService(OrderRepository orderRepository,
@@ -115,7 +121,11 @@ public class OrderService {
                         DeliveryService deliveryService,
                         com.restaurantmanager.core.inventory.InventoryService inventoryService,
                         OrderBranchResolver branchResolver,
-            com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications) {
+            com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications,
+                        CacheManager cacheManager,
+                        TableRealtimePublisher tableRealtimePublisher) {
+        this.cacheManager = cacheManager;
+        this.tableRealtimePublisher = tableRealtimePublisher;
         this.pushNotifications = pushNotifications;
         this.branchResolver = branchResolver;
         this.orderRepository = orderRepository;
@@ -141,7 +151,7 @@ public class OrderService {
 
     @Transactional
     public OrderResponse createOrder(OrderCreateRequest request, UserPrincipal principal) {
-        return createOrderInternal(request, principal, null);
+        return createOrderInternal(request, principal, null, null, null);
     }
 
     @Transactional
@@ -159,7 +169,17 @@ public class OrderService {
                 request.promoCode(),
                 null
         );
-        return createOrderInternal(internalRequest, null, null);
+        return createOrderInternal(internalRequest, null, null, blankToNull(request.guestName()), normalizePhone(request.guestPhone()));
+    }
+
+    /** Digits with an optional leading +, so staff can dial it and MoMo accepts it. */
+    private static String normalizePhone(String phone) {
+        if (phone == null || phone.isBlank()) {
+            return null;
+        }
+        String trimmed = phone.trim();
+        String digits = trimmed.replaceAll("[^0-9]", "");
+        return trimmed.startsWith("+") ? "+" + digits : digits;
     }
 
     @Transactional(readOnly = true)
@@ -408,25 +428,33 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public List<OrderPublicStatusView> listPublicOrders() {
+        // Pickup board: only pickup orders still with the kitchen or waiting to be collected.
+        Set<OrderStatus> shown = EnumSet.of(OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.READY);
         return orderRepository.findActiveForPublicDisplay(List.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED))
                 .stream()
+                .filter(order -> order.getType() == OrderType.PICKUP && shown.contains(order.getStatus()))
                 .map(order -> new OrderPublicStatusView(
-                        order.getId(),
-                        order.getTable() != null ? order.getTable().getNumber() : null,
-                        order.getType(),
+                        orderNumber(order.getId()),
                         order.getStatus(),
-                        order.getCreatedAt(),
                         order.getUpdatedAt()
                 ))
                 .toList();
+    }
+
+    /** The short number shown on the POS and receipts ("Order #1A2B3C4D"). */
+    static String orderNumber(UUID orderId) {
+        return orderId.toString().substring(0, 8).toUpperCase(java.util.Locale.ROOT);
     }
 
     @Transactional(readOnly = true)
     public List<PublicOrderTrackingResponse> publicTableTracking(String tableToken) {
         RestaurantTableEntity table = tableRepository.findByQrToken(tableToken)
                 .orElseThrow(() -> new ApiException(404, "Table token not found"));
-        return orderRepository.findByTable_QrTokenOrderByCreatedAtAsc(table.getQrToken()).stream()
+        List<OrderEntity> orders = orderRepository.findByTable_QrTokenOrderByCreatedAtAsc(table.getQrToken()).stream()
                 .filter(order -> order.getType() == OrderType.DINE_IN)
+                .toList();
+        Map<UUID, BigDecimal> paidByOrderId = paymentTotalsByOrderIds(orders.stream().map(OrderEntity::getId).toList());
+        return orders.stream()
                 .map(order -> new PublicOrderTrackingResponse(
                         order.getId(),
                         table.getNumber(),
@@ -434,7 +462,9 @@ public class OrderService {
                         order.getNotes(),
                         order.getCancelReason(),
                         order.getCreatedAt(),
-                        order.getUpdatedAt()
+                        order.getUpdatedAt(),
+                        order.getTotal(),
+                        paidByOrderId.getOrDefault(order.getId(), BigDecimal.ZERO)
                 ))
                 .toList();
     }
@@ -573,17 +603,20 @@ public class OrderService {
             participantByIndex.put(i, sessionItems.get(i).getParticipant().getId());
         }
 
-        OrderResponse response = createOrderInternal(createRequest, principal, participantByIndex);
+        OrderResponse response = createOrderInternal(createRequest, principal, participantByIndex, null, null);
         session.setStatus(GroupSessionStatus.COMPLETED);
         groupOrderSessionRepository.save(session);
         return response;
     }
 
-    private OrderResponse createOrderInternal(OrderCreateRequest request, UserPrincipal principal, Map<Integer, UUID> participantByIndex) {
+    private OrderResponse createOrderInternal(OrderCreateRequest request, UserPrincipal principal, Map<Integer, UUID> participantByIndex,
+                                              String guestName, String guestPhone) {
         OrderEntity order = new OrderEntity();
         order.setType(request.type());
         order.setStatus(OrderStatus.PENDING);
         order.setNotes(blankToNull(request.notes()));
+        order.setGuestName(guestName);
+        order.setGuestPhone(guestPhone);
 
         if (principal != null) {
             if (principal.role() == Role.CUSTOMER) {
@@ -622,8 +655,15 @@ public class OrderService {
             order.setPickupCode(generatePickupCode());
         } else if (request.type() == OrderType.DINE_IN) {
             RestaurantTableEntity table = resolveTable(request.tableId(), request.tableToken(), principal);
+            boolean newlyOccupied = table.getStatus() != TableStatus.OCCUPIED;
             table.setStatus(TableStatus.OCCUPIED);
             tableRepository.save(table);
+            if (newlyOccupied) {
+                // The table list is cached per user: clear it once this commits so the POS and floor plan stop
+                // offering the table as free, and tell open screens to refresh.
+                com.restaurantmanager.core.common.AfterCommit.run(this::evictTableCaches);
+                tableRealtimePublisher.publishTableStatusChanged(table.getNumber(), TableStatus.OCCUPIED);
+            }
             order.setTable(table);
             order.setBranch(table.getBranch());
         }
@@ -696,6 +736,15 @@ public class OrderService {
 
         realtimePublisher.publishOrderCreated(saved.getId(), saved.getType(), saved.getStatus(), saved.getTotal(), tableToken(saved));
         return toResponse(saved);
+    }
+
+    private void evictTableCaches() {
+        for (String name : List.of(CacheConfig.TABLES, CacheConfig.TABLE_SCAN)) {
+            var cache = cacheManager.getCache(name);
+            if (cache != null) {
+                cache.clear();
+            }
+        }
     }
 
     private String tableToken(OrderEntity order) {
@@ -953,7 +1002,9 @@ public class OrderService {
                     order.getTaxTotal(),
                     order.isTaxInclusive(),
                     order.getTipAmount(),
-                    taxLinesByOrder.getOrDefault(order.getId(), List.of())
+                    taxLinesByOrder.getOrDefault(order.getId(), List.of()),
+                    order.getGuestName(),
+                    order.getGuestPhone()
             );
         }).toList();
     }

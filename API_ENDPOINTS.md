@@ -95,10 +95,11 @@ All requests are proxied through `/api/rm` → backend at `http://localhost:8080
 | `POST` | `/orders/public/dine-in` | 🔓 Place a dine-in order via QR scan |
 | `GET` | `/orders/public/dine-in/tables/{tableToken}/bill` | 🔓 Get table bill (customer view, by QR token) |
 | `GET` | `/orders/public/dine-in/tables/{tableToken}/tracking` | 🔓 Track orders at a table (customer view) |
-| `GET` | `/orders/public/status` | 🔓 Active order status board (PENDING → READY, no cancelled/completed) |
+| `GET` | `/orders/public/status` | 🔓 Pickup order board: pickup orders from PENDING to READY, each as `{orderNumber, status, updatedAt}` only (no items, table, customer or full id) |
+| `POST` | `/orders/public/dine-in/tables/{tableToken}/orders/{orderId}/pay` | 🔓 Guest pays a whole (unsplit) table order by Mobile Money `{momoPhone, idempotencyKey}` |
 
 **Create order request:** `{ type: "DINE_IN" | "PICKUP" | "DELIVERY", tableId?, deliveryAddress?, notes?, items: [{ menuItemId, quantity, modifierOptionIds? }] }`
-**Public dine-in request:** `{ tableToken, notes?, items: [{ menuItemId, quantity, notes?, modifierOptionIds? }] }`
+**Public dine-in request:** `{ tableToken, notes?, guestName?, guestPhone?, items: [{ menuItemId, quantity, notes?, modifierOptionIds? }] }` (no account needed; `guestPhone` is stored on the order for staff, never on public views)
 **Status update request:** `{ status }`
 **Cancel request:** `{ reason?, overrideToken? }`
 

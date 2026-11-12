@@ -2,6 +2,7 @@ package com.restaurantmanager.core.order.dto;
 
 import com.restaurantmanager.core.order.OrderStatus;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -12,6 +13,8 @@ public record PublicOrderTrackingResponse(
         String notes,
         String cancelReason,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        BigDecimal total,
+        BigDecimal amountPaid
 ) {
 }

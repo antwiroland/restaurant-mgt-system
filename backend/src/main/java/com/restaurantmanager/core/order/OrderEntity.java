@@ -67,6 +67,12 @@ public class OrderEntity {
     @Column(length = 1000)
     private String notes;
 
+    @Column(name = "guest_name", length = 80)
+    private String guestName;
+
+    @Column(name = "guest_phone", length = 20)
+    private String guestPhone;
+
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal subtotal;
 
@@ -271,6 +277,22 @@ public class OrderEntity {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public String getGuestName() {
+        return guestName;
+    }
+
+    public void setGuestName(String guestName) {
+        this.guestName = guestName;
+    }
+
+    public String getGuestPhone() {
+        return guestPhone;
+    }
+
+    public void setGuestPhone(String guestPhone) {
+        this.guestPhone = guestPhone;
     }
 
     public BigDecimal getSubtotal() {

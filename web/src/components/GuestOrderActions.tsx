@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   createGuestSplits,
   getGuestSplits,
+  payGuestOrder,
   payGuestSplit,
   submitGuestFeedback,
   verifyGuestPayment,
@@ -16,6 +17,8 @@ type Props = {
   order: PublicOrderTrackingRecord;
   /** Bumped by the page when realtime events arrive, so shares refresh without polling. */
   refreshKey?: number;
+  /** The phone the guest gave on arrival, offered as the Mobile Money number. */
+  guestPhone?: string;
 };
 
 const OPEN_STATUSES: PublicOrderTrackingRecord["status"][] = ["PENDING", "CONFIRMED", "PREPARING", "READY"];
@@ -24,22 +27,23 @@ function newKey(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 }
 
-/** Split-and-pay (while the order is open) and rating (once completed) for one guest table order. */
-export function GuestOrderActions({ tableToken, order, refreshKey = 0 }: Props) {
+/** Pay (whole or split, while the order is open) and rating (once completed) for one guest table order. */
+export function GuestOrderActions({ tableToken, order, refreshKey = 0, guestPhone }: Props) {
   const open = OPEN_STATUSES.includes(order.status);
   if (order.status === "COMPLETED") return <GuestRating tableToken={tableToken} orderId={order.orderId} />;
-  if (open) return <GuestSplitPay tableToken={tableToken} orderId={order.orderId} refreshKey={refreshKey} />;
+  if (open) return <GuestSplitPay tableToken={tableToken} order={order} refreshKey={refreshKey} guestPhone={guestPhone} />;
   return null;
 }
 
-function GuestSplitPay({ tableToken, orderId, refreshKey }: { tableToken: string; orderId: string; refreshKey: number }) {
-  const [expanded, setExpanded] = useState(false);
+function GuestSplitPay({ tableToken, order, refreshKey, guestPhone }: { tableToken: string; order: PublicOrderTrackingRecord; refreshKey: number; guestPhone?: string }) {
+  const orderId = order.orderId;
+  const [mode, setMode] = useState<"none" | "whole" | "split">("none");
   const [splits, setSplits] = useState<PaymentSplitRecord[]>([]);
   const [parts, setParts] = useState("2");
   const [names, setNames] = useState("");
   const [payingId, setPayingId] = useState<string | null>(null);
-  const [phone, setPhone] = useState("");
-  const [pending, setPending] = useState<{ splitId: string; paymentId: string } | null>(null);
+  const [phone, setPhone] = useState(guestPhone ?? "");
+  const [pending, setPending] = useState<{ splitId: string | null; paymentId: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -53,9 +57,37 @@ function GuestSplitPay({ tableToken, orderId, refreshKey }: { tableToken: string
     }
   }, [orderId, tableToken]);
 
+  // Shares decide which payment buttons to offer, so load them up front and on every live update.
   useEffect(() => {
-    if (expanded) void load();
-  }, [expanded, load, refreshKey]);
+    void load();
+  }, [load, refreshKey]);
+
+  useEffect(() => {
+    if (guestPhone) setPhone((current) => current || guestPhone);
+  }, [guestPhone]);
+
+  const total = Number(order.total ?? 0);
+  const paidSoFar = Number(order.amountPaid ?? 0);
+  const fullyPaid = total > 0 && paidSoFar >= total;
+
+  async function payWhole() {
+    if (!phone.trim()) {
+      setError("Enter the Mobile Money number to charge");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await payGuestOrder(tableToken, orderId, phone.trim(), newKey());
+      setPending({ splitId: null, paymentId: result.paymentId });
+      setMessage(result.message || `Approve the MoMo prompt on ${phone.trim()} to pay GHS ${total.toFixed(2)}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start the payment");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const anyPaid = splits.some((split) => split.status === "PAID");
   const paidCount = splits.filter((split) => split.status === "PAID").length;
@@ -120,11 +152,55 @@ function GuestSplitPay({ tableToken, orderId, refreshKey }: { tableToken: string
     }
   }
 
-  if (!expanded) {
+  if (fullyPaid) {
+    return <p className="mt-2 text-sm font-semibold text-success-on">Paid. Thank you!</p>;
+  }
+
+  const feedback = (
+    <div aria-live="polite">
+      {error ? <p className="alert alert-danger" role="alert">{error}</p> : null}
+      {message ? <p className="alert alert-success">{message}</p> : null}
+    </div>
+  );
+
+  if (mode === "none") {
     return (
-      <button type="button" className="btn btn-secondary btn-sm mt-2" onClick={() => setExpanded(true)}>
-        Split &amp; pay by MoMo
-      </button>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {splits.length === 0 && total > 0 ? (
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => setMode("whole")}>
+            Pay GHS {total.toFixed(2)} by MoMo
+          </button>
+        ) : null}
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setMode("split")}>
+          {splits.length > 0 ? "Pay my share" : "Split the bill"}
+        </button>
+      </div>
+    );
+  }
+
+  if (mode === "whole") {
+    return (
+      <div className="mt-2 grid gap-2 rounded-lg bg-sunken p-2">
+        {!pending ? (
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="grid flex-1 gap-1">
+              <span>MoMo number</span>
+              <input className="input" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="024..." />
+            </label>
+            <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void payWhole()}>
+              Pay GHS {total.toFixed(2)}
+            </button>
+            <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => { setMode("none"); setError(""); setMessage(""); }}>
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void checkPayment()}>
+            I&apos;ve approved it — check payment
+          </button>
+        )}
+        {feedback}
+      </div>
     );
   }
 
@@ -188,10 +264,10 @@ function GuestSplitPay({ tableToken, orderId, refreshKey }: { tableToken: string
           I&apos;ve approved it — check payment
         </button>
       ) : null}
-      <div aria-live="polite">
-        {error ? <p className="alert alert-danger" role="alert">{error}</p> : null}
-        {message ? <p className="alert alert-success">{message}</p> : null}
-      </div>
+      {!pending && !anyPaid ? (
+        <button type="button" className="btn btn-secondary btn-sm justify-self-start" onClick={() => setMode("none")}>Back</button>
+      ) : null}
+      {feedback}
     </div>
   );
 }

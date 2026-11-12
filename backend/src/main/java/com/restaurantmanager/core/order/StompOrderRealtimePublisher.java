@@ -1,5 +1,6 @@
 package com.restaurantmanager.core.order;
 
+import com.restaurantmanager.core.common.AfterCommit;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
@@ -26,9 +27,9 @@ public class StompOrderRealtimePublisher implements OrderRealtimePublisher {
                 "total", total,
                 "createdAt", Instant.now().toString()
         );
-        messagingTemplate.convertAndSend("/topic/orders.new", payload);
+        send("/topic/orders.new", payload);
         if (tableToken != null && !tableToken.isBlank()) {
-            messagingTemplate.convertAndSend("/topic/public.tables." + tableToken + ".orders", payload);
+            send("/topic/public.tables." + tableToken + ".orders", payload);
         }
     }
 
@@ -41,22 +42,27 @@ public class StompOrderRealtimePublisher implements OrderRealtimePublisher {
                 "newStatus", current.name(),
                 "updatedAt", Instant.now().toString()
         );
-        messagingTemplate.convertAndSend("/topic/orders.status", payload);
+        send("/topic/orders.status", payload);
         // Per-order topic (order IDs are unguessable UUIDs) so customer apps only receive their own updates.
-        messagingTemplate.convertAndSend("/topic/orders." + orderId, payload);
+        send("/topic/orders." + orderId, payload);
         if (tableToken != null && !tableToken.isBlank()) {
-            messagingTemplate.convertAndSend("/topic/public.tables." + tableToken + ".orders", payload);
+            send("/topic/public.tables." + tableToken + ".orders", payload);
         }
     }
 
     @Override
     public void publishGroupCartUpdated(String sessionCode, UUID participantId, BigDecimal groupTotal) {
-        messagingTemplate.convertAndSend("/topic/group." + sessionCode, Map.of(
+        send("/topic/group." + sessionCode, Map.of(
                 "event", "GROUP_CART_UPDATED",
                 "sessionCode", sessionCode,
                 "participantId", participantId,
                 "groupTotal", groupTotal,
                 "updatedAt", Instant.now().toString()
         ));
+    }
+
+    /** Sent after the surrounding transaction commits, so listeners that reload see the change. */
+    private void send(String destination, Object payload) {
+        AfterCommit.run(() -> messagingTemplate.convertAndSend(destination, payload));
     }
 }
