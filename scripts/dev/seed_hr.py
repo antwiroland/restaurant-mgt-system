@@ -18,7 +18,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 # Departments and positions (same defaults as migration V27). Created only when missing, so this also
 # works on PostgreSQL where Flyway already seeded them.
@@ -119,8 +119,9 @@ def employee_body(detail: dict, **changes) -> dict:
     return body
 
 
-def seed_hr(api, admin_token: str, branches: dict, users_by_phone: dict, step=print) -> dict:
-    """Seeds HR data. `branches` maps branch code -> branch record. Returns a summary for printing."""
+def seed_hr(api, admin_token: str, branches: dict, users_by_phone: dict, step=print, db_url: str | None = None) -> dict:
+    """Seeds HR data. `branches` maps branch code -> branch record. `db_url` (local H2 or Docker Postgres) enables the attendance
+    history behind timesheets, tip pools and payroll. Returns a summary for printing."""
     A = admin_token
     today = date.today()
 
@@ -222,8 +223,10 @@ def seed_hr(api, admin_token: str, branches: dict, users_by_phone: dict, step=pr
     schedule_summary = seed_scheduling(api, A, branches, people, step)
     attendance_summary = seed_attendance(api, A, branches, people, linked, step)
     leave_summary = seed_leave(api, A, people, step)
+    pay_summary = seed_pay(api, A, branches, people, linked, users_by_phone, db_url, step)
+    recruitment_summary = seed_recruitment(api, A, branches, people, users_by_phone, pos, step)
     return {"imported": result["created"], "created": len(people), "skipped": result["skipped"], **schedule_summary, **attendance_summary,
-            **leave_summary}
+            **leave_summary, **pay_summary, **recruitment_summary}
 
 
 TEST_CLOCK_PIN = "2580"
@@ -421,12 +424,343 @@ def seed_leave(api, A: str, people: dict, step=print) -> dict:
     return {"leave_pending": isinstance(pending, dict) and pending.get("status") == "PENDING", "leave_sick": sick_note}
 
 
+# ==================================================================== attendance history, timesheets, tips, payroll
+
+# Who worked where in the past (feeds timesheets, tip pools and payroll): branch, start, end, break minutes, weekdays (0=Mon).
+WORK_HISTORY = {
+    "Kwesi Arthur": ("OSU", "07:00", "15:00", 30, [0, 1, 2, 3, 4]),
+    "Akua Nyarko": ("OSU", "07:00", "15:00", 30, [1, 2, 3, 4, 5]),
+    "Maame Ofori": ("OSU", "07:00", "15:00", 30, [5, 6]),
+    "Gifty Amoah": ("OSU", "07:00", "15:00", 30, [1, 3, 5]),
+    "Selorm Agbeko": ("OSU", "11:00", "19:00", 30, [0, 1, 3, 4, 5]),
+    "Fiifi Mensah": ("OSU", "15:00", "23:00", 30, [0, 1, 2, 3, 4]),
+    "Dzifa Tetteh": ("OSU", "15:00", "23:00", 30, [2, 3, 4, 5, 6]),
+    "Afia Boakye": ("OSU", "15:00", "23:00", 30, [4, 5, 6]),
+    "Kobby Ansah": ("OSU", "20:00", "02:00", 15, [3, 4, 5]),
+    "Adjoa Badu": ("ELG", "10:00", "18:00", 45, [0, 1, 2, 3, 4]),
+    "Kojo Asamoah": ("ELG", "10:00", "18:00", 45, [2, 3, 4, 5, 6]),
+    "Nii Lartey": ("ELG", "10:00", "18:00", 45, [0, 1, 4, 5, 6]),
+    "Ewurabena Quansah": ("ELG", "10:00", "18:00", 45, [5, 6]),
+    "Yaw Frimpong": ("ELG", "07:00", "15:00", 30, [0, 1, 2, 3, 4]),
+}
+KOFI_HISTORY = ("OSU", "09:00", "17:00", 30, [0, 1, 2, 3, 4])
+
+# Test values only, NOT tax or legal advice: real rates are configured by HR/finance.
+PAYROLL_RULES = [
+    {"code": "SSNIT_EE", "name": "Social security (employee)", "kind": "EMPLOYEE_DEDUCTION", "method": "PERCENT", "base": "BASIC",
+     "ratePercent": 5.5, "preTax": True, "displayOrder": 1},
+    {"code": "PAYE", "name": "Income tax (PAYE)", "kind": "EMPLOYEE_DEDUCTION", "method": "BRACKETS", "base": "TAXABLE", "displayOrder": 2,
+     "brackets": [{"upTo": 490, "ratePercent": 0}, {"upTo": 600, "ratePercent": 5}, {"upTo": 730, "ratePercent": 10},
+                  {"upTo": 3896.67, "ratePercent": 17.5}, {"upTo": 19896.67, "ratePercent": 25}, {"upTo": 50416.67, "ratePercent": 30},
+                  {"upTo": None, "ratePercent": 35}]},
+    {"code": "WELFARE", "name": "Staff welfare fund", "kind": "EMPLOYEE_DEDUCTION", "method": "FIXED", "base": "GROSS", "fixedAmount": 20,
+     "employmentTypes": ["FULL_TIME"], "displayOrder": 3},
+    {"code": "SSNIT_ER", "name": "Social security (employer)", "kind": "EMPLOYER_CONTRIBUTION", "method": "PERCENT", "base": "BASIC",
+     "ratePercent": 13, "displayOrder": 4},
+]
+
+# Service charge points per position (test values)
+SERVICE_POINTS = {"HEAD-CHEF": 3, "SOUS-CHEF": 2.5, "LINE-COOK": 2, "PREP-COOK": 1.5, "KITCHEN-ASST": 1, "WAITER": 2, "HOST": 1.5,
+                  "CASHIER": 1.5, "BARTENDER": 2, "BARISTA": 1.5, "CLEANER": 1, "STEWARD": 1, "SECURITY": 1}
+
+
+def _login(api, phone: str) -> str | None:
+    time.sleep(1.1)  # refresh tokens are second-granular
+    res = api.call("POST", "/auth/login", {"phone": phone, "password": "Passw0rd!"}, ok=False)
+    return res.get("accessToken") if isinstance(res, dict) else None
+
+
+def _ok(res) -> bool:
+    return isinstance(res, dict) and "_error" not in res
+
+
+def _rows(res) -> list:
+    return res.get("items", res.get("content", [])) if isinstance(res, dict) else (res or [])
+
+
+def backfill_attendance(db_url: str, branches: dict, people: dict, linked: dict, users_by_phone: dict) -> int:
+    """Closed time entries from the 1st of last month to two days ago. There is no API for past clock-ins, so this writes
+    to the dev database directly (like the order back-dating in seed_local.py)."""
+    import random as _random
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from seed_local import h2_sql  # noqa: E402
+
+    rng = _random.Random(11)
+    today = date.today()
+    last_month_end = today.replace(day=1) - timedelta(days=1)
+    first = last_month_end.replace(day=1)
+    transfer_day = today - timedelta(days=35)  # Dzifa moved from East Legon to Osu
+    cover_from = today - timedelta(days=3)  # Kobby covering the East Legon bar
+    exit_day = today - timedelta(days=12)  # Yaw Frimpong resigned
+
+    workers = [(name, people[name]["summary"]["id"], None, plan) for name, plan in WORK_HISTORY.items()]
+    kofi = linked.get("+233200000003")
+    if kofi:
+        workers.append(("Kofi Boateng", kofi["summary"]["id"], users_by_phone["+233200000003"]["id"], KOFI_HISTORY))
+
+    def ts(dt):
+        return f"TIMESTAMP WITH TIME ZONE '{dt.strftime('%Y-%m-%d %H:%M:%S')}+00'"
+
+    def q(value):
+        return "NULL" if value is None else "'" + str(value).replace("'", "''") + "'"
+
+    statements = []
+    day = first
+    while day <= today - timedelta(days=2):
+        for name, employee_id, user_id, (branch, start, end, brk, weekdays) in workers:
+            if day.weekday() not in weekdays:
+                continue
+            if name in ("Kofi Boateng", "Akua Nyarko") and day > last_month_end:
+                continue  # Kofi's current month is self-service (clock-ins, sick day); Akua is on leave
+            if name == "Yaw Frimpong" and day > exit_day:
+                continue
+            if rng.random() < 0.04:
+                continue  # an absence now and then
+            where = "ELG" if (name == "Dzifa Tetteh" and day < transfer_day) or (name == "Kobby Ansah" and day >= cover_from) else branch
+            sh, sm = map(int, start.split(":"))
+            eh, em = map(int, end.split(":"))
+            clock_in = datetime(day.year, day.month, day.day, sh, sm) + timedelta(minutes=rng.choice([-9, -5, -3, 0, 2, 4, 7, 14, 22]))
+            out_day = day + timedelta(days=1) if (eh, em) <= (sh, sm) else day
+            clock_out = datetime(out_day.year, out_day.month, out_day.day, eh, em) + timedelta(minutes=rng.choice([-4, 0, 3, 6, 11, 18]))
+            note = "Seed history"
+            if name == "Fiifi Mensah" and day.day in (10, 24):
+                clock_out += timedelta(hours=2, minutes=30)  # overtime for the timesheet rules to pick up
+                note = "Stayed for a private event"
+            statements.append(
+                "INSERT INTO time_entries (id, user_id, employee_id, source, clock_out_source, unscheduled, version, branch_id, clock_in_at, "
+                f"clock_out_at, break_minutes, notes, created_at, updated_at) VALUES ({q(uuid.uuid4())}, {q(user_id)}, {q(employee_id)}, "
+                f"'MANAGER', 'MANAGER', FALSE, 0, {q(branches[where]['id'])}, {ts(clock_in)}, {ts(clock_out)}, {brk}, {q(note)}, "
+                f"{ts(clock_in)}, {ts(clock_out)})")
+        day += timedelta(days=1)
+    batch: list[str] = []
+    for statement in statements + [None]:
+        # the H2 shell gets the SQL on the command line, which Windows caps at ~32k characters
+        if batch and (statement is None or sum(len(b) + 1 for b in batch) + len(statement) > 20000):
+            h2_sql(db_url, ";".join(batch))
+            batch = []
+        if statement is not None:
+            batch.append(statement)
+    return len(statements)
+
+
+def seed_pay(api, A: str, branches: dict, people: dict, linked: dict, users_by_phone: dict, db_url: str | None, step=print) -> dict:
+    """Payroll and tip rules, timesheets, tip and service charge pools, and payroll runs in several states.
+    Ama (admin) prepares; Yaw (Osu manager, granted payroll approval) approves, so every run and pool has two people."""
+    today = date.today()
+    last_month_end = today.replace(day=1) - timedelta(days=1)
+    first = last_month_end.replace(day=1)
+    month = {"periodStart": first.isoformat(), "periodEnd": last_month_end.isoformat()}
+    osu, elg = branches["OSU"]["id"], branches["ELG"]["id"]
+    notes: list[str] = []
+    summary = {"pay": notes}
+
+    def eid(name):
+        return people[name]["summary"]["id"]
+
+    step("HR: payroll rules, sharing rules & approver grant")
+    for rule in PAYROLL_RULES:
+        api.call("POST", "/hr/payroll-rules", {**rule, "effectiveFrom": "2020-01-01", "note": "Test value only; set real rates in HR settings"}, A)
+    positions = {p["code"]: p["id"] for p in api.call("GET", "/hr/positions?includeArchived=true", token=A)}
+    api.call("POST", "/hr/tip-rules", {"source": "TIPS", "method": "HOURS", "housePercent": 0, "taxable": True, "minMinutes": 60,
+                                       "effectiveFrom": "2020-01-01", "note": "Tips shared by hours worked (test data)"}, A)
+    api.call("POST", "/hr/tip-rules", {"source": "SERVICE_CHARGE", "method": "POINTS", "housePercent": 20, "taxable": True, "minMinutes": 120,
+                                       "positionPoints": {positions[c]: v for c, v in SERVICE_POINTS.items() if c in positions},
+                                       "effectiveFrom": "2020-01-01", "note": "House keeps 20%, the rest by position points (test data)"}, A)
+    yaw = users_by_phone.get("+233200000002")
+    if yaw:
+        api.call("PUT", f"/hr/access/grants/{yaw['id']}", {"permissions": ["hr.payroll.view", "hr.payroll.approve", "hr.tips.manage",
+                                                                           "hr.service_charge.manage"]}, A)
+    kofi = linked.get("+233200000003")
+    if kofi:  # gives Kofi (cashier login) a payslip under 'My payslips'
+        contract = api.call("POST", f"/hr/employees/{kofi['summary']['id']}/contracts",
+                            {"contractType": "PERMANENT", "startDate": kofi["summary"]["hireDate"], "salaryType": "MONTHLY", "salaryAmount": "2500.00",
+                             "weeklyHours": 40, "terms": "Standard terms of employment. Test data."}, A)
+        api.call("POST", f"/hr/contracts/{contract['id']}/activate", {}, A)
+
+    if not db_url:
+        notes.append("no attendance history (no H2 path): timesheets, pools and payroll runs skipped")
+        return summary
+
+    step("HR: attendance history (start of last month to two days ago)")
+    summary["entries"] = backfill_attendance(db_url, branches, people, linked, users_by_phone)
+
+    step("HR: timesheets")
+    for branch in (osu, elg):
+        api.call("POST", "/hr/timesheets/generate", {"branchId": branch, "from": month["periodStart"], "to": month["periodEnd"]}, A)
+    def month_sheets():
+        return [s for b in (osu, elg) for s in _rows(api.call("GET", f"/hr/timesheets?branchId={b}&from={month['periodStart']}&to={month['periodEnd']}", token=A))]
+
+    held = []
+    for sheet in month_sheets():
+        sid = sheet["id"]
+        api.call("POST", f"/hr/timesheets/{sid}/submit", {}, A)
+        if sheet["employeeName"] == "Ewurabena Quansah":
+            held.append(sheet["employeeName"])  # left submitted: the East Legon payroll run flags her unlocked hours
+            continue
+        api.call("POST", f"/hr/timesheets/{sid}/review", {"note": "Checked against the rota"}, A)
+        api.call("POST", f"/hr/timesheets/{sid}/approve", {"note": "Approved (test data)"}, A)
+        api.call("POST", f"/hr/timesheets/{sid}/lock", {}, A)
+    locked = sum(1 for s in month_sheets() if s["status"] == "LOCKED")
+    notes.append(f"Timesheets {first:%B}: {locked} locked; {', '.join(held) or 'none'} left submitted")
+    # first week of this month at Osu: every other sheet submitted for Yaw to review, the rest still draft
+    week_start = today.replace(day=1)
+    week_end = min(week_start + timedelta(days=6), today - timedelta(days=2))
+    if week_end >= week_start:
+        api.call("POST", "/hr/timesheets/generate", {"branchId": osu, "from": week_start.isoformat(), "to": week_end.isoformat()}, A)
+        current = _rows(api.call("GET", f"/hr/timesheets?branchId={osu}&from={week_start.isoformat()}&to={week_end.isoformat()}", token=A))
+        for sheet in current[::2]:
+            api.call("POST", f"/hr/timesheets/{sheet['id']}/submit", {}, A, ok=False)
+        notes.append(f"Timesheets {week_start:%d}-{week_end:%d %b} (Osu): {len(current[::2])} submitted for Yaw to review, {len(current[1::2])} draft")
+
+    step("HR: tip & service charge pools")
+    Y = _login(api, "+233200000002")
+    for source in ("TIPS", "SERVICE_CHARGE"):
+        pool = api.call("POST", "/hr/tip-pools", {"branchId": osu, "source": source, **month}, A)
+        pool = pool.get("summary", pool)
+        calc = api.call("POST", f"/hr/tip-pools/{pool['id']}/calculate", {}, A)
+        approved = Y and _ok(api.call("POST", f"/hr/tip-pools/{pool['id']}/approve", {}, Y, ok=False))
+        s = calc.get("summary", calc)
+        notes.append(f"Osu {source.lower().replace('_', ' ')} {first:%B}: GHS {s.get('collectedAmount')} from {s.get('orderCount')} orders, "
+                     f"{'approved by Yaw' if approved else 'calculated'}")
+    if today.day > 2:
+        pool = api.call("POST", "/hr/tip-pools", {"branchId": osu, "source": "TIPS", "periodStart": today.replace(day=1).isoformat(),
+                                                  "periodEnd": (today - timedelta(days=1)).isoformat()}, A)
+        api.call("POST", f"/hr/tip-pools/{pool.get('summary', pool)['id']}/calculate", {}, A)
+        notes.append(f"Osu tips {today:%B} to date: calculated, waiting for approval (approve as Yaw)")
+
+    step("HR: payroll runs")
+    run = api.call("POST", "/hr/payroll-runs", {"branchId": osu, **month, "payDate": month["periodEnd"],
+                                                "notes": f"{first:%B %Y} salaries (test data)"}, A)
+    rid = run.get("summary", run)["id"]
+    api.call("POST", f"/hr/payroll-runs/{rid}/adjustments", {"employeeId": eid("Kwesi Arthur"), "kind": "EARNING", "taxable": True,
+                                                             "description": "Kitchen hygiene inspection bonus", "amount": 300}, A)
+    api.call("POST", f"/hr/payroll-runs/{rid}/adjustments", {"employeeId": eid("Selorm Agbeko"), "kind": "DEDUCTION", "taxable": False,
+                                                             "description": "Salary advance recovery (1 of 3)", "amount": 200}, A)
+    api.call("POST", f"/hr/payroll-runs/{rid}/calculate", {}, A)
+    status = "calculated"
+    res = api.call("POST", f"/hr/payroll-runs/{rid}/approve", {}, Y, ok=False) if Y else None
+    if _ok(res):
+        status = "approved by Yaw"
+        if _ok(api.call("POST", f"/hr/payroll-runs/{rid}/finalize", {}, A, ok=False)):
+            status = "finalized"
+            if _ok(api.call("POST", f"/hr/payroll-runs/{rid}/pay", {"method": "MOBILE_MONEY", "reference": f"MOMO-BULK-{first:%Y%m}"}, A, ok=False)):
+                status = "paid by mobile money"
+    elif res:
+        status += f" (approval refused: {res.get('_detail', '')[:120]})"
+    s = api.call("GET", f"/hr/payroll-runs/{rid}", token=A)
+    s = s.get("summary", s)
+    notes.append(f"Osu {first:%B} payroll {s.get('runNumber', '')}: {status}; {s.get('employeeCount')} payslips, net GHS {s.get('netTotal')}")
+
+    run = api.call("POST", "/hr/payroll-runs", {"branchId": elg, **month, "payDate": month["periodEnd"]}, A)
+    api.call("POST", f"/hr/payroll-runs/{run.get('summary', run)['id']}/calculate", {}, A)
+    notes.append(f"East Legon {first:%B} payroll: calculated; cannot be approved until Ewurabena's timesheet is approved and locked")
+    return summary
+
+
+# ==================================================================== recruitment
+
+# Candidates are fictional: first, last, phone, source, notes
+CANDIDATES = {
+    "esi": ("Esi", "Larbi", "+233552000001", "WALK_IN", "Dropped off a CV at the Osu front desk"),
+    "kwaku": ("Kwaku", "Owusu-Ansah", "+233552000002", "JOB_BOARD", "Two years at a hotel restaurant in Takoradi"),
+    "mawuli": ("Mawuli", "Dzokoto", "+233552000003", "REFERRAL", "Referred by Selorm Agbeko"),
+    "naa": ("Naa Okailey", "Tetteh", "+233552000004", "SOCIAL_MEDIA", "Applied through the Instagram post"),
+    "abla": ("Abla", "Gbeve", "+233552000005", "JOB_BOARD", "Strong wine knowledge"),
+    "kwabena": ("Kwabena", "Sarfo", "+233552000006", "WALK_IN", None),
+    "comfort": ("Comfort", "Adu", "+233552000007", "AGENCY", "Placed by a catering staffing agency"),
+    "eyram": ("Eyram", "Kumah", "+233552000008", "JOB_BOARD", None),
+    "baaba": ("Baaba", "Essien", "+233552000009", "WALK_IN", "Previously worked security at a mall"),
+}
+
+
+def seed_recruitment(api, A: str, branches: dict, people: dict, users_by_phone: dict, pos: dict, step=print) -> dict:
+    """Vacancies in each state, a full pipeline at Osu, interviews for Yaw and one completed hire at East Legon."""
+    from datetime import timezone
+    today = date.today()
+    osu, elg = branches["OSU"]["id"], branches["ELG"]["id"]
+    yaw = (users_by_phone.get("+233200000002") or {}).get("id")
+
+    def at(days, hour):
+        d = today + timedelta(days=days)
+        return datetime(d.year, d.month, d.day, hour, 0, tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+
+    def vacancy(branch, pcode, title, etype, openings, lo, hi, closes, desc, reqs):
+        v = api.call("POST", "/hr/vacancies", {"branchId": branch, "positionId": pos[pcode], "title": title, "employmentType": etype,
+                                               "openings": openings, "salaryMin": lo, "salaryMax": hi,
+                                               "closingDate": (today + timedelta(days=closes)).isoformat() if closes else None,
+                                               "hiringManagerId": yaw if branch == osu else None, "description": desc, "requirements": reqs}, A)
+        return v.get("summary", v)
+
+    def apply(v, key):
+        first, last, phone, source, notes = CANDIDATES[key]
+        cand = {"firstName": first, "lastName": last, "phone": phone, "source": source, "notes": notes,
+                "email": f"{first.split()[0].lower()}.{last.lower()}@example.test"}
+        if source == "REFERRAL":
+            cand["referredByEmployeeId"] = people["Selorm Agbeko"]["summary"]["id"]
+        app = api.call("POST", f"/hr/vacancies/{v['id']}/applications", {"candidate": cand}, A)
+        return app.get("summary", app)
+
+    def move(app, *stages, note=None):
+        for stage in stages:
+            api.call("POST", f"/hr/applications/{app['id']}/stage", {"stage": stage, "note": note}, A)
+
+    def interview(app, body):
+        res = api.call("POST", f"/hr/applications/{app['id']}/interviews", body, A)
+        return res.get("interviews", [])
+
+    step("HR: vacancies")
+    waiter = vacancy(osu, "WAITER", "Waiter / Waitress", "FULL_TIME", 2, 2400, 2800, 21,
+                     "Join the Osu floor team for lunch and evening service.", "Six months' restaurant experience. Weekend availability.")
+    cook = vacancy(elg, "LINE-COOK", "Line Cook", "FULL_TIME", 1, 2800, 3300, 10,
+                   "Grill and stew station at East Legon.", "Food handler certificate. Two years on a busy line.")
+    vacancy(osu, "BARISTA", "Barista (part-time)", "PART_TIME", 1, None, None, None, "Weekend coffee bar at Osu.", "Latte art a plus.")
+    guard = vacancy(elg, "SECURITY", "Night Security Officer", "CONTRACT", 1, 2000, 2300, 30,
+                    "Night cover for the East Legon site.", "Licensed security officer.")
+    for v in (waiter, cook, guard):
+        api.call("POST", f"/hr/vacancies/{v['id']}/status", {"status": "OPEN"}, A)
+
+    step("HR: applicants, interviews & offers")
+    apply(waiter, "esi")
+    move(apply(waiter, "kwaku"), "SCREENING", note="Good phone manner")
+    mawuli = apply(waiter, "mawuli")
+    move(mawuli, "SCREENING", "INTERVIEW")
+    interview(mawuli, {"kind": "IN_PERSON", "scheduledAt": at(1, 10), "durationMinutes": 30, "interviewerId": yaw, "location": "Osu, upstairs office"})
+    naa = apply(waiter, "naa")
+    move(naa, "SCREENING", "INTERVIEW")
+    for i in interview(naa, {"kind": "PHONE", "scheduledAt": at(-4, 11), "durationMinutes": 20, "interviewerId": yaw}):
+        api.call("PUT", f"/hr/interviews/{i['id']}", {"outcome": "PASSED", "score": 4, "feedback": "Warm and confident; knows the menu style"}, A)
+    move(naa, "TRIAL_SHIFT")
+    interview(naa, {"kind": "TRIAL_SHIFT", "scheduledAt": at(2, 15), "durationMinutes": 240, "interviewerId": yaw, "location": "Osu floor, evening service"})
+    abla = apply(waiter, "abla")
+    move(abla, "SCREENING", "INTERVIEW", "OFFER")
+    api.call("PUT", f"/hr/applications/{abla['id']}/offer", {"contractType": "PERMANENT", "salaryType": "MONTHLY", "salaryAmount": 2600,
+                                                            "weeklyHours": 45, "startDate": (today + timedelta(days=14)).isoformat()}, A)
+    move(apply(waiter, "kwabena"), "REJECTED", note="No weekend availability")
+
+    step("HR: completed hire (East Legon line cook)")
+    comfort = apply(cook, "comfort")
+    apply(cook, "eyram")
+    move(comfort, "SCREENING", "INTERVIEW")
+    for i in interview(comfort, {"kind": "IN_PERSON", "scheduledAt": at(-6, 9), "durationMinutes": 45}):
+        api.call("PUT", f"/hr/interviews/{i['id']}", {"outcome": "PASSED", "score": 5, "feedback": "Excellent knife skills in the cook test"}, A)
+    move(comfort, "OFFER")
+    api.call("PUT", f"/hr/applications/{comfort['id']}/offer", {"contractType": "PERMANENT", "salaryType": "MONTHLY", "salaryAmount": 3000,
+                                                               "weeklyHours": 45, "startDate": today.isoformat()}, A)
+    api.call("POST", f"/hr/applications/{comfort['id']}/offer-response", {"accepted": True, "note": "Accepted by phone"}, A)
+    hired = api.call("POST", f"/hr/applications/{comfort['id']}/hire", {"hireDate": today.isoformat()}, A)
+
+    step("HR: vacancy on hold")
+    apply(guard, "baaba")
+    api.call("POST", f"/hr/vacancies/{guard['id']}/status", {"status": "ON_HOLD", "reason": "Waiting for the new security contract"}, A)
+    return {"recruitment_hired": "employeeId" in hired}
+
+
 def print_hr_summary(summary: dict):
     print("  HR:")
     print(f"    {summary['imported']} staff logins imported as employees, {summary['created']} employees without logins")
     print("    Try: Yaw (manager, Osu) sees Osu staff + Nii Lartey read-only (East Legon, covering Osu); no pay figures")
     print("         Ama (admin) sees everything incl. pay; Abena (cashier) has HR view + documents only (granted)")
-    print("         Kofi (cashier) only has self-service: 'My Schedule', 'My Leave' and 'My HR profile'")
+    print("         Kofi (cashier) only has self-service: My Schedule, Leave, Payslips, Tips and HR profile")
     print("         Contracts due within 30 days: Edem Kpodo, Fiifi Mensah, Kojo Asamoah (probation); draft: Maame Ofori")
     print(f"    Schedule: {summary.get('shifts_this_week', 0)} shifts published this week, {summary.get('shifts_next_week', 0)} drafted for next week (+2 open)")
     print(f"         Swap request: {summary.get('swap')}. Kofi has 'unavailable Sundays'; Gifty unavailable Saturdays")
@@ -436,6 +770,13 @@ def print_hr_summary(summary: dict):
     print(f"         Kwesi Arthur annual leave {'pending (approve as Yaw)' if summary.get('leave_pending') else 'not created'}; Fiifi Mensah approved")
     print("         for next Thu-Fri (clashes with drafted shifts); Adjoa Badu study leave needs branch manager then HR")
     print(f"         {summary.get('leave_sick')}; Akua Nyarko annual balance adjusted -3")
+    print(f"    Pay ({summary.get('entries', 0)} past clock records; payroll rules are TEST values, not tax advice):")
+    for line in summary.get("pay", []):
+        print(f"         {line}")
+    print("         Kofi (cashier) sees his payslip and tip share under 'My payslips' / 'My tips'")
+    print("    Recruitment: Osu waiter vacancy with a full pipeline (offer out to Abla Gbeve); Yaw has an interview tomorrow")
+    print(f"         and a trial shift; East Legon line cook {'filled (Comfort Adu hired)' if summary.get('recruitment_hired') else 'open'};"
+          " barista draft; security on hold")
 
 
 def main():
@@ -444,7 +785,13 @@ def main():
 
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--base", default="http://localhost:8080")
+    parser.add_argument("--db", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "backend", "target", "dev-db", "rm"),
+                        help="H2 file path (without .mv.db), for the attendance history behind timesheets, tips and payroll")
+    parser.add_argument("--pg", metavar="CONTAINER", nargs="?", const="restaurant_postgres",
+                        help="Use PostgreSQL in this Docker container (default restaurant_postgres) instead of H2")
     args = parser.parse_args()
+    from seed_local import database_target  # noqa: E402
+    db_url = database_target(args.pg, args.db)
     api = Api(args.base, "unused")
     token = api.call("POST", "/auth/login", {"phone": STAFF[0][0], "password": PASSWORD})["accessToken"]
     time.sleep(1.1)
@@ -454,7 +801,7 @@ def main():
     if "OSU" not in branches or "ELG" not in branches:
         raise SystemExit("Run seed_local.py first (branches OSU and ELG are needed).")
     users = {u["phone"]: u for u in api.call("GET", "/users", token=token)}
-    print_hr_summary(seed_hr(api, token, branches, users, step=lambda label: print(f"- {label}", flush=True)))
+    print_hr_summary(seed_hr(api, token, branches, users, step=lambda label: print(f"- {label}", flush=True), db_url=db_url))
 
 
 if __name__ == "__main__":
