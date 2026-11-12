@@ -79,14 +79,15 @@ function Dashboard() {
             <section className="panel grid gap-3">
               <h2 className="text-sm font-semibold">Today</h2>
               <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                {[
-                  ["On shift now", count("WORKING") + count("ON_BREAK")],
+                {([
+                  ["On shift now", count("ON_SHIFT") + count("ON_BREAK") + count("UNSCHEDULED")],
                   ["Not started yet", count("NOT_STARTED")],
                   ["Absent", count("ABSENT")],
                   ["On leave", count("ON_LEAVE")],
                   ["Late arrivals", today.lateArrivals],
                   ["Finished", count("COMPLETED") + count("LEFT_EARLY")],
-                ].map(([label, value]) => (
+                  ...(count("MISSED_CLOCK_OUT") > 0 ? [["Missed clock-out", count("MISSED_CLOCK_OUT")]] : []),
+                ] as [string, number][]).map(([label, value]) => (
                   <div key={label} className="rounded-xl bg-sunken p-3">
                     <dt className="text-xs text-ink-muted">{label}</dt>
                     <dd className="font-display text-2xl font-extrabold tabular text-ink">{value}</dd>

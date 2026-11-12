@@ -28,7 +28,7 @@ function dashboard(overrides: Partial<HrDashboard> = {}): HrDashboard {
       byDepartment: [{ label: "Kitchen", count: 8 }], byEmploymentType: [{ label: "FULL_TIME", count: 15 }], byBranch: [{ label: "Osu", count: 14 }] },
     movement: { joiners: [{ employeeId: "e1", name: "Comfort Adu", date: "2026-11-12", detail: "Line Cook" }], leavers: [], leaversLast12Months: 1, turnoverPercent: 4.8 },
     trend: [{ month: "2026-10", headcount: 21, joined: 0, left: 1 }, { month: "2026-11", headcount: 22, joined: 1, left: 0 }],
-    today: { counts: { WORKING: 3, ON_BREAK: 1, ABSENT: 2 }, lateArrivals: 1 },
+    today: { counts: { ON_SHIFT: 2, ON_BREAK: 1, UNSCHEDULED: 1, ABSENT: 2 }, lateArrivals: 1 },
     actions: [{ key: "LEAVE_PENDING", label: "Leave requests waiting", count: 2, href: "/hr/leave" },
       { key: "SWAPS_PENDING", label: "Shift swaps to decide", count: 0, href: "/hr/schedule" }],
     expiring: [{ kind: "CONTRACT_END", employeeId: "e2", employeeName: "Edem Kpodo", detail: "Contract CON-1 ends", date: "2026-11-22", overdue: false }],

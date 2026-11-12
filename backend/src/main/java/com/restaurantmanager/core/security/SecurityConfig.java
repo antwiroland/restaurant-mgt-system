@@ -2,6 +2,7 @@ package com.restaurantmanager.core.security;
 
 import com.restaurantmanager.core.common.Role;
 import com.restaurantmanager.core.config.RateLimitProps;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -51,6 +52,9 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // error and forward dispatches carry the original request's outcome (e.g. a 403); re-checking them here
+                        // would turn that into a 401, because stateless authentication is not re-run on the error dispatch
+                        .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/auth/register", "/auth/login", "/auth/refresh", "/actuator/health").permitAll()
                         .requestMatchers("/auth/otp/request", "/auth/otp/verify", "/auth/otp/login").permitAll()
