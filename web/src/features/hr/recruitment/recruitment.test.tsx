@@ -11,7 +11,7 @@ vi.mock("@/features/hr/HrAccessContext", () => ({
   useHrAccess: () => ({ access: { allBranches: false, branchIds: ["b1"] }, loading: false, can: () => true }),
 }));
 
-const api = vi.hoisted(() => ({ getApplication: vi.fn(), moveApplication: vi.fn(), hireApplicant: vi.fn(), getVacancy: vi.fn() }));
+const api = vi.hoisted(() => ({ getApplication: vi.fn(), moveApplication: vi.fn(), hireApplicant: vi.fn(), getVacancy: vi.fn(), setVacancyPublished: vi.fn() }));
 vi.mock("@/lib/hrApi", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/hrApi")>()), ...api }));
 vi.mock("@/lib/apiClient", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/apiClient")>()),
@@ -73,7 +73,7 @@ describe("recruitment", () => {
     const vacancy: VacancyDetail = {
       summary: {
         id: "v1", vacancyNumber: "VAC-000001", branchId: "b1", branchName: "Osu", title: "Line cook", employmentType: "FULL_TIME", openings: 2,
-        hiredCount: 0, payVisible: false, status: "OPEN", daysOpen: 3, version: 1, openedAt: "2026-11-01T10:00:00Z",
+        hiredCount: 0, payVisible: false, status: "OPEN", daysOpen: 3, version: 1, openedAt: "2026-11-01T10:00:00Z", published: false,
         pipeline: { APPLIED: 1, SCREENING: 0, INTERVIEW: 1, TRIAL_SHIFT: 0, OFFER: 0, HIRED: 0, REJECTED: 1, WITHDRAWN: 0 },
       },
       applications: [
@@ -91,5 +91,34 @@ describe("recruitment", () => {
     await userEvent.click(screen.getByLabelText("Show hired, rejected and withdrawn"));
     expect(screen.getByText("Rejected Person")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close vacancy" })).toBeDisabled(); // needs a reason
+  });
+
+  test("givenOpenVacancy_whenPublishedThenUnpublished_thenCareersPageStateFollows", async () => {
+    const base: VacancyDetail = {
+      summary: {
+        id: "v1", vacancyNumber: "VAC-000001", branchId: "b1", branchName: "Osu", title: "Line cook", employmentType: "FULL_TIME", openings: 1,
+        hiredCount: 0, payVisible: false, status: "OPEN", daysOpen: 1, version: 1, published: false,
+        pipeline: { APPLIED: 0, SCREENING: 0, INTERVIEW: 0, TRIAL_SHIFT: 0, OFFER: 0, HIRED: 0, REJECTED: 0, WITHDRAWN: 0 },
+      },
+      description: "Grill and stew station.",
+      requirements: "Food handler certificate",
+      applications: [],
+    };
+    const live: VacancyDetail = { ...base, summary: { ...base.summary, published: true, publishedAt: "2026-11-12T09:00:00Z" } };
+    api.getVacancy.mockResolvedValue(base);
+    api.setVacancyPublished.mockResolvedValueOnce(live).mockResolvedValueOnce(base);
+    render(<VacancyDrawer id="v1" onClose={() => undefined} onChanged={() => undefined} />);
+
+    expect(await screen.findByText(/Grill and stew station/)).toBeInTheDocument();
+    expect(screen.getByText(/Not published/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Publish to careers page" }));
+    expect(api.setVacancyPublished).toHaveBeenLastCalledWith(expect.anything(), "v1", true);
+    expect(await screen.findByRole("link", { name: "View posting" })).toHaveAttribute("href", "/careers/v1");
+    expect(screen.getAllByText("On careers page").length).toBeGreaterThan(0);
+
+    await userEvent.click(screen.getByRole("button", { name: "Unpublish" }));
+    expect(api.setVacancyPublished).toHaveBeenLastCalledWith(expect.anything(), "v1", false);
+    expect(await screen.findByRole("button", { name: "Publish to careers page" })).toBeInTheDocument();
+    expect(screen.queryByText("On careers page")).not.toBeInTheDocument();
   });
 });

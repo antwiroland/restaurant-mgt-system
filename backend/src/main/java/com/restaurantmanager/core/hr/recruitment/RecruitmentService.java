@@ -247,8 +247,42 @@ public class RecruitmentService {
             v.setCloseReason(null);
         }
         v.setStatus(to);
+        if (to != VacancyStatus.OPEN && v.isPublished()) {
+            // anything but an open vacancy comes off the careers page; reopening needs a deliberate re-publish
+            unpublish(v, access, "vacancy " + to.name().toLowerCase().replace('_', ' '));
+        }
         log(access, "Vacancy", v.getId(), "vacancy-" + to.name().toLowerCase(), reason == null ? null : Map.of("reason", reason));
         return vacancyDetail(vacancyRepository.saveAndFlush(v), access);
+    }
+
+    /** Shows or hides an open vacancy on the public careers page. */
+    @Transactional
+    public VacancyDetail setPublished(UserPrincipal principal, UUID id, PublishRequest r) {
+        HrAccess access = accessService.require(principal, HrPermission.RECRUITMENT_MANAGE);
+        VacancyEntity v = loadVacancy(id, access);
+        if (r.published() == v.isPublished()) {
+            return vacancyDetail(v, access);
+        }
+        if (r.published()) {
+            if (v.getStatus() != VacancyStatus.OPEN) {
+                throw new ApiException(409, "Only open vacancies can be published; open this one first");
+            }
+            if (v.getClosingDate() != null && v.getClosingDate().isBefore(LocalDate.now(zone))) {
+                throw new ApiException(409, "The closing date has passed; change it before publishing");
+            }
+            v.setPublished(true);
+            v.setPublishedAt(Instant.now().truncatedTo(ChronoUnit.MICROS)); // as stored, so responses match later reads
+            log(access, "Vacancy", v.getId(), "vacancy-published", null);
+        } else {
+            unpublish(v, access, "unpublished by hand");
+        }
+        return vacancyDetail(vacancyRepository.saveAndFlush(v), access);
+    }
+
+    private void unpublish(VacancyEntity v, HrAccess access, String why) {
+        v.setPublished(false);
+        v.setPublishedAt(null);
+        log(access, "Vacancy", v.getId(), "vacancy-unpublished", Map.of("reason", why));
     }
 
     @Transactional(readOnly = true)
@@ -515,6 +549,9 @@ public class RecruitmentService {
         if (v.getHiredCount() >= v.getOpenings()) {
             v.setStatus(VacancyStatus.FILLED);
             v.setClosedAt(Instant.now());
+            if (v.isPublished()) {
+                unpublish(v, access, "vacancy filled");
+            }
             applicationRepository.findByVacancyIdOrderByCreatedAtAsc(v.getId()).stream()
                     .filter(x -> !x.getId().equals(a.getId()) && !x.getStage().isClosed())
                     .forEach(x -> moveTo(x, ApplicationStage.REJECTED, "Position filled", access.userId()));
@@ -573,7 +610,7 @@ public class RecruitmentService {
                 v.getPositionId() == null ? null : l.positions().get(v.getPositionId()), v.getTitle(), v.getEmploymentType(), v.getOpenings(),
                 v.getHiredCount(), pay ? v.getSalaryMin() : null, pay ? v.getSalaryMax() : null, pay, v.getStatus(), v.getClosingDate(),
                 v.getHiringManagerId(), v.getHiringManagerId() == null ? null : l.users().get(v.getHiringManagerId()), v.getOpenedAt(), v.getClosedAt(),
-                v.getCloseReason(), daysOpen, pipeline, v.getVersion());
+                v.getCloseReason(), daysOpen, pipeline, v.isPublished(), v.getPublishedAt(), v.getVersion());
     }
 
     private VacancyDetail vacancyDetail(VacancyEntity v, HrAccess access) {
@@ -659,7 +696,9 @@ public class RecruitmentService {
                                  EmploymentType employmentType, int openings, int hiredCount, BigDecimal salaryMin, BigDecimal salaryMax,
                                  boolean payVisible, VacancyStatus status, LocalDate closingDate, UUID hiringManagerId, String hiringManagerName,
                                  Instant openedAt, Instant closedAt, String closeReason, long daysOpen, Map<ApplicationStage, Long> pipeline,
-                                 long version) {}
+                                 boolean published, Instant publishedAt, long version) {}
+
+    public record PublishRequest(boolean published) {}
 
     public record ApplicationRow(UUID id, UUID candidateId, String candidateName, String phone, CandidateSource source, ApplicationStage stage,
                                  OfferStatus offerStatus, Double averageScore, Instant nextInterviewAt, UUID employeeId, Instant appliedAt) {}

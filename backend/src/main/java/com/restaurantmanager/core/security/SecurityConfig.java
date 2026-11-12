@@ -55,6 +55,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/delivery/zones").permitAll()
                         .requestMatchers(HttpMethod.GET, "/billing/settings").permitAll()
                         .requestMatchers(HttpMethod.GET, "/restaurant/profile").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/careers", "/careers/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/media/**").permitAll()
                         .requestMatchers("/tables/scan").permitAll()
                         .requestMatchers(HttpMethod.POST, "/qr/sessions/link").permitAll()

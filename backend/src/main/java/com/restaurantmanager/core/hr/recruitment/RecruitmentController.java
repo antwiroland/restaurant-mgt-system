@@ -72,6 +72,12 @@ public class RecruitmentController {
         return recruitment.changeVacancyStatus(principal, id, request);
     }
 
+    @PostMapping("/vacancies/{id}/publish")
+    public RecruitmentService.VacancyDetail publish(@PathVariable UUID id, @Valid @RequestBody RecruitmentService.PublishRequest request,
+                                                    @AuthenticationPrincipal UserPrincipal principal) {
+        return recruitment.setPublished(principal, id, request);
+    }
+
     @PostMapping("/vacancies/{id}/applications")
     @ResponseStatus(HttpStatus.CREATED)
     public RecruitmentService.ApplicationDetail apply(@PathVariable UUID id, @Valid @RequestBody RecruitmentService.ApplyRequest request,
