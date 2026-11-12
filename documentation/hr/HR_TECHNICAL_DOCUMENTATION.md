@@ -20,6 +20,7 @@ Describes only what is implemented. Sections for later phases are added as each 
     pure arithmetic (`LeaveCalculator`), read-only lookups for scheduling/timesheets (`LeaveLookup`), push (`LeaveNotifier`)
   - `hr.payroll` — deduction rules (`PayrollRuleService`), runs/payslips/adjustments (`PayrollService`), pure arithmetic
     (`PayrollCalculator`)
+  - `hr.tips` — tips and service-charge sharing rules, pools and shares (`TipService`), pure sharing arithmetic (`TipCalculator`)
   - `hr.branch` — branch assignment history (`BranchAssignmentRecorder` keeps it consistent), secondary/temporary
     assignments, transfers, branch workforce summary
   - `hr.common` — `HrSequenceService` (gap-tolerant sequential numbers), shared helpers
@@ -477,6 +478,55 @@ operations, run numbers and counts — never amounts.
 | `/hr/payroll` | Runs per branch, new run, run drawer (payslips, issues, skipped, adjustments, approve/finalize/pay/cancel), deduction rules | any `hr.payroll.*` |
 | `/hr/my-payslips` | Own finalized payslips with lines | linked employee |
 
+## 5g. Tips and service charge (Phase 7, `V34__hr_tips_service_charge.sql`)
+
+### Data
+
+| Table | Purpose |
+|---|---|
+| `hr_tip_rules` | How a source (`TIPS` or `SERVICE_CHARGE`) is shared, organisation-wide or per branch, from a date: `method` (`HOURS`, `POINTS`, `EQUAL`), `house_percent`, `taxable`, `min_minutes`, `position_points` (JSON `{positionId: points}`). Never edited; **nothing is seeded**. |
+| `hr_tip_pools` | One branch, source and period (≤ 31 days that have ended): `pool_number` (`TIP-000001` / `SVC-000001`), status, paid orders counted, collected, house and shared amounts, frozen rule snapshot, who calculated/approved. |
+| `hr_tip_allocations` | One share per person: minutes worked at the branch, points, amount, and the payroll run that pays it (reserved at payroll calculation, released on recalculation, return to draft or cancel). |
+
+### Collection and sharing (`TipCalculator`, pure)
+
+- **Collected**: `orders.tip_amount` (or `orders.service_charge`) of orders at the branch whose **first** successful payment (status
+  `SUCCESS` or `REFUNDED`) falls in the period, excluding cancelled orders and orders refunded in full — the same payment basis as the
+  sales report. Each order therefore belongs to exactly one period.
+- **House share**: collected × house percent, rounded half up; the rest is shared.
+- **Who shares**: everyone with closed time entries **at that branch** in the period (home branch or not); minutes = elapsed − unpaid break.
+  Below the minimum time, or a position with 0 / no points when points are listed, gets nothing.
+- **Weights**: `HOURS` minutes; `POINTS` minutes × position points; `EQUAL` one each.
+- **Rounding**: largest-remainder in cents — shares always add up exactly to the shared amount. If nobody is eligible, the amount is
+  reported as kept by the house.
+- **Rule resolution**: the branch rule in force at period end, else the organisation rule, else a default (by hours, house 0 %, taxable).
+
+### Workflow, payroll and access
+
+| Step | Who | Rules |
+|---|---|---|
+| Rules | `hr.tips.manage` / `hr.service_charge.manage` for that source | Organisation-wide rules: central only |
+| Create / calculate pool | same source permission + branch | No other active pool of that source at the branch overlapping the period |
+| Approve | same permission | Calculated; not the person who calculated it; not someone with a share |
+| Return to draft / cancel | same permission, reason | Refused while a calculated (or later) payroll run pays from the pool; shares held by a draft run are released |
+| Payroll | — | Approved shares in pools ending inside a payroll period become `TIPS` / `SERVICE_CHARGE` earning lines (taxable per rule) on the employee's **home-branch** payroll; the pool becomes `PAID` once every share's run is finalized |
+| View | source permission, `hr.payroll.view` or `hr.payroll.process` + branch | |
+| Self-service | linked employee | `GET /hr/me/tips`: approved and paid shares (shown on My Payslips) |
+
+None of these permissions are MANAGER defaults. Audit `HR_TIPS_CHANGED` records operations, pool numbers and counts — no amounts.
+
+### Endpoints
+
+`GET/POST /hr/tip-rules`, `GET/POST /hr/tip-pools`, `GET /hr/tip-pools/{id}`, `POST /hr/tip-pools/{id}/calculate|approve|reopen|cancel`,
+`GET /hr/me/tips`.
+
+### Web
+
+| Route | Purpose | Shown when |
+|---|---|---|
+| `/hr/tips` | Pools per branch (new pool, drawer with collected/house/shared, shares, approve/return/cancel) and sharing rules with position points | tips, service-charge or payroll permissions |
+| `/hr/my-payslips` | Adds "My tips & service charge" (approved, in payroll, paid) | linked employee |
+
 ## 6. Audit
 
 HR events use the shared `audit_logs` table with `AuditAction.HR_*` values (Phase 2 adds `HR_EMPLOYEE_TRANSFERRED`,
@@ -486,7 +536,7 @@ HR events use the shared `audit_logs` table with `AuditAction.HR_*` values (Phas
 `HR_ATTENDANCE_CORRECTION`, `HR_CLOCK_PIN_CHANGED` — PIN values never appear; Phase 5 adds `HR_TIMESHEET_CHANGED`,
 `HR_OVERTIME_DECIDED`, `HR_LEAVE_REQUESTED`, `HR_LEAVE_DECIDED`, `HR_LEAVE_CANCELLED`, `HR_LEAVE_BALANCE_ADJUSTED`; leave types and
 entitlements use `HR_SETTINGS_CHANGED`; Phase 6 adds `HR_PAYROLL_CHANGED` (operation, run number, counts; never amounts) and payroll
-rules use `HR_SETTINGS_CHANGED`). Individual clock actions are audited in
+rules use `HR_SETTINGS_CHANGED`; Phase 7 adds `HR_TIPS_CHANGED`). Individual clock actions are audited in
 `hr_attendance_events` rather than the shared log. Metadata never contains salary figures, PINs or
 document contents; salary changes are recorded as "changed" without amounts.
 
@@ -536,6 +586,9 @@ open read-only with only the Overview and Branches tabs. The HR Access drawer al
 | `PayrollCalculatorTest` (6) | Monthly full/partial/unpaid leave, hourly normal vs approved overtime and holiday premium, daily and manual pay types, progressive brackets and validation, pre-tax → tax → employer → one-off order with caps, non-negative amounts |
 | `HrPayrollIntegrationTest` (4) | Full cycle with rules (calculate, four-eyes approval, finalize, self-service visibility, partial then full payment, no amounts in audit), blocking unlocked timesheets, adjustments sending the run back to draft, one run per branch/period, cancel releasing timesheets, new-joiner pro-rating, unpaid leave, skipped employees, rule validation, central rules and ending a rule |
 | `web/src/features/hr/payroll/payroll.test.tsx` (4) | Approve disabled for the calculator and with blocking payslips, finalize action, payslip sections |
+| `TipCalculatorTest` (5) | House share, hours split with exact cents, position points and zero points, minimum time and equal split, nothing eligible |
+| `HrTipsIntegrationTest` (3) | Collection rules (refunds, other branch, outside period), hours split incl. a visiting employee, four-eyes approval, home-branch payroll for each share, pool locked while payroll uses it, pool paid after both payrolls; branch rule with points overriding the organisation rule, one pool per source and period, cancel; per-source permissions and branch scope |
+| `web/src/features/hr/tips/tips.test.tsx` (4) | Shares and unshared note, approve disabled for the calculator, no actions without the source permission, approve action |
 | `HrPostgresFlywayIntegrationTest` | Same flows on the Flyway schema (tag `postgres`, run with `-Ppostgres-it`) |
 | `web/src/features/hr/hr.test.tsx` (9) | Permission-filtered navigation, employee form validation and payload |
 
@@ -554,6 +607,7 @@ open read-only with only the Overview and Branches tabs. The HR Access drawer al
   shared by all terminals of one web server; size it for shift changes.
 - `HR_LEAVE_NON_WORKING_DAYS` (default `SAT,SUN`): weekdays not counted for `WORKDAYS` leave. Restaurants that trade every day may
   want this empty. Changing it does not recount existing requests.
+- Tip and service-charge sharing rules are not seeded; without one, pools are shared by hours worked and the house keeps nothing.
 - Payroll deduction rules are not seeded: configure income tax, pension and other deductions in HR > Payroll > Deductions before the
   first run. The run currency is `GHS` (the column exists for later multi-currency support).
 - Leave entitlements are not seeded: configure them in HR > Leave > Types & entitlements before staff request balance-tracked leave.
