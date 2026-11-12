@@ -221,7 +221,9 @@ def seed_hr(api, admin_token: str, branches: dict, users_by_phone: dict, step=pr
 
     schedule_summary = seed_scheduling(api, A, branches, people, step)
     attendance_summary = seed_attendance(api, A, branches, people, linked, step)
-    return {"imported": result["created"], "created": len(people), "skipped": result["skipped"], **schedule_summary, **attendance_summary}
+    leave_summary = seed_leave(api, A, people, step)
+    return {"imported": result["created"], "created": len(people), "skipped": result["skipped"], **schedule_summary, **attendance_summary,
+            **leave_summary}
 
 
 TEST_CLOCK_PIN = "2580"
@@ -349,17 +351,91 @@ def seed_scheduling(api, A: str, branches: dict, people: dict, step=print) -> di
     return {"shifts_this_week": this_week, "shifts_next_week": next_week, "swap": swap_note}
 
 
+# Same definitions as migration V32; created only when missing (local H2 without Flyway).
+LEAVE_TYPES = [
+    ("ANNUAL", "Annual leave", True, True, False, False, "WORKDAYS", ["BRANCH_MANAGER"], 1),
+    ("SICK", "Sick leave", True, True, True, True, "WORKDAYS", ["BRANCH_MANAGER"], 2),
+    ("STUDY", "Study leave", True, True, False, False, "WORKDAYS", ["BRANCH_MANAGER", "HR"], 7),
+]
+
+
+def _weekday_on_or_before(day: date) -> date:
+    while day.weekday() >= 5:
+        day -= timedelta(days=1)
+    return day
+
+
+def seed_leave(api, A: str, people: dict, step=print) -> dict:
+    """Leave entitlements (test values), an HR adjustment and requests in each state."""
+    today = date.today()
+
+    def eid(name):
+        return people[name]["summary"]["id"]
+
+    step("HR: leave types & entitlements")
+    types = {t["code"]: t for t in api.call("GET", "/hr/leave-types", token=A)}
+    for code, name, paid, deducts, document, negative, basis, steps, order in LEAVE_TYPES:
+        if code not in types:
+            types[code] = api.call("POST", "/hr/leave-types", {
+                "code": code, "name": name, "paid": paid, "deductsBalance": deducts, "requiresDocument": document,
+                "allowNegative": negative, "countBasis": basis, "approvalSteps": steps, "displayOrder": order}, A)
+    # Test values only: real entitlements are business and legal decisions configured by HR.
+    for code, days, accrual, carry, etype in (("ANNUAL", 15, "UPFRONT", 5, None), ("ANNUAL", 8, "MONTHLY", 0, "PART_TIME"),
+                                               ("SICK", 10, "UPFRONT", 0, None), ("STUDY", 5, "UPFRONT", 0, None)):
+        api.call("POST", "/hr/leave-policies", {"leaveTypeId": types[code]["id"], "employmentType": etype, "annualDays": days,
+                                                "accrual": accrual, "carryOverMaxDays": carry, "effectiveFrom": "2020-01-01"}, A, ok=False)
+
+    step("HR: leave balances & requests")
+    api.call("POST", f"/hr/employees/{eid('Akua Nyarko')}/leave-balances/adjust",
+             {"leaveTypeId": types["ANNUAL"]["id"], "year": today.year, "days": -3, "note": "Taken before HR went live (test data)"}, A, ok=False)
+
+    # a Monday-to-Friday block three weeks out, kept inside one year
+    start = today + timedelta(days=21 + (7 - (today + timedelta(days=21)).weekday()) % 7)
+    if (start + timedelta(days=4)).year != start.year:
+        start += timedelta(days=14)
+    pending = api.call("POST", "/hr/leave-requests", {"employeeId": eid("Kwesi Arthur"), "leaveTypeId": types["ANNUAL"]["id"],
+                                                      "startDate": start.isoformat(), "endDate": (start + timedelta(days=4)).isoformat(),
+                                                      "reason": "Family visit (test data)"}, A, ok=False)
+
+    # approved by HR for two days next week, clashing with drafted evening shifts
+    next_monday = today + timedelta(days=7 - today.weekday())
+    thursday = next_monday + timedelta(days=3)
+    if thursday.year == (thursday + timedelta(days=1)).year:
+        api.call("POST", "/hr/leave-requests", {"employeeId": eid("Fiifi Mensah"), "leaveTypeId": types["ANNUAL"]["id"],
+                                                "startDate": thursday.isoformat(), "endDate": (thursday + timedelta(days=1)).isoformat(),
+                                                "reason": "Wedding (test data)", "recordApproved": True}, A, ok=False)
+
+    api.call("POST", "/hr/leave-requests", {"employeeId": eid("Adjoa Badu"), "leaveTypeId": types["STUDY"]["id"],
+                                            "startDate": start.isoformat(), "endDate": start.isoformat(), "reason": "Food safety exam"}, A, ok=False)
+
+    # Kofi (cashier, linked login) reports sick for the last working day through self-service; the sick note is still missing
+    sick_note = "not created"
+    time.sleep(1.1)
+    kofi = api.call("POST", "/auth/login", {"phone": "+233200000003", "password": "Passw0rd!"}, ok=False)
+    if isinstance(kofi, dict) and "accessToken" in kofi:
+        day = _weekday_on_or_before(today - timedelta(days=1))
+        res = api.call("POST", "/hr/me/leave-requests", {"leaveTypeId": types["SICK"]["id"], "startDate": day.isoformat(),
+                                                         "endDate": day.isoformat(), "reason": "Fever"}, kofi["accessToken"], ok=False)
+        if isinstance(res, dict) and "_error" not in res:
+            sick_note = f"Kofi sick on {day}, pending, document missing"
+    return {"leave_pending": isinstance(pending, dict) and pending.get("status") == "PENDING", "leave_sick": sick_note}
+
+
 def print_hr_summary(summary: dict):
     print("  HR:")
     print(f"    {summary['imported']} staff logins imported as employees, {summary['created']} employees without logins")
     print("    Try: Yaw (manager, Osu) sees Osu staff + Nii Lartey read-only (East Legon, covering Osu); no pay figures")
     print("         Ama (admin) sees everything incl. pay; Abena (cashier) has HR view + documents only (granted)")
-    print("         Kofi (cashier) only has self-service: 'My Schedule' and 'My HR profile'")
+    print("         Kofi (cashier) only has self-service: 'My Schedule', 'My Leave' and 'My HR profile'")
     print("         Contracts due within 30 days: Edem Kpodo, Fiifi Mensah, Kojo Asamoah (probation); draft: Maame Ofori")
     print(f"    Schedule: {summary.get('shifts_this_week', 0)} shifts published this week, {summary.get('shifts_next_week', 0)} drafted for next week (+2 open)")
     print(f"         Swap request: {summary.get('swap')}. Kofi has 'unavailable Sundays'; Gifty unavailable Saturdays")
     print(f"    Attendance: every employee's POS clock PIN is {TEST_CLOCK_PIN} (test data). Clocked in now: {', '.join(summary.get('clocked_in', [])) or 'nobody'}")
     print(f"         Missing record for Kwesi Arthur yesterday {'waiting for approval (requested by Ama; approve as Yaw)' if summary.get('correction_pending') else 'not created'}")
+    print("    Leave (test entitlements: annual 15 days, part-time 8 monthly, sick 10, study 5):")
+    print(f"         Kwesi Arthur annual leave {'pending (approve as Yaw)' if summary.get('leave_pending') else 'not created'}; Fiifi Mensah approved")
+    print("         for next Thu-Fri (clashes with drafted shifts); Adjoa Badu study leave needs branch manager then HR")
+    print(f"         {summary.get('leave_sick')}; Akua Nyarko annual balance adjusted -3")
 
 
 def main():

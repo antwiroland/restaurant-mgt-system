@@ -102,7 +102,9 @@
 | `feature/hr-timesheets-overtime` | `c3300ea` | feat(hr): add timesheet review screens and overtime settings | 2026-11-09 | Phase 5 web |
 | `feature/hr-leave-management` | `3c71f5f` | feat: Leave Management (V32 schema and enums only) | 2026-11-09 | Phase 5 leave schema |
 | `main` | `7fc0723` | Merge PR #4 (`feature/hr-leave-management`) | 2026-11-09 | Phase 5 integration |
-| `feature/hr-leave-management` | _uncommitted_ | Leave backend, web, tests and docs (this update) | 2026-11-12 | Phase 5 leave |
+| `feature/hr-leave-management` | `5cc6c91` | feat(hr): add leave management with balances, approval chains and scheduling conflicts | 2026-11-12 | Phase 5 leave backend |
+| `feature/hr-leave-management` | `b28f1a0` | feat(hr): add leave screens for managers, staff and employee profiles | 2026-11-12 | Phase 5 leave web |
+| `feature/hr-leave-management` | `92319d6` | docs(hr): record Phase 5 timesheets and leave design, tests and progress | 2026-11-12 | Phase 5 docs |
 
 ## Development Log
 
@@ -125,9 +127,10 @@
 
 | 2026-11-09 | Phase 4 backend | V30, `hr.attendance` package, legacy time clock adjustments, `hrclock` rate-limit bucket | Backend `mvn test`: **354 run, 0 failures, 0 errors** (335 + 8 unit + 11 attendance). One real bug found by the tests and fixed (self PIN change after a failed attempt hit an optimistic-lock conflict) | `feature/hr-attendance` | `16d0654` |
 | 2026-11-09 | V30 on PostgreSQL | Migrated to V29 with legacy time entries (linked closed, unlinked open), applied V30: linked row got its employee, unlinked open row untouched. Smoke-tested PIN set, roster, POS clock-in (unscheduled flag), idempotent replay, meal break, clock-out, wrong PIN 401, day board, entries, correction (originals kept), corrections list, legacy timesheet/status, policy — no errors. Found that unlinked legacy entries appeared as nameless rows on the HR day board; fixed by excluding them from HR views | Manual, passed after fix | `feature/hr-attendance` | `16d0654` |
-| 2026-11-12 | Phase 5 leave backend | `hr.leave` package on V32 (no new migration), `LEAVE_SUPPORT` document type, leave rule in `ScheduleRules`, leave lines on timesheets, `ON_LEAVE` on the day board, `HrDocumentService.store` extracted | Backend `mvn test`: **384 run, 0 failures, 0 errors**; leave suites 10 + 5 + 1 new | `feature/hr-leave-management` | uncommitted |
-| 2026-11-12 | V32 on PostgreSQL | Booted the packaged app on a temporary `postgres:16-alpine`: Flyway applied V1–V32, Hibernate `validate` passed, seven leave types seeded. API smoke test (entitlement, employee + login link, quote, request, overlap 409, awaiting-me, employee/branch lists, calendar, approve, balance and ledger, shift on approved leave 409, HR adjustment, negative-allowed sick leave, cancel): **28/28 passed** | Manual, passed | `feature/hr-leave-management` | uncommitted |
-| 2026-11-12 | Phase 5 leave web | `/hr/leave`, `/hr/my-leave`, profile Leave tab, leave API client, nav entries, `LEAVE` timesheet flag | `vitest` HR suites **25/25** (4 new leave + 1 nav); full web suite 61/64 with the 3 pre-existing `guest.test.tsx` failures; `tsc` and ESLint clean; `next build` passes | `feature/hr-leave-management` | uncommitted |
+| 2026-11-12 | Phase 5 leave backend | `hr.leave` package on V32 (no new migration), `LEAVE_SUPPORT` document type, leave rule in `ScheduleRules`, leave lines on timesheets, `ON_LEAVE` on the day board, `HrDocumentService.store` extracted | Backend `mvn test`: **384 run, 0 failures, 0 errors**; leave suites 10 + 5 + 1 new | `feature/hr-leave-management` | `5cc6c91` |
+| 2026-11-12 | V32 on PostgreSQL | Booted the packaged app on a temporary `postgres:16-alpine`: Flyway applied V1–V32, Hibernate `validate` passed, seven leave types seeded. API smoke test (entitlement, employee + login link, quote, request, overlap 409, awaiting-me, employee/branch lists, calendar, approve, balance and ledger, shift on approved leave 409, HR adjustment, negative-allowed sick leave, cancel): **28/28 passed** | Manual, passed | `feature/hr-leave-management` | `5cc6c91` |
+| 2026-11-12 | Phase 5 leave web | `/hr/leave`, `/hr/my-leave`, profile Leave tab, leave API client, nav entries, `LEAVE` timesheet flag | `vitest` HR suites **25/25** (4 new leave + 1 nav); full web suite 61/64 with the 3 pre-existing `guest.test.tsx` failures; `tsc` and ESLint clean; `next build` passes | `feature/hr-leave-management` | `b28f1a0` |
+| 2026-11-12 | Leave seed data | `seed_hr.py`: leave types when missing (H2 without Flyway), test entitlements, an HR adjustment, pending/approved/two-step/self-service sick requests | Seeded a fresh local H2 backend end to end; 4 requests in the expected states, approved leave reports its 2 clashing draft shifts | `feature/hr-leave-management` | see Git History |
 | 2026-11-09 | Phase 4 web | Attendance page, PIN card, My time clock; POS staff clock panel | `vitest` HR suites 20/20; ESLint and `tsc` clean; `next build` passes | `feature/hr-attendance`, `feature/hr-pos-integration` | `953b890`, `b41efea` |
 
 ## Outstanding Issues
@@ -156,7 +159,6 @@
 - **New entitlements and open balances:** a policy added after a year's balance has opened does not change that balance; use an adjustment.
 - **Small branches:** each approval step needs a different person and nobody approves a request they filed; HR can use
   "record as already approved" for leave agreed outside the system.
-- **Leave seed data:** `seed_hr.py` does not create leave entitlements or requests yet.
 - **Time zones:** the web board enters and shows times in the browser's local zone; devices should use the restaurant's zone.
 - **Notification delivery:** schedule notifications reuse Expo push (after commit, de-duplicated); there is no in-app inbox yet.
 - **Scheduled transfers:** transfers cannot be dated in the future (no job applies them yet); record them on the day.
@@ -167,7 +169,6 @@
 
 ## Next Actions
 
-1. Review and commit the leave implementation on `feature/hr-leave-management`, then open a PR to `main`.
-2. Extend `seed_hr.py` with leave entitlements, balances and sample requests.
-3. Phase 6: payroll (reads locked timesheets and paid/unpaid leave).
-4. Fix the Testcontainers environment or CI job so the `postgres` test group runs on every phase.
+1. Open a PR from `feature/hr-leave-management` to `main`.
+2. Phase 6: payroll (reads locked timesheets and paid/unpaid leave).
+3. Fix the Testcontainers environment or CI job so the `postgres` test group runs on every phase.
