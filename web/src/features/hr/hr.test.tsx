@@ -97,4 +97,48 @@ describe("Employee form", () => {
     expect(payload.employmentType).toBe("FULL_TIME");
     expect(payload.emergencyContacts).toEqual([{ name: "Esi", relationship: undefined, phone: "+233201234567", email: undefined }]);
   });
+
+  test("givenBankDetailsWhenAdding_whenSubmitted_thenSentAsPayout", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <EmployeeForm formId="f" departments={[]} positions={[]} branches={[]} canChangeBranch submitting={false} onSubmit={onSubmit} onCancel={() => undefined} />,
+    );
+    await userEvent.type(screen.getByLabelText("First name *"), "Ama");
+    await userEvent.click(screen.getByRole("button", { name: "Bank transfer" }));
+    await userEvent.type(screen.getByLabelText("Bank"), "GCB");
+    await userEvent.click(screen.getByRole("button", { name: "Create employee" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Bank payments need the bank, account name and account number.");
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await userEvent.type(screen.getByLabelText("Account name"), "Ama Cook");
+    await userEvent.type(screen.getByLabelText("Account number"), "1234567890");
+    await userEvent.click(screen.getByRole("button", { name: "Create employee" }));
+    expect(onSubmit.mock.calls[0][0].payout).toEqual({
+      method: "BANK", bankName: "GCB", bankBranch: undefined, bankAccountName: "Ama Cook", bankAccountNumber: "1234567890",
+    });
+  });
+
+  test("givenMobileMoneyWhenAdding_thenTheirPhoneCanBeUsed", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <EmployeeForm formId="f" departments={[]} positions={[]} branches={[]} canChangeBranch submitting={false} onSubmit={onSubmit} onCancel={() => undefined} />,
+    );
+    await userEvent.type(screen.getByLabelText("First name *"), "Yaw");
+    await userEvent.type(screen.getByLabelText("Phone"), "0244000001");
+    await userEvent.click(screen.getByRole("button", { name: "Mobile Money" }));
+    await userEvent.selectOptions(screen.getByLabelText("Network"), "MTN");
+    await userEvent.click(screen.getByRole("button", { name: /Use their phone number/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Create employee" }));
+    expect(onSubmit.mock.calls[0][0].payout).toEqual({ method: "MOBILE_MONEY", momoNetwork: "MTN", momoNumber: "0244000001" });
+  });
+
+  test("givenNoPayoutChosen_whenAdding_thenNoPayoutSent", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <EmployeeForm formId="f" departments={[]} positions={[]} branches={[]} canChangeBranch submitting={false} onSubmit={onSubmit} onCancel={() => undefined} />,
+    );
+    await userEvent.type(screen.getByLabelText("First name *"), "Kofi");
+    await userEvent.click(screen.getByRole("button", { name: "Create employee" }));
+    expect(onSubmit.mock.calls[0][0].payout).toBeUndefined();
+  });
 });

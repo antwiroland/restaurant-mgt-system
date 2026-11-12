@@ -93,6 +93,42 @@ class HrPayrollDocumentsIntegrationTest extends HrIntegrationTestSupport {
     }
 
     @Test
+    void payoutDetailsGivenWhenAddingAnEmployee_areTheirPayoutDetails() throws Exception {
+        Map<String, Object> withBank = employeeBody("Kojo", "Banked", accra);
+        withBank.put("payout", bank("Kojo Banked", "5550001234"));
+        String banked = json(postJson("/hr/employees", withBank, admin).andExpect(status().isCreated())).at("/summary/id").asText();
+        getJson("/hr/employees/" + banked + "/payout", admin)
+                .andExpect(jsonPath("$.method").value("BANK"))
+                .andExpect(jsonPath("$.bankName").value("GCB"))
+                .andExpect(jsonPath("$.bankAccountNumber").value("5550001234"))
+                .andExpect(jsonPath("$.complete").value(true));
+
+        Map<String, Object> withMomo = employeeBody("Akua", "Momo", accra);
+        withMomo.put("payout", Map.of("method", "MOBILE_MONEY", "momoNetwork", "MTN", "momoNumber", "024 555 0001",
+                "bankName", "ignored for Mobile Money"));
+        String momo = json(postJson("/hr/employees", withMomo, admin).andExpect(status().isCreated())).at("/summary/id").asText();
+        getJson("/hr/employees/" + momo + "/payout", admin)
+                .andExpect(jsonPath("$.method").value("MOBILE_MONEY"))
+                .andExpect(jsonPath("$.momoNumber").value("0245550001"))
+                .andExpect(jsonPath("$.bankName").doesNotExist());
+
+        // incomplete details refuse the whole request: no half-added employee
+        long before = employeeRepository.count();
+        Map<String, Object> incomplete = employeeBody("Half", "Done", accra);
+        incomplete.put("payout", Map.of("method", "BANK", "bankName", "GCB"));
+        postJson("/hr/employees", incomplete, admin)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Bank payments need the bank, account name and account number"));
+        assertThat(employeeRepository.count()).isEqualTo(before);
+
+        // no payout section: added as before, details left for later
+        String plain = json(postJson("/hr/employees", employeeBody("No", "Payout", accra), admin).andExpect(status().isCreated())).at("/summary/id").asText();
+        getJson("/hr/employees/" + plain + "/payout", admin).andExpect(jsonPath("$.method").doesNotExist());
+        assertThat(auditLogRepository.findByAction(AuditAction.HR_PAYOUT_DETAILS_CHANGED)).hasSize(2)
+                .noneMatch(a -> a.getMetadata() != null && (a.getMetadata().contains("5550001234") || a.getMetadata().contains("0245550001")));
+    }
+
+    @Test
     void paymentFiles_perMethod_onlyWhenFinalizedAndComplete() throws Exception {
         grant(clerk, HrPermission.PAYROLL_PAY);
         putJson("/hr/employees/" + chef + "/payout", Map.of("method", "MOBILE_MONEY", "momoNetwork", "MTN", "momoNumber", "0244000001"), clerk).andExpect(status().isOk());
@@ -142,6 +178,8 @@ class HrPayrollDocumentsIntegrationTest extends HrIntegrationTestSupport {
 
     @org.springframework.beans.factory.annotation.Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.restaurantmanager.core.hr.employee.EmployeeRepository employeeRepository;
 
     private void jdbcTemplateUpdate(String sql, UUID id) {
         jdbcTemplate.update(sql, id);

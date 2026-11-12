@@ -247,6 +247,10 @@ public class EmployeeService {
         }
         employee.setEmploymentStatus(EmploymentStatus.ACTIVE);
         employee.setCreatedBy(access.userId());
+        boolean payoutGiven = request.payout() != null && request.payout().method() != null;
+        if (payoutGiven) {
+            com.restaurantmanager.core.hr.payroll.PayrollDocumentService.copyPayout(employee, request.payout());
+        }
         EmployeeEntity saved = employeeRepository.saveAndFlush(employee);
         if (saved.getUserId() != null) {
             attachLoginHistory(saved.getUserId(), saved.getId());
@@ -254,6 +258,11 @@ public class EmployeeService {
         assignmentRecorder.openPrimary(saved.getId(), saved.primaryBranchId(), positionId(saved), saved.getHireDate(), "Hired", access.userId());
         audit.log(access.userId(), AuditAction.HR_EMPLOYEE_CREATED, "Employee", saved.getId(),
                 Map.of("employeeNumber", saved.getEmployeeNumber(), "branchId", String.valueOf(saved.primaryBranchId())));
+        if (payoutGiven) {
+            // Never the numbers themselves in the audit trail.
+            audit.log(access.userId(), AuditAction.HR_PAYOUT_DETAILS_CHANGED, "HR_EMPLOYEE", saved.getId(),
+                    Map.of("method", saved.getPayoutMethod().name(), "selfService", false, "onCreate", true));
+        }
         return toDetail(saved, true);
     }
 
@@ -764,7 +773,18 @@ public class EmployeeService {
             @Size(max = 2000) String qualifications,
             @Size(max = 2000) String experience,
             @Size(max = 5) List<@Valid EmergencyContactRequest> emergencyContacts,
-            Long version) {}
+            Long version,
+            /** Optional when adding an employee: how they are paid (bank or Mobile Money), saved as their payout details. */
+            @Valid com.restaurantmanager.core.hr.payroll.PayrollDocumentService.PayoutRequest payout) {
+
+        public EmployeeRequest(String employeeNumber, UUID userId, String firstName, String middleName, String lastName, Gender gender,
+                               LocalDate dateOfBirth, String email, String phone, String address, UUID departmentId, UUID positionId,
+                               EmploymentType employmentType, LocalDate hireDate, UUID reportingManagerId, UUID primaryBranchId,
+                               String qualifications, String experience, List<EmergencyContactRequest> emergencyContacts, Long version) {
+            this(employeeNumber, userId, firstName, middleName, lastName, gender, dateOfBirth, email, phone, address, departmentId, positionId,
+                    employmentType, hireDate, reportingManagerId, primaryBranchId, qualifications, experience, emergencyContacts, version, null);
+        }
+    }
 
     /** What an employee may change on their own record. */
     public record MyProfileRequest(

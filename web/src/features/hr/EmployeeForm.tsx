@@ -48,6 +48,14 @@ type FormState = {
   qualifications: string;
   experience: string;
   contacts: EmergencyContact[];
+  /** Adding an employee only: how they are paid ("" = decide later). */
+  payoutMethod: "" | "BANK" | "MOBILE_MONEY" | "CASH";
+  bankName: string;
+  bankBranch: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
+  momoNetwork: string;
+  momoNumber: string;
 };
 
 function initialState(e?: EmployeeDetail | null): FormState {
@@ -69,7 +77,27 @@ function initialState(e?: EmployeeDetail | null): FormState {
     qualifications: e?.qualifications ?? "",
     experience: e?.experience ?? "",
     contacts: e?.emergencyContacts?.map((c) => ({ name: c.name, relationship: c.relationship ?? "", phone: c.phone, email: c.email ?? "" })) ?? [],
+    payoutMethod: "", bankName: "", bankBranch: "", bankAccountName: "", bankAccountNumber: "", momoNetwork: "", momoNumber: "",
   };
+}
+
+type PayoutFields = Pick<FormState, "payoutMethod" | "bankName" | "bankAccountName" | "bankAccountNumber" | "momoNetwork" | "momoNumber">;
+
+/** Same rules as the Payout tab, so the employee is never added with half their payout details. */
+export function validatePayout(form: PayoutFields): string[] {
+  const errors: string[] = [];
+  if (form.payoutMethod === "BANK") {
+    if (!form.bankName.trim() || !form.bankAccountName.trim() || !form.bankAccountNumber.trim()) {
+      errors.push("Bank payments need the bank, account name and account number.");
+    } else if (!/^[0-9A-Za-z -]{1,40}$/.test(form.bankAccountNumber.trim())) {
+      errors.push("Account number may only contain letters, digits, spaces and dashes.");
+    }
+  }
+  if (form.payoutMethod === "MOBILE_MONEY") {
+    if (!form.momoNetwork || !form.momoNumber.trim()) errors.push("Mobile Money payments need the network and number.");
+    else if (!/^\+?[0-9 ()-]{9,20}$/.test(form.momoNumber.trim())) errors.push("Mobile Money number is not valid.");
+  }
+  return errors;
 }
 
 /** Client-side checks mirroring the API's validation, so mistakes are caught before a round trip. */
@@ -104,7 +132,7 @@ export function EmployeeForm({ initial, departments, positions, branches, canCha
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const problems = validateEmployee(form);
+    const problems = [...validateEmployee(form), ...(editing ? [] : validatePayout(form))];
     setErrors(problems);
     if (problems.length) return;
     onSubmit({
@@ -132,6 +160,12 @@ export function EmployeeForm({ initial, departments, positions, branches, canCha
         email: c.email?.trim() || undefined,
       })),
       version: initial?.version,
+      payout: editing || !form.payoutMethod ? undefined
+        : form.payoutMethod === "BANK"
+          ? { method: "BANK", bankName: form.bankName.trim(), bankBranch: form.bankBranch.trim() || undefined, bankAccountName: form.bankAccountName.trim(), bankAccountNumber: form.bankAccountNumber.trim() }
+          : form.payoutMethod === "MOBILE_MONEY"
+            ? { method: "MOBILE_MONEY", momoNetwork: form.momoNetwork, momoNumber: form.momoNumber.trim() }
+            : { method: "CASH" },
     });
   }
 
@@ -218,6 +252,50 @@ export function EmployeeForm({ initial, departments, positions, branches, canCha
           </div>
         ) : null}
       </fieldset>
+
+      {!editing ? (
+        <fieldset className="grid gap-3">
+          <legend className="kicker mb-2">How they&apos;re paid <span className="font-normal normal-case tracking-normal text-ink-muted">(optional)</span></legend>
+          <p className="-mt-2 text-sm text-ink-soft">Used for payroll payment files. You can also add or change this later on the Payout tab.</p>
+          <div className="segmented grid grid-cols-2 sm:grid-cols-4" role="group" aria-label="Paid by">
+            {([["", "Decide later"], ["BANK", "Bank transfer"], ["MOBILE_MONEY", "Mobile Money"], ["CASH", "Cash"]] as const).map(([value, label]) => (
+              <button key={value || "later"} type="button" aria-pressed={form.payoutMethod === value} onClick={() => set("payoutMethod", value)}>{label}</button>
+            ))}
+          </div>
+          {form.payoutMethod === "BANK" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Bank"><input className="input" maxLength={120} value={form.bankName} onChange={(e) => set("bankName", e.target.value)} /></Field>
+              <Field label="Branch (optional)"><input className="input" maxLength={120} value={form.bankBranch} onChange={(e) => set("bankBranch", e.target.value)} /></Field>
+              <Field label="Account name">
+                <input className="input" maxLength={160} value={form.bankAccountName} placeholder={[form.firstName, form.lastName].filter(Boolean).join(" ")}
+                  onChange={(e) => set("bankAccountName", e.target.value)} />
+              </Field>
+              <Field label="Account number"><input className="input font-mono" maxLength={40} inputMode="numeric" value={form.bankAccountNumber} onChange={(e) => set("bankAccountNumber", e.target.value)} /></Field>
+            </div>
+          ) : null}
+          {form.payoutMethod === "MOBILE_MONEY" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Network">
+                <select className="select" value={form.momoNetwork} onChange={(e) => set("momoNetwork", e.target.value)}>
+                  <option value="">Choose…</option>
+                  <option value="MTN">MTN</option>
+                  <option value="Telecel">Telecel</option>
+                  <option value="AT">AT</option>
+                </select>
+              </Field>
+              <Field label="Mobile Money number">
+                <input className="input font-mono" type="tel" inputMode="tel" maxLength={20} value={form.momoNumber} placeholder={form.phone || undefined}
+                  onChange={(e) => set("momoNumber", e.target.value)} />
+              </Field>
+              {form.phone && !form.momoNumber ? (
+                <button type="button" className="btn btn-ghost btn-sm justify-self-start sm:col-span-2" onClick={() => set("momoNumber", form.phone)}>
+                  Use their phone number ({form.phone})
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </fieldset>
+      ) : null}
 
       <div className="flex justify-end gap-2 border-t border-line pt-4">
         <button type="button" className="btn btn-ghost btn-md" onClick={onCancel}>Cancel</button>
