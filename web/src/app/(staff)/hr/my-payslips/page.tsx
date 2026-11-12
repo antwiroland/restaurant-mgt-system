@@ -5,6 +5,7 @@ import { EmptyState, PageHeader, SectionHeader } from "@/components/ui";
 import { useStaffSession } from "@/components/SessionProvider";
 import { HrGuard, errorMessage, formatDate } from "@/features/hr/ui";
 import { PayslipDrawer } from "@/features/hr/payroll/PayslipDrawer";
+import { PayoutPanel } from "@/features/hr/payroll/PayoutPanel";
 import { money } from "@/features/hr/payroll/payrollUtils";
 import { sourceLabel } from "@/features/hr/tips/tipUtils";
 import { formatMinutes } from "@/features/workforce/time";
@@ -76,6 +77,7 @@ function MyPayslips() {
           </div>
         </section>
       ) : null}
+      <PayoutPanel self canEdit />
       {open ? <PayslipDrawer id={open} onClose={() => setOpen(null)} /> : null}
     </div>
   );

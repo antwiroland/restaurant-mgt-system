@@ -475,6 +475,9 @@ Issue codes on a payslip: **errors** (block approval) `UNLOCKED_TIMESHEETS` (hou
 | Record payment | `hr.payroll.pay` | Finalized; all or selected payslips; method and reference; run becomes Paid when every payslip is |
 | Cancel | `hr.payroll.process` | Not finalized; releases timesheets |
 | View runs and payslips | any `hr.payroll.*` + branch | Employees see their own payslips only once finalized |
+| Payslip PDF | same as viewing | `GET /hr/payslips/{id}/pdf`, one page (summary, payment, every line); audited `HR_PAYSLIP_DOWNLOADED` (run and employee number, never amounts) |
+| Payout details | edit: `hr.payroll.process` or `hr.payroll.pay` + branch; view: any payroll permission (numbers masked unless process/pay); the employee: own | `hr_employees.payout_method`, bank name/branch/account name/number, Mobile Money network/number (V39). Changes audited `HR_PAYOUT_DETAILS_CHANGED` without the numbers |
+| Payment files | `hr.payroll.pay` + branch | Finalized or paid runs; one CSV per method (bank: bank, branch, account name and number; Mobile Money: network and number; both: amount, currency, reference `PAY-000001-EMP-000012`) for unpaid payslips with net > 0. Refused (409) while anyone due that way lacks details. `GET .../payment-files` lists people and totals per method and who is missing details. Audited `HR_PAYMENT_FILE_EXPORTED` (method, people, total) |
 | Rules | `hr.settings.manage` (organisation rows: central only); viewing needs a payroll permission | |
 
 Payroll permissions are **not** in the MANAGER defaults; ADMIN has them, others need a grant. Audit (`HR_PAYROLL_CHANGED`) records

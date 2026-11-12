@@ -65,6 +65,32 @@ public class EmployeeEntity {
     @Column(length = 500)
     private String address;
 
+    /** How this employee is paid (payroll payment files); see V39. */
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(name = "payout_method", length = 20)
+    private com.restaurantmanager.core.hr.payroll.PaymentMethod payoutMethod;
+
+    @Column(name = "bank_name", length = 120)
+    private String bankName;
+
+    @Column(name = "bank_branch", length = 120)
+    private String bankBranch;
+
+    @Column(name = "bank_account_name", length = 160)
+    private String bankAccountName;
+
+    @Column(name = "bank_account_number", length = 40)
+    private String bankAccountNumber;
+
+    @Column(name = "momo_network", length = 30)
+    private String momoNetwork;
+
+    @Column(name = "momo_number", length = 20)
+    private String momoNumber;
+
+    @Column(name = "payout_updated_at")
+    private java.time.Instant payoutUpdatedAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
     private DepartmentEntity department;
@@ -214,4 +240,21 @@ public class EmployeeEntity {
     public long getVersion() { return version; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+
+    public com.restaurantmanager.core.hr.payroll.PaymentMethod getPayoutMethod() { return payoutMethod; }
+    public void setPayoutMethod(com.restaurantmanager.core.hr.payroll.PaymentMethod payoutMethod) { this.payoutMethod = payoutMethod; }
+    public String getBankName() { return bankName; }
+    public void setBankName(String bankName) { this.bankName = bankName; }
+    public String getBankBranch() { return bankBranch; }
+    public void setBankBranch(String bankBranch) { this.bankBranch = bankBranch; }
+    public String getBankAccountName() { return bankAccountName; }
+    public void setBankAccountName(String bankAccountName) { this.bankAccountName = bankAccountName; }
+    public String getBankAccountNumber() { return bankAccountNumber; }
+    public void setBankAccountNumber(String bankAccountNumber) { this.bankAccountNumber = bankAccountNumber; }
+    public String getMomoNetwork() { return momoNetwork; }
+    public void setMomoNetwork(String momoNetwork) { this.momoNetwork = momoNetwork; }
+    public String getMomoNumber() { return momoNumber; }
+    public void setMomoNumber(String momoNumber) { this.momoNumber = momoNumber; }
+    public java.time.Instant getPayoutUpdatedAt() { return payoutUpdatedAt; }
+    public void setPayoutUpdatedAt(java.time.Instant payoutUpdatedAt) { this.payoutUpdatedAt = payoutUpdatedAt; }
 }

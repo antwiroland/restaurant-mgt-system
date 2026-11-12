@@ -178,7 +178,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Phone numbers are normalised to international format (default country code 233)
 
 ### Real-time
-- STOMP over plain WebSocket at `/ws`
+- STOMP over plain WebSocket at `/ws`, **signed in with the access token on CONNECT** and with every subscription checked by role and ownership (see `documentation/WEBSOCKET_EVENTS.md`); public screens use only public topics
 - Staff topics: new orders, status changes, tables, payments, deliveries
 - Per-order topics for customers: `/topic/orders.{id}`, `.payments` and `.delivery`
 - The mobile app uses one shared STOMP connection (order tracking, table tracking, group cart). Screens fall back to polling while it is disconnected
@@ -279,7 +279,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - **Refunding duplicate payments taken before the pay-once fix** is a manual step (Financial → Refund)
 
 ### Known issues
-- **WebSocket connections are not authenticated.** `/ws` accepts any client and any subscription (order, table and payment topics included). Documented in `documentation/hr/HR_TECHNICAL_DOCUMENTATION.md`; needs a token check on connect and per-topic authorisation
+- None open at the moment (WebSocket sign-in was added on 2026-11-12)
 
 ### Platform & operations
 - **CI/CD pipeline**: no `.github/workflows` or other CI config yet
@@ -303,7 +303,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 ## 3. Suggested Priority
 
 1. **Verify before merging**: the Postgres Flyway check for V9–V19, then a click-through of the web and mobile flows using the seeded local environment (`scripts/dev/`)
-2. **Fix the remaining known issue** above: authenticate WebSocket connections and subscriptions
+2. **Payroll follow-ups**: provider-specific bank and Mobile Money file formats once a bank or provider is chosen
 3. **Sandbox the providers**: Paystack test keys, a WhatsApp Cloud API test number, a Hubtel or Arkesel sender ID, an SMTP account, and Cloudinary (or a mounted volume for local images)
 4. **CI/CD and production hardening**: secrets, TLS, lock down admin tools, and a pipeline running backend, web and mobile tests plus the Postgres check
 5. **Native rider app** and third-party delivery integration

@@ -6,8 +6,28 @@ The system uses two real-time channels:
 - **WebSocket (STOMP over SockJS)** — bidirectional, used for staff dashboard and kitchen display
 - **Server-Sent Events (SSE)** — unidirectional push, used for customer order tracking in the mobile app
 
-Both channels require a valid JWT. The token is passed as a query parameter on connect:
-`wss://api.restaurantmanager.com/ws?token=<accessToken>`
+### Signing in and subscription rules (implemented)
+
+STOMP over plain WebSocket at `/ws` (the SSE channel below was never built; screens poll instead). The access token
+goes in the STOMP **CONNECT** frame, not the URL: `Authorization: Bearer <accessToken>`.
+
+- A valid access token makes the connection that user's. A bad, expired or refresh token is refused with an ERROR frame.
+- No token: an anonymous connection that may only use public topics.
+- Every **SUBSCRIBE** is checked (`WebSocketTopicAuthorizer`); a refused one closes the session with an ERROR frame.
+  Clients cannot **SEND** (the server only pushes).
+- Web staff screens and the mobile app send the token on every (re)connect, so a refreshed token is used after a reconnect.
+
+| Topic | Who may subscribe |
+|---|---|
+| `/topic/public.tables.{qrToken}.orders`, `.requests` | Anyone (the secret QR token is the guard) |
+| `/topic/public.pickup-board` | Anyone (a data-free "reload" ping for the public pickup board) |
+| `/topic/tables.status` | Anyone (public table board) |
+| `/topic/orders.new`, `/topic/orders.status`, `/topic/payments.status`, `/topic/payments.failed`, `/topic/service-requests` | Admin, manager, cashier |
+| `/topic/deliveries` | Admin, manager, cashier, rider |
+| `/topic/inventory.alerts`, `/topic/feedback.alerts` | Admin, manager |
+| `/topic/orders.{id}`, `.payments`, `.delivery` | Admin, manager, cashier; the order's customer; its rider |
+| `/topic/group.{code}` | The group's host and participants; admin, manager, cashier |
+| Anything else | Nobody (HR officers get no floor topics) |
 
 ---
 
