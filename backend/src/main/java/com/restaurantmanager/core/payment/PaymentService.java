@@ -44,6 +44,7 @@ import java.util.UUID;
 
 @Service
 public class PaymentService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PaymentService.class);
     private final PaymentRepository paymentRepository;
     private final PaymentWebhookEventRepository paymentWebhookEventRepository;
     private final OrderRepository orderRepository;
@@ -130,6 +131,7 @@ public class PaymentService {
                 .orElseThrow(() -> new ApiException(404, "Order not found"));
         BigDecimal amount = order.getTotal();
         UUID splitId = null;
+        settleOrReplaceWaiting(order.getId(), request.splitId());
         var splits = splitService.activeSplits(order.getId());
         if (!splits.isEmpty()) {
             if (request.splitId() == null) {
@@ -152,12 +154,64 @@ public class PaymentService {
                 throw new ApiException(404, "Split not found for this order");
             }
             assertOrderAccess(order, principal);
+            amount = amountStillOwed(order);
         }
 
         if (cash) {
             return recordCash(order, amount, splitId, key, request.amountTendered(), principal);
         }
         return start(order, amount, splitId, request.method(), trimToNull(request.momoPhone()), key);
+    }
+
+    /** What is left to pay on an unsplit order; refuses an order that is already paid in full. */
+    private BigDecimal amountStillOwed(OrderEntity order) {
+        BigDecimal paid = paymentRepository.findByOrderIdAndStatus(order.getId(), PaymentStatus.SUCCESS).stream()
+                .map(PaymentEntity::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal owed = order.getTotal().subtract(paid);
+        if (owed.signum() <= 0) {
+            throw new ApiException(409, "Order #" + shortNumber(order.getId()) + " has already been paid");
+        }
+        return owed;
+    }
+
+    /**
+     * Before a new attempt on the same order (or share), each attempt still waiting is checked with the provider.
+     * One that went through is recorded, so the order then counts as paid and the new attempt is refused. One that
+     * did not is closed as replaced, so a late approval cannot go unnoticed as a second live payment.
+     */
+    private void settleOrReplaceWaiting(UUID orderId, UUID splitId) {
+        List<PaymentEntity> waiting = paymentRepository.findByOrderIdAndStatusIn(orderId, List.of(PaymentStatus.INITIATED, PaymentStatus.PENDING))
+                .stream()
+                .filter(p -> java.util.Objects.equals(p.getSplitId(), splitId))
+                .toList();
+        for (PaymentEntity payment : waiting) {
+            PaymentStatus previous = payment.getStatus();
+            PaymentStatus checked = previous;
+            String message = null;
+            if (payment.getMethod() != PaymentMethod.CASH) {
+                try {
+                    PaystackClient.VerifyResult result = paystackClient.verify(payment.getPaystackReference());
+                    checked = mapProviderStatus(result.providerStatus());
+                    message = result.message();
+                } catch (RuntimeException e) {
+                    log.warn("Could not check waiting payment {} before a new attempt", payment.getPaystackReference(), e);
+                }
+            }
+            if (checked == PaymentStatus.SUCCESS || checked == PaymentStatus.FAILED) {
+                applyStatusChange(payment, checked, message);
+            } else {
+                payment.setStatus(PaymentStatus.FAILED);
+                payment.setFailureReason("Replaced by a new payment attempt");
+            }
+            paymentRepository.save(payment);
+            realtimePublisher.publishPaymentStatusChanged(payment.getId(), orderId, previous, payment.getStatus(),
+                    payment.getAmount(), payment.getMethod());
+        }
+    }
+
+    private static String shortNumber(UUID id) {
+        return id.toString().substring(0, 8).toUpperCase(java.util.Locale.ROOT);
     }
 
     /**
@@ -174,6 +228,7 @@ public class PaymentService {
             throw new ApiException(400, "Amount tendered is less than the amount due (" + amount + ")");
         }
         PaymentEntity payment = new PaymentEntity();
+        payment.setId(UUID.randomUUID());
         payment.setOrder(order);
         payment.setSplitId(splitId);
         payment.setAmount(amount);
@@ -187,7 +242,8 @@ public class PaymentService {
             payment.setAmountTendered(tendered);
             payment.setChangeDue(tendered.subtract(amount));
         }
-        payment = paymentRepository.save(payment);
+        // Mark it paid (and run the success side effects) before the single insert, so the row is never stored
+        // half-done as INITIATED.
         applyStatusChange(payment, PaymentStatus.SUCCESS, "Cash received");
         PaymentEntity saved = paymentRepository.save(payment);
         realtimePublisher.publishPaymentStatusChanged(saved.getId(), order.getId(), PaymentStatus.INITIATED,
@@ -424,6 +480,50 @@ public class PaymentService {
             throw new ApiException(404, "Receipt not found");
         }
         return toReceipt(payment);
+    }
+
+    private static final java.util.regex.Pattern RECEIPT_NUMBER = java.util.regex.Pattern.compile("^RCP-\\d{8}-([0-9A-F]{8})$");
+    private static final java.util.regex.Pattern FULL_ID = java.util.regex.Pattern.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
+
+    /**
+     * Finds a receipt from whatever the cashier has: the order number on the ticket (7D63D7F5), the receipt number
+     * (RCP-20261112-2FE7D111), the payment reference (CASH-DADB89D6) or a full order or payment id.
+     */
+    @Transactional(readOnly = true)
+    public ReceiptResponse findReceipt(String query, UserPrincipal principal) {
+        String q = query == null ? "" : query.trim().replaceFirst("^#", "");
+        String upper = q.toUpperCase(java.util.Locale.ROOT);
+        String lower = q.toLowerCase(java.util.Locale.ROOT);
+        if (q.isEmpty()) {
+            throw new ApiException(400, "Enter an order number, receipt number or payment reference");
+        }
+        java.util.regex.Matcher receipt = RECEIPT_NUMBER.matcher(upper);
+        if (receipt.matches()) {
+            PaymentEntity payment = paymentRepository.findByIdPrefix(receipt.group(1).toLowerCase(java.util.Locale.ROOT) + "%",
+                            org.springframework.data.domain.PageRequest.of(0, 5)).stream()
+                    .filter(p -> p.getStatus() == PaymentStatus.SUCCESS)
+                    .findFirst()
+                    .orElseThrow(() -> new ApiException(404, "No receipt " + upper));
+            return receiptByPaymentId(payment.getId(), principal);
+        }
+        if (FULL_ID.matcher(lower).matches()) {
+            UUID id = UUID.fromString(lower);
+            return paymentRepository.existsById(id) ? receiptByPaymentId(id, principal) : receiptByOrderId(id, principal);
+        }
+        if (lower.matches("[0-9a-f]{6,8}")) {
+            List<OrderEntity> orders = orderRepository.findByIdPrefix(lower + "%", org.springframework.data.domain.PageRequest.of(0, 2));
+            if (orders.isEmpty()) {
+                throw new ApiException(404, "No order with number " + upper);
+            }
+            if (orders.size() > 1) {
+                throw new ApiException(409, "More than one order starts with " + upper + "; enter all 8 characters");
+            }
+            return receiptByOrderId(orders.get(0).getId(), principal);
+        }
+        PaymentEntity byReference = paymentRepository.findByPaystackReference(q)
+                .or(() -> paymentRepository.findByPaystackReference(upper))
+                .orElseThrow(() -> new ApiException(404, "Nothing found for " + q));
+        return receiptByPaymentId(byReference.getId(), principal);
     }
 
     @Transactional(readOnly = true)
@@ -757,6 +857,14 @@ public class PaymentService {
         for (PaymentEntity payment : candidates) {
             if (processed >= maxBatch) {
                 break;
+            }
+            if (payment.getMethod() == PaymentMethod.CASH) {
+                // Cash never goes through the provider; one not recorded as received was never taken.
+                payment.setStatus(PaymentStatus.FAILED);
+                payment.setFailureReason("Cash payment was not completed");
+                paymentRepository.save(payment);
+                processed++;
+                continue;
             }
 
             PaymentStatus previous = payment.getStatus();

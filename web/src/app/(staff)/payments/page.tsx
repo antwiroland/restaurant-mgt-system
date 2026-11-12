@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { Skeleton } from "@/components/Skeleton";
+import { Icon } from "@/components/Icon";
+import { humanize } from "@/components/ui";
 import { useStaffSession } from "@/components/SessionProvider";
 import { formatMoney } from "@/lib/brand";
 import {
@@ -14,8 +16,25 @@ import {
   type PaymentInitiateRecord,
   type PaymentMethod,
   type PaymentRecord,
+  type PaymentStatus,
   verifyPayment,
 } from "@/lib/apiClient";
+
+/** What the cashier sees after taking a payment: plain words, never the raw response. */
+type PaymentOutcome = {
+  result: PaymentInitiateRecord;
+  orderNumber: string;
+  orderLabel: string;
+  amount: string;
+  method: PaymentMethod;
+};
+
+function outcomeTitle(status: PaymentStatus, method: PaymentMethod): { title: string; tone: "success" | "warning" | "danger" } {
+  if (status === "SUCCESS") return { title: method === "CASH" ? "Cash received" : "Payment received", tone: "success" };
+  if (status === "FAILED") return { title: "Payment failed", tone: "danger" };
+  if (status === "REFUNDED" || status === "VOIDED") return { title: humanize(status), tone: "warning" };
+  return { title: method === "CARD" ? "Waiting for the card payment" : "Waiting for the customer to approve", tone: "warning" };
+}
 
 const METHODS: Array<{ value: PaymentMethod; label: string }> = [
   { value: "CASH", label: "Cash" },
@@ -35,7 +54,7 @@ export default function PaymentsPage() {
   const [splitId, setSplitId] = useState("");
   const [lookupPaymentId, setLookupPaymentId] = useState("");
   const [payment, setPayment] = useState<PaymentRecord | null>(null);
-  const [initResult, setInitResult] = useState<PaymentInitiateRecord | null>(null);
+  const [outcome, setOutcome] = useState<PaymentOutcome | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -90,11 +109,14 @@ export default function PaymentsPage() {
           splitId: splitId.trim() || undefined,
         }),
       );
-      setInitResult(result);
+      setOutcome({
+        result,
+        orderNumber: target.id.slice(0, 8).toUpperCase(),
+        orderLabel: target.type === "DINE_IN" ? `Table ${target.tableNumber ?? "—"}` : target.type === "PICKUP" ? "Pickup" : "Delivery",
+        amount: target.total,
+        method,
+      });
       setLookupPaymentId(result.paymentId);
-      setMessage(cash
-        ? `Cash recorded for order #${target.id.slice(0, 8).toUpperCase()}${result.changeDue != null && Number(result.changeDue) > 0 ? `. Change due: ${formatMoney(result.changeDue)}` : ""}.`
-        : `Payment started for order #${target.id.slice(0, 8).toUpperCase()}. Ask the customer to approve it, then press Verify.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not initiate payment");
     } finally {
@@ -119,7 +141,8 @@ export default function PaymentsPage() {
       setError("");
       const result = await authenticatedFetch((activeSession) => verifyPayment(activeSession, lookupPaymentId));
       setPayment(result);
-      setMessage("Payment verification completed");
+      setOutcome((current) => (current && current.result.paymentId === result.id ? { ...current, result: { ...current.result, status: result.status } } : current));
+      setMessage(result.status === "SUCCESS" ? "Payment confirmed." : result.status === "FAILED" ? "The payment failed." : "Still waiting for the customer.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not verify payment");
     }
@@ -135,8 +158,8 @@ export default function PaymentsPage() {
           idempotencyKey: `${lookupPaymentId}-retry-${Date.now()}`,
         }),
       );
-      setInitResult(result);
-      setMessage("Payment retry initiated");
+      setOutcome((current) => (current ? { ...current, result } : current));
+      setMessage("Payment started again. Ask the customer to approve it.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not retry payment");
     }
@@ -197,7 +220,22 @@ export default function PaymentsPage() {
           <button className="btn btn-primary btn-lg" disabled={busy}>{method === "CASH" ? "Record cash payment" : "Start payment"}</button>
         </form>
 
-        {initResult ? <pre className="mt-3 overflow-auto input text-xs">{JSON.stringify(initResult, null, 2)}</pre> : null}
+        {outcome ? (
+          <PaymentResult
+            outcome={outcome}
+            onVerify={() => void onVerify()}
+            onNext={() => {
+              setOutcome(null);
+              setOrder(null);
+              setOrderNumber("");
+              setTendered("");
+              setMomoPhone("");
+              setIdem("");
+              setSplitId("");
+              setMessage("");
+            }}
+          />
+        ) : null}
       </section>
 
       <section className="panel">
@@ -210,12 +248,12 @@ export default function PaymentsPage() {
         </div>
 
         {payment ? (
-          <div className="mt-4 input text-sm">
-            <p><span className="font-semibold">Status:</span> {payment.status}</p>
-            <p><span className="font-semibold">Order:</span> {payment.orderId}</p>
-            <p><span className="font-semibold">Amount:</span> {payment.currency} {payment.amount}</p>
-            <p><span className="font-semibold">Method:</span> {payment.method}</p>
-            <p><span className="font-semibold">Reference:</span> {payment.paystackReference || "-"}</p>
+          <div className="mt-4 grid gap-1 rounded-xl border border-line p-4 text-sm">
+            <p><span className="font-semibold">Status:</span> {humanize(payment.status)}</p>
+            <p><span className="font-semibold">Order:</span> <span className="font-mono">#{payment.orderId.slice(0, 8).toUpperCase()}</span></p>
+            <p><span className="font-semibold">Amount:</span> <span className="money">{formatMoney(payment.amount)}</span></p>
+            <p><span className="font-semibold">Method:</span> {humanize(payment.method)}</p>
+            <p><span className="font-semibold">Reference:</span> {payment.paystackReference || "—"}</p>
             <div className="mt-3">
               <Link className="btn btn-secondary btn-sm" href="/receipts">Open Receipt Center</Link>
             </div>
@@ -229,3 +267,52 @@ export default function PaymentsPage() {
   );
 }
 
+
+function PaymentResult({ outcome, onVerify, onNext }: { outcome: PaymentOutcome; onVerify: () => void; onNext: () => void }) {
+  const { result, method } = outcome;
+  const { title, tone } = outcomeTitle(result.status, method);
+  const change = result.changeDue == null ? 0 : Number(result.changeDue);
+  const waiting = result.status === "INITIATED" || result.status === "PENDING" || result.status === "PAYMENT_PENDING";
+  return (
+    <section className={`mt-4 grid gap-3 rounded-xl border p-4 ${tone === "success" ? "border-success/40 bg-success-subtle/50" : tone === "danger" ? "border-danger/40 bg-danger-subtle/50" : "border-warning/40 bg-warning-subtle/50"}`}
+      role="status" aria-label="Payment result">
+      <p className="flex items-center gap-2 font-display text-lg font-bold">
+        <Icon name={tone === "success" ? "checkCircle" : "alert"} size={20} /> {title}
+      </p>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dt className="text-ink-soft">Order</dt>
+        <dd><span className="font-mono font-semibold">#{outcome.orderNumber}</span> · {outcome.orderLabel}</dd>
+        <dt className="text-ink-soft">Amount</dt>
+        <dd className="money font-semibold">{formatMoney(outcome.amount)}</dd>
+        <dt className="text-ink-soft">Method</dt>
+        <dd>{method === "MOBILE_MONEY" ? "Mobile Money" : humanize(method)}</dd>
+        {result.paystackReference ? (
+          <>
+            <dt className="text-ink-soft">Reference</dt>
+            <dd className="font-mono text-xs leading-5">{result.paystackReference}</dd>
+          </>
+        ) : null}
+      </dl>
+      {method === "CASH" && change > 0 ? (
+        <p className="flex items-baseline justify-between rounded-lg bg-surface px-3 py-2">
+          <span className="font-semibold">Change to give back</span>
+          <span className="money font-display text-2xl font-extrabold">{formatMoney(change)}</span>
+        </p>
+      ) : null}
+      {waiting ? (
+        <p className="text-sm text-ink-soft">
+          {method === "CARD" ? "Finish the card payment on the payment page, then check it." : "Ask the customer to approve the prompt on their phone, then check it."}
+        </p>
+      ) : null}
+      {result.status === "FAILED" && result.message ? <p className="text-sm">{result.message}</p> : null}
+      <div className="flex flex-wrap gap-2">
+        {waiting && result.authorizationUrl ? (
+          <a className="btn btn-secondary btn-sm" href={result.authorizationUrl} target="_blank" rel="noreferrer">Open card payment page</a>
+        ) : null}
+        {waiting ? <button type="button" className="btn btn-primary btn-sm" onClick={onVerify}>Check payment</button> : null}
+        {result.status === "SUCCESS" ? <Link className="btn btn-secondary btn-sm" href={`/receipts?order=${outcome.orderNumber}`}>Receipt</Link> : null}
+        <button type="button" className="btn btn-secondary btn-sm" onClick={onNext}>Take another payment</button>
+      </div>
+    </section>
+  );
+}

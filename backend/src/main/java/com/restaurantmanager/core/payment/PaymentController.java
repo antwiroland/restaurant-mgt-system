@@ -76,6 +76,14 @@ public class PaymentController {
         return paymentService.receiptByPaymentId(id, principal);
     }
 
+    /** One search box: order number, receipt number, payment reference, or a full order or payment id. */
+    @GetMapping("/receipts/search")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
+    public ReceiptResponse searchReceipt(@org.springframework.web.bind.annotation.RequestParam String q,
+                                         @AuthenticationPrincipal UserPrincipal principal) {
+        return paymentService.findReceipt(q, principal);
+    }
+
     @GetMapping("/orders/{orderId}/receipt")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','CUSTOMER')")
     public ReceiptResponse receiptByOrder(@PathVariable UUID orderId,

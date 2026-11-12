@@ -606,3 +606,21 @@ Dine-in stays pay-at-the-end; guests are never prompted. Staff are told when to 
 
 ### Verified
 - Backend 427 tests, web 97, `tsc` clean; checked in a browser at 1366×768 and 390×844.
+
+---
+
+## [Fixes - pay once, receipts from anything on the ticket] - 2026-11-12
+
+### Fixed
+- An order could be paid any number of times. Staff payments now charge what is still owed and refuse an order that
+  is already paid ("Order #7D63D7F5 has already been paid"). Before a new attempt, any attempt still waiting is
+  checked with the provider: a late success is recorded (and the new attempt refused); otherwise it is closed as
+  "Replaced by a new payment attempt", so only one payment can count.
+- Cash is stored once, already received (it was saved as INITIATED and then updated, and some rows were left
+  INITIATED). The reconciliation job no longer sends cash to the provider and closes any such row as failed.
+- Receipt Center: one search for the order number (7D63D7F5), receipt number (RCP-20261112-2FE7D111), payment
+  reference (CASH-DADB89D6) or a full order or payment id: `GET /payments/receipts/search?q=`.
+- A malformed id in a URL is a 400 (was 500); an unsupported HTTP method is a 405 (was 500).
+
+### Verified
+- Backend 431 tests (+4 in `PaymentOnceIntegrationTest`), web 103.
