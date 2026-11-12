@@ -624,6 +624,28 @@ the permission behind it, so the dashboard never shows more than the viewer coul
 
 Web: `/hr` (HR Dashboard), first item in the Human Resources menu, with a branch filter for multi-branch viewers.
 
+### Reports (`HrReportService`, `/hr/reports`)
+
+| Endpoint | What |
+|---|---|
+| `GET /hr/reports` | The reports this viewer may run (type, title, description, whether it takes a period) |
+| `GET /hr/reports/{type}?from&to&branchId&includeExited` | `{columns: [{key, label}], rows: [...]}` for on-screen tables |
+| `GET /hr/reports/{type}/csv?...` | The same as a CSV attachment (`text/csv`, UTF-8 with BOM, `no-store`) |
+
+| Type | Rows | Needs (with `hr.reports.view`) |
+|---|---|---|
+| `EMPLOYEES` | Current employees (optionally leavers too): number, name, department, position, branch, type, status, hire and exit dates, phone, email. No pay. | `hr.employee.view` |
+| `MOVEMENT` | Joined / Left events in the period, with exit status and reason | `hr.employee.view` |
+| `LEAVE` | Requests overlapping the period: employee, branch, type, dates, days, status. Reasons are not exported (they can be medical). | `hr.leave.approve` or `hr.leave.manage` |
+| `HOURS` | Timesheets overlapping the period: scheduled, paid, overtime and payable overtime hours, late count, absences | `hr.timesheet.review` or payroll view/process |
+| `PAYROLL` | Runs overlapping the period: number, branch, dates, status, employees, gross, deductions, net, employer cost | payroll view, process or approve |
+
+Rules: the period defaults to the 1st of this month to today and spans 1 to 366 days (400 otherwise); `branchId` outside the viewer's scope
+is 403; employees without a home branch appear only for all-branch viewers on the all-branches view. CSV cells are quoted when needed,
+and text starting with `=`, `+`, `-`, `@`, tab or carriage return is prefixed with an apostrophe so spreadsheets do not run it as a
+formula (numbers are left as numbers). Every CSV download is audited as `HR_REPORT_EXPORTED` with the report, period, branch and row
+count; viewing on screen is not. Web: `/hr/reports` ("HR Reports" in the menu): pick a report, period and branch, view, download.
+
 ### Self-service web
 
 `/hr/me` adds "My contact details" (view and edit), "My contracts" and "My documents" (download).
@@ -631,7 +653,8 @@ Web: `/hr` (HR Dashboard), first item in the Human Resources menu, with a branch
 ### Tests
 
 `HrDashboardIntegrationTest` (scope, starting soon, pay hidden from managers, actions per permission, expiring contracts, branch filter
-and refusal), `HrSelfServiceIntegrationTest` (contact edit, uniqueness, format and stale version; own contracts without drafts and with
+and refusal), `HrReportIntegrationTest` (reports offered per permission, payroll refused to managers, branch scope and refusal, movement
+in a period, period limits, CSV format and export audit), `HrReportCsvTest` (quoting and formula defusing), `HrSelfServiceIntegrationTest` (contact edit, uniqueness, format and stale version; own contracts without drafts and with
 pay; own documents only), `HrRoleSecurityIntegrationTest` (HR defaults and branch reach, refusal outside HR while other roles keep
 access, central HR on role assignment, sign-in and permission required on HR reads); web `hrDashboard.test.tsx`.
 
@@ -649,7 +672,8 @@ HR events use the shared `audit_logs` table with `AuditAction.HR_*` values (Phas
 `HR_ATTENDANCE_CORRECTION`, `HR_CLOCK_PIN_CHANGED` — PIN values never appear; Phase 5 adds `HR_TIMESHEET_CHANGED`,
 `HR_OVERTIME_DECIDED`, `HR_LEAVE_REQUESTED`, `HR_LEAVE_DECIDED`, `HR_LEAVE_CANCELLED`, `HR_LEAVE_BALANCE_ADJUSTED`; leave types and
 entitlements use `HR_SETTINGS_CHANGED`; Phase 6 adds `HR_PAYROLL_CHANGED` (operation, run number, counts; never amounts) and payroll
-rules use `HR_SETTINGS_CHANGED`; Phase 7 adds `HR_TIPS_CHANGED`; Phase 8 adds `HR_RECRUITMENT_CHANGED`). Individual clock actions are audited in
+rules use `HR_SETTINGS_CHANGED`; Phase 7 adds `HR_TIPS_CHANGED`; Phase 8 adds `HR_RECRUITMENT_CHANGED`; Phase 9 adds `HR_REPORT_EXPORTED` (report, period, branch, row count; never the data itself)
+and records self-service profile edits and document downloads with `selfService: true`). Individual clock actions are audited in
 `hr_attendance_events` rather than the shared log. Metadata never contains salary figures, PINs or
 document contents; salary changes are recorded as "changed" without amounts.
 

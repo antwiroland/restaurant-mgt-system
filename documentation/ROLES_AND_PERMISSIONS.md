@@ -126,7 +126,7 @@ which only an `ADMIN` can change. `CUSTOMER` accounts never receive HR permissio
 | Exits, transfers, departments/positions, contract and document management | ✓ | ✓ | — | grant |
 | Pay figures (`hr.compensation.view`) | ✓ | ✓ | — | grant |
 | Scheduling, publishing, shift swaps; attendance view/record/correct | ✓ | ✓ | ✓ | grant |
-| Timesheet review, overtime approval, leave approval, recruitment, HR dashboard (`hr.reports.view`) | ✓ | ✓ | ✓ | grant |
+| Timesheet review, overtime approval, leave approval, recruitment, HR dashboard and reports (`hr.reports.view`) | ✓ | ✓ | ✓ | grant |
 | Leave configuration (`hr.leave.manage`) | ✓ | ✓ | — | grant |
 | Payroll view / process / approve / finalize / pay | ✓ | ✓ | — | grant |
 | Tips, service charge | ✓ | ✓ | — | grant |
@@ -146,6 +146,9 @@ does **not** see every branch in HR.
 **Self-service** (any staff account linked to an employee record): own profile, with their own phone, email, address and emergency
 contacts editable; own contracts (with their own pay) and documents; schedule, availability and swaps, time clock and PIN,
 timesheets, leave, payslips, tip shares, and interviews they run.
+
+**Reports:** each HR report also needs the permission behind its data (the payroll summary needs payroll access, so managers do not
+get it by default); CSV downloads are audited.
 
 **Four eyes:** nobody approves their own leave, overtime, timesheet, attendance correction, payroll run they calculated or are paid in,
 or a tip pool they calculated or share in.
