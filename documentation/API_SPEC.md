@@ -173,7 +173,8 @@ Admin/manager only.
 Staff only.
 
 ### GET `/orders/public/status`
-Public pickup board. Pickup orders in PENDING, CONFIRMED, PREPARING or READY, each as `{orderNumber, status, updatedAt}`.
+Public pickup board. Paid pickup orders in CONFIRMED, PREPARING or READY (pickup is paid before it reaches the kitchen;
+unpaid ones stay PENDING, off the KDS and this board, and are cancelled after 30 minutes), each as `{orderNumber, status, updatedAt}`.
 `orderNumber` is the first 8 characters of the order id in capitals (the number on the POS and receipt). No items,
 notes, table, customer or full order id.
 

@@ -10,7 +10,6 @@ import { PICKUP_COLUMNS, groupPickupBoard, type PickupStatus } from "@/features/
 const REFRESH_INTERVAL_MS = 30_000;
 
 const COLUMN_STYLE: Record<PickupStatus, { dot: string; accent: string }> = {
-  PENDING: { dot: "bg-gold", accent: "border-t-gold" },
   CONFIRMED: { dot: "bg-info-border", accent: "border-t-info-border" },
   PREPARING: { dot: "bg-brand", accent: "border-t-brand" },
   READY: { dot: "animate-pulse bg-success", accent: "border-t-success" },
@@ -88,7 +87,7 @@ export default function OrdersStatusPage() {
 
       {error ? <p className="mx-6 mt-4 rounded-xl bg-danger px-4 py-3 text-center text-white lg:mx-10" role="alert">{error}</p> : null}
 
-      <main className="grid flex-1 gap-4 p-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1.4fr] lg:gap-5 lg:p-8">
+      <main className="grid flex-1 gap-4 p-4 md:grid-cols-[1fr_1fr_1.4fr] lg:gap-5 lg:p-8">
         {PICKUP_COLUMNS.map((column) => {
           const numbers = groups[column.status];
           const ready = column.status === "READY";

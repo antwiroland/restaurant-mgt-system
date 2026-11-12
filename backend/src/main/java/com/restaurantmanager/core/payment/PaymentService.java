@@ -62,6 +62,7 @@ public class PaymentService {
     private final com.restaurantmanager.core.billing.BillingService billingService;
     private final com.restaurantmanager.core.payment.split.SplitService splitService;
     private final com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications;
+    private final com.restaurantmanager.core.order.OrderRealtimePublisher orderRealtimePublisher;
 
     public PaymentService(PaymentRepository paymentRepository,
                           PaymentWebhookEventRepository paymentWebhookEventRepository,
@@ -80,8 +81,10 @@ public class PaymentService {
                           TableSessionService tableSessionService,
                           com.restaurantmanager.core.billing.BillingService billingService,
                           com.restaurantmanager.core.payment.split.SplitService splitService,
-            com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications) {
+            com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications,
+                          com.restaurantmanager.core.order.OrderRealtimePublisher orderRealtimePublisher) {
         this.pushNotifications = pushNotifications;
+        this.orderRealtimePublisher = orderRealtimePublisher;
         this.paymentRepository = paymentRepository;
         this.paymentWebhookEventRepository = paymentWebhookEventRepository;
         this.orderRepository = orderRepository;
@@ -450,6 +453,9 @@ public class PaymentService {
                 order.setStatus(OrderStatus.CONFIRMED);
                 orderRepository.save(order);
                 pushNotifications.orderStatusChanged(order, OrderStatus.CONFIRMED);
+                // A paid pickup order now goes to the kitchen: refresh the KDS and pickup board.
+                orderRealtimePublisher.publishOrderStatusChanged(order.getId(), OrderStatus.PENDING, OrderStatus.CONFIRMED,
+                        order.getTable() == null ? null : order.getTable().getQrToken());
             }
             refreshTableOccupancy(order);
             awardLoyaltyIfFullyPaid(order, payment);

@@ -253,6 +253,10 @@ public class OrderService {
         if (!isValidTransition(order.getStatus(), request.status(), order.getType())) {
             throw new ApiException(400, "Invalid status transition");
         }
+        if (order.getType() == OrderType.PICKUP && order.getStatus() == OrderStatus.PENDING
+                && request.status() == OrderStatus.CONFIRMED && !isFullyPaid(order)) {
+            throw new ApiException(409, "Pickup orders go to the kitchen once they are paid");
+        }
         OrderStatus previous = order.getStatus();
         order.setStatus(request.status());
         OrderEntity saved = orderRepository.save(order);
@@ -293,6 +297,37 @@ public class OrderService {
 
         boolean returnBody = previous != OrderStatus.PENDING;
         return new CancelResult(returnBody, toResponse(saved));
+    }
+
+    /**
+     * Pickup is paid before it goes to the kitchen. An unpaid pickup order that is not paid within the window (and has
+     * no payment waiting for approval) is cancelled, so its stock and any promo code are released.
+     */
+    @Transactional
+    public int expireUnpaidPickups(int olderThanMinutes) {
+        Instant cutoff = Instant.now().minus(Math.max(1, olderThanMinutes), java.time.temporal.ChronoUnit.MINUTES);
+        int expired = 0;
+        for (OrderEntity order : orderRepository.findByTypeAndStatusAndCreatedAtBefore(OrderType.PICKUP, OrderStatus.PENDING, cutoff)) {
+            boolean paymentStarted = !paymentRepository.findByOrderIdAndStatusIn(order.getId(),
+                    List.of(PaymentStatus.INITIATED, PaymentStatus.PENDING, PaymentStatus.SUCCESS)).isEmpty();
+            if (paymentStarted) {
+                continue;
+            }
+            order.setStatus(OrderStatus.CANCELLED);
+            order.setCancelReason("Not paid within " + olderThanMinutes + " minutes");
+            pricingService.releaseDiscounts(order);
+            inventoryService.restoreForOrder(order, OrderStatus.PENDING);
+            OrderEntity saved = orderRepository.save(order);
+            realtimePublisher.publishOrderStatusChanged(saved.getId(), OrderStatus.PENDING, OrderStatus.CANCELLED, null);
+            pushNotifications.orderStatusChanged(saved, OrderStatus.CANCELLED);
+            expired++;
+        }
+        return expired;
+    }
+
+    private boolean isFullyPaid(OrderEntity order) {
+        BigDecimal paid = paymentTotalsByOrderIds(List.of(order.getId())).getOrDefault(order.getId(), BigDecimal.ZERO);
+        return paid.compareTo(order.getTotal()) >= 0;
     }
 
     /** Adds or changes the tip before the order is paid. */
@@ -428,8 +463,9 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public List<OrderPublicStatusView> listPublicOrders() {
-        // Pickup board: only pickup orders still with the kitchen or waiting to be collected.
-        Set<OrderStatus> shown = EnumSet.of(OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.READY);
+        // Pickup board: paid pickup orders still with the kitchen or waiting to be collected (unpaid ones are not
+        // the kitchen's yet, so they are not shown).
+        Set<OrderStatus> shown = EnumSet.of(OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.READY);
         return orderRepository.findActiveForPublicDisplay(List.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED))
                 .stream()
                 .filter(order -> order.getType() == OrderType.PICKUP && shown.contains(order.getStatus()))

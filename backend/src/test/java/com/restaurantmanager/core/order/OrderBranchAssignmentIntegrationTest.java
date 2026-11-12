@@ -70,12 +70,16 @@ class OrderBranchAssignmentIntegrationTest extends BaseIntegrationTest {
         UUID orderId = placeOrder("{\"type\":\"PICKUP\",\"branchId\":\"%s\",\"items\":[%s]}".formatted(legon.getId(), item()), legon.getId());
 
         assertEquals(legon.getId(), orderRepository.findById(orderId).orElseThrow().getBranch().getId());
+        // pickup reaches the kitchen once paid
+        mockMvc.perform(get("/kds/board").header("Authorization", "Bearer " + legonCashierToken))
+                .andExpect(jsonPath("$.columns.PENDING[?(@.orderId == '%s')]".formatted(orderId)).doesNotExist());
+        payCash(orderId, legonCashierToken);
         mockMvc.perform(get("/kds/board").header("Authorization", "Bearer " + legonCashierToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.columns.PENDING[?(@.orderId == '%s')]".formatted(orderId)).exists());
+                .andExpect(jsonPath("$.columns.CONFIRMED[?(@.orderId == '%s')]".formatted(orderId)).exists());
         mockMvc.perform(get("/kds/board").header("Authorization", "Bearer " + osuCashierToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.columns.PENDING[?(@.orderId == '%s')]".formatted(orderId)).doesNotExist());
+                .andExpect(jsonPath("$.columns.CONFIRMED[?(@.orderId == '%s')]".formatted(orderId)).doesNotExist());
     }
 
     @Test
@@ -99,10 +103,19 @@ class OrderBranchAssignmentIntegrationTest extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         assertTrue(list.contains(orderId.toString()), "unassigned order should be in a branch cashier's order list");
+        updateStatus(orderId, legonCashierToken, 409); // unpaid pickup cannot be sent to the kitchen
+        payCash(orderId, legonCashierToken);
         mockMvc.perform(get("/kds/board").header("Authorization", "Bearer " + legonCashierToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.columns.PENDING[?(@.orderId == '%s')]".formatted(orderId)).exists());
-        updateStatus(orderId, legonCashierToken, 200);
+                .andExpect(jsonPath("$.columns.CONFIRMED[?(@.orderId == '%s')]".formatted(orderId)).exists());
+    }
+
+    private void payCash(UUID orderId, String token) throws Exception {
+        mockMvc.perform(post("/payments/initiate")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderId\":\"%s\",\"method\":\"CASH\",\"idempotencyKey\":\"cash-%s\",\"amountTendered\":500}".formatted(orderId, orderId)))
+                .andExpect(status().isCreated());
     }
 
     // ------------------------------------------------------------------ helpers

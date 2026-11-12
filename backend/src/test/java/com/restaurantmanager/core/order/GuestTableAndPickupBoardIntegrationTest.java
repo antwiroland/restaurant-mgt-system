@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -39,6 +40,10 @@ class GuestTableAndPickupBoardIntegrationTest extends BaseIntegrationTest {
     private PaymentProps paymentProps;
     @Autowired
     private PlatformTransactionManager transactionManager;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private OrderService orderService;
 
     private MenuItemEntity jollof;
     private UserEntity cashier;
@@ -121,13 +126,13 @@ class GuestTableAndPickupBoardIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
-    void pickupBoard_showsOnlyPickupOrderNumbersAndStatus() throws Exception {
-        String pickup = mockMvc.perform(post("/orders").header("Authorization", "Bearer " + accessToken(cashier))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\":\"PICKUP\",\"items\":[{\"menuItemId\":\"" + jollof.getId() + "\",\"quantity\":1}],\"notes\":\"Extra shito\"}"))
-                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        String pickupId = json(pickup).get("id").asText();
+    void pickupBoard_showsOnlyPaidPickupOrderNumbersAndStatus() throws Exception {
+        String pickupId = pickupOrder();
         guestOrder(table("G4")); // dine-in: not on the pickup board
+
+        // unpaid: not the kitchen's yet
+        assertThat(json(mockMvc.perform(get("/orders/public/status")).andReturn().getResponse().getContentAsString())).isEmpty();
+        payCash(pickupId);
 
         JsonNode board = json(mockMvc.perform(get("/orders/public/status"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
@@ -135,10 +140,73 @@ class GuestTableAndPickupBoardIntegrationTest extends BaseIntegrationTest {
         board.forEach(line -> numbers.add(line.get("orderNumber").asText()));
         assertThat(numbers).containsExactly(pickupId.substring(0, 8).toUpperCase());
         JsonNode line = board.get(0);
-        assertThat(line.get("status").asText()).isEqualTo("PENDING");
+        assertThat(line.get("status").asText()).isEqualTo("CONFIRMED");
         assertThat(line.has("orderId")).isFalse();
         assertThat(line.has("tableNumber")).isFalse();
         assertThat(line.toString()).doesNotContain("shito", "Jollof", pickupId);
+    }
+
+    @Test
+    void pickupIsPaidBeforeTheKitchenSeesIt() throws Exception {
+        String pickupId = pickupOrder();
+        assertThat(kdsOrderIds()).doesNotContain(pickupId);
+
+        // staff cannot push an unpaid pickup to the kitchen
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/orders/" + pickupId + "/status")
+                        .header("Authorization", "Bearer " + accessToken(cashier))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"CONFIRMED\"}"))
+                .andExpect(status().isConflict());
+
+        payCash(pickupId);
+        assertThat(orderRepository.findById(UUID.fromString(pickupId)).orElseThrow().getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        assertThat(kdsOrderIds()).contains(pickupId);
+
+        // dine-in still goes straight to the kitchen and is paid at the end
+        UUID dineIn = guestOrder(table("G5"));
+        assertThat(kdsOrderIds()).contains(dineIn.toString());
+    }
+
+    @Test
+    void unpaidPickup_isCancelledAfterTheWindow_unlessAPaymentIsUnderway() throws Exception {
+        String abandoned = pickupOrder();
+        String paying = pickupOrder();
+        String fresh = pickupOrder();
+        jdbcTemplate.update("UPDATE orders SET created_at = ? WHERE id IN (?, ?)",
+                java.sql.Timestamp.from(Instant.now().minusSeconds(45 * 60)), UUID.fromString(abandoned), UUID.fromString(paying));
+        mockMvc.perform(post("/payments/initiate").header("Authorization", "Bearer " + accessToken(cashier))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderId\":\"" + paying + "\",\"method\":\"MOBILE_MONEY\",\"momoPhone\":\"0244000001\",\"idempotencyKey\":\"momo-" + paying + "\"}"))
+                .andExpect(status().isCreated());
+
+        assertThat(orderService.expireUnpaidPickups(30)).isEqualTo(1);
+        OrderEntity cancelled = orderRepository.findById(UUID.fromString(abandoned)).orElseThrow();
+        assertThat(cancelled.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(cancelled.getCancelReason()).isEqualTo("Not paid within 30 minutes");
+        assertThat(orderRepository.findById(UUID.fromString(paying)).orElseThrow().getStatus()).isEqualTo(OrderStatus.PENDING);
+        assertThat(orderRepository.findById(UUID.fromString(fresh)).orElseThrow().getStatus()).isEqualTo(OrderStatus.PENDING);
+    }
+
+    private String pickupOrder() throws Exception {
+        String body = mockMvc.perform(post("/orders").header("Authorization", "Bearer " + accessToken(cashier))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"PICKUP\",\"items\":[{\"menuItemId\":\"" + jollof.getId() + "\",\"quantity\":1}],\"notes\":\"Extra shito\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return json(body).get("id").asText();
+    }
+
+    private void payCash(String orderId) throws Exception {
+        mockMvc.perform(post("/payments/initiate").header("Authorization", "Bearer " + accessToken(cashier))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderId\":\"" + orderId + "\",\"method\":\"CASH\",\"idempotencyKey\":\"cash-" + orderId + "\",\"amountTendered\":50}"))
+                .andExpect(status().isCreated());
+    }
+
+    private List<String> kdsOrderIds() throws Exception {
+        JsonNode columns = json(mockMvc.perform(get("/kds/board").header("Authorization", "Bearer " + accessToken(cashier)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("columns");
+        List<String> ids = new ArrayList<>();
+        columns.forEach(column -> column.forEach(card -> ids.add(card.get("orderId").asText())));
+        return ids;
     }
 
     @Test

@@ -95,7 +95,7 @@ All requests are proxied through `/api/rm` → backend at `http://localhost:8080
 | `POST` | `/orders/public/dine-in` | 🔓 Place a dine-in order via QR scan |
 | `GET` | `/orders/public/dine-in/tables/{tableToken}/bill` | 🔓 Get table bill (customer view, by QR token) |
 | `GET` | `/orders/public/dine-in/tables/{tableToken}/tracking` | 🔓 Track orders at a table (customer view) |
-| `GET` | `/orders/public/status` | 🔓 Pickup order board: pickup orders from PENDING to READY, each as `{orderNumber, status, updatedAt}` only (no items, table, customer or full id) |
+| `GET` | `/orders/public/status` | 🔓 Pickup order board: paid pickup orders from CONFIRMED to READY, each as `{orderNumber, status, updatedAt}` only (no items, table, customer or full id) |
 | `POST` | `/orders/public/dine-in/tables/{tableToken}/orders/{orderId}/pay` | 🔓 Guest pays a whole (unsplit) table order by Mobile Money `{momoPhone, idempotencyKey}` |
 
 **Create order request:** `{ type: "DINE_IN" | "PICKUP" | "DELIVERY", tableId?, deliveryAddress?, notes?, items: [{ menuItemId, quantity, modifierOptionIds? }] }`

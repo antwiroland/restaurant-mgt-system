@@ -545,3 +545,22 @@ Human resources module under `/hr/**`. Full design, rules and tests: `documentat
 
 ### Verified
 - Backend `mvn test`: 412 run, 0 failures (+4 in `GuestTableAndPickupBoardIntegrationTest`); web 83 passed; `tsc` clean.
+
+---
+
+## [Pickup paid before the kitchen] - 2026-11-12
+
+### Changed
+- Pickup orders are paid before the kitchen sees them. An unpaid pickup order stays PENDING ("awaiting payment"):
+  it is not on the KDS or the pickup board, and staff cannot move it to CONFIRMED (409). A successful payment
+  (cash at the POS, MoMo or card) confirms it, and that now publishes `/topic/orders.status`, so the KDS and the
+  pickup board update at once.
+- The pickup board starts at "In queue" (paid): columns In queue, Preparing, Ready to collect.
+- The POS says "Take payment to send it to the kitchen" after creating a pickup order.
+- `UnpaidPickupExpiryJob` cancels pickup orders still unpaid after `orders.unpaid-pickup.expire-after-minutes`
+  (default 30) that have no payment waiting for approval, and releases their stock and promo codes.
+- Dine-in is unchanged: it goes to the kitchen at once and is paid at the end.
+
+### Verified
+- Backend `mvn test`: 424 run, 0 failures (+3 pickup tests; KDS and status tests updated for the new rule);
+  web 94 passed.

@@ -2,10 +2,12 @@ import type { OrderPublicStatusView } from "@/lib/apiClient";
 
 export type PickupStatus = OrderPublicStatusView["status"];
 
-/** Board columns, in the kitchen's order (same flow as the KDS), with customer-facing wording. */
+/**
+ * Board columns, in the kitchen's order (same flow as the KDS), with customer-facing wording. Pickup is paid before
+ * it reaches the kitchen, so the board starts at "In queue" (paid, not started).
+ */
 export const PICKUP_COLUMNS: Array<{ status: PickupStatus; label: string; empty: string }> = [
-  { status: "PENDING", label: "Received", empty: "No new orders" },
-  { status: "CONFIRMED", label: "Accepted", empty: "Nothing waiting" },
+  { status: "CONFIRMED", label: "In queue", empty: "Nothing waiting" },
   { status: "PREPARING", label: "Preparing", empty: "Nothing cooking" },
   { status: "READY", label: "Ready to collect", empty: "Nothing ready yet" },
 ];
@@ -15,13 +17,12 @@ export const PICKUP_COLUMNS: Array<{ status: PickupStatus; label: string; empty:
  * the most recently ready on top so the newest call stands out.
  */
 export function groupPickupBoard(orders: OrderPublicStatusView[]): Record<PickupStatus, string[]> {
-  const groups: Record<PickupStatus, OrderPublicStatusView[]> = { PENDING: [], CONFIRMED: [], PREPARING: [], READY: [] };
+  const groups: Record<PickupStatus, OrderPublicStatusView[]> = { CONFIRMED: [], PREPARING: [], READY: [] };
   for (const order of orders) {
     groups[order.status]?.push(order);
   }
   const byTime = (a: OrderPublicStatusView, b: OrderPublicStatusView) => a.updatedAt.localeCompare(b.updatedAt);
   return {
-    PENDING: groups.PENDING.sort(byTime).map((o) => o.orderNumber),
     CONFIRMED: groups.CONFIRMED.sort(byTime).map((o) => o.orderNumber),
     PREPARING: groups.PREPARING.sort(byTime).map((o) => o.orderNumber),
     READY: groups.READY.sort((a, b) => byTime(b, a)).map((o) => o.orderNumber),

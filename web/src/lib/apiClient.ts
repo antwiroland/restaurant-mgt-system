@@ -716,10 +716,10 @@ export async function getPublicTableStatus(): Promise<TablePublicStatusView[]> {
   return apiRequest<TablePublicStatusView[]>("/tables/public");
 }
 
-/** One pickup order on the public status board: its short number and status, nothing else. */
+/** One paid pickup order on the public status board: its short number and status, nothing else. */
 export type OrderPublicStatusView = {
   orderNumber: string;
-  status: "PENDING" | "CONFIRMED" | "PREPARING" | "READY";
+  status: "CONFIRMED" | "PREPARING" | "READY";
   updatedAt: string;
 };
 
