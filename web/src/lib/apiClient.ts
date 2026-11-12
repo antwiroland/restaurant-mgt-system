@@ -716,10 +716,10 @@ export async function getPublicTableStatus(): Promise<TablePublicStatusView[]> {
   return apiRequest<TablePublicStatusView[]>("/tables/public");
 }
 
-/** One pickup order on the public status board: its short number and status, nothing else. */
+/** One paid pickup order on the public status board: its short number and status, nothing else. */
 export type OrderPublicStatusView = {
   orderNumber: string;
-  status: "PENDING" | "CONFIRMED" | "PREPARING" | "READY";
+  status: "CONFIRMED" | "PREPARING" | "READY";
   updatedAt: string;
 };
 
@@ -1009,6 +1009,53 @@ export async function getPublicTableBill(tableToken: string): Promise<TableBillR
 
 export async function getPublicTableTracking(tableToken: string): Promise<PublicOrderTrackingRecord[]> {
   return apiRequest<PublicOrderTrackingRecord[]>(`/orders/public/dine-in/tables/${encodeURIComponent(tableToken)}/tracking`);
+}
+
+/** Why a table that owes money needs staff now (guests are never prompted). */
+export type TablePaymentRisk = "NONE" | "SERVED_UNPAID" | "BILL_WAITING";
+
+/** A table that still owes money. */
+export type TablePaymentWatchRecord = {
+  tableId: string;
+  tableNumber: string;
+  branchId?: string | null;
+  branchName?: string | null;
+  outstanding: string;
+  openOrders: number;
+  allServed: boolean;
+  lastServedAt?: string | null;
+  billRequestedAt?: string | null;
+  firstOrderAt?: string | null;
+  risk: TablePaymentRisk;
+  minutesWaiting: number;
+};
+
+export async function getTablePaymentWatch(session: StaffSession, branchId?: string): Promise<TablePaymentWatchRecord[]> {
+  return apiRequest<TablePaymentWatchRecord[]>(`/tables/payment-watch${branchId ? `?branchId=${encodeURIComponent(branchId)}` : ""}`, {
+    token: session.accessToken,
+  });
+}
+
+export type WalkoutReason = "WALKED_OUT" | "REFUSED_TO_PAY" | "OTHER";
+
+export type WalkoutRecord = {
+  id: string;
+  tableId: string;
+  tableNumber: string;
+  branchName?: string | null;
+  amountOwed: string;
+  orderCount: number;
+  reason: WalkoutReason;
+  note?: string | null;
+  orderTakenBy?: string | null;
+  guestPhones?: string | null;
+  recordedByName?: string | null;
+  createdAt: string;
+};
+
+/** Manager: close out a table whose guests left without paying. */
+export async function recordWalkout(session: StaffSession, tableId: string, payload: { reason: WalkoutReason; note?: string }): Promise<WalkoutRecord> {
+  return apiRequest<WalkoutRecord>(`/tables/${tableId}/walkout`, { method: "POST", body: payload, token: session.accessToken });
 }
 
 export async function closeTableSession(session: StaffSession, tableId: string): Promise<void> {
@@ -1877,7 +1924,7 @@ export async function submitGuestFeedback(tableToken: string, orderId: string, p
 // ---------------------------------------------------------------------------
 
 export type ReportFormat = "CSV" | "PDF";
-export type ReportKind = "sales" | "reconciliation" | "audit" | "timesheet";
+export type ReportKind = "sales" | "reconciliation" | "audit" | "timesheet" | "walkouts";
 
 export async function downloadReport(
   session: StaffSession,

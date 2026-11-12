@@ -292,13 +292,13 @@ export default function PosPage() {
       setTableId("");
       void authenticatedFetch((activeSession) => getTables(activeSession)).then(setTables).catch(() => undefined);
       const discount = Number(created.discountTotal ?? 0);
-      setMessage({
-        tone: "success",
-        text:
-          discount > 0
-            ? `Order #${created.id.slice(0, 8).toUpperCase()} sent to the kitchen with ${formatMoney(discount)} off.`
-            : `Order #${created.id.slice(0, 8).toUpperCase()} sent to the kitchen.`,
-      });
+      const number = `Order #${created.id.slice(0, 8).toUpperCase()}`;
+      const off = discount > 0 ? ` with ${formatMoney(discount)} off` : "";
+      setMessage(
+        created.type === "PICKUP"
+          ? { tone: "info", text: `${number} created${off}. Take payment to send it to the kitchen. Unpaid pickup orders are cancelled after 30 minutes.` }
+          : { tone: "success", text: `${number} sent to the kitchen${off}.` },
+      );
       setStage("payment");
     } catch (err) {
       setMessage({ tone: "danger", text: err instanceof Error ? err.message : "Could not create order" });

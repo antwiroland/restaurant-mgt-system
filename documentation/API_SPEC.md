@@ -173,7 +173,8 @@ Admin/manager only.
 Staff only.
 
 ### GET `/orders/public/status`
-Public pickup board. Pickup orders in PENDING, CONFIRMED, PREPARING or READY, each as `{orderNumber, status, updatedAt}`.
+Public pickup board. Paid pickup orders in CONFIRMED, PREPARING or READY (pickup is paid before it reaches the kitchen;
+unpaid ones stay PENDING, off the KDS and this board, and are cancelled after 30 minutes), each as `{orderNumber, status, updatedAt}`.
 `orderNumber` is the first 8 characters of the order id in capitals (the number on the POS and receipt). No items,
 notes, table, customer or full order id.
 
@@ -188,6 +189,23 @@ Public.
 
 ### GET `/orders/public/dine-in/tables/{tableToken}/tracking`
 Public. Each order also carries `total` and `amountPaid`.
+
+### GET `/tables/payment-watch?branchId`
+Admin, manager, cashier (branch staff see their branch). Dine-in tables that still owe money: `outstanding`,
+`openOrders`, `allServed`, `lastServedAt` (when the kitchen marked the last order served), `billRequestedAt` (open
+"Request bill"), `risk` and `minutesWaiting`. `SERVED_UNPAID`: everything served and nothing paid for
+`tables.payment-watch.served-unpaid-minutes` (20). `BILL_WAITING`: the bill was asked for
+`tables.payment-watch.bill-waiting-minutes` (10) ago. Guests are never prompted; staff are alerted.
+
+### POST `/tables/{tableId}/walkout`
+Admin, manager (own branch). `{reason: WALKED_OUT | REFUSED_TO_PAY | OTHER, note?}` (note required for OTHER, max 500).
+Writes off every unpaid dine-in order at the table (`orders.walkout_id`; orders not yet served are closed as
+COMPLETED, stock is not returned), frees the table, closes guest sessions and records the amount owed, who took the
+orders (staff names, "QR (guest)"), the guests' phone numbers and who recorded it. Audited as `WALKOUT_RECORDED`.
+409 if nothing is owed. Written-off orders count as settled for closing tables and the guest bill.
+
+### GET `/reports/walkouts?from&to&branchId&format`
+Admin, manager. CSV or PDF; the PDF totals losses by who took the orders.
 
 ## 7. Group Orders
 

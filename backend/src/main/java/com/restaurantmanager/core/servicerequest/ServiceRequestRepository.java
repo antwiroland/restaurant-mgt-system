@@ -21,4 +21,6 @@ public interface ServiceRequestRepository extends JpaRepository<ServiceRequestEn
                                             @Param("branchId") UUID branchId);
 
     List<ServiceRequestEntity> findByTable_IdAndCreatedAtAfterOrderByCreatedAtDesc(UUID tableId, Instant after);
+
+    List<ServiceRequestEntity> findByTypeAndStatusIn(ServiceRequestEntity.Type type, Collection<ServiceRequestEntity.Status> statuses);
 }

@@ -98,7 +98,7 @@ class OrderPhase4IntegrationTest extends BaseIntegrationTest {
         UserEntity customer = createUser("C3", "+233270000003", "c3@x.com", "secret123", Role.CUSTOMER);
         UserEntity cashier = createUser("K3", "+233270000013", "k3@x.com", "secret123", Role.CASHIER);
         MenuItemEntity item = createMenuItem("Dish3", "20.00");
-        UUID orderId = createPickupOrder(customer, item);
+        UUID orderId = createDeliveryOrder(customer, item);
         mockMvc.perform(patch("/orders/" + orderId + "/status")
                         .header("Authorization", "Bearer " + accessToken(cashier))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -136,7 +136,7 @@ class OrderPhase4IntegrationTest extends BaseIntegrationTest {
         UserEntity customer = createUser("C4A", "+2332700000041", "c4a@x.com", "secret123", Role.CUSTOMER);
         UserEntity cashier = createUser("K4A", "+2332700000141", "k4a@x.com", "secret123", Role.CASHIER);
         MenuItemEntity item = createMenuItem("Dish4A", "15.00");
-        UUID orderId = createPickupOrder(customer, item);
+        UUID orderId = createDeliveryOrder(customer, item);
         mockMvc.perform(patch("/orders/" + orderId + "/status")
                         .header("Authorization", "Bearer " + accessToken(cashier))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -156,7 +156,7 @@ class OrderPhase4IntegrationTest extends BaseIntegrationTest {
         UserEntity cashier = createUser("K5", "+233270000015", "k5@x.com", "secret123", Role.CASHIER);
         UserEntity manager = createUser("M5", "+233270000025", "m5@x.com", "secret123", Role.MANAGER);
         MenuItemEntity item = createMenuItem("Dish5", "18.00");
-        UUID orderId = createPickupOrder(customer, item);
+        UUID orderId = createDeliveryOrder(customer, item);
         mockMvc.perform(patch("/orders/" + orderId + "/status")
                 .header("Authorization", "Bearer " + accessToken(cashier))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -539,7 +539,7 @@ class OrderPhase4IntegrationTest extends BaseIntegrationTest {
         UserEntity customer = createUser("C11", "+233270000011", "c11@x.com", "secret123", Role.CUSTOMER);
         UserEntity cashier = createUser("K11", "+233270000021", "k11@x.com", "secret123", Role.CASHIER);
         MenuItemEntity item = createMenuItem("Dish11", "16.00");
-        UUID orderId = createPickupOrder(customer, item);
+        UUID orderId = createDeliveryOrder(customer, item);
         mockMvc.perform(patch("/orders/" + orderId + "/status")
                         .header("Authorization", "Bearer " + accessToken(cashier))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -564,6 +564,17 @@ class OrderPhase4IntegrationTest extends BaseIntegrationTest {
 
     private UUID createPickupOrder(UserEntity customer, MenuItemEntity item) throws Exception {
         String body = createPickupOrderRaw(customer, item);
+        return UUID.fromString(objectMapper.readTree(body).get("id").asText());
+    }
+
+    /** Delivery orders have no pay-first rule, so staff can move them along without a payment. */
+    private UUID createDeliveryOrder(UserEntity customer, MenuItemEntity item) throws Exception {
+        String body = mockMvc.perform(post("/orders")
+                        .header("Authorization", "Bearer " + accessToken(customer))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"DELIVERY\",\"deliveryAddress\":\"12 Oxford St\",\"items\":[{\"menuItemId\":\"" + item.getId() + "\",\"quantity\":1}]}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
         return UUID.fromString(objectMapper.readTree(body).get("id").asText());
     }
 

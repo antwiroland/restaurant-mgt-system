@@ -133,14 +133,13 @@ describe("Pickup board", () => {
   test("groups order numbers by status; newest ready first", () => {
     const groups = groupPickupBoard([
       { orderNumber: "AAA11111", status: "PREPARING", updatedAt: "2026-11-12T10:05:00Z" },
-      { orderNumber: "BBB22222", status: "PENDING", updatedAt: "2026-11-12T10:01:00Z" },
+      { orderNumber: "BBB22222", status: "CONFIRMED", updatedAt: "2026-11-12T10:01:00Z" },
       { orderNumber: "CCC33333", status: "READY", updatedAt: "2026-11-12T10:02:00Z" },
       { orderNumber: "DDD44444", status: "READY", updatedAt: "2026-11-12T10:09:00Z" },
       { orderNumber: "EEE55555", status: "PREPARING", updatedAt: "2026-11-12T10:00:00Z" },
     ]);
     expect(groups).toEqual({
-      PENDING: ["BBB22222"],
-      CONFIRMED: [],
+      CONFIRMED: ["BBB22222"],
       PREPARING: ["EEE55555", "AAA11111"],
       READY: ["DDD44444", "CCC33333"],
     });

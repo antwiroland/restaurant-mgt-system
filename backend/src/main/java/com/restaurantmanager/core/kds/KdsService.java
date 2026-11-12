@@ -44,10 +44,13 @@ public class KdsService {
         columns.put(OrderStatus.PREPARING, List.of());
         columns.put(OrderStatus.READY, List.of());
 
+        // Pickup is paid up front: an unpaid (PENDING) pickup order is not the kitchen's yet.
         List<OrderEntity> orders = orderRepository.findForKdsBoard(
                 List.of(OrderType.DINE_IN, OrderType.PICKUP),
                 List.of(OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.READY),
-                effectiveBranchId);
+                effectiveBranchId).stream()
+                .filter(order -> !awaitingPrepayment(order))
+                .toList();
 
         List<UUID> orderIds = orders.stream().map(OrderEntity::getId).toList();
         Map<UUID, List<OrderItemEntity>> itemsByOrderId = new HashMap<>();
@@ -75,6 +78,10 @@ public class KdsService {
             columns.put(status, cards);
         }
         return new KdsBoardResponse(columns);
+    }
+
+    static boolean awaitingPrepayment(OrderEntity order) {
+        return order.getType() == OrderType.PICKUP && order.getStatus() == OrderStatus.PENDING;
     }
 
     private UUID resolveEffectiveBranch(UUID requestedBranchId, UserPrincipal principal) {
