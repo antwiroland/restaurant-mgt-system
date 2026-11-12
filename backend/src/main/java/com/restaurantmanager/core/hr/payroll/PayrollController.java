@@ -24,10 +24,12 @@ import java.util.UUID;
 public class PayrollController {
     private final PayrollService payroll;
     private final PayrollRuleService rules;
+    private final PayrollDocumentService documents;
 
-    public PayrollController(PayrollService payroll, PayrollRuleService rules) {
+    public PayrollController(PayrollService payroll, PayrollRuleService rules, PayrollDocumentService documents) {
         this.payroll = payroll;
         this.rules = rules;
+        this.documents = documents;
     }
 
     @GetMapping("/payroll-rules")
@@ -110,5 +112,55 @@ public class PayrollController {
     @GetMapping("/me/payslips")
     public List<PayrollService.MyPayslip> mine(@AuthenticationPrincipal UserPrincipal principal) {
         return payroll.mine(principal);
+    }
+
+    /** A payslip as PDF (payroll staff in scope, or the employee once the run is finalized). */
+    @GetMapping("/payslips/{id}/pdf")
+    public org.springframework.http.ResponseEntity<byte[]> payslipPdf(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal) {
+        return download(documents.payslipPdf(principal, id));
+    }
+
+    @GetMapping("/employees/{id}/payout")
+    public PayrollDocumentService.PayoutDetails payout(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal) {
+        return documents.payout(principal, id);
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/employees/{id}/payout")
+    public PayrollDocumentService.PayoutDetails updatePayout(@PathVariable UUID id, @Valid @RequestBody PayrollDocumentService.PayoutRequest request,
+                                                             @AuthenticationPrincipal UserPrincipal principal) {
+        return documents.updatePayout(principal, id, request);
+    }
+
+    @GetMapping("/me/payout")
+    public PayrollDocumentService.PayoutDetails myPayout(@AuthenticationPrincipal UserPrincipal principal) {
+        return documents.myPayout(principal);
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/me/payout")
+    public PayrollDocumentService.PayoutDetails updateMyPayout(@Valid @RequestBody PayrollDocumentService.PayoutRequest request,
+                                                               @AuthenticationPrincipal UserPrincipal principal) {
+        return documents.updateMyPayout(principal, request);
+    }
+
+    /** Who the run's payment files would pay, per method, and who is missing payout details. */
+    @GetMapping("/payroll-runs/{id}/payment-files")
+    public PayrollDocumentService.PaymentFileSummary paymentFiles(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal) {
+        return documents.paymentFileSummary(principal, id);
+    }
+
+    /** The bank or Mobile Money bulk-payment CSV for a finalized run. */
+    @GetMapping("/payroll-runs/{id}/payment-files/{method}")
+    public org.springframework.http.ResponseEntity<byte[]> paymentFile(@PathVariable UUID id, @PathVariable PaymentMethod method,
+                                                                       @AuthenticationPrincipal UserPrincipal principal) {
+        return download(documents.paymentFile(principal, id, method));
+    }
+
+    private static org.springframework.http.ResponseEntity<byte[]> download(com.restaurantmanager.core.reporting.ReportService.Report file) {
+        return org.springframework.http.ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.parseMediaType(file.contentType()))
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        org.springframework.http.ContentDisposition.attachment().filename(file.filename()).build().toString())
+                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(file.content());
     }
 }

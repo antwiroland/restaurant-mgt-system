@@ -11,6 +11,9 @@ import java.util.UUID;
 
 @Component
 public class StompOrderRealtimePublisher implements OrderRealtimePublisher {
+    /** Public pickup board: tells the screen to reload, with no order data (the board fetches what it may show). */
+    static final String PICKUP_BOARD = "/topic/public.pickup-board";
+    private static final Map<String, Object> PICKUP_BOARD_PING = Map.of("event", "PICKUP_BOARD_CHANGED");
     private final SimpMessagingTemplate messagingTemplate;
 
     public StompOrderRealtimePublisher(SimpMessagingTemplate messagingTemplate) {
@@ -28,6 +31,7 @@ public class StompOrderRealtimePublisher implements OrderRealtimePublisher {
                 "createdAt", Instant.now().toString()
         );
         send("/topic/orders.new", payload);
+        send(PICKUP_BOARD, PICKUP_BOARD_PING);
         if (tableToken != null && !tableToken.isBlank()) {
             send("/topic/public.tables." + tableToken + ".orders", payload);
         }
@@ -43,6 +47,7 @@ public class StompOrderRealtimePublisher implements OrderRealtimePublisher {
                 "updatedAt", Instant.now().toString()
         );
         send("/topic/orders.status", payload);
+        send(PICKUP_BOARD, PICKUP_BOARD_PING);
         // Per-order topic (order IDs are unguessable UUIDs) so customer apps only receive their own updates.
         send("/topic/orders." + orderId, payload);
         if (tableToken != null && !tableToken.isBlank()) {

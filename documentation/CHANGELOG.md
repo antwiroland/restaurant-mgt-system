@@ -624,3 +624,26 @@ Dine-in stays pay-at-the-end; guests are never prompted. Staff are told when to 
 
 ### Verified
 - Backend 431 tests (+4 in `PaymentOnceIntegrationTest`), web 103.
+
+---
+
+## [WebSocket sign-in, payslip PDF, payroll payment files] - 2026-11-12
+
+### Security
+- WebSocket (STOMP) connections are signed in with the access token on CONNECT; a bad, expired or refresh token is refused.
+  Every subscription is checked by role and ownership; anonymous connections only reach public topics; clients cannot SEND.
+- The public pickup board listens to `/topic/public.pickup-board` (a data-free ping) instead of the staff order topics.
+- Web staff screens (KDS, alerts, service-requests bell) and the mobile app send the token on every (re)connect.
+
+### Added (HR payroll)
+- Payslip PDF (`GET /hr/payslips/{id}/pdf`) from the payslip view, for payroll staff and the employee. Audited.
+- Payout details per employee (bank or Mobile Money, V39), on the employee profile ("Payout" tab) and in self-service
+  ("How I'm paid" on My payslips). Viewers without payroll processing see numbers masked. Changes audited without the numbers.
+- Payment files for finalized runs: one CSV per method for the bank's or Mobile Money provider's bulk upload, with who is
+  missing details. Refused while anyone due that way lacks details. Audited.
+
+### Migrations
+- `V39__hr_employee_payout_details.sql`
+
+### Verified
+- Backend 438 tests, web 107, mobile 48. Live on Docker PostgreSQL: subscription rules per role, a rendered payslip PDF, V39.

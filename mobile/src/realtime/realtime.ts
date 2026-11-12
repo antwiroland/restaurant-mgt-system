@@ -1,5 +1,6 @@
 import { Client, type IMessage, type StompSubscription } from '@stomp/stompjs';
 import { useEffect, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from '../api/client';
 import { fallbackPollMs, websocketUrl } from './urls';
 
@@ -57,6 +58,12 @@ class RealtimeConnection {
       forceBinaryWSFrames: true,
       appendMissingNULLonIncoming: true,
     });
+    // Signed-in customers send their access token so they can follow their own orders and group carts; guests
+    // connect anonymously and only use public table topics. Read on every (re)connect to pick up refreshed tokens.
+    client.beforeConnect = async () => {
+      const token = await AsyncStorage.getItem('accessToken').catch(() => null);
+      client.connectHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+    };
     client.onConnect = () => {
       this.subscriptions.clear();
       this.setConnected(true);

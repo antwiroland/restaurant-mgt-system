@@ -1,5 +1,6 @@
 "use client";
 
+import { PayoutPanel } from "@/features/hr/payroll/PayoutPanel";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -42,7 +43,7 @@ import {
   type Position,
 } from "@/lib/hrApi";
 
-type Tab = "overview" | "branches" | "contracts" | "documents" | "leave" | "history";
+type Tab = "overview" | "branches" | "contracts" | "documents" | "leave" | "payout" | "history";
 
 export default function EmployeeProfilePage() {
   return (
@@ -157,6 +158,7 @@ function EmployeeProfile() {
     { key: "contracts", label: "Contracts", show: employee.manageable && can("hr.contract.view") },
     { key: "documents", label: "Documents", show: employee.manageable && can("hr.document.view") },
     { key: "leave", label: "Leave", show: can("hr.leave.approve", "hr.leave.manage") },
+    { key: "payout", label: "Payout", show: can("hr.payroll.view", "hr.payroll.process", "hr.payroll.pay", "hr.payroll.approve", "hr.payroll.finalize") },
     { key: "history", label: "History", show: employee.manageable },
   ];
 
@@ -218,6 +220,7 @@ function EmployeeProfile() {
         {tab === "documents" ? (
           <DocumentsPanel employeeId={id} documents={documents} showArchived={showArchivedDocs} onToggleArchived={setShowArchivedDocs} onChanged={loadDocuments} />
         ) : null}
+        {tab === "payout" ? <PayoutPanel employeeId={id} canEdit={can("hr.payroll.process", "hr.payroll.pay")} /> : null}
         {tab === "leave" ? <EmployeeLeavePanel employeeId={id} employeeName={s.fullName} manageable={employee.manageable} /> : null}
         {tab === "history" ? <History entries={audit} /> : null}
         {tab === "branches" ? <BranchesPanel employee={employee} onEmployeeChanged={(updated) => { setEmployee(updated); setNotice("Transfer recorded."); }} /> : null}

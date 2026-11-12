@@ -24,7 +24,7 @@
 - [x] Leave (types, effective-dated entitlements, balances with ledger, approval chains, documents, scheduling/timesheet integration)
 - [x] Timesheets
 - [x] Overtime
-- [x] Payroll (rules, runs, payslips, adjustments, four-eyes approval, finalize, payments, self-service payslips)
+- [x] Payroll (rules, runs, payslips, adjustments, four-eyes approval, finalize, payments, self-service payslips, payslip PDF, payout details, bank and Mobile Money payment files)
 - [x] Tips (pools from paid orders, sharing rules, approval, paid through payroll)
 - [x] Service charges (same engine, separate permission and pools)
 - [x] Recruitment (vacancies, candidates, pipeline, interviews and trial shifts, offers, one-step hire, anonymisation)
@@ -32,7 +32,7 @@
 - [ ] Training
 - [x] Self-service — profile with own contact details and emergency contacts editable, own contracts and documents, own schedule, availability, swap requests, own time clock and PIN, own timesheets, own leave, own payslips, own tip and service-charge shares, interviews they run
 - [x] Reporting / HR dashboard: dashboard (headcount, movement and turnover, 6-month trend, today's attendance, work waiting, expiries, recruitment, labour cost vs sales) and reports with CSV export (employee register, joiners and leavers, leave, hours and attendance, payroll summary)
-- [x] Security — HR permission model, HR role confined to the HR module, branch isolation, private documents, audit, sign-in/permission checks across HR reads (WebSocket topics are an app-wide gap, see Outstanding Issues)
+- [x] Security — HR permission model, HR role confined to the HR module, branch isolation, private documents, audit, sign-in/permission checks across HR reads, WebSocket connections signed in with per-topic checks
 - [ ] Performance optimization / benchmarking
 - [x] Regression testing — full backend and web suites run on every phase; latest on `main` 2026-11-12: backend 431, web 103, 0 failures (see Development Log)
 - [ ] Final documentation
@@ -180,13 +180,14 @@
 | 2026-11-12 | Phase 9 fix | Error dispatches allowed through security (a filter-level 403 had become 401 on the real server, not under MockMvc); Today tiles use the board's statuses | Backend 416 / web 87 passed; live re-check 403 | `feature/hr-dashboard-self-service-role` | `3471a5a` |
 | 2026-11-12 | Phase 9 reports | `GET /hr/reports`, `/hr/reports/{type}`, `/hr/reports/{type}/csv`, `HR_REPORT_EXPORTED`, web `/hr/reports` | Backend `mvn test`: **418 run, 0 failures** (+1 integration, +1 CSV unit); web **88 passed**; `tsc` and ESLint clean | `feature/hr-dashboard-self-service-role` | `70f67ed` |
 | 2026-11-12 | Phase 9 merged to `main` | `chore/seed-pay-recruitment-postgres`, `feature/public-careers`, `feature/hr-dashboard-self-service-role` merged in order (one footer conflict resolved: Careers link kept); V35, V36 then V37 apply in order on PostgreSQL | Backend `mvn test` on the merged `main`: **422 run, 0 failures**; web **94 passed**; later front-of-house work on `main`: backend **431**, web **103**, 0 failures | `main` | `4d19bc9` |
+| 2026-11-12 | WebSocket sign-in, payslip PDF, payment files | STOMP CONNECT with the access token and per-topic subscription checks (`WebSocketAuthInterceptor`, `WebSocketTopicAuthorizer`); public pickup board ping; web staff screens and mobile send the token. `GET /hr/payslips/{id}/pdf`; payout details (V39) on the employee profile and in self-service; `GET /hr/payroll-runs/{id}/payment-files[/{method}]` | Backend `mvn test`: **438 run, 0 failures** (+3 WebSocket, +4 payroll documents); web **107**; mobile **48**. Live on Docker PostgreSQL: anonymous refused on staff topics, cashier refused on manager alerts, HR refused on floor topics, bad token refused; payslip PDF rendered; V39 applied | `feature/ws-auth-payslip-pdf-payment-files` | — |
 | 2026-11-09 | Phase 4 web | Attendance page, PIN card, My time clock; POS staff clock panel | `vitest` HR suites 20/20; ESLint and `tsc` clean; `next build` passes | `feature/hr-attendance`, `feature/hr-pos-integration` | `953b890`, `b41efea` |
 
 ## Outstanding Issues
 
-- **WebSocket subscriptions are not authorised (app-wide, found in Phase 9).** `/ws` is `permitAll` and the broker checks no
-  subscriptions, so `/topic/orders.*`, `/topic/payments.*` and similar can be read without signing in. Needs token-on-connect in the
-  web and mobile clients plus a subscription interceptor.
+- ~~**WebSocket subscriptions are not authorised (app-wide, found in Phase 9).**~~ Fixed 2026-11-12 on
+  `feature/ws-auth-payslip-pdf-payment-files`: STOMP CONNECT takes the access token, every subscription is checked by role and
+  ownership, and HR officers get no floor topics (see `documentation/WEBSOCKET_EVENTS.md`).
 
 - **Not run — Testcontainers suite:** `HrPostgresFlywayIntegrationTest` (and the pre-existing `PostgresFlywayIntegrationTest`) could not start
   containers in this environment (Docker Engine 29.5 rejects docker-java's default API version; with `DOCKER_API_VERSION=1.44` Docker is
@@ -215,8 +216,9 @@
   own timesheets. One contract per period (the latest covering it); a mid-period pay change needs an adjustment.
 - **Payroll periods:** up to 31 days; monthly pro-rating uses the days of the month the period starts in. Only timesheets lying
   fully inside the period are paid.
-- **Payroll payments:** recorded only (method and reference); no bank or mobile-money transfer is made by the system.
-- **Payslip documents:** payslips are shown on screen; PDF export is not built yet.
+- **Payroll payments:** recorded only (method and reference); no money is moved by the system. Bank and Mobile Money payment files
+  (generic CSV) are exported for upload to the provider; provider-specific formats can be added once a bank or provider is chosen.
+- **Payslip documents:** payslips are shown on screen and downloadable as PDF (Helvetica, Latin-1: other characters are replaced).
 - **Seed data:** `seed_hr.py` covers every phase up to recruitment (payroll rules and runs, tip and service-charge pools,
   vacancies, candidates, interviews, offers and a hire). Payroll rules are TEST values, not real statutory rates.
 - **Tips basis:** an order counts in the period of its first successful payment; partially refunded orders count in full, fully refunded
@@ -241,7 +243,7 @@
 
 ## Next Actions
 
-1. Authorise WebSocket connections and subscriptions (see Outstanding Issues).
-2. Payroll follow-ups: payslip PDF, bank/mobile-money payment file export.
+1. ~~Authorise WebSocket connections and subscriptions~~ Done 2026-11-12.
+2. ~~Payroll follow-ups: payslip PDF, bank/mobile-money payment file export~~ Done 2026-11-12 (generic CSV; provider-specific formats when a provider is chosen).
 3. Next phases: performance reviews, training and certifications; online applications from the careers page; an edit screen for vacancy text.
 4. Fix the Testcontainers environment or CI job so the `postgres` test group runs on every phase.

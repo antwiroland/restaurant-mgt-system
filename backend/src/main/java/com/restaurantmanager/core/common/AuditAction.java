@@ -51,6 +51,12 @@ public enum AuditAction {
     HR_TIPS_CHANGED,
     HR_RECRUITMENT_CHANGED,
     HR_REPORT_EXPORTED,
+    /** A payslip was downloaded as PDF. */
+    HR_PAYSLIP_DOWNLOADED,
+    /** An employee's bank or Mobile Money payout details were changed. */
+    HR_PAYOUT_DETAILS_CHANGED,
+    /** A payroll payment file (bank or Mobile Money) was exported. */
+    HR_PAYMENT_FILE_EXPORTED,
     /** A manager closed out a table whose guests left without paying. */
     WALKOUT_RECORDED
 }

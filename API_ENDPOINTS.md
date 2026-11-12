@@ -225,3 +225,20 @@ These are Next.js pages (not API endpoints) accessible without login:
 | `/orders-status` | Live order status board (PENDING → READY) — refreshes every 30s |
 | `/menu` | Public menu browsing |
 | `/order` | Customer QR-scan ordering flow |
+
+---
+
+## Payroll documents (HR)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/hr/payslips/{id}/pdf` | 🔒 Payslip as PDF (payroll staff in scope; the employee once finalized). Audited `HR_PAYSLIP_DOWNLOADED` |
+| `GET` / `PUT` | `/hr/employees/{id}/payout` | 🔒 An employee's payout method and bank or Mobile Money details. Edit: `hr.payroll.process` or `hr.payroll.pay`; other payroll permissions see numbers masked |
+| `GET` / `PUT` | `/hr/me/payout` | 🔒 The signed-in employee's own payout details |
+| `GET` | `/hr/payroll-runs/{id}/payment-files` | 🔒 `hr.payroll.pay`: people and totals per method, and who is missing payout details |
+| `GET` | `/hr/payroll-runs/{id}/payment-files/{BANK\|MOBILE_MONEY}` | 🔒 `hr.payroll.pay`: bulk-payment CSV of the run's unpaid payslips for that method (finalized runs only; 409 if anyone due that way lacks details). Audited `HR_PAYMENT_FILE_EXPORTED` |
+
+## Realtime (WebSocket)
+
+Connect to `/ws` with `Authorization: Bearer <accessToken>` in the STOMP CONNECT frame (optional: anonymous connections
+can only use public topics). Subscription rules: `documentation/WEBSOCKET_EVENTS.md`.

@@ -7,7 +7,8 @@ import { humanize } from "@/components/ui";
 import { useStaffSession } from "@/components/SessionProvider";
 import { Detail, errorMessage, formatDate, formatDateTime } from "@/features/hr/ui";
 import { formatMinutes } from "@/features/workforce/time";
-import { getPayslip, type PayslipDetail, type PayslipLine } from "@/lib/hrApi";
+import { saveDownloadedFile } from "@/lib/apiClient";
+import { downloadPayslipPdf, getPayslip, type PayslipDetail, type PayslipLine } from "@/lib/hrApi";
 import { BLOCKING_ISSUES, issueLabel, money } from "./payrollUtils";
 
 /** A payslip with its frozen lines. Used by payroll staff and, once finalized, by the employee. */
@@ -15,6 +16,19 @@ export function PayslipDrawer({ id, onClose }: { id: string; onClose: () => void
   const { authenticatedFetch } = useStaffSession();
   const [slip, setSlip] = useState<PayslipDetail | null>(null);
   const [error, setError] = useState("");
+  const [downloading, setDownloading] = useState(false);
+
+  async function downloadPdf() {
+    setDownloading(true);
+    setError("");
+    try {
+      saveDownloadedFile(await authenticatedFetch((s) => downloadPayslipPdf(s, id)));
+    } catch (err) {
+      setError(errorMessage(err, "Could not download the payslip"));
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   useEffect(() => {
     authenticatedFetch((s) => getPayslip(s, id)).then(setSlip).catch((err) => setError(errorMessage(err, "Could not load the payslip")));
@@ -33,7 +47,11 @@ export function PayslipDrawer({ id, onClose }: { id: string; onClose: () => void
             <span className="text-ink-muted">{formatDate(slip.periodStart)} – {formatDate(slip.periodEnd)}</span>
             {slip.payDate ? <span className="text-ink-muted">· paid on {formatDate(slip.payDate)}</span> : null}
             {s.paidAt ? <span className="badge badge-success">Paid {humanize(s.paymentMethod ?? "")}{s.paymentReference ? ` · ${s.paymentReference}` : ""}</span> : null}
+            <button type="button" className="btn btn-secondary btn-sm ml-auto" onClick={() => void downloadPdf()} disabled={downloading}>
+              Download PDF
+            </button>
           </div>
+          {error ? <p className="alert alert-danger" role="alert">{error}</p> : null}
           {s.issues.length ? (
             <ul className="grid gap-1">
               {s.issues.map((i) => (

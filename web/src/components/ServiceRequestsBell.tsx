@@ -1,6 +1,6 @@
 "use client";
 
-import { Client } from "@stomp/stompjs";
+import { createRealtimeClient, useAccessTokenGetter } from "@/lib/realtime";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { useStaffSession } from "@/components/SessionProvider";
@@ -20,6 +20,7 @@ function minutesAgo(iso: string): string {
 /** Guest "call a waiter" / "bring the bill" requests from table QR pages, live over STOMP. */
 export function ServiceRequestsBell({ dark = false }: { dark?: boolean }) {
   const { session, authenticatedFetch } = useStaffSession();
+  const getToken = useAccessTokenGetter();
   const [requests, setRequests] = useState<ServiceRequestRecord[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -37,20 +38,18 @@ export function ServiceRequestsBell({ dark = false }: { dark?: boolean }) {
     if (!session) return;
     const first = window.setTimeout(() => void load(), 0);
     const poll = window.setInterval(() => void load(), 60000);
-    const client = new Client({
-      brokerURL: process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? "ws://localhost:8080/ws",
-      reconnectDelay: 5000,
+    const client = createRealtimeClient({
       onConnect: () => {
         client.subscribe("/topic/service-requests", () => void load());
       },
-    });
+    }, getToken);
     client.activate();
     return () => {
       window.clearTimeout(first);
       window.clearInterval(poll);
       void client.deactivate();
     };
-  }, [load, session]);
+  }, [load, session, getToken]);
 
   useEffect(() => {
     if (!open) return;

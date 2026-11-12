@@ -764,6 +764,39 @@ export const removePayrollAdjustment = (s: StaffSession, id: string, adjustmentI
 export const getPayslip = (s: StaffSession, id: string) => apiRequest<PayslipDetail>(`/hr/payslips/${id}`, auth(s));
 export const getMyPayslips = (s: StaffSession) => apiRequest<MyPayslip[]>("/hr/me/payslips", auth(s));
 
+/** A payslip as PDF (payroll staff in scope, or the employee once finalized). */
+export const downloadPayslipPdf = (s: StaffSession, id: string): Promise<DownloadedFile> =>
+  downloadFile(s, `/hr/payslips/${id}/pdf`, "payslip.pdf");
+
+/** How an employee is paid: bank or Mobile Money details for payroll payment files. */
+export type PayoutDetails = {
+  employeeId: string; employeeName: string; method?: PaymentMethod | null;
+  bankName?: string | null; bankBranch?: string | null; bankAccountName?: string | null; bankAccountNumber?: string | null;
+  momoNetwork?: string | null; momoNumber?: string | null;
+  /** Numbers shown masked (payroll viewers who cannot prepare or pay payroll). */
+  masked: boolean; complete: boolean; updatedAt?: string | null;
+};
+export type PayoutRequest = {
+  method: PaymentMethod; bankName?: string; bankBranch?: string; bankAccountName?: string; bankAccountNumber?: string;
+  momoNetwork?: string; momoNumber?: string;
+};
+export const getPayout = (s: StaffSession, employeeId: string) => apiRequest<PayoutDetails>(`/hr/employees/${employeeId}/payout`, auth(s));
+export const updatePayout = (s: StaffSession, employeeId: string, body: PayoutRequest) =>
+  apiRequest<PayoutDetails>(`/hr/employees/${employeeId}/payout`, { ...auth(s), method: "PUT", body });
+export const getMyPayout = (s: StaffSession) => apiRequest<PayoutDetails>("/hr/me/payout", auth(s));
+export const updateMyPayout = (s: StaffSession, body: PayoutRequest) => apiRequest<PayoutDetails>("/hr/me/payout", { ...auth(s), method: "PUT", body });
+
+/** A run's payment files: people and totals per method, and who is missing payout details. */
+export type PaymentFileSummary = {
+  runId: string; runNumber: string; status: PayrollRunStatus; currency: string; ready: boolean;
+  groups: { method: PaymentMethod; people: number; total: number }[];
+  missing: { employeeId: string; employeeName: string; employeeNumber: string; net: number; problem: string }[];
+};
+export const getPaymentFiles = (s: StaffSession, runId: string) =>
+  apiRequest<PaymentFileSummary>(`/hr/payroll-runs/${runId}/payment-files`, auth(s));
+export const downloadPaymentFile = (s: StaffSession, runId: string, method: "BANK" | "MOBILE_MONEY"): Promise<DownloadedFile> =>
+  downloadFile(s, `/hr/payroll-runs/${runId}/payment-files/${method}`, `payments-${method.toLowerCase()}.csv`);
+
 // ---------------------------------------------------------------------------
 // Tips & service charge (Phase 7)
 // ---------------------------------------------------------------------------

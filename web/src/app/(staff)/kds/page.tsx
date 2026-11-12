@@ -1,7 +1,7 @@
 "use client";
 
+import { createRealtimeClient, useAccessTokenGetter } from "@/lib/realtime";
 import { useEffect, useState } from "react";
-import { Client } from "@stomp/stompjs";
 import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
 import { useStaffSession } from "@/components/SessionProvider";
@@ -26,6 +26,7 @@ type KdsAdvanceStatus = "CONFIRMED" | "PREPARING" | "READY" | "COMPLETED";
 
 export default function KdsPage() {
   const { session, loading, authenticatedFetch } = useStaffSession();
+  const getToken = useAccessTokenGetter();
   const [board, setBoard] = useState<KdsBoardRecord | null>(null);
   const [branches, setBranches] = useState<BranchRecord[]>([]);
   const [branchId, setBranchId] = useState<string>("");
@@ -85,10 +86,7 @@ export default function KdsPage() {
 
   useEffect(() => {
     if (!session) return;
-    const wsUrl = process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? "ws://localhost:8080/ws";
-    const client = new Client({
-      brokerURL: wsUrl,
-      reconnectDelay: 5000,
+    const client = createRealtimeClient({
       onConnect: () => {
         setRealtimeConnected(true);
         client.subscribe("/topic/orders.new", () => {
@@ -104,14 +102,14 @@ export default function KdsPage() {
       onStompError: () => {
         setRealtimeConnected(false);
       },
-    });
+    }, getToken);
     client.activate();
 
     return () => {
       setRealtimeConnected(false);
       client.deactivate();
     };
-  }, [session, authenticatedFetch, branchId]);
+  }, [session, authenticatedFetch, branchId, getToken]);
 
   async function toggleItem(orderId: string, itemId: string, ready: boolean) {
     setBusyOrderId(orderId);

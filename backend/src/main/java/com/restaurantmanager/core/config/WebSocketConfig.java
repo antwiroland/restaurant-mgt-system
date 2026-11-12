@@ -11,8 +11,11 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final String[] allowedOriginPatterns;
+    private final WebSocketAuthInterceptor authInterceptor;
 
-    public WebSocketConfig(@Value("${websocket.allowed-origin-patterns:http://localhost:3000,http://localhost:19006}") String allowedOrigins) {
+    public WebSocketConfig(@Value("${websocket.allowed-origin-patterns:http://localhost:3000,http://localhost:19006}") String allowedOrigins,
+                           WebSocketAuthInterceptor authInterceptor) {
+        this.authInterceptor = authInterceptor;
         this.allowedOriginPatterns = java.util.Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
                 .filter(value -> !value.isEmpty())
@@ -23,6 +26,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         registry.enableSimpleBroker("/topic", "/queue");
         registry.setApplicationDestinationPrefixes("/app");
+    }
+
+    /** Signs in connections and checks every subscription (see {@link WebSocketAuthInterceptor}). */
+    @Override
+    public void configureClientInboundChannel(org.springframework.messaging.simp.config.ChannelRegistration registration) {
+        registration.interceptors(authInterceptor);
     }
 
     @Override
