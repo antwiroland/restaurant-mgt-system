@@ -15,6 +15,7 @@ import { ContractsPanel } from "@/features/hr/ContractsPanel";
 import { DocumentsPanel } from "@/features/hr/DocumentsPanel";
 import { EmployeeForm } from "@/features/hr/EmployeeForm";
 import { EmployeeOverview } from "@/features/hr/EmployeeOverview";
+import { EmployeeLeavePanel } from "@/features/hr/leave/EmployeeLeavePanel";
 import { useHrAccess } from "@/features/hr/HrAccessContext";
 import { EmploymentBadge, Field, HrGuard, errorMessage, formatDateTime, todayIso } from "@/features/hr/ui";
 import { getBranches, type BranchRecord } from "@/lib/apiClient";
@@ -41,7 +42,7 @@ import {
   type Position,
 } from "@/lib/hrApi";
 
-type Tab = "overview" | "branches" | "contracts" | "documents" | "history";
+type Tab = "overview" | "branches" | "contracts" | "documents" | "leave" | "history";
 
 export default function EmployeeProfilePage() {
   return (
@@ -155,6 +156,7 @@ function EmployeeProfile() {
     { key: "branches", label: "Branches", show: true },
     { key: "contracts", label: "Contracts", show: employee.manageable && can("hr.contract.view") },
     { key: "documents", label: "Documents", show: employee.manageable && can("hr.document.view") },
+    { key: "leave", label: "Leave", show: can("hr.leave.approve", "hr.leave.manage") },
     { key: "history", label: "History", show: employee.manageable },
   ];
 
@@ -216,6 +218,7 @@ function EmployeeProfile() {
         {tab === "documents" ? (
           <DocumentsPanel employeeId={id} documents={documents} showArchived={showArchivedDocs} onToggleArchived={setShowArchivedDocs} onChanged={loadDocuments} />
         ) : null}
+        {tab === "leave" ? <EmployeeLeavePanel employeeId={id} employeeName={s.fullName} manageable={employee.manageable} /> : null}
         {tab === "history" ? <History entries={audit} /> : null}
         {tab === "branches" ? <BranchesPanel employee={employee} onEmployeeChanged={(updated) => { setEmployee(updated); setNotice("Transfer recorded."); }} /> : null}
       </div>

@@ -54,21 +54,38 @@ public class HrDocumentService {
     public DocumentView upload(UserPrincipal principal, UUID employeeId, UploadRequest request) {
         HrAccess access = accessService.require(principal, HrPermission.DOCUMENT_MANAGE);
         employeeService.loadInScope(employeeId, access);
-        byte[] content = request.content();
-        if (content == null || content.length == 0) {
-            throw new ApiException(400, "The file is empty");
-        }
-        if (content.length > DocumentFileType.MAX_BYTES) {
-            throw new ApiException(413, "Documents must be 5 MB or smaller");
-        }
-        DocumentFileType type = DocumentFileType.detect(content, request.originalFileName())
-                .orElseThrow(() -> new ApiException(400, "Only PDF, PNG, JPEG or DOCX files can be uploaded"));
+        return store(employeeId, access.userId(), request);
+    }
+
+    /**
+     * Validates and stores a document for an employee. Callers are responsible for authorisation; used by {@link #upload}
+     * and by features (leave) whose own rules decide who may attach a document to an employee's record.
+     */
+    @Transactional
+    public DocumentView store(UUID employeeId, UUID actorId, UploadRequest request) {
         if (request.title() == null || request.title().isBlank() || request.title().length() > 160) {
             throw new ApiException(400, "A title of up to 160 characters is required");
         }
         if (request.notes() != null && request.notes().length() > 500) {
             throw new ApiException(400, "Notes must be 500 characters or fewer");
         }
+        StoredFile file = storeFile(request.content(), request.originalFileName());
+        return attach(employeeId, actorId, file, request.documentType(), request.title(), request.expiresOn(), request.notes());
+    }
+
+    /**
+     * Validates (size, real file type by magic bytes) and writes a file to private storage. The file is removed again if
+     * the surrounding transaction rolls back. Callers decide what record points at it.
+     */
+    public StoredFile storeFile(byte[] content, String originalFileName) {
+        if (content == null || content.length == 0) {
+            throw new ApiException(400, "The file is empty");
+        }
+        if (content.length > DocumentFileType.MAX_BYTES) {
+            throw new ApiException(413, "Documents must be 5 MB or smaller");
+        }
+        DocumentFileType type = DocumentFileType.detect(content, originalFileName)
+                .orElseThrow(() -> new ApiException(400, "Only PDF, PNG, JPEG or DOCX files can be uploaded"));
         String key = storage.store(content);
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -80,24 +97,31 @@ public class HrDocumentService {
                 }
             });
         }
+        return new StoredFile(key, safeFileName(originalFileName, type), type.contentType(), content.length, sha256(content));
+    }
+
+    /** Creates an employee document for a file already in private storage (for example a candidate's CV on hire). */
+    @Transactional
+    public DocumentView attach(UUID employeeId, UUID actorId, StoredFile file, DocumentType documentType, String title, LocalDate expiresOn,
+                               String notes) {
         EmployeeDocumentEntity document = new EmployeeDocumentEntity();
         document.setEmployeeId(employeeId);
-        document.setDocumentType(request.documentType() == null ? DocumentType.OTHER : request.documentType());
-        document.setTitle(request.title().trim());
-        document.setFileName(safeFileName(request.originalFileName(), type));
-        document.setContentType(type.contentType());
-        document.setSizeBytes(content.length);
-        document.setSha256(sha256(content));
-        document.setStorageKey(key);
-        document.setExpiresOn(request.expiresOn());
-        document.setNotes(request.notes() == null || request.notes().isBlank() ? null : request.notes().trim());
-        document.setUploadedBy(access.userId());
+        document.setDocumentType(documentType == null ? DocumentType.OTHER : documentType);
+        document.setTitle(title.trim());
+        document.setFileName(file.fileName());
+        document.setContentType(file.contentType());
+        document.setSizeBytes(file.sizeBytes());
+        document.setSha256(file.sha256());
+        document.setStorageKey(file.storageKey());
+        document.setExpiresOn(expiresOn);
+        document.setNotes(notes == null || notes.isBlank() ? null : notes.trim());
+        document.setUploadedBy(actorId);
         EmployeeDocumentEntity saved = repository.save(document);
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("documentId", saved.getId().toString());
         meta.put("documentType", saved.getDocumentType().name());
         meta.put("title", saved.getTitle());
-        audit.log(access.userId(), AuditAction.HR_DOCUMENT_UPLOADED, "Employee", employeeId, meta);
+        audit.log(actorId, AuditAction.HR_DOCUMENT_UPLOADED, "Employee", employeeId, meta);
         return toView(saved);
     }
 
@@ -170,6 +194,8 @@ public class HrDocumentService {
         return new DocumentView(d.getId(), d.getEmployeeId(), d.getDocumentType(), d.getTitle(), d.getFileName(), d.getContentType(),
                 d.getSizeBytes(), d.getExpiresOn(), d.getNotes(), d.isArchived(), d.getCreatedAt());
     }
+
+    public record StoredFile(String storageKey, String fileName, String contentType, long sizeBytes, String sha256) {}
 
     public record UploadRequest(byte[] content, String originalFileName, DocumentType documentType, String title,
                                 LocalDate expiresOn, String notes) {}

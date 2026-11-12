@@ -7,6 +7,7 @@
 | `ADMIN`    | Full system access. Manages staff, menu, settings, analytics.    |
 | `MANAGER`  | Operational oversight. Approves financial overrides via PIN.     |
 | `CASHIER`  | Front-of-house operations. POS, order management, receipts.      |
+| `RIDER`    | Delivery staff. Sees and updates their assigned deliveries.      |
 | `CUSTOMER` | End user. Orders, reservations, payment, loyalty.                |
 
 ---
@@ -110,6 +111,35 @@
 | Peak hours report             | ✓     | ✓       | —       | —        |
 | Per-cashier breakdown         | ✓     | ✓       | —       | —        |
 | Customer retention stats      | ✓     | —       | —       | —        |
+
+---
+
+### Human Resources
+
+HR uses its own permissions on top of the roles. Effective HR permissions = the role's defaults + per-user grants (`hr_user_permissions`),
+which only an `ADMIN` can change. `CUSTOMER` accounts never receive HR permissions. Full list: `documentation/hr/HR_TECHNICAL_DOCUMENTATION.md` §2.
+
+| HR permission group | ADMIN | MANAGER default | Others |
+|---|:-:|:-:|:-:|
+| Employees: view, register, edit; contracts and documents: view | ✓ | ✓ | grant |
+| Exits, transfers, departments/positions, contract and document management | ✓ | — | grant |
+| Pay figures (`hr.compensation.view`) | ✓ | — | grant |
+| Scheduling, publishing, shift swaps; attendance view/record/correct | ✓ | ✓ | grant |
+| Timesheet review, overtime approval, leave approval, recruitment, reports | ✓ | ✓ | grant |
+| Leave configuration (`hr.leave.manage`) | ✓ | — | grant |
+| Payroll view / process / approve / finalize / pay | ✓ | — | grant |
+| Tips, service charge | ✓ | — | grant |
+| HR settings, all branches (`hr.branch.all`) | ✓ | — | grant |
+
+**Branch scope:** `ADMIN` (or a holder of `hr.branch.all`) sees every branch. Everyone else sees only the branch on their account plus any
+extra branches an admin added; a non-admin without a branch sees no branch data. Unlike the rest of the app, a manager without a branch
+does **not** see every branch in HR.
+
+**Self-service** (any staff account linked to an employee record): own profile, schedule, availability and swaps, time clock and PIN,
+timesheets, leave, payslips, tip shares, and interviews they run.
+
+**Four eyes:** nobody approves their own leave, overtime, timesheet, attendance correction, payroll run they calculated or are paid in,
+or a tip pool they calculated or share in.
 
 ---
 

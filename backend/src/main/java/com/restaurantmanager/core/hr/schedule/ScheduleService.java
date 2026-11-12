@@ -11,6 +11,7 @@ import com.restaurantmanager.core.hr.branch.BranchAssignmentRepository;
 import com.restaurantmanager.core.hr.common.HrAuditService;
 import com.restaurantmanager.core.hr.employee.EmployeeEntity;
 import com.restaurantmanager.core.hr.employee.EmployeeRepository;
+import com.restaurantmanager.core.hr.leave.LeaveLookup;
 import com.restaurantmanager.core.hr.org.PositionEntity;
 import com.restaurantmanager.core.hr.org.PositionRepository;
 import com.restaurantmanager.core.security.UserPrincipal;
@@ -66,6 +67,7 @@ public class ScheduleService {
     private final HrAccessService accessService;
     private final HrAuditService audit;
     private final ScheduleNotifier notifier;
+    private final LeaveLookup leaveLookup;
     private final ZoneId zone;
 
     public ScheduleService(WorkScheduleRepository scheduleRepository, EmployeeRepository employeeRepository,
@@ -73,7 +75,8 @@ public class ScheduleService {
                            PositionRepository positionRepository, ShiftTemplateRepository templateRepository,
                            AvailabilityRepository availabilityRepository, SwapRequestRepository swapRepository,
                            SchedulingSetupService setupService, HrAccessService accessService, HrAuditService audit,
-                           ScheduleNotifier notifier, @Value("${app.timezone:Africa/Accra}") String timeZone) {
+                           ScheduleNotifier notifier, LeaveLookup leaveLookup,
+                           @Value("${app.timezone:Africa/Accra}") String timeZone) {
         this.scheduleRepository = scheduleRepository;
         this.employeeRepository = employeeRepository;
         this.assignmentRepository = assignmentRepository;
@@ -86,6 +89,7 @@ public class ScheduleService {
         this.accessService = accessService;
         this.audit = audit;
         this.notifier = notifier;
+        this.leaveLookup = leaveLookup;
         this.zone = ZoneId.of(timeZone);
     }
 
@@ -357,8 +361,10 @@ public class ScheduleService {
                 .map(ScheduleService::interval)
                 .toList();
         boolean assigned = assignmentRepository.existsActiveAt(employee.getId(), branchId, local.toLocalDate());
+        List<ScheduleRules.LeavePeriod> leave = leaveLookup.periods(employee.getId(), local.toLocalDate(),
+                candidate.end().minusSeconds(1).atZone(zone).toLocalDate());
         return ScheduleRules.evaluate(candidate, others, setupService.effectivePolicy(branchId), employee.getEmploymentStatus(),
-                assigned, availabilityRepository.findByEmployeeIdOrderByCreatedAtDesc(employee.getId()), zone);
+                assigned, availabilityRepository.findByEmployeeIdOrderByCreatedAtDesc(employee.getId()), leave, zone);
     }
 
     static void enforce(List<ScheduleRules.Issue> issues, boolean acknowledged) {

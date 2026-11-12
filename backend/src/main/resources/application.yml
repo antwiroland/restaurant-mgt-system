@@ -179,6 +179,9 @@ hr:
     default-weekly-multiplier: ${HR_DEFAULT_OT_WEEKLY_MULTIPLIER:1.5}
     default-holiday-multiplier: ${HR_DEFAULT_OT_HOLIDAY_MULTIPLIER:2.0}
     default-requires-approval: ${HR_DEFAULT_OT_REQUIRES_APPROVAL:true}
+  leave:
+    # Weekdays not counted when a leave type counts WORKDAYS (public holidays are skipped too). Comma-separated MON..SUN.
+    non-working-days: ${HR_LEAVE_NON_WORKING_DAYS:SAT,SUN}
 
 inventory:
   block-when-insufficient: ${INVENTORY_BLOCK_WHEN_INSUFFICIENT:true}

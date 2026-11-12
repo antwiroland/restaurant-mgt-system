@@ -13,6 +13,7 @@ import com.restaurantmanager.core.hr.attendance.CorrectionStatus;
 import com.restaurantmanager.core.hr.common.HrAuditService;
 import com.restaurantmanager.core.hr.employee.EmployeeEntity;
 import com.restaurantmanager.core.hr.employee.EmployeeRepository;
+import com.restaurantmanager.core.hr.leave.LeaveLookup;
 import com.restaurantmanager.core.security.UserPrincipal;
 import com.restaurantmanager.core.workforce.TimeEntryEntity;
 import com.restaurantmanager.core.workforce.TimeEntryRepository;
@@ -62,11 +63,13 @@ public class TimesheetService {
     private final HrAccessService accessService;
     private final HrAuditService audit;
     private final ObjectMapper objectMapper;
+    private final LeaveLookup leaveLookup;
 
     public TimesheetService(TimesheetRepository timesheetRepository, TimesheetLineRepository lineRepository, TimeEntryRepository entryRepository,
                             WorkScheduleRepository scheduleRepository, EmployeeRepository employeeRepository,
                             AttendanceCorrectionRepository correctionRepository, AttendanceService attendanceService,
-                            OvertimeSettingsService settings, HrAccessService accessService, HrAuditService audit, ObjectMapper objectMapper) {
+                            OvertimeSettingsService settings, HrAccessService accessService, HrAuditService audit, ObjectMapper objectMapper,
+                            LeaveLookup leaveLookup) {
         this.timesheetRepository = timesheetRepository;
         this.lineRepository = lineRepository;
         this.entryRepository = entryRepository;
@@ -78,6 +81,7 @@ public class TimesheetService {
         this.accessService = accessService;
         this.audit = audit;
         this.objectMapper = objectMapper;
+        this.leaveLookup = leaveLookup;
     }
 
     private ZoneId zone() {
@@ -208,20 +212,25 @@ public class TimesheetService {
             late += v.metrics().lateMinutes() > 0 ? 1 : 0;
         }
         int absences = 0;
+        Map<LocalDate, String> leaveDays = leaveLookup.approvedDays(sheet.getEmployeeId(), sheet.getPeriodStart(), sheet.getPeriodEnd());
         for (WorkScheduleEntity s : shifts) {
             if (linkedShifts.contains(s.getId()) || !s.getEndsAt().isBefore(now)) {
                 continue;
             }
+            LocalDate shiftDay = s.getStartsAt().atZone(zone()).toLocalDate();
+            String leave = leaveDays.get(shiftDay);
             TimesheetLineEntity line = new TimesheetLineEntity();
-            line.setWorkDate(s.getStartsAt().atZone(zone()).toLocalDate());
+            line.setWorkDate(shiftDay);
             line.setBranchId(s.getBranchId());
             line.setScheduleId(s.getId());
             line.setShiftStart(s.getStartsAt());
             line.setShiftEnd(s.getEndsAt());
             line.setScheduledMinutes(scheduledPaid(s));
-            line.setFlags("ABSENT");
+            line.setFlags(leave == null ? "ABSENT" : "LEAVE," + leave);
             lines.add(line);
-            absences++;
+            if (leave == null) {
+                absences++;
+            }
         }
         TimesheetCalculator.Result result = TimesheetCalculator.compute(pieces, rules, holidays, zone());
         sheet.setScheduledMinutes(shifts.stream().mapToInt(TimesheetService::scheduledPaid).sum());

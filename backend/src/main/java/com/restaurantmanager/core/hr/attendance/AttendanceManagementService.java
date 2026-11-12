@@ -58,6 +58,7 @@ public class AttendanceManagementService {
     private final HrAccessService accessService;
     private final HrAuditService audit;
     private final com.restaurantmanager.core.hr.timesheet.TimesheetGuard timesheetGuard;
+    private final com.restaurantmanager.core.hr.leave.LeaveLookup leaveLookup;
 
     public AttendanceManagementService(TimeEntryRepository entryRepository, AttendanceCorrectionRepository correctionRepository,
                                        AttendanceBreakRepository breakRepository, WorkScheduleRepository scheduleRepository,
@@ -65,7 +66,8 @@ public class AttendanceManagementService {
                                        BranchAssignmentRepository assignmentRepository, AttendanceService attendanceService,
                                        AttendancePolicyService policyService, ClockGateway gateway, ClockPinService pinService,
                                        HrAccessService accessService, HrAuditService audit,
-                                       com.restaurantmanager.core.hr.timesheet.TimesheetGuard timesheetGuard) {
+                                       com.restaurantmanager.core.hr.timesheet.TimesheetGuard timesheetGuard,
+                                       com.restaurantmanager.core.hr.leave.LeaveLookup leaveLookup) {
         this.entryRepository = entryRepository;
         this.correctionRepository = correctionRepository;
         this.breakRepository = breakRepository;
@@ -80,6 +82,7 @@ public class AttendanceManagementService {
         this.accessService = accessService;
         this.audit = audit;
         this.timesheetGuard = timesheetGuard;
+        this.leaveLookup = leaveLookup;
     }
 
     // ------------------------------------------------------------ manager views
@@ -107,6 +110,7 @@ public class AttendanceManagementService {
         Map<UUID, EmployeeEntity> employees = employeeRepository.findByIdIn(employeeIds).stream()
                 .collect(Collectors.toMap(EmployeeEntity::getId, Function.identity()));
 
+        Set<UUID> onLeave = leaveLookup.onApprovedLeave(employeeIds, date);
         List<DayRow> rows = new ArrayList<>();
         for (TimeEntryEntity e : entries) {
             AttendanceService.EntryView view = byEntry.get(e.getId());
@@ -121,7 +125,7 @@ public class AttendanceManagementService {
             if (linkedShifts.contains(s.getId())) {
                 continue;
             }
-            String status = now.isBefore(s.getStartsAt()) ? "NOT_STARTED" : "ABSENT";
+            String status = onLeave.contains(s.getEmployeeId()) ? "ON_LEAVE" : now.isBefore(s.getStartsAt()) ? "NOT_STARTED" : "ABSENT";
             rows.add(new DayRow(s.getEmployeeId(), name(employees, s.getEmployeeId()), s.getStartsAt(), s.getEndsAt(), null, status, false));
         }
         rows.sort(Comparator.comparing((DayRow r) -> r.shiftStartsAt() != null ? r.shiftStartsAt()

@@ -435,3 +435,83 @@ Format: [Phase N - Title] followed by Added / Changed / Decisions.
 ### Verified
 - Backend: 261 tests pass (H2). Web: 32 tests, typecheck and production build. Mobile: 48 tests and typecheck.
 - Not yet run: the Postgres Flyway smoke test (`mvn test -Ppostgres-it`), because the Docker engine was not available.
+
+---
+
+## [HR - Employees, Branches, Scheduling, Attendance, Timesheets] - 2026-11-09
+
+Human resources module under `/hr/**`. Full design, rules and tests: `documentation/hr/`.
+
+### Added
+- Employee registry linked (optionally) to staff logins, departments and positions, employment contracts with renewals, private employee documents, an HR audit trail and a read-only self-service profile.
+- HR permission model: role defaults plus per-user grants managed by admins, with strict branch scope (`HrAccessService`).
+- Multi-branch: assignment history, transfers, secondary and temporary assignments, extra branch scope per user, branch workforce headcount.
+- Shift scheduling: templates, policies, validation (overlap, rest, length, weekly hours, availability), draft/publish with push notifications, coverage, availability and shift swaps; the existing rota keeps working.
+- Attendance: idempotent clock events, breaks, late/early/overtime, corrections with second-person approval, policies, POS staff clock with personal clock PINs and lockout.
+- Timesheets from attendance (draft → submitted → reviewed → approved → locked), effective-dated overtime rules, public holidays and overtime pre-authorisation.
+
+### Migrations
+- `V27__hr_foundation.sql` to `V31__hr_timesheets_overtime.sql`
+
+### Verified
+- Backend suite green at each phase; each migration booted on PostgreSQL by hand (see `documentation/hr/HR_IMPLEMENTATION_PROGRESS.md`).
+
+---
+
+## [HR - Leave] - 2026-11-12
+
+### Added
+- Leave types and effective-dated entitlements (per branch and employment type; none seeded), yearly balances with a ledger, pro-rating, monthly accrual and capped carry-over, HR adjustments.
+- Leave requests counting working or calendar days (holidays, half days) with a configurable approval chain (reporting manager, branch manager, HR), required documents, cancellation and push notifications.
+- Approved leave blocks scheduling, shows as `LEAVE` on timesheets and `ON_LEAVE` on the attendance board.
+- Web: `/hr/leave`, `/hr/my-leave`, a Leave tab on employee profiles. Seed data for leave.
+
+### Migrations
+- `V32__hr_leave.sql`
+
+### Verified
+- Backend 384 tests; web HR suites 25/25; V32 on PostgreSQL 28/28 API checks.
+
+---
+
+## [HR - Payroll] - 2026-11-12
+
+### Added
+- Configurable deduction and employer-contribution rules (percent, fixed, progressive brackets, pre-tax, caps; no statutory rates seeded).
+- Payroll runs per branch and period from contracts, locked timesheets (approved overtime, holiday/weekend/night premiums) and unpaid leave, with one-off adjustments; draft → calculated → approved by someone else → finalized → paid. A timesheet is paid in one run only.
+- Web: `/hr/payroll`, `/hr/my-payslips`.
+
+### Migrations
+- `V33__hr_payroll.sql`
+
+### Verified
+- Backend 394 tests; web HR suites 30/30; V33 on PostgreSQL 31/31 API checks.
+
+---
+
+## [HR - Tips and Service Charge] - 2026-11-12
+
+### Added
+- Sharing rules (by hours, hours × position points, or equally; house share; minimum time; taxable) and pools per branch and period built from paid orders. Shares are exact to the cent, approved by a second person and paid through each person's home-branch payroll.
+- Web: `/hr/tips`; shares on My Payslips.
+
+### Migrations
+- `V34__hr_tips_service_charge.sql`
+
+### Verified
+- Backend 402 tests; web HR suites 34/34; V34 on PostgreSQL 37/37 API checks.
+
+---
+
+## [HR - Recruitment] - 2026-11-12
+
+### Added
+- Vacancies, deduplicated candidates with private CVs, a hiring pipeline with stage history, interviews and trial shifts (interviewers record results), offers with pay visible only to those allowed, a one-step hire creating the employee, a draft contract and copied documents, and candidate anonymisation.
+- Recruitment added to branch managers' default HR permissions (branch-scoped).
+- Web: `/hr/recruitment`; "Interviews I run" on My Schedule.
+
+### Migrations
+- `V35__hr_recruitment.sql`
+
+### Verified
+- Backend 408 tests; web HR suites 38/38; V35 on PostgreSQL 36/36 API checks.

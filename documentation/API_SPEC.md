@@ -460,6 +460,31 @@ Sends the user a reset link.
 ### GET `/audit`
 Admin/manager/cashier audit-log view with `action`, `from`, and `to` filters.
 
+## 13. Human resources (`/hr/**`)
+
+Staff roles only (`ADMIN`, `MANAGER`, `CASHIER`, `RIDER`). Each call also checks HR permissions and branch scope (see
+`ROLES_AND_PERMISSIONS.md` → Human Resources). Out-of-scope records answer **404**. Full request/response rules per endpoint:
+`documentation/hr/HR_TECHNICAL_DOCUMENTATION.md`.
+
+| Area | Endpoints |
+|---|---|
+| Access | `GET /hr/me/access`; admin: `GET /hr/access/permissions`, `GET/PUT /hr/access/grants[/{userId}]`, `PUT /hr/access/branches/{userId}` |
+| Organisation | `GET/POST/PUT /hr/departments[/{id}]`, `/hr/positions[/{id}]`, `.../archive`, `.../restore` |
+| Employees | `GET/POST /hr/employees`, `GET/PUT /hr/employees/{id}`, `.../status`, `.../link-user`, `.../transfer`, `.../assignments`, `.../audit`, `GET /hr/employees/linkable-users`, `POST /hr/employees/import-users`, `GET /hr/me/profile` |
+| Contracts & documents | `GET/POST /hr/employees/{id}/contracts`, `PUT /hr/contracts/{id}`, `.../activate`, `.../renew`, `.../end`, `GET /hr/contracts/due`; `GET/POST /hr/employees/{id}/documents` (multipart), `GET /hr/documents/{id}/download`, `.../archive` |
+| Branches | `POST /hr/assignments/{id}/end`, `GET /hr/branches/workforce` |
+| Scheduling | `GET/POST/PUT/DELETE /hr/schedules[/{id}]`, `.../cancel`, `POST /hr/schedules/publish`, `/hr/shift-templates`, `/hr/scheduling-policy`, availability, `/hr/shift-swaps`; self: `/hr/me/shifts`, `/hr/me/availability`, `/hr/me/swaps`, `/hr/me/swap-options` |
+| Attendance | `GET /hr/attendance/day`, `/hr/attendance/entries`, `POST /hr/attendance/clock`, `/hr/attendance/corrections[/{id}/decision]`, `/hr/attendance-policy`, `/hr/employees/{id}/clock-pin`; POS: `GET /hr/pos/roster`, `POST /hr/pos/clock`, `POST /hr/pos/me`; self: `/hr/me/attendance[/status]`, `/hr/me/clock`, `/hr/me/clock-pin` |
+| Timesheets & overtime | `/hr/timesheets` (generate, refresh, submit, review, approve, reopen, lock), `/hr/me/timesheets`, `/hr/overtime-rules`, `/hr/holidays`, `/hr/overtime-requests[/{id}/decision]` |
+| Leave | `/hr/leave-types`, `/hr/leave-policies`, `/hr/employees/{id}/leave-balances[/adjust]`, `/hr/leave-balances/{id}/transactions`, `/hr/leave-requests` (quote, decision, cancel, document), `/hr/leave-calendar`; self: `/hr/me/leave-balances`, `/hr/me/leave-requests` |
+| Payroll | `/hr/payroll-rules`, `/hr/payroll-runs[/{id}]` (calculate, adjustments, approve, reopen, finalize, pay, cancel), `GET /hr/payslips/{id}`, `GET /hr/me/payslips` |
+| Tips & service charge | `/hr/tip-rules`, `/hr/tip-pools[/{id}]` (calculate, approve, reopen, cancel), `GET /hr/me/tips` |
+| Recruitment | `/hr/vacancies[/{id}]` (status, applications), `/hr/applications/{id}` (stage, interviews, offer, offer-response, hire), `PUT /hr/interviews/{id}`, `/hr/candidates[/{id}]` (documents, anonymise), `GET /hr/candidate-documents/{id}/download`, `GET /hr/me/interviews` |
+
+HR-specific responses: scheduling returns **409** with `issues` for blocking problems and **422** with `issues` for warnings that need
+`acknowledgeWarnings: true`. POS clock calls are rate limited separately (`hrclock`). Paged HR lists return
+`{ "items": [...], "page", "size", "total" }` in the body.
+
 ## HTTP Status Codes
 
 | Code | Meaning |

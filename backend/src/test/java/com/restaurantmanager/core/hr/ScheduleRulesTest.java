@@ -142,4 +142,25 @@ class ScheduleRulesTest {
         assertThat(java.time.Duration.between(start, end).toHours()).isEqualTo(8);
         assertThat(night.days()).containsExactlyInAnyOrder(DayOfWeek.FRIDAY, DayOfWeek.SATURDAY);
     }
+
+    @Test
+    void approvedLeave_blocks_halfDayAndPendingLeaveWarn() {
+        Interval mondayShift = shift(MONDAY, 9, 17, 30);
+        ScheduleRules.LeavePeriod approvedWeek = new ScheduleRules.LeavePeriod(MONDAY, MONDAY.plusDays(4), false, false, true, "Annual leave");
+        ScheduleRules.LeavePeriod approvedHalf = new ScheduleRules.LeavePeriod(MONDAY.minusDays(2), MONDAY, false, true, true, "Annual leave");
+        ScheduleRules.LeavePeriod pending = new ScheduleRules.LeavePeriod(MONDAY, MONDAY, false, false, false, "Study leave");
+        ScheduleRules.LeavePeriod elsewhere = new ScheduleRules.LeavePeriod(MONDAY.plusDays(1), MONDAY.plusDays(2), false, false, true, "Annual leave");
+
+        List<Issue> blocked = ScheduleRules.evaluate(mondayShift, List.of(), POLICY, EmploymentStatus.ACTIVE, true, List.of(), List.of(approvedWeek), ZONE);
+        assertThat(codes(blocked)).containsExactly("ON_APPROVED_LEAVE");
+        assertThat(blocked.get(0).severity()).isEqualTo(ScheduleRules.Severity.BLOCKING);
+        assertThat(codes(ScheduleRules.evaluate(mondayShift, List.of(), POLICY, EmploymentStatus.ACTIVE, true, List.of(), List.of(approvedHalf), ZONE)))
+                .containsExactly("HALF_DAY_LEAVE");
+        assertThat(codes(ScheduleRules.evaluate(mondayShift, List.of(), POLICY, EmploymentStatus.ACTIVE, true, List.of(), List.of(pending), ZONE)))
+                .containsExactly("LEAVE_PENDING");
+        assertThat(ScheduleRules.evaluate(mondayShift, List.of(), POLICY, EmploymentStatus.ACTIVE, true, List.of(), List.of(elsewhere), ZONE)).isEmpty();
+        // an overnight Sunday shift runs into Monday's approved leave
+        assertThat(codes(ScheduleRules.evaluate(shift(MONDAY.minusDays(1), 22, 6, 0), List.of(), POLICY, EmploymentStatus.ACTIVE, true, List.of(),
+                List.of(approvedWeek), ZONE))).containsExactly("ON_APPROVED_LEAVE");
+    }
 }

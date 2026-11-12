@@ -15,7 +15,7 @@ export type ContractStatus = "DRAFT" | "ACTIVE" | "EXPIRED" | "ENDED" | "RENEWED
 export type SalaryType = "MONTHLY" | "WEEKLY" | "DAILY" | "HOURLY" | "CONTRACT_SUM" | "COMMISSION";
 export type DocumentType =
   | "EMPLOYMENT_CONTRACT" | "IDENTIFICATION" | "CV" | "ACADEMIC_CERTIFICATE" | "FOOD_SAFETY_CERTIFICATE"
-  | "MEDICAL_FITNESS" | "TRAINING_CERTIFICATE" | "PHOTO" | "OTHER";
+  | "MEDICAL_FITNESS" | "TRAINING_CERTIFICATE" | "PHOTO" | "LEAVE_SUPPORT" | "OTHER";
 
 export const STAFF_CATEGORIES: StaffCategory[] = ["MANAGEMENT", "FRONT_OF_HOUSE", "KITCHEN", "BAR", "OPERATIONS", "SUPPORT", "ADMINISTRATION", "OTHER"];
 export const EMPLOYMENT_TYPES: EmploymentType[] = ["FULL_TIME", "PART_TIME", "CASUAL", "CONTRACT", "TEMPORARY", "INTERN", "SEASONAL"];
@@ -531,3 +531,336 @@ export const requestOvertime = (s: StaffSession, body: { employeeId: string; bra
   apiRequest<OvertimeRequest>("/hr/overtime-requests", { ...auth(s), method: "POST", body });
 export const decideOvertime = (s: StaffSession, id: string, body: { approve: boolean; note?: string }) =>
   apiRequest<OvertimeRequest>(`/hr/overtime-requests/${id}/decision`, { ...auth(s), method: "POST", body });
+
+// ---------------------------------------------------------------------------
+// Leave (Phase 5)
+// ---------------------------------------------------------------------------
+
+export type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+export type ApprovalStep = "REPORTING_MANAGER" | "BRANCH_MANAGER" | "HR";
+export type CountBasis = "CALENDAR" | "WORKDAYS";
+export type Accrual = "UPFRONT" | "MONTHLY";
+export const APPROVAL_STEPS: ApprovalStep[] = ["REPORTING_MANAGER", "BRANCH_MANAGER", "HR"];
+
+export type LeaveType = {
+  id: string; code: string; name: string; paid: boolean; deductsBalance: boolean; requiresDocument: boolean; allowNegative: boolean;
+  countBasis: CountBasis; approvalSteps: ApprovalStep[]; maxDaysPerRequest?: number | null; active: boolean; displayOrder: number;
+};
+export type LeaveTypeInput = Omit<LeaveType, "id">;
+export type LeavePolicy = {
+  id: string; leaveTypeId: string; leaveTypeName?: string | null; branchId?: string | null; employmentType?: EmploymentType | null;
+  annualDays: number; accrual: Accrual; carryOverMaxDays: number; minServiceDays: number; effectiveFrom: string; createdAt: string;
+};
+export type LeavePolicyInput = {
+  leaveTypeId: string; branchId?: string | null; employmentType?: EmploymentType | null; annualDays: number; accrual: Accrual;
+  carryOverMaxDays?: number; minServiceDays?: number; effectiveFrom: string;
+};
+export type LeaveBalance = {
+  id?: string | null; leaveTypeId: string; leaveTypeCode: string; leaveTypeName: string; year: number; entitledDays: number; accrual: Accrual;
+  earnedDays: number; carriedOverDays: number; adjustmentDays: number; usedDays: number; pendingDays: number; availableDays: number;
+  allowNegative: boolean; hasPolicy: boolean;
+};
+export type LeaveTransaction = { id: string; kind: string; days: number; requestId?: string | null; note?: string | null; actorName?: string | null; createdAt: string };
+export type LeaveStep = { step: number; code: ApprovalStep; decision?: "APPROVED" | "REJECTED" | null; decidedByName?: string | null; note?: string | null; decidedAt?: string | null };
+export type LeaveShiftConflict = { scheduleId: string; branchId?: string | null; startsAt: string; endsAt: string; status: string };
+export type LeaveRequest = {
+  id: string; employeeId: string; employeeName?: string | null; branchId?: string | null; leaveTypeId: string; leaveTypeCode?: string | null;
+  leaveTypeName?: string | null; paid: boolean; startDate: string; endDate: string; startHalf: boolean; endHalf: boolean; days: number;
+  reason?: string | null; status: LeaveStatus; steps: LeaveStep[]; pendingStep?: ApprovalStep | null; canDecide: boolean;
+  documentRequired: boolean; documentId?: string | null; cancelReason?: string | null; decidedAt?: string | null; createdAt: string;
+  conflictingShifts?: LeaveShiftConflict[] | null;
+};
+export type LeaveRequestInput = {
+  leaveTypeId: string; startDate: string; endDate: string; startHalf?: boolean; endHalf?: boolean; reason?: string;
+};
+export type LeaveQuote = { days: number; availableDays?: number | null; deductsBalance: boolean; requiresDocument: boolean; problems: string[] };
+
+export const getLeaveTypes = (s: StaffSession) => apiRequest<LeaveType[]>("/hr/leave-types", auth(s));
+export const createLeaveType = (s: StaffSession, body: LeaveTypeInput) => apiRequest<LeaveType>("/hr/leave-types", { ...auth(s), method: "POST", body });
+export const updateLeaveType = (s: StaffSession, id: string, body: LeaveTypeInput) =>
+  apiRequest<LeaveType>(`/hr/leave-types/${id}`, { ...auth(s), method: "PUT", body });
+export const getLeavePolicies = (s: StaffSession, leaveTypeId?: string) =>
+  apiRequest<LeavePolicy[]>(`/hr/leave-policies${query({ leaveTypeId })}`, auth(s));
+export const addLeavePolicy = (s: StaffSession, body: LeavePolicyInput) =>
+  apiRequest<LeavePolicy>("/hr/leave-policies", { ...auth(s), method: "POST", body });
+
+export const getLeaveBalances = (s: StaffSession, employeeId: string, year?: number) =>
+  apiRequest<LeaveBalance[]>(`/hr/employees/${employeeId}/leave-balances${query({ year })}`, auth(s));
+export const adjustLeaveBalance = (s: StaffSession, employeeId: string, body: { leaveTypeId: string; year: number; days: number; note: string }) =>
+  apiRequest<LeaveBalance>(`/hr/employees/${employeeId}/leave-balances/adjust`, { ...auth(s), method: "POST", body });
+export const getLeaveTransactions = (s: StaffSession, balanceId: string) =>
+  apiRequest<LeaveTransaction[]>(`/hr/leave-balances/${balanceId}/transactions`, auth(s));
+
+export const getLeaveRequests = (
+  s: StaffSession,
+  params: { status?: LeaveStatus; branchId?: string; from?: string; to?: string; awaitingMe?: boolean; employeeId?: string } = {},
+) => apiRequest<LeaveRequest[]>(`/hr/leave-requests${query(params)}`, auth(s));
+export const getLeaveRequest = (s: StaffSession, id: string) => apiRequest<LeaveRequest>(`/hr/leave-requests/${id}`, auth(s));
+export const requestLeaveFor = (s: StaffSession, body: LeaveRequestInput & { employeeId: string; recordApproved?: boolean }) =>
+  apiRequest<LeaveRequest>("/hr/leave-requests", { ...auth(s), method: "POST", body });
+export const quoteLeaveFor = (s: StaffSession, body: LeaveRequestInput & { employeeId: string }) =>
+  apiRequest<LeaveQuote>("/hr/leave-requests/quote", { ...auth(s), method: "POST", body });
+export const decideLeave = (s: StaffSession, id: string, body: { approve: boolean; note?: string }) =>
+  apiRequest<LeaveRequest>(`/hr/leave-requests/${id}/decision`, { ...auth(s), method: "POST", body });
+export const cancelLeaveFor = (s: StaffSession, id: string, reason: string) =>
+  apiRequest<LeaveRequest>(`/hr/leave-requests/${id}/cancel`, { ...auth(s), method: "POST", body: { reason } });
+export const getLeaveCalendar = (s: StaffSession, branchId: string, from: string, to: string) =>
+  apiRequest<LeaveRequest[]>(`/hr/leave-calendar${query({ branchId, from, to })}`, auth(s));
+
+export const getMyLeaveBalances = (s: StaffSession, year?: number) => apiRequest<LeaveBalance[]>(`/hr/me/leave-balances${query({ year })}`, auth(s));
+export const getMyLeaveRequests = (s: StaffSession) => apiRequest<LeaveRequest[]>("/hr/me/leave-requests", auth(s));
+export const requestMyLeave = (s: StaffSession, body: LeaveRequestInput) =>
+  apiRequest<LeaveRequest>("/hr/me/leave-requests", { ...auth(s), method: "POST", body });
+export const quoteMyLeave = (s: StaffSession, body: LeaveRequestInput) =>
+  apiRequest<LeaveQuote>("/hr/me/leave-requests/quote", { ...auth(s), method: "POST", body });
+export const cancelMyLeave = (s: StaffSession, id: string, reason?: string) =>
+  apiRequest<LeaveRequest>(`/hr/me/leave-requests/${id}/cancel`, { ...auth(s), method: "POST", body: { reason } });
+
+/** Attaches a supporting document (for example a sick note); `own` uses the self-service endpoint. */
+export async function attachLeaveDocument(s: StaffSession, id: string, file: File, own: boolean): Promise<LeaveRequest> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(`${API_PREFIX}/hr/${own ? "me/" : ""}leave-requests/${id}/document`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${s.accessToken}` },
+    body: form,
+    cache: "no-store",
+  });
+  if (!response.ok) throw await rawError(response, "Upload failed");
+  return (await response.json()) as LeaveRequest;
+}
+
+// ---------------------------------------------------------------------------
+// Payroll (Phase 6)
+// ---------------------------------------------------------------------------
+
+export type PayrollRunStatus = "DRAFT" | "CALCULATED" | "APPROVED" | "FINALIZED" | "PAID" | "CANCELLED";
+export type PayrollRuleKind = "EMPLOYEE_DEDUCTION" | "EMPLOYER_CONTRIBUTION";
+export type PayrollRuleMethod = "PERCENT" | "FIXED" | "BRACKETS";
+export type PayrollRuleBase = "BASIC" | "GROSS" | "TAXABLE";
+export type PaymentMethod = "BANK" | "MOBILE_MONEY" | "CASH" | "OTHER";
+export type AdjustmentKind = "EARNING" | "DEDUCTION";
+export const PAYMENT_METHODS: PaymentMethod[] = ["BANK", "MOBILE_MONEY", "CASH", "OTHER"];
+
+export type PayrollBracket = { upTo: number | null; ratePercent: number };
+export type PayrollRule = {
+  id: string; code: string; name: string; kind: PayrollRuleKind; method: PayrollRuleMethod; base: PayrollRuleBase;
+  ratePercent?: number | null; fixedAmount?: number | null; capAmount?: number | null; brackets: PayrollBracket[]; preTax: boolean;
+  employmentTypes: EmploymentType[]; branchId?: string | null; effectiveFrom: string; active: boolean; displayOrder: number;
+  note?: string | null; createdAt: string;
+};
+export type PayrollRuleInput = {
+  code: string; name?: string; kind?: PayrollRuleKind; method?: PayrollRuleMethod; base?: PayrollRuleBase; ratePercent?: number | null;
+  fixedAmount?: number | null; capAmount?: number | null; brackets?: PayrollBracket[]; preTax?: boolean; employmentTypes?: EmploymentType[];
+  branchId?: string | null; effectiveFrom: string; active?: boolean; displayOrder?: number; note?: string;
+};
+export type PayrollRunSummary = {
+  id: string; runNumber: string; branchId: string; branchName?: string | null; periodStart: string; periodEnd: string; payDate?: string | null;
+  status: PayrollRunStatus; currency: string; employeeCount: number; grossTotal: number; deductionsTotal: number; netTotal: number;
+  employerTotal: number; paidCount?: number | null; calculatedAt?: string | null; approvedAt?: string | null; finalizedAt?: string | null;
+  cancelReason?: string | null; notes?: string | null; version: number;
+};
+export type PayslipSummary = {
+  id: string; runId: string; employeeId: string; employeeName?: string | null; employeeNumber?: string | null; salaryType?: SalaryType | null;
+  rate?: number | null; paidMinutes: number; overtimeMinutes: number; workedDays: number; unpaidLeaveDays: number; basic: number; gross: number;
+  taxable: number; employeeDeductions: number; net: number; employerContributions: number; issues: string[];
+  paymentMethod?: PaymentMethod | null; paymentReference?: string | null; paidAt?: string | null;
+};
+export type PayrollAdjustment = {
+  id: string; employeeId: string; employeeName?: string | null; kind: AdjustmentKind; taxable: boolean; description: string; amount: number; createdAt: string;
+};
+export type PayrollRunDetail = {
+  summary: PayrollRunSummary; payslips: PayslipSummary[]; adjustments: PayrollAdjustment[];
+  skipped: { employeeId: string; name?: string | null; reason: string }[]; blockingPayslips: number; calculatedByMe: boolean;
+};
+export type PayslipLine = { kind: "EARNING" | "DEDUCTION" | "EMPLOYER"; code: string; description: string; quantity?: number | null; rate?: number | null; amount: number };
+export type PayslipDetail = {
+  summary: PayslipSummary; runNumber: string; runStatus: PayrollRunStatus; periodStart: string; periodEnd: string; payDate?: string | null;
+  currency: string; branchName?: string | null; hourlyRate?: number | null; lines: PayslipLine[];
+};
+export type MyPayslip = {
+  id: string; runNumber: string; periodStart: string; periodEnd: string; payDate?: string | null; currency: string;
+  gross: number; deductions: number; net: number; paidAt?: string | null;
+};
+
+export const getPayrollRules = (s: StaffSession) => apiRequest<PayrollRule[]>("/hr/payroll-rules", auth(s));
+export const addPayrollRule = (s: StaffSession, body: PayrollRuleInput) =>
+  apiRequest<PayrollRule>("/hr/payroll-rules", { ...auth(s), method: "POST", body });
+export const getPayrollRuns = (s: StaffSession, branchId?: string) =>
+  apiRequest<PayrollRunSummary[]>(`/hr/payroll-runs${query({ branchId })}`, auth(s));
+export const createPayrollRun = (s: StaffSession, body: { branchId: string; periodStart: string; periodEnd: string; payDate?: string; notes?: string }) =>
+  apiRequest<PayrollRunDetail>("/hr/payroll-runs", { ...auth(s), method: "POST", body });
+export const getPayrollRun = (s: StaffSession, id: string) => apiRequest<PayrollRunDetail>(`/hr/payroll-runs/${id}`, auth(s));
+export const payrollRunAction = (
+  s: StaffSession,
+  id: string,
+  action: "calculate" | "approve" | "reopen" | "finalize" | "pay" | "cancel",
+  body: Record<string, unknown> = {},
+) => apiRequest<PayrollRunDetail>(`/hr/payroll-runs/${id}/${action}`, { ...auth(s), method: "POST", body });
+export const addPayrollAdjustment = (
+  s: StaffSession,
+  id: string,
+  body: { employeeId: string; kind: AdjustmentKind; taxable: boolean; description: string; amount: number },
+) => apiRequest<PayrollRunDetail>(`/hr/payroll-runs/${id}/adjustments`, { ...auth(s), method: "POST", body });
+export const removePayrollAdjustment = (s: StaffSession, id: string, adjustmentId: string) =>
+  apiRequest<PayrollRunDetail>(`/hr/payroll-runs/${id}/adjustments/${adjustmentId}`, { ...auth(s), method: "DELETE" });
+export const getPayslip = (s: StaffSession, id: string) => apiRequest<PayslipDetail>(`/hr/payslips/${id}`, auth(s));
+export const getMyPayslips = (s: StaffSession) => apiRequest<MyPayslip[]>("/hr/me/payslips", auth(s));
+
+// ---------------------------------------------------------------------------
+// Tips & service charge (Phase 7)
+// ---------------------------------------------------------------------------
+
+export type TipSource = "TIPS" | "SERVICE_CHARGE";
+export type TipMethod = "HOURS" | "POINTS" | "EQUAL";
+export type TipPoolStatus = "DRAFT" | "CALCULATED" | "APPROVED" | "PAID" | "CANCELLED";
+
+export type TipRule = {
+  id: string; branchId?: string | null; source: TipSource; method: TipMethod; housePercent: number; taxable: boolean; minMinutes: number;
+  positionPoints: Record<string, number>; effectiveFrom: string; note?: string | null; createdAt: string;
+};
+export type TipRuleInput = {
+  branchId?: string | null; source: TipSource; method: TipMethod; housePercent: number; taxable: boolean; minMinutes: number;
+  positionPoints: Record<string, number>; effectiveFrom: string; note?: string;
+};
+export type TipPoolSummary = {
+  id: string; poolNumber: string; branchId: string; branchName?: string | null; source: TipSource; periodStart: string; periodEnd: string;
+  status: TipPoolStatus; orderCount: number; collectedAmount: number; houseAmount: number; distributableAmount: number;
+  calculatedAt?: string | null; approvedAt?: string | null; cancelReason?: string | null; version: number;
+};
+export type TipAllocation = {
+  id: string; employeeId: string; employeeName?: string | null; positionTitle?: string | null; minutes: number; points: number; amount: number;
+  inPayroll: boolean;
+};
+export type TipPoolDetail = {
+  summary: TipPoolSummary;
+  rule?: { scope: string; method: TipMethod; housePercent: number; taxable: boolean; minMinutes: number; positionPoints: Record<string, number>; effectiveFrom?: string | null } | null;
+  allocations: TipAllocation[]; calculatedByMe: boolean;
+};
+export type MyTipShare = {
+  id: string; poolNumber: string; source: TipSource; branchName?: string | null; periodStart: string; periodEnd: string; minutes: number;
+  amount: number; status: TipPoolStatus; inPayroll: boolean;
+};
+
+export const getTipRules = (s: StaffSession) => apiRequest<TipRule[]>("/hr/tip-rules", auth(s));
+export const addTipRule = (s: StaffSession, body: TipRuleInput) => apiRequest<TipRule>("/hr/tip-rules", { ...auth(s), method: "POST", body });
+export const getTipPools = (s: StaffSession, branchId?: string) => apiRequest<TipPoolSummary[]>(`/hr/tip-pools${query({ branchId })}`, auth(s));
+export const createTipPool = (s: StaffSession, body: { branchId: string; source: TipSource; periodStart: string; periodEnd: string }) =>
+  apiRequest<TipPoolDetail>("/hr/tip-pools", { ...auth(s), method: "POST", body });
+export const getTipPool = (s: StaffSession, id: string) => apiRequest<TipPoolDetail>(`/hr/tip-pools/${id}`, auth(s));
+export const tipPoolAction = (s: StaffSession, id: string, action: "calculate" | "approve" | "reopen" | "cancel", body: Record<string, unknown> = {}) =>
+  apiRequest<TipPoolDetail>(`/hr/tip-pools/${id}/${action}`, { ...auth(s), method: "POST", body });
+export const getMyTips = (s: StaffSession) => apiRequest<MyTipShare[]>("/hr/me/tips", auth(s));
+
+// ---------------------------------------------------------------------------
+// Recruitment (Phase 8)
+// ---------------------------------------------------------------------------
+
+export type VacancyStatus = "DRAFT" | "OPEN" | "ON_HOLD" | "FILLED" | "CLOSED" | "CANCELLED";
+export type CandidateSource = "WALK_IN" | "REFERRAL" | "JOB_BOARD" | "SOCIAL_MEDIA" | "AGENCY" | "OTHER";
+export type ApplicationStage = "APPLIED" | "SCREENING" | "INTERVIEW" | "TRIAL_SHIFT" | "OFFER" | "HIRED" | "REJECTED" | "WITHDRAWN";
+export type OfferStatus = "SENT" | "ACCEPTED" | "DECLINED";
+export type InterviewKind = "PHONE" | "IN_PERSON" | "VIDEO" | "TRIAL_SHIFT";
+export type InterviewOutcome = "SCHEDULED" | "PASSED" | "FAILED" | "NO_SHOW" | "CANCELLED";
+export const PIPELINE: ApplicationStage[] = ["APPLIED", "SCREENING", "INTERVIEW", "TRIAL_SHIFT", "OFFER"];
+export const CANDIDATE_SOURCES: CandidateSource[] = ["WALK_IN", "REFERRAL", "JOB_BOARD", "SOCIAL_MEDIA", "AGENCY", "OTHER"];
+
+export type VacancyInput = {
+  branchId: string; positionId?: string | null; title: string; description?: string; requirements?: string; employmentType: EmploymentType;
+  openings: number; salaryMin?: number | null; salaryMax?: number | null; closingDate?: string | null; hiringManagerId?: string | null;
+};
+export type VacancySummary = {
+  id: string; vacancyNumber: string; branchId: string; branchName?: string | null; positionId?: string | null; positionTitle?: string | null;
+  title: string; employmentType: EmploymentType; openings: number; hiredCount: number; salaryMin?: number | null; salaryMax?: number | null;
+  payVisible: boolean; status: VacancyStatus; closingDate?: string | null; hiringManagerId?: string | null; hiringManagerName?: string | null;
+  openedAt?: string | null; closedAt?: string | null; closeReason?: string | null; daysOpen: number; pipeline: Record<ApplicationStage, number>;
+  version: number;
+};
+export type ApplicationRow = {
+  id: string; candidateId: string; candidateName: string; phone?: string | null; source: CandidateSource; stage: ApplicationStage;
+  offerStatus?: OfferStatus | null; averageScore?: number | null; nextInterviewAt?: string | null; employeeId?: string | null; appliedAt: string;
+};
+export type VacancyDetail = { summary: VacancySummary; description?: string | null; requirements?: string | null; applications: ApplicationRow[] };
+export type CandidateInput = {
+  firstName: string; lastName?: string; phone?: string; email?: string; source: CandidateSource; referredByEmployeeId?: string | null; notes?: string;
+};
+export type CandidateSummary = {
+  id: string; fullName: string; phone?: string | null; email?: string | null; source: CandidateSource; openApplications: number;
+  applications: number; anonymised: boolean; createdAt: string;
+};
+export type CandidateDocument = { id: string; title: string; fileName: string; contentType: string; sizeBytes: number; uploadedAt: string };
+export type CandidateDetail = {
+  summary: CandidateSummary; notes?: string | null; referredByEmployeeId?: string | null; referredByName?: string | null;
+  applications: { id: string; vacancyId: string; vacancyTitle?: string | null; vacancyNumber?: string | null; stage: ApplicationStage; appliedAt: string }[];
+  documents: CandidateDocument[];
+};
+export type InterviewView = {
+  id: string; kind: InterviewKind; scheduledAt: string; durationMinutes: number; interviewerId?: string | null; interviewerName?: string | null;
+  location?: string | null; outcome: InterviewOutcome; score?: number | null; feedback?: string | null;
+};
+export type Offer = {
+  contractType?: ContractType | null; salaryType?: SalaryType | null; salaryAmount?: number | null; payHidden: boolean; weeklyHours?: number | null;
+  startDate?: string | null; status?: OfferStatus | null; sentAt?: string | null; respondedAt?: string | null;
+};
+export type ApplicationDetail = {
+  id: string; stage: ApplicationStage; rejectReason?: string | null; candidate: CandidateSummary; candidateNotes?: string | null;
+  vacancy: { id: string; vacancyNumber: string; title: string; status: VacancyStatus; branchId: string; branchName?: string | null };
+  events: { fromStage?: ApplicationStage | null; toStage: ApplicationStage; note?: string | null; actorName?: string | null; at: string }[];
+  interviews: InterviewView[]; offer?: Offer | null; documents: CandidateDocument[]; employeeId?: string | null; hiredAt?: string | null;
+  appliedAt: string; payVisible: boolean; canHire: boolean; canCreateContract: boolean;
+};
+export type HireResult = { employeeId: string; employeeNumber: string; contractCreated: boolean; contractNote?: string | null; documentsCopied: number };
+export type MyInterview = {
+  id: string; candidateName: string; vacancyTitle: string; kind: InterviewKind; scheduledAt: string; durationMinutes: number;
+  location?: string | null; outcome: InterviewOutcome; score?: number | null; feedback?: string | null;
+};
+
+export const getVacancies = (s: StaffSession, params: { branchId?: string; status?: VacancyStatus } = {}) =>
+  apiRequest<VacancySummary[]>(`/hr/vacancies${query(params)}`, auth(s));
+export const createVacancy = (s: StaffSession, body: VacancyInput) => apiRequest<VacancyDetail>("/hr/vacancies", { ...auth(s), method: "POST", body });
+export const updateVacancy = (s: StaffSession, id: string, body: VacancyInput) =>
+  apiRequest<VacancyDetail>(`/hr/vacancies/${id}`, { ...auth(s), method: "PUT", body });
+export const getVacancy = (s: StaffSession, id: string) => apiRequest<VacancyDetail>(`/hr/vacancies/${id}`, auth(s));
+export const setVacancyStatus = (s: StaffSession, id: string, body: { status: VacancyStatus; reason?: string }) =>
+  apiRequest<VacancyDetail>(`/hr/vacancies/${id}/status`, { ...auth(s), method: "POST", body });
+export const addApplication = (s: StaffSession, vacancyId: string, body: { candidateId?: string; candidate?: CandidateInput; note?: string }) =>
+  apiRequest<ApplicationDetail>(`/hr/vacancies/${vacancyId}/applications`, { ...auth(s), method: "POST", body });
+export const getApplication = (s: StaffSession, id: string) => apiRequest<ApplicationDetail>(`/hr/applications/${id}`, auth(s));
+export const moveApplication = (s: StaffSession, id: string, body: { stage: ApplicationStage; note?: string }) =>
+  apiRequest<ApplicationDetail>(`/hr/applications/${id}/stage`, { ...auth(s), method: "POST", body });
+export const scheduleInterview = (
+  s: StaffSession,
+  id: string,
+  body: { kind: InterviewKind; scheduledAt: string; durationMinutes?: number; interviewerId?: string | null; location?: string },
+) => apiRequest<ApplicationDetail>(`/hr/applications/${id}/interviews`, { ...auth(s), method: "POST", body });
+export const recordInterview = (s: StaffSession, id: string, body: { outcome: InterviewOutcome; score?: number | null; feedback?: string }) =>
+  apiRequest<InterviewView>(`/hr/interviews/${id}`, { ...auth(s), method: "PUT", body });
+export const sendOffer = (
+  s: StaffSession,
+  id: string,
+  body: { contractType?: ContractType | null; salaryType?: SalaryType | null; salaryAmount?: number | null; weeklyHours?: number | null; startDate: string },
+) => apiRequest<ApplicationDetail>(`/hr/applications/${id}/offer`, { ...auth(s), method: "PUT", body });
+export const respondToOffer = (s: StaffSession, id: string, body: { accepted: boolean; note?: string }) =>
+  apiRequest<ApplicationDetail>(`/hr/applications/${id}/offer-response`, { ...auth(s), method: "POST", body });
+export const hireApplicant = (s: StaffSession, id: string, body: { hireDate?: string; employeeNumber?: string } = {}) =>
+  apiRequest<HireResult>(`/hr/applications/${id}/hire`, { ...auth(s), method: "POST", body });
+export const getMyInterviews = (s: StaffSession) => apiRequest<MyInterview[]>("/hr/me/interviews", auth(s));
+export const searchCandidates = (s: StaffSession, q?: string) => apiRequest<CandidateSummary[]>(`/hr/candidates${query({ q })}`, auth(s));
+export const getCandidate = (s: StaffSession, id: string) => apiRequest<CandidateDetail>(`/hr/candidates/${id}`, auth(s));
+export const anonymiseCandidate = (s: StaffSession, id: string) =>
+  apiRequest<CandidateDetail>(`/hr/candidates/${id}/anonymise`, { ...auth(s), method: "POST", body: {} });
+export const downloadCandidateDocument = (s: StaffSession, id: string, fallbackName: string): Promise<DownloadedFile> =>
+  downloadFile(s, `/hr/candidate-documents/${id}/download`, fallbackName);
+
+export async function uploadCandidateDocument(s: StaffSession, candidateId: string, file: File, title: string): Promise<CandidateDetail> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(`${API_PREFIX}/hr/candidates/${candidateId}/documents${query({ title })}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${s.accessToken}` },
+    body: form,
+    cache: "no-store",
+  });
+  if (!response.ok) throw await rawError(response, "Upload failed");
+  return (await response.json()) as CandidateDetail;
+}
