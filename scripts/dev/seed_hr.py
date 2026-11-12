@@ -710,14 +710,29 @@ def seed_recruitment(api, A: str, branches: dict, people: dict, users_by_phone: 
 
     step("HR: vacancies")
     waiter = vacancy(osu, "WAITER", "Waiter / Waitress", "FULL_TIME", 2, 2400, 2800, 21,
-                     "Join the Osu floor team for lunch and evening service.", "Six months' restaurant experience. Weekend availability.")
+                     "Join the Osu floor team for lunch and evening service. You'll look after guests from the moment they sit down: "
+                     "taking orders on the POS, recommending dishes and drinks, and keeping your section running smoothly on busy nights.\n\n"
+                     "Shifts are 8 hours on a rotating rota, with two days off a week. Staff meals, uniform and tips shared through payroll.",
+                     "At least six months' experience as a waiter or in hospitality\nAvailable on weekends and public holidays\n"
+                     "Confident speaking English; Twi or Ga is a plus\nFriendly, calm under pressure and a team player")
     cook = vacancy(elg, "LINE-COOK", "Line Cook", "FULL_TIME", 1, 2800, 3300, 10,
-                   "Grill and stew station at East Legon.", "Food handler certificate. Two years on a busy line.")
+                   "Run the grill and stew station at East Legon, preparing jollof, charcoal chicken and our soups to recipe and on time.",
+                   "Food handler certificate\nTwo years on a busy line\nComfortable with a charcoal grill")
     vacancy(osu, "BARISTA", "Barista (part-time)", "PART_TIME", 1, None, None, None, "Weekend coffee bar at Osu.", "Latte art a plus.")
+    host = vacancy(elg, "HOST", "Host / Hostess", "PART_TIME", 1, None, None, 28,
+                   "Be the first face our guests see at East Legon. You'll greet guests, manage reservations and the waiting list, "
+                   "seat tables and keep the front door welcoming during lunch and dinner.\n\nAbout 24 hours a week, mostly evenings and weekends.",
+                   "Warm, well-presented and organised\nGood phone manner\nBasic computer skills (bookings are on a tablet)")
+    kitchen_assistant = vacancy(osu, "KITCHEN-ASST", "Kitchen Assistant (internal)", "CASUAL", 1, None, None, None,
+                                "Help the Osu kitchen with prep and dishwashing. Open to current staff and referrals only.", None)
     guard = vacancy(elg, "SECURITY", "Night Security Officer", "CONTRACT", 1, 2000, 2300, 30,
                     "Night cover for the East Legon site.", "Licensed security officer.")
-    for v in (waiter, cook, guard):
+    for v in (waiter, cook, host, kitchen_assistant, guard):
         api.call("POST", f"/hr/vacancies/{v['id']}/status", {"status": "OPEN"}, A)
+    # Careers page: waiter and host are advertised; the kitchen assistant job stays internal (open, not published);
+    # the line cook is published but gets filled below, which takes it off the page; the guard job goes on hold.
+    for v in (waiter, cook, host, guard):
+        api.call("POST", f"/hr/vacancies/{v['id']}/publish", {"published": True}, A)
 
     step("HR: applicants, interviews & offers")
     apply(waiter, "esi")
@@ -777,6 +792,8 @@ def print_hr_summary(summary: dict):
     print("    Recruitment: Osu waiter vacancy with a full pipeline (offer out to Abla Gbeve); Yaw has an interview tomorrow")
     print(f"         and a trial shift; East Legon line cook {'filled (Comfort Adu hired)' if summary.get('recruitment_hired') else 'open'};"
           " barista draft; security on hold")
+    print("         Careers page (/careers): Waiter / Waitress and Host / Hostess are published; Kitchen Assistant is open but")
+    print("         internal (not published); filled, on-hold and draft vacancies never show")
 
 
 def main():

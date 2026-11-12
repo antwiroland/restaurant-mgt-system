@@ -58,6 +58,29 @@ export async function fetchRestaurantProfile(): Promise<RestaurantProfileRecord 
   return getJson<RestaurantProfileRecord>("/restaurant/profile");
 }
 
+export type PublicVacancy = {
+  id: string;
+  reference: string;
+  title: string;
+  branchName: string;
+  department: string | null;
+  employmentType: "FULL_TIME" | "PART_TIME" | "CASUAL" | "CONTRACT" | "TEMPORARY" | "INTERN" | "SEASONAL";
+  openings: number;
+  closingDate: string | null;
+  postedAt: string | null;
+  description: string | null;
+  requirements: string | null;
+};
+
+/** Open jobs for the careers page; null when the backend can't be reached. */
+export async function fetchCareers(): Promise<PublicVacancy[] | null> {
+  return getJson<PublicVacancy[]>("/careers");
+}
+
+export async function fetchCareer(id: string): Promise<PublicVacancy | null> {
+  return getJson<PublicVacancy>(`/careers/${encodeURIComponent(id)}`);
+}
+
 /** Restaurant identity for server components: the profile from the API, with env values as fallback. */
 export async function getBrand(): Promise<Brand> {
   return brandFromProfile(await fetchRestaurantProfile());

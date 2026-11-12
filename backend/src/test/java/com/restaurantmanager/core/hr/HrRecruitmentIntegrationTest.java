@@ -20,7 +20,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -202,6 +204,72 @@ class HrRecruitmentIntegrationTest extends HrIntegrationTestSupport {
         postJson("/hr/vacancies/" + vacancy + "/applications", Map.of("candidate", candidate("Late", "+233240000666")), manager)
                 .andExpect(status().isConflict()); // closed
         postJson("/hr/vacancies/" + vacancy + "/status", Map.of("status", "OPEN"), manager).andExpect(status().isOk()); // reopen
+    }
+
+    @Test
+    void publicCareers_listOnlyPublishedOpenVacancies_withoutSignInOrPay() throws Exception {
+        Map<String, Object> listed = vacancy(2);
+        listed.put("title", "Waiter (public)");
+        listed.put("description", "Lunch and evening service on the terrace");
+        listed.put("salaryMin", 2000);
+        listed.put("salaryMax", 2600);
+        listed.put("closingDate", LocalDate.now(ZONE).toString()); // still open on its closing day
+        String open = json(postJson("/hr/vacancies", listed, admin).andExpect(status().isCreated())).at("/summary/id").asText();
+        postJson("/hr/vacancies/" + open + "/status", Map.of("status", "OPEN"), admin).andExpect(status().isOk());
+        JsonNode published = json(postJson("/hr/vacancies/" + open + "/publish", Map.of("published", true), admin).andExpect(status().isOk()));
+        assertThat(published.at("/summary/published").asBoolean()).isTrue();
+        String publishedAt = published.at("/summary/publishedAt").asText();
+        getJson("/hr/vacancies", chef).andExpect(status().isForbidden());
+        postJson("/hr/vacancies/" + open + "/publish", Map.of("published", false), chef).andExpect(status().isForbidden());
+
+        String notPublished = openVacancy(admin, 1); // open, but HR has not advertised it
+
+        Map<String, Object> draft = vacancy(1);
+        draft.put("title", "Draft (public)");
+        String draftId = json(postJson("/hr/vacancies", draft, admin).andExpect(status().isCreated())).at("/summary/id").asText();
+        postJson("/hr/vacancies/" + draftId + "/publish", Map.of("published", true), admin).andExpect(status().isConflict()); // open it first
+
+        Map<String, Object> expired = vacancy(1);
+        expired.put("title", "Expired (public)");
+        expired.put("closingDate", LocalDate.now(ZONE).minusDays(1).toString());
+        String expiredId = json(postJson("/hr/vacancies", expired, admin).andExpect(status().isCreated())).at("/summary/id").asText();
+        postJson("/hr/vacancies/" + expiredId + "/status", Map.of("status", "OPEN"), admin).andExpect(status().isOk());
+        postJson("/hr/vacancies/" + expiredId + "/publish", Map.of("published", true), admin).andExpect(status().isConflict()); // closing date passed
+
+        String paused = openVacancy(admin, 1);
+        postJson("/hr/vacancies/" + paused + "/publish", Map.of("published", true), admin).andExpect(status().isOk());
+        JsonNode held = json(postJson("/hr/vacancies/" + paused + "/status", Map.of("status", "ON_HOLD"), admin).andExpect(status().isOk()));
+        assertThat(held.at("/summary/published").asBoolean()).isFalse(); // leaving OPEN takes it off the careers page
+
+        JsonNode jobs = json(mockMvc.perform(get("/careers")).andExpect(status().isOk()));
+        assertThat(jobs.findValuesAsText("id")).contains(open).doesNotContain(notPublished, draftId, expiredId, paused);
+        JsonNode job = json(mockMvc.perform(get("/careers/" + open)).andExpect(status().isOk()));
+        assertThat(job.get("title").asText()).isEqualTo("Waiter (public)");
+        assertThat(job.get("description").asText()).isEqualTo("Lunch and evening service on the terrace");
+        assertThat(job.get("requirements").asText()).isEqualTo("Food hygiene certificate");
+        assertThat(job.get("branchName").asText()).isEqualTo(accra.getName());
+        assertThat(job.get("openings").asInt()).isEqualTo(2);
+        assertThat(Instant.parse(job.get("postedAt").asText())).isEqualTo(Instant.parse(publishedAt));
+        assertThat(job.has("salaryMin")).isFalse();
+        assertThat(job.has("salaryMax")).isFalse();
+        assertThat(job.has("hiringManagerId")).isFalse();
+
+        mockMvc.perform(get("/careers/" + draftId)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/careers/" + notPublished)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/careers/" + expiredId)).andExpect(status().isNotFound());
+        mockMvc.perform(post("/careers")).andExpect(status().isUnauthorized()); // read-only
+
+        // unpublishing removes it straight away; publishing again brings it back; closing removes it for good
+        postJson("/hr/vacancies/" + open + "/publish", Map.of("published", false), admin).andExpect(status().isOk());
+        mockMvc.perform(get("/careers/" + open)).andExpect(status().isNotFound());
+        assertThat(json(mockMvc.perform(get("/careers"))).findValuesAsText("id")).doesNotContain(open);
+        postJson("/hr/vacancies/" + open + "/publish", Map.of("published", true), admin).andExpect(status().isOk());
+        mockMvc.perform(get("/careers/" + open)).andExpect(status().isOk());
+        postJson("/hr/vacancies/" + open + "/status", Map.of("status", "CLOSED", "reason", "Filled internally"), admin).andExpect(status().isOk());
+        mockMvc.perform(get("/careers/" + open)).andExpect(status().isNotFound());
+        assertThat(json(getJson("/hr/vacancies/" + open, admin)).at("/summary/published").asBoolean()).isFalse();
+        postJson("/hr/vacancies/" + open + "/status", Map.of("status", "OPEN"), admin).andExpect(status().isOk());
+        mockMvc.perform(get("/careers/" + open)).andExpect(status().isNotFound()); // reopening needs a deliberate re-publish
     }
 
     @Test

@@ -13,6 +13,7 @@ import {
   addApplication,
   getVacancy,
   searchCandidates,
+  setVacancyPublished,
   setVacancyStatus,
   type ApplicationStage,
   type CandidateSource,
@@ -67,6 +68,19 @@ export function VacancyDrawer({ id, onClose, onChanged }: { id: string; onClose:
     }
   }
 
+  async function changePublished(published: boolean) {
+    setBusy(true);
+    setError("");
+    try {
+      setVacancy(await authenticatedFetch((s) => setVacancyPublished(s, id, published)));
+      onChanged();
+    } catch (err) {
+      setError(errorMessage(err, published ? "Could not publish the vacancy" : "Could not unpublish the vacancy"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const v = vacancy?.summary;
   const closedStages: ApplicationStage[] = ["HIRED", "REJECTED", "WITHDRAWN"];
   const actions = v ? transitions[v.status] : [];
@@ -78,6 +92,7 @@ export function VacancyDrawer({ id, onClose, onChanged }: { id: string; onClose:
           {error ? <p className="alert alert-danger" role="alert">{error}</p> : null}
           <div className="flex flex-wrap items-center gap-2">
             <span className={`badge badge-dot ${vacancyTone[v.status]}`}>{humanize(v.status)}</span>
+            {v.published ? <span className="badge badge-info">On careers page</span> : null}
             <span className="text-sm text-ink-muted">{v.branchName}{v.positionTitle ? ` · ${v.positionTitle}` : ""} · {humanize(v.employmentType)}</span>
           </div>
           {v.closeReason ? <p className="alert alert-warning text-sm">{humanize(v.status)}: {v.closeReason}</p> : null}
@@ -87,7 +102,36 @@ export function VacancyDrawer({ id, onClose, onChanged }: { id: string; onClose:
             <Detail label="Closing date" value={formatDate(v.closingDate)} />
             <Detail label="Open for" value={v.openedAt ? `${v.daysOpen} days` : "Not opened"} />
           </dl>
+          {vacancy.description ? <p className="whitespace-pre-line rounded-xl bg-sunken p-3 text-sm text-ink-soft"><strong>Job description:</strong> {vacancy.description}</p> : null}
           {vacancy.requirements ? <p className="whitespace-pre-line rounded-xl bg-sunken p-3 text-sm text-ink-soft"><strong>Requirements:</strong> {vacancy.requirements}</p> : null}
+
+          {v.status === "OPEN" || v.published ? (
+            <section className="grid gap-2 rounded-xl border border-line p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-semibold">Careers page</h3>
+                  <p className="text-xs text-ink-muted">
+                    {v.published
+                      ? `Published${v.publishedAt ? ` ${formatDateTime(v.publishedAt)}` : ""}. Anyone can see the title, description and requirements; pay stays private.`
+                      : "Not published. Only staff can see this vacancy."}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {v.published ? (
+                    <>
+                      <a href={`/careers/${v.id}`} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">View posting</a>
+                      <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => changePublished(false)}>Unpublish</button>
+                    </>
+                  ) : (
+                    <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => changePublished(true)}>Publish to careers page</button>
+                  )}
+                </div>
+              </div>
+              {!v.published && !vacancy.description && !v.positionId ? (
+                <p className="text-xs text-warning-on">Tip: this vacancy has no job description yet.</p>
+              ) : null}
+            </section>
+          ) : null}
 
           <section className="grid gap-2">
             <div className="flex items-center justify-between gap-2">
@@ -128,6 +172,7 @@ export function VacancyDrawer({ id, onClose, onChanged }: { id: string; onClose:
           {actions.length ? (
             <section className="grid gap-2">
               <h3 className="text-sm font-semibold">Vacancy</h3>
+              {v.published ? <p className="text-xs text-ink-muted">Putting it on hold, closing or cancelling also takes it off the careers page.</p> : null}
               {actions.some((a) => a.needsReason) ? (
                 <Field label="Reason (required to close or cancel; open applications are rejected with it)">
                   <input className="input" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} />

@@ -114,7 +114,10 @@ function Recruitment() {
                         <td className="num tabular">{v.hiredCount} / {v.openings}</td>
                         <td className="num tabular">{active}</td>
                         <td className="text-sm">{formatDate(v.closingDate)}</td>
-                        <td><span className={`badge badge-dot ${vacancyTone[v.status]}`}>{humanize(v.status)}</span></td>
+                        <td>
+                          <span className={`badge badge-dot ${vacancyTone[v.status]}`}>{humanize(v.status)}</span>
+                          {v.published ? <span className="badge badge-info ml-1.5">On careers page</span> : null}
+                        </td>
                       </tr>
                     );
                   })}
@@ -139,6 +142,7 @@ function NewVacancyModal({ branchId, onClose, onCreated }: { branchId: string; o
   const [positionId, setPositionId] = useState("");
   const [employmentType, setEmploymentType] = useState<EmploymentType>("FULL_TIME");
   const [openings, setOpenings] = useState("1");
+  const [description, setDescription] = useState("");
   const [requirements, setRequirements] = useState("");
   const [salaryMin, setSalaryMin] = useState("");
   const [salaryMax, setSalaryMax] = useState("");
@@ -157,7 +161,8 @@ function NewVacancyModal({ branchId, onClose, onCreated }: { branchId: string; o
     setError("");
     try {
       const v = await authenticatedFetch((s) => createVacancy(s, {
-        branchId, title, positionId: positionId || null, employmentType, openings: Number(openings || 1), requirements: requirements || undefined,
+        branchId, title, positionId: positionId || null, employmentType, openings: Number(openings || 1),
+        description: description || undefined, requirements: requirements || undefined,
         salaryMin: salaryMin ? Number(salaryMin) : null, salaryMax: salaryMax ? Number(salaryMax) : null, closingDate: closingDate || null,
       }));
       onCreated(v.summary.id);
@@ -200,7 +205,14 @@ function NewVacancyModal({ branchId, onClose, onCreated }: { branchId: string; o
             </>
           ) : null}
         </div>
-        <Field label="Requirements (optional)"><textarea className="input min-h-20" value={requirements} maxLength={10000} onChange={(e) => setRequirements(e.target.value)} /></Field>
+        <Field label="Job description (shown on the careers page when published)">
+          <textarea className="input min-h-28" value={description} maxLength={10000} placeholder="What the role involves, shifts, team…"
+            onChange={(e) => setDescription(e.target.value)} />
+        </Field>
+        <Field label="Requirements (one per line)">
+          <textarea className="input min-h-20" value={requirements} maxLength={10000} placeholder={"Food handler certificate\nWeekend availability"}
+            onChange={(e) => setRequirements(e.target.value)} />
+        </Field>
       </form>
     </Modal>
   );

@@ -15,6 +15,7 @@ const links = [
   { href: "/reserve", label: "Reservations" },
   { href: "/#about", label: "About" },
   { href: "/#visit", label: "Visit" },
+  { href: "/careers", label: "Careers" },
 ];
 
 export function SiteHeader() {

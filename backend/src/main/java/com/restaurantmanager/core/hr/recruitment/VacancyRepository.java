@@ -10,4 +10,6 @@ public interface VacancyRepository extends JpaRepository<VacancyEntity, UUID> {
     List<VacancyEntity> findAllByOrderByCreatedAtDesc();
 
     List<VacancyEntity> findByBranchIdInOrderByCreatedAtDesc(Collection<UUID> branchIds);
+
+    List<VacancyEntity> findByStatusAndPublishedTrueOrderByPublishedAtDesc(VacancyStatus status);
 }

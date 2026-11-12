@@ -774,6 +774,8 @@ export type VacancySummary = {
   title: string; employmentType: EmploymentType; openings: number; hiredCount: number; salaryMin?: number | null; salaryMax?: number | null;
   payVisible: boolean; status: VacancyStatus; closingDate?: string | null; hiringManagerId?: string | null; hiringManagerName?: string | null;
   openedAt?: string | null; closedAt?: string | null; closeReason?: string | null; daysOpen: number; pipeline: Record<ApplicationStage, number>;
+  /** Advertised on the public careers page (only ever true while the vacancy is open). */
+  published: boolean; publishedAt?: string | null;
   version: number;
 };
 export type ApplicationRow = {
@@ -823,6 +825,8 @@ export const updateVacancy = (s: StaffSession, id: string, body: VacancyInput) =
 export const getVacancy = (s: StaffSession, id: string) => apiRequest<VacancyDetail>(`/hr/vacancies/${id}`, auth(s));
 export const setVacancyStatus = (s: StaffSession, id: string, body: { status: VacancyStatus; reason?: string }) =>
   apiRequest<VacancyDetail>(`/hr/vacancies/${id}/status`, { ...auth(s), method: "POST", body });
+export const setVacancyPublished = (s: StaffSession, id: string, published: boolean) =>
+  apiRequest<VacancyDetail>(`/hr/vacancies/${id}/publish`, { ...auth(s), method: "POST", body: { published } });
 export const addApplication = (s: StaffSession, vacancyId: string, body: { candidateId?: string; candidate?: CandidateInput; note?: string }) =>
   apiRequest<ApplicationDetail>(`/hr/vacancies/${vacancyId}/applications`, { ...auth(s), method: "POST", body });
 export const getApplication = (s: StaffSession, id: string) => apiRequest<ApplicationDetail>(`/hr/applications/${id}`, auth(s));

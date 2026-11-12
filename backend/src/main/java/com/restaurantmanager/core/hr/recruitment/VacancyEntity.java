@@ -40,6 +40,9 @@ public class VacancyEntity {
     @Column(name = "closing_date") private LocalDate closingDate;
     @Column(name = "hiring_manager_id") private UUID hiringManagerId;
     @Column(name = "opened_at") private Instant openedAt;
+    /** Advertised on the public careers page (only while the vacancy is open). */
+    @Column(nullable = false) private boolean published;
+    @Column(name = "published_at") private Instant publishedAt;
     @Column(name = "closed_at") private Instant closedAt;
     @Column(name = "close_reason", length = 500) private String closeReason;
     @Column(name = "created_by") private UUID createdBy;
@@ -93,6 +96,10 @@ public class VacancyEntity {
     public void setHiringManagerId(UUID v) { this.hiringManagerId = v; }
     public Instant getOpenedAt() { return openedAt; }
     public void setOpenedAt(Instant v) { this.openedAt = v; }
+    public boolean isPublished() { return published; }
+    public void setPublished(boolean v) { this.published = v; }
+    public Instant getPublishedAt() { return publishedAt; }
+    public void setPublishedAt(Instant v) { this.publishedAt = v; }
     public Instant getClosedAt() { return closedAt; }
     public void setClosedAt(Instant v) { this.closedAt = v; }
     public String getCloseReason() { return closeReason; }
