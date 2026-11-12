@@ -6,50 +6,30 @@ import { BillBreakdown } from "@/components/BillBreakdown";
 import { Skeleton } from "@/components/Skeleton";
 import { humanize } from "@/components/ui";
 import { useStaffSession } from "@/components/SessionProvider";
-import { getReceiptByOrderId, getReceiptByPaymentId, lookupOrder, type ReceiptRecord } from "@/lib/apiClient";
-
-const FULL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { findReceipt, type ReceiptRecord } from "@/lib/apiClient";
 
 export default function ReceiptsPage() {
   const { session, loading, authenticatedFetch } = useStaffSession();
-  const [orderNumber, setOrderNumber] = useState("");
-  const [paymentId, setPaymentId] = useState("");
+  const [query, setQuery] = useState("");
   const [receipt, setReceipt] = useState<ReceiptRecord | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  /** Finds the receipt from the number on the ticket (e.g. 7D63D7F5) or a full order id. */
-  async function loadByOrder(value: string) {
+  /**
+   * Finds a receipt from anything the cashier has: the order number on the ticket (7D63D7F5), the receipt number
+   * (RCP-20261112-2FE7D111), the payment reference (CASH-DADB89D6) or a full order or payment id.
+   */
+  async function search(value: string) {
     const input = value.trim();
     if (!session || !input) return;
     setBusy(true);
     setError("");
     try {
-      const orderId = FULL_ID.test(input)
-        ? input
-        : (await authenticatedFetch((activeSession) => lookupOrder(activeSession, input))).id;
-      setReceipt(await authenticatedFetch((activeSession) => getReceiptByOrderId(activeSession, orderId)));
+      setReceipt(await authenticatedFetch((activeSession) => findReceipt(activeSession, input)));
     } catch (err) {
       setReceipt(null);
       const text = err instanceof Error ? err.message : "Could not load the receipt";
-      setError(/not found|no .*payment|unpaid/i.test(text) && !/order with number/i.test(text)
-        ? `No receipt for ${input.toUpperCase()} yet: the order has not been paid.`
-        : text);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function byPayment(event: FormEvent) {
-    event.preventDefault();
-    if (!session || !paymentId.trim()) return;
-    setBusy(true);
-    setError("");
-    try {
-      setReceipt(await authenticatedFetch((activeSession) => getReceiptByPaymentId(activeSession, paymentId.trim())));
-    } catch (err) {
-      setReceipt(null);
-      setError(err instanceof Error ? err.message : "Could not load the receipt for that payment");
+      setError(text === "Receipt not found" ? `No receipt for ${input.toUpperCase()} yet: it has not been paid.` : text);
     } finally {
       setBusy(false);
     }
@@ -58,10 +38,11 @@ export default function ReceiptsPage() {
   // Opened from a payment ("Receipt" button): /receipts?order=7D63D7F5
   useEffect(() => {
     if (!session) return;
-    const fromLink = new URLSearchParams(window.location.search).get("order");
+    const params = new URLSearchParams(window.location.search);
+    const fromLink = params.get("order") ?? params.get("q");
     if (fromLink) {
-      setOrderNumber(fromLink);
-      void loadByOrder(fromLink);
+      setQuery(fromLink);
+      void search(fromLink);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user.id]);
@@ -74,26 +55,18 @@ export default function ReceiptsPage() {
       <section className="panel">
         <p className="kicker">Receipts</p>
         <h1 className="heading-lg mt-1">Receipt Center</h1>
-        <p className="mt-2 text-ink-soft">Find a paid order&apos;s receipt by the number on its ticket.</p>
+        <p className="mt-2 text-ink-soft">Find a receipt from anything on the ticket or the payment.</p>
 
-        <form className="mt-4 grid gap-2" onSubmit={(e) => { e.preventDefault(); void loadByOrder(orderNumber); }}>
+        <form className="mt-4 grid gap-2" onSubmit={(e: FormEvent) => { e.preventDefault(); void search(query); }}>
           <label className="field">
-            <span className="field-label">Order number</span>
+            <span className="field-label">Order number, receipt number or payment reference</span>
             <div className="flex gap-2">
-              <input className="input min-w-0 flex-1 font-mono uppercase" placeholder="e.g. 7D63D7F5" value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} />
-              <button type="submit" className="btn btn-primary btn-md" disabled={busy || !orderNumber.trim()}>Find receipt</button>
+              <input className="input min-w-0 flex-1 font-mono uppercase" placeholder="e.g. 7D63D7F5" value={query} onChange={(e) => setQuery(e.target.value)} />
+              <button type="submit" className="btn btn-primary btn-md" disabled={busy || !query.trim()}>Find receipt</button>
             </div>
-            <span className="text-xs text-ink-muted">With or without #. A full order id also works.</span>
+            <span className="text-xs text-ink-muted">For example 7D63D7F5, RCP-20261112-2FE7D111 or CASH-DADB89D6. A full order or payment id also works.</span>
           </label>
         </form>
-
-        <details className="mt-4 text-sm">
-          <summary className="cursor-pointer text-ink-soft">Find by payment ID instead</summary>
-          <form className="mt-2 flex gap-2" onSubmit={(e) => void byPayment(e)}>
-            <input className="input min-w-0 flex-1 font-mono text-sm" placeholder="Payment ID" value={paymentId} onChange={(e) => setPaymentId(e.target.value)} />
-            <button type="submit" className="btn btn-secondary btn-md" disabled={busy || !paymentId.trim()}>Find</button>
-          </form>
-        </details>
 
         {error ? <p className="mt-3 alert alert-danger" role="alert">{error}</p> : null}
       </section>

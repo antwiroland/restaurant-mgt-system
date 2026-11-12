@@ -12,6 +12,11 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, UUID> {
 
     Optional<PaymentEntity> findByPaystackReference(String paystackReference);
 
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT p FROM PaymentEntity p WHERE lower(cast(p.id as String)) LIKE :prefix ORDER BY p.createdAt DESC")
+    List<PaymentEntity> findByIdPrefix(@org.springframework.data.repository.query.Param("prefix") String prefix,
+                                       org.springframework.data.domain.Pageable pageable);
+
     List<PaymentEntity> findByOrderIdOrderByCreatedAtDesc(UUID orderId);
 
     List<PaymentEntity> findByOrderIdAndStatus(UUID orderId, PaymentStatus status);

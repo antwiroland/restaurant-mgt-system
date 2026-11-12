@@ -1411,6 +1411,11 @@ export async function getReceiptByPaymentId(session: StaffSession, paymentId: st
   return apiRequest<ReceiptRecord>(`/payments/${paymentId}/receipt`, { token: session.accessToken });
 }
 
+/** One search for a receipt: order number (7D63D7F5), receipt number (RCP-…), payment reference (CASH-…) or a full id. */
+export async function findReceipt(session: StaffSession, query: string): Promise<ReceiptRecord> {
+  return apiRequest<ReceiptRecord>(`/payments/receipts/search?q=${encodeURIComponent(query.trim())}`, { token: session.accessToken });
+}
+
 export async function getReceiptByOrderId(session: StaffSession, orderId: string): Promise<ReceiptRecord> {
   return apiRequest<ReceiptRecord>(`/payments/orders/${orderId}/receipt`, { token: session.accessToken });
 }

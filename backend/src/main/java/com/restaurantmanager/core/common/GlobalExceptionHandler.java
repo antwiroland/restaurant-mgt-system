@@ -65,6 +65,19 @@ public class GlobalExceptionHandler {
                 .body(new ApiError(400, "BAD_REQUEST", "Missing upload field: " + ex.getRequestPartName(), Instant.now()));
     }
 
+    /** A malformed id in the path or query (e.g. a short order number where a full id is expected). */
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleTypeMismatch(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiError(400, "BAD_REQUEST", "Invalid " + ex.getName() + ": " + ex.getValue(), Instant.now()));
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiError> handleMethodNotAllowed(org.springframework.web.HttpRequestMethodNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(new ApiError(405, "METHOD_NOT_ALLOWED", ex.getMethod() + " is not supported here", Instant.now()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleGeneric(Exception ex) {
         log.error("Unexpected error", ex);
