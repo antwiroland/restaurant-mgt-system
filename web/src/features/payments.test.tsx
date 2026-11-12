@@ -17,10 +17,14 @@ const api = vi.hoisted(() => ({
   lookupOrder: vi.fn(),
   retryPayment: vi.fn(),
   verifyPayment: vi.fn(),
+  getReceiptByOrderId: vi.fn(),
+  getReceiptByPaymentId: vi.fn(),
 }));
+vi.mock("@/components/BillBreakdown", () => ({ BillBreakdown: ({ total }: { total: string }) => <p>Total {total}</p> }));
 vi.mock("@/lib/apiClient", () => api);
 
 import PaymentsPage from "@/app/(staff)/payments/page";
+import ReceiptsPage from "@/app/(staff)/receipts/page";
 
 const order = {
   id: "7d63d7f5-1111-4222-8333-944445555666", type: "DINE_IN", status: "PREPARING", tableNumber: "4",
@@ -74,5 +78,34 @@ describe("Payments page result", () => {
     expect(await screen.findByText("Waiting for the customer to approve")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Check payment" }));
     await waitFor(() => expect(screen.getByRole("status", { name: "Payment result" })).toHaveTextContent("Payment received"));
+  });
+});
+
+describe("Receipt Center", () => {
+  test("finds a receipt by the number on the ticket", async () => {
+    api.getReceiptByOrderId.mockResolvedValue({
+      receiptNumber: "RCT-0001", paymentId: "p1", orderId: order.id, subtotal: "415.38", total: "415.38", currency: "GHS", paymentMethod: "CASH",
+    });
+    const user = userEvent.setup();
+    render(<ReceiptsPage />);
+
+    await user.type(screen.getByPlaceholderText("e.g. 7D63D7F5"), "#7d63d7f5{Enter}");
+
+    expect(await screen.findByText("RCT-0001")).toBeInTheDocument();
+    expect(api.lookupOrder).toHaveBeenCalledWith(session, "#7d63d7f5");
+    expect(api.getReceiptByOrderId).toHaveBeenCalledWith(session, order.id);
+    expect(screen.getByText("#7D63D7F5")).toBeInTheDocument();
+  });
+
+  test("a full order id skips the lookup; an unpaid order says so", async () => {
+    api.getReceiptByOrderId.mockRejectedValue(new Error("Receipt not found"));
+    const user = userEvent.setup();
+    render(<ReceiptsPage />);
+
+    await user.type(screen.getByPlaceholderText("e.g. 7D63D7F5"), order.id);
+    await user.click(screen.getByRole("button", { name: "Find receipt" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("has not been paid");
+    expect(api.lookupOrder).not.toHaveBeenCalled();
   });
 });

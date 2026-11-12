@@ -310,7 +310,7 @@ function PaymentResult({ outcome, onVerify, onNext }: { outcome: PaymentOutcome;
           <a className="btn btn-secondary btn-sm" href={result.authorizationUrl} target="_blank" rel="noreferrer">Open card payment page</a>
         ) : null}
         {waiting ? <button type="button" className="btn btn-primary btn-sm" onClick={onVerify}>Check payment</button> : null}
-        {result.status === "SUCCESS" ? <Link className="btn btn-secondary btn-sm" href="/receipts">Receipt</Link> : null}
+        {result.status === "SUCCESS" ? <Link className="btn btn-secondary btn-sm" href={`/receipts?order=${outcome.orderNumber}`}>Receipt</Link> : null}
         <button type="button" className="btn btn-secondary btn-sm" onClick={onNext}>Take another payment</button>
       </div>
     </section>
