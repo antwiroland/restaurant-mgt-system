@@ -15,6 +15,9 @@ Describes only what is implemented. Sections for later phases are added as each 
   - `hr.attendance` — clock events (`AttendanceService`, `ClockGateway`), POS staff clock (`PosClockService`), clock PINs
     (`ClockPinService`), breaks, corrections and policies (`AttendanceManagementService`, `AttendancePolicyService`),
     pure calculations (`AttendanceCalculator`)
+  - `hr.timesheet` — timesheets, overtime rules, public holidays, overtime pre-authorisation
+  - `hr.leave` — leave types and entitlements (`LeaveSetupService`), balances, requests and approvals (`LeaveService`),
+    pure arithmetic (`LeaveCalculator`), read-only lookups for scheduling/timesheets (`LeaveLookup`), push (`LeaveNotifier`)
   - `hr.branch` — branch assignment history (`BranchAssignmentRecorder` keeps it consistent), secondary/temporary
     assignments, transfers, branch workforce summary
   - `hr.common` — `HrSequenceService` (gap-tolerant sequential numbers), shared helpers
@@ -303,13 +306,105 @@ originals. The legacy `/timeclock/entries/{id}` editor now also records an appli
 | `GET/PUT/DELETE /hr/employees/{id}/clock-pin` | `hr.attendance.manage` (status also `view`), manageable scope |
 | `GET /hr/me/attendance/status`, `GET /hr/me/attendance`, `POST /hr/me/clock`, `GET/PUT /hr/me/clock-pin` | linked employee |
 
+## 5d. Timesheets and overtime (Phase 5, `V31__hr_timesheets_overtime.sql`)
+
+Summarised from commits `59401ea` / `c3300ea`. Timesheets are generated per employee and period from time entries and published
+shifts as frozen snapshots (`hr_timesheets`, `hr_timesheet_lines`), and move Draft → Submitted → Reviewed → Approved → Locked.
+Effective-dated overtime rules (`hr_overtime_rules`), public holidays (`hr_public_holidays`) and overtime pre-authorisation
+(`hr_overtime_requests`) feed a pure `TimesheetCalculator`. Days on a non-draft timesheet refuse attendance changes (`TimesheetGuard`).
+Endpoints: `/hr/timesheets/**`, `/hr/me/timesheets`, `/hr/overtime-rules`, `/hr/holidays`, `/hr/overtime-requests/**`.
+
+## 5e. Leave (Phase 5, `V32__hr_leave.sql`)
+
+### Data
+
+| Table | Purpose |
+|---|---|
+| `hr_leave_types` | Organisation-wide: `code`, paid, `deducts_balance`, `requires_document`, `allow_negative`, `count_basis` (`WORKDAYS`/`CALENDAR`), ordered `approval_steps` (`REPORTING_MANAGER`, `BRANCH_MANAGER`, `HR`), optional `max_days_per_request`. Seven types are seeded (annual, sick, maternity, paternity, compassionate, unpaid, study); **no entitlements are seeded**. |
+| `hr_leave_policies` | Effective-dated entitlement per type, optionally per branch and/or employment type: `annual_days`, `accrual` (`UPFRONT`/`MONTHLY`), `carry_over_max_days`, `min_service_days`. Never edited; a change is a new row. |
+| `hr_leave_balances` | One row per employee, type and year (`entitled`, `carried_over`, `adjustment`, `used`, `pending`, accrual start, policy). Row-locked (`PESSIMISTIC_WRITE`) for every change. |
+| `hr_leave_transactions` | Append-only ledger behind each balance: `ENTITLEMENT`, `CARRY_OVER`, `ADJUSTMENT`, `PENDING`, `RELEASE`, `USE`, `RESTORE`. |
+| `hr_leave_requests` | Dates (inclusive), half-day flags for the first/last day, counted `days`, status `PENDING`/`APPROVED`/`REJECTED`/`CANCELLED`, the approval chain resolved at request time and `current_step`, optional `document_id`. |
+| `hr_leave_approvals` | One decision per step (unique `request_id, step`). |
+
+Supporting documents are stored as employee documents of type `LEAVE_SUPPORT` (private store, same validation as Phase 1).
+
+### Calculations (`LeaveCalculator`, pure)
+
+| Measure | Rule |
+|---|---|
+| Days | `CALENDAR`: every day. `WORKDAYS`: skips `hr.leave.non-working-days` (default `SAT,SUN`) and public holidays observed at the employee's branch. A half flag makes that end day 0.5; a one-day request with a half flag is 0.5. |
+| Entitlement | Policy days pro-rated by months of employment in the year (hire month counts), to the nearest half day. |
+| Earned | `UPFRONT`: all of it. `MONTHLY`: equal share at the start of each month from the accrual start month, nearest half day; all of it after the year. |
+| Available | earned + carried over + adjustments − used − pending. Checked as of the leave's first day. |
+| Carry-over | Unused balance at the end of last year, never negative, capped by the policy. Written when the new year's balance opens. |
+
+Policy resolution (`LeaveSetupService.resolvePolicy`): among policies matching the employee's home branch and employment type, the
+most specific (branch + type > branch > type > organisation) in force on 1 January — or on the hire date when hired that year. If
+none is in force yet, the first one taking effect later that year applies, so an entitlement configured mid-year covers the current year.
+
+Balances open lazily on first use (request or adjustment) and write their entitlement and carry-over to the ledger; read views
+show the projected balance without writing.
+
+### Requests and approval
+
+- Request validation: active type, employee not exited, end ≥ start, both dates in the same year (split cross-year leave), not before
+  hire date, at least one counted day, ≤ max days per request, no overlap with the employee's pending/approved leave, minimum service,
+  and — for balance types — enough available days unless the type allows negative balances.
+- Booking reserves days as **pending**; final approval moves them to **used**; decline or cancelling a pending request **releases** them;
+  cancelling approved leave **restores** them. Every move is a ledger line.
+- Chain: copied from the type when the request is made; a `REPORTING_MANAGER` step is dropped when the employee has no reporting manager
+  with a login (an empty chain falls back to `BRANCH_MANAGER`).
+- Who decides a step: reporting manager → that manager's login (or `hr.leave.manage` in scope); branch manager → `hr.leave.approve` for
+  the request's branch; HR → `hr.leave.manage` for the branch. Nobody decides their own leave or a request they filed, and each step needs
+  a different person. Declining needs a note. A type that requires a document cannot get its final approval without one.
+- Managers may record leave for an employee (`hr.leave.approve` or `hr.leave.manage`); HR (`hr.leave.manage`) may record it as already
+  approved, which writes every step as approved by them.
+- Employees cancel their own pending leave, or approved leave that has not started; managers cancel any pending/approved leave with a reason.
+- Notifications (push, after commit): approvers of the waiting step on request and after each approval; the employee on the final decision
+  and when a manager cancels.
+
+### Integration
+
+- **Scheduling** (`ScheduleRules.leaveIssue`): approved full-day leave on a day a shift touches → `ON_APPROVED_LEAVE` (blocking, also on
+  publish and swaps); approved half-day → `HALF_DAY_LEAVE` (warning); pending leave → `LEAVE_PENDING` (warning).
+- **Timesheets**: a missed shift on an approved leave day is a `LEAVE,<TYPE>` line and does not count as an absence.
+- **Attendance day board**: such a shift shows `ON_LEAVE` instead of `ABSENT`.
+- The request detail lists shifts already scheduled during the leave so the manager can reassign them.
+
+### Endpoints
+
+| Method & path | Permission |
+|---|---|
+| `GET /hr/leave-types` | any staff (inactive types only with `hr.leave.manage`) |
+| `POST /hr/leave-types`, `PUT /hr/leave-types/{id}` | `hr.leave.manage` + all branches |
+| `GET /hr/leave-policies?leaveTypeId`, `POST /hr/leave-policies` | approve or manage / `hr.leave.manage` (organisation-wide rows: central only) |
+| `GET /hr/employees/{id}/leave-balances?year` | approve or manage, employee visible |
+| `POST /hr/employees/{id}/leave-balances/adjust` (`leaveTypeId`, `year`, `days`, `note`) | `hr.leave.manage`, employee manageable |
+| `GET /hr/leave-balances/{id}/transactions` | own balance, or approve/manage with the employee visible |
+| `GET /hr/leave-requests?status&branchId&from&to&employeeId&awaitingMe` | approve or manage; `awaitingMe=true` works for anyone (e.g. reporting managers) |
+| `POST /hr/leave-requests` (`employeeId`, …, `recordApproved`), `POST /hr/leave-requests/quote` | approve or manage; `recordApproved` needs manage |
+| `GET /hr/leave-requests/{id}`, `POST .../decision`, `POST .../cancel`, `POST .../document` (multipart) | see rules above |
+| `GET /hr/leave-calendar?branchId&from&to` (≤ 93 days) | approve, manage or `hr.schedule.view` + branch |
+| `GET /hr/me/leave-balances`, `GET/POST /hr/me/leave-requests`, `POST /hr/me/leave-requests/quote`, `POST /hr/me/leave-requests/{id}/cancel|document` | linked employee |
+
+### Web
+
+| Route | Purpose | Shown when |
+|---|---|---|
+| `/hr/leave` | To decide, all requests, who's away, types & entitlements | `hr.leave.approve` or `hr.leave.manage` |
+| `/hr/my-leave` | Balances with history, request leave (live day count and balance check), own requests, attach document, cancel | linked employee |
+| `/hr/employees/[id]` → **Leave** tab | Balances (HR adjustments), the employee's requests, record leave | approve or manage |
+
 ## 6. Audit
 
 HR events use the shared `audit_logs` table with `AuditAction.HR_*` values (Phase 2 adds `HR_EMPLOYEE_TRANSFERRED`,
 `HR_BRANCH_ASSIGNMENT_CHANGED`, `HR_BRANCH_ACCESS_CHANGED`; Phase 3 adds `HR_SCHEDULE_CHANGED` and
 `HR_SCHEDULE_PUBLISHED` (entity types `Schedule` / `Branch`), `HR_SHIFT_SWAP_REQUESTED`, `HR_SHIFT_SWAP_DECIDED`,
 `HR_AVAILABILITY_CHANGED`, `HR_SETTINGS_CHANGED`; Phase 4 adds `HR_ATTENDANCE_RECORDED` (manager on behalf),
-`HR_ATTENDANCE_CORRECTION`, `HR_CLOCK_PIN_CHANGED` — PIN values never appear). Individual clock actions are audited in
+`HR_ATTENDANCE_CORRECTION`, `HR_CLOCK_PIN_CHANGED` — PIN values never appear; Phase 5 adds `HR_TIMESHEET_CHANGED`,
+`HR_OVERTIME_DECIDED`, `HR_LEAVE_REQUESTED`, `HR_LEAVE_DECIDED`, `HR_LEAVE_CANCELLED`, `HR_LEAVE_BALANCE_ADJUSTED`; leave types and
+entitlements use `HR_SETTINGS_CHANGED`). Individual clock actions are audited in
 `hr_attendance_events` rather than the shared log. Metadata never contains salary figures, PINs or
 document contents; salary changes are recorded as "changed" without amounts.
 
@@ -352,6 +447,10 @@ open read-only with only the Overview and Branches tabs. The HR Access drawer al
 | `AttendanceUnitTest` (8) | Paid time, late/early grace, overtime, missed clock-out, break pay, shift window, PIN rules, event-time limits |
 | `HrAttendanceIntegrationTest` (11) | POS full shift and account separation, idempotency, PIN lockout persistence, branch rules, unscheduled policy, day board, corrections (originals kept, second person, own record), missing record without approval, self/legacy/POS sharing one open record, manager clock and PIN management, legacy edit history |
 | `web/src/features/hr/attendance/attendance.test.tsx` (6) | Staff clock flow, state-based actions, retry with the same key on network failure, no retry on refusal |
+| `LeaveCalculatorTest` (5) | Workday/calendar counting, holidays, half days, pro-rating, monthly accrual, carry-over cap |
+| `ScheduleRulesTest` (+1) | Approved leave blocks, half-day and pending leave warn, overnight shift into leave |
+| `HrLeaveIntegrationTest` (10) | Self-service request → approve → cancel with ledger, insufficient vs negative-allowed balance, two-step chain with distinct approvers and decline note, required document, reporting-manager step and fallback, scheduling block/warn and conflicts, holidays and half days, cross-year refusal, carry-over cap and HR-only adjustments, HR-recorded leave on timesheet and day board, branch isolation and central configuration |
+| `web/src/features/hr/leave/leave.test.tsx` (4) | Date/day formatting, live quote and submit, quote problems block submit, decline needs note and approve sends decision |
 | `HrPostgresFlywayIntegrationTest` | Same flows on the Flyway schema (tag `postgres`, run with `-Ppostgres-it`) |
 | `web/src/features/hr/hr.test.tsx` (9) | Permission-filtered navigation, employee form validation and payload |
 
@@ -368,5 +467,8 @@ open read-only with only the Overview and Branches tabs. The HR Access drawer al
   clock-out), `HR_CLOCK_PIN_MAX_ATTEMPTS`, `HR_CLOCK_PIN_LOCKOUT_MINUTES`, `RATE_LIMIT_HR_CLOCK_REQUESTS/WINDOW_SECONDS`.
 - Behind the web proxy every POS request reaches the backend from the proxy's address, so the `hrclock` rate-limit bucket is
   shared by all terminals of one web server; size it for shift changes.
+- `HR_LEAVE_NON_WORKING_DAYS` (default `SAT,SUN`): weekdays not counted for `WORKDAYS` leave. Restaurants that trade every day may
+  want this empty. Changing it does not recount existing requests.
+- Leave entitlements are not seeded: configure them in HR > Leave > Types & entitlements before staff request balance-tracked leave.
 - `HR_CONTRACT_EXPIRY_CRON` (default `0 15 1 * * *`, in `app.timezone`) schedules the contract expiry job.
 - Running `-Ppostgres-it` against Docker Engine 29+ needs `DOCKER_API_VERSION=1.44` (older docker-java default is rejected).

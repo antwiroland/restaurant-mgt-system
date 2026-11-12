@@ -8,8 +8,8 @@
 | Module | Human Resource & Workforce Management |
 | Integration branch | `feature/restaurant-hr-management` (from `feature/operations-expansion` @ `35ef1ed`) |
 | Implementation start | 2026-11-09 |
-| Current status | Phases 0–4 complete and merged into the integration branch; Phase 5 (timesheets, overtime, leave) not started |
-| Last updated | 2026-11-09 |
+| Current status | Phases 0–4 merged to `main`; Phase 5 timesheets/overtime merged (PR #4); Phase 5 leave implemented on `feature/hr-leave-management` |
+| Last updated | 2026-11-12 |
 
 ## Overall Progress
 
@@ -21,16 +21,16 @@
 - [x] Shift scheduling (templates, validation, drafts/publishing, coverage, availability, swaps, notifications; legacy rota kept compatible)
 - [x] Attendance (idempotent events, breaks, late/early/overtime, corrections with approval, policies; legacy time clock kept compatible)
 - [x] POS integration (staff clock panel, employee clock PIN with lockout, no effect on POS session or orders)
-- [ ] Leave
-- [ ] Timesheets
-- [ ] Overtime
+- [x] Leave (types, effective-dated entitlements, balances with ledger, approval chains, documents, scheduling/timesheet integration)
+- [x] Timesheets
+- [x] Overtime
 - [ ] Payroll
 - [ ] Tips
 - [ ] Service charges
 - [ ] Recruitment
 - [ ] Performance
 - [ ] Training
-- [~] Self-service — read-only profile, own schedule, availability, swap requests, own time clock and PIN
+- [~] Self-service — read-only profile, own schedule, availability, swap requests, own time clock and PIN, own timesheets, own leave
 - [ ] Reporting / HR dashboard
 - [~] Security — HR permission model, branch isolation, private documents, audit done for Phase 1 scope
 - [ ] Performance optimization / benchmarking
@@ -62,8 +62,13 @@
 | Breaks & attendance policy | [x] | [x] | [x] | [x] | [x] | Complete |
 | Corrections with approval | [x] | [x] | [x] | [x] | [x] | Complete |
 | POS staff clock & clock PIN | [x] | [x] | [x] | [x] | [x] | Complete (no offline queue: web POS has no offline mode) |
+| Timesheets & overtime | [x] | [x] | [x] | [x] | [x] | Complete (commits `59401ea`, `c3300ea`) |
+| Leave types & entitlements | [x] | [x] | [x] | [x] | [x] | Complete (no entitlements seeded by design) |
+| Leave balances & ledger | [x] | [x] | [x] | [x] | [x] | Complete (carry-over applied when the next year's balance opens) |
+| Leave requests & approval chain | [x] | [x] | [x] | [x] | [x] | Complete |
+| Leave ↔ scheduling / timesheets / day board | — | [x] | [x] | — | [x] | Complete |
 | Missed clock-out / late notifications | — | [ ] | — | — | [ ] | Flags shown on the board; push alerts not built yet |
-| Scheduling … analytics (Phases 3–11) | [ ] | [ ] | [ ] | [ ] | [ ] | Not started |
+| Payroll … analytics (Phases 6–11) | [ ] | [ ] | [ ] | [ ] | [ ] | Not started |
 
 ## Git History
 
@@ -93,6 +98,11 @@
 | `feature/hr-pos-integration` | `78ccc19` | docs(hr): record Phase 4 attendance and POS design, tests and progress | 2026-11-09 | Phase 4 docs |
 | `feature/restaurant-hr-management` | `d0bddf2` | Merge of `feature/hr-attendance` (no fast-forward) | 2026-11-09 | Phase 4 integration |
 | `feature/restaurant-hr-management` | `6dde03f` | Merge of `feature/hr-pos-integration` (no fast-forward) | 2026-11-09 | Phase 4 integration |
+| `feature/hr-timesheets-overtime` | `59401ea` | feat(hr): add timesheets with approval workflow and effective-dated overtime rules | 2026-11-09 | Phase 5 backend |
+| `feature/hr-timesheets-overtime` | `c3300ea` | feat(hr): add timesheet review screens and overtime settings | 2026-11-09 | Phase 5 web |
+| `feature/hr-leave-management` | `3c71f5f` | feat: Leave Management (V32 schema and enums only) | 2026-11-09 | Phase 5 leave schema |
+| `main` | `7fc0723` | Merge PR #4 (`feature/hr-leave-management`) | 2026-11-09 | Phase 5 integration |
+| `feature/hr-leave-management` | _uncommitted_ | Leave backend, web, tests and docs (this update) | 2026-11-12 | Phase 5 leave |
 
 ## Development Log
 
@@ -115,6 +125,9 @@
 
 | 2026-11-09 | Phase 4 backend | V30, `hr.attendance` package, legacy time clock adjustments, `hrclock` rate-limit bucket | Backend `mvn test`: **354 run, 0 failures, 0 errors** (335 + 8 unit + 11 attendance). One real bug found by the tests and fixed (self PIN change after a failed attempt hit an optimistic-lock conflict) | `feature/hr-attendance` | `16d0654` |
 | 2026-11-09 | V30 on PostgreSQL | Migrated to V29 with legacy time entries (linked closed, unlinked open), applied V30: linked row got its employee, unlinked open row untouched. Smoke-tested PIN set, roster, POS clock-in (unscheduled flag), idempotent replay, meal break, clock-out, wrong PIN 401, day board, entries, correction (originals kept), corrections list, legacy timesheet/status, policy — no errors. Found that unlinked legacy entries appeared as nameless rows on the HR day board; fixed by excluding them from HR views | Manual, passed after fix | `feature/hr-attendance` | `16d0654` |
+| 2026-11-12 | Phase 5 leave backend | `hr.leave` package on V32 (no new migration), `LEAVE_SUPPORT` document type, leave rule in `ScheduleRules`, leave lines on timesheets, `ON_LEAVE` on the day board, `HrDocumentService.store` extracted | Backend `mvn test`: **384 run, 0 failures, 0 errors**; leave suites 10 + 5 + 1 new | `feature/hr-leave-management` | uncommitted |
+| 2026-11-12 | V32 on PostgreSQL | Booted the packaged app on a temporary `postgres:16-alpine`: Flyway applied V1–V32, Hibernate `validate` passed, seven leave types seeded. API smoke test (entitlement, employee + login link, quote, request, overlap 409, awaiting-me, employee/branch lists, calendar, approve, balance and ledger, shift on approved leave 409, HR adjustment, negative-allowed sick leave, cancel): **28/28 passed** | Manual, passed | `feature/hr-leave-management` | uncommitted |
+| 2026-11-12 | Phase 5 leave web | `/hr/leave`, `/hr/my-leave`, profile Leave tab, leave API client, nav entries, `LEAVE` timesheet flag | `vitest` HR suites **25/25** (4 new leave + 1 nav); full web suite 61/64 with the 3 pre-existing `guest.test.tsx` failures; `tsc` and ESLint clean; `next build` passes | `feature/hr-leave-management` | uncommitted |
 | 2026-11-09 | Phase 4 web | Attendance page, PIN card, My time clock; POS staff clock panel | `vitest` HR suites 20/20; ESLint and `tsc` clean; `next build` passes | `feature/hr-attendance`, `feature/hr-pos-integration` | `953b890`, `b41efea` |
 
 ## Outstanding Issues
@@ -135,7 +148,15 @@
 - **Rate limiting behind the proxy:** all POS terminals share one `hrclock` bucket because the web proxy does not forward client IPs.
 - **Roster query cost:** the POS roster runs a small query per person (break, today's shift); fine for branch-sized rosters,
   revisit if a branch has hundreds of staff.
-- **Leave conflicts:** scheduling warns on `ON_LEAVE` status only; approved leave periods will be checked once Phase 5 adds leave requests.
+- **Leave and employment status:** approved leave does not switch `employment_status` to `ON_LEAVE` automatically; scheduling, timesheets
+  and the day board use the approved leave periods instead.
+- **Leave across a year end:** must be requested as two requests (balances are per calendar year).
+- **Partial return from leave:** approved leave can be cancelled as a whole, not shortened; cancel and re-request the shorter period.
+- **Carry-over timing:** carry-over is fixed when next year's balance first opens; later changes to last year's balance are not carried.
+- **New entitlements and open balances:** a policy added after a year's balance has opened does not change that balance; use an adjustment.
+- **Small branches:** each approval step needs a different person and nobody approves a request they filed; HR can use
+  "record as already approved" for leave agreed outside the system.
+- **Leave seed data:** `seed_hr.py` does not create leave entitlements or requests yet.
 - **Time zones:** the web board enters and shows times in the browser's local zone; devices should use the restaurant's zone.
 - **Notification delivery:** schedule notifications reuse Expo push (after commit, de-duplicated); there is no in-app inbox yet.
 - **Scheduled transfers:** transfers cannot be dated in the future (no job applies them yet); record them on the day.
@@ -146,7 +167,7 @@
 
 ## Next Actions
 
-1. Phase 5 (`feature/hr-timesheets-overtime`, `feature/hr-leave-management`): timesheets built from time entries
-   (draft → submitted → reviewed → approved → locked), effective-dated overtime rules and approval, leave types, policies,
-   balances and accrual, leave requests with configurable approval chain, and approved leave as a scheduling conflict.
-2. Fix the Testcontainers environment or CI job so the `postgres` test group runs on every phase.
+1. Review and commit the leave implementation on `feature/hr-leave-management`, then open a PR to `main`.
+2. Extend `seed_hr.py` with leave entitlements, balances and sample requests.
+3. Phase 6: payroll (reads locked timesheets and paid/unpaid leave).
+4. Fix the Testcontainers environment or CI job so the `postgres` test group runs on every phase.
