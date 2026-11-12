@@ -21,6 +21,7 @@ export const timesheetTone: Record<TimesheetStatus, string> = {
 
 const flagTone: Record<string, string> = {
   ABSENT: "badge-danger",
+  LEAVE: "badge-info",
   OPEN: "badge-warning",
   UNSCHEDULED: "badge-gold",
   CORRECTED: "badge-info",

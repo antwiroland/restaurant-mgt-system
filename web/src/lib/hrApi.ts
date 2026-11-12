@@ -15,7 +15,7 @@ export type ContractStatus = "DRAFT" | "ACTIVE" | "EXPIRED" | "ENDED" | "RENEWED
 export type SalaryType = "MONTHLY" | "WEEKLY" | "DAILY" | "HOURLY" | "CONTRACT_SUM" | "COMMISSION";
 export type DocumentType =
   | "EMPLOYMENT_CONTRACT" | "IDENTIFICATION" | "CV" | "ACADEMIC_CERTIFICATE" | "FOOD_SAFETY_CERTIFICATE"
-  | "MEDICAL_FITNESS" | "TRAINING_CERTIFICATE" | "PHOTO" | "OTHER";
+  | "MEDICAL_FITNESS" | "TRAINING_CERTIFICATE" | "PHOTO" | "LEAVE_SUPPORT" | "OTHER";
 
 export const STAFF_CATEGORIES: StaffCategory[] = ["MANAGEMENT", "FRONT_OF_HOUSE", "KITCHEN", "BAR", "OPERATIONS", "SUPPORT", "ADMINISTRATION", "OTHER"];
 export const EMPLOYMENT_TYPES: EmploymentType[] = ["FULL_TIME", "PART_TIME", "CASUAL", "CONTRACT", "TEMPORARY", "INTERN", "SEASONAL"];
@@ -531,3 +531,101 @@ export const requestOvertime = (s: StaffSession, body: { employeeId: string; bra
   apiRequest<OvertimeRequest>("/hr/overtime-requests", { ...auth(s), method: "POST", body });
 export const decideOvertime = (s: StaffSession, id: string, body: { approve: boolean; note?: string }) =>
   apiRequest<OvertimeRequest>(`/hr/overtime-requests/${id}/decision`, { ...auth(s), method: "POST", body });
+
+// ---------------------------------------------------------------------------
+// Leave (Phase 5)
+// ---------------------------------------------------------------------------
+
+export type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+export type ApprovalStep = "REPORTING_MANAGER" | "BRANCH_MANAGER" | "HR";
+export type CountBasis = "CALENDAR" | "WORKDAYS";
+export type Accrual = "UPFRONT" | "MONTHLY";
+export const APPROVAL_STEPS: ApprovalStep[] = ["REPORTING_MANAGER", "BRANCH_MANAGER", "HR"];
+
+export type LeaveType = {
+  id: string; code: string; name: string; paid: boolean; deductsBalance: boolean; requiresDocument: boolean; allowNegative: boolean;
+  countBasis: CountBasis; approvalSteps: ApprovalStep[]; maxDaysPerRequest?: number | null; active: boolean; displayOrder: number;
+};
+export type LeaveTypeInput = Omit<LeaveType, "id">;
+export type LeavePolicy = {
+  id: string; leaveTypeId: string; leaveTypeName?: string | null; branchId?: string | null; employmentType?: EmploymentType | null;
+  annualDays: number; accrual: Accrual; carryOverMaxDays: number; minServiceDays: number; effectiveFrom: string; createdAt: string;
+};
+export type LeavePolicyInput = {
+  leaveTypeId: string; branchId?: string | null; employmentType?: EmploymentType | null; annualDays: number; accrual: Accrual;
+  carryOverMaxDays?: number; minServiceDays?: number; effectiveFrom: string;
+};
+export type LeaveBalance = {
+  id?: string | null; leaveTypeId: string; leaveTypeCode: string; leaveTypeName: string; year: number; entitledDays: number; accrual: Accrual;
+  earnedDays: number; carriedOverDays: number; adjustmentDays: number; usedDays: number; pendingDays: number; availableDays: number;
+  allowNegative: boolean; hasPolicy: boolean;
+};
+export type LeaveTransaction = { id: string; kind: string; days: number; requestId?: string | null; note?: string | null; actorName?: string | null; createdAt: string };
+export type LeaveStep = { step: number; code: ApprovalStep; decision?: "APPROVED" | "REJECTED" | null; decidedByName?: string | null; note?: string | null; decidedAt?: string | null };
+export type LeaveShiftConflict = { scheduleId: string; branchId?: string | null; startsAt: string; endsAt: string; status: string };
+export type LeaveRequest = {
+  id: string; employeeId: string; employeeName?: string | null; branchId?: string | null; leaveTypeId: string; leaveTypeCode?: string | null;
+  leaveTypeName?: string | null; paid: boolean; startDate: string; endDate: string; startHalf: boolean; endHalf: boolean; days: number;
+  reason?: string | null; status: LeaveStatus; steps: LeaveStep[]; pendingStep?: ApprovalStep | null; canDecide: boolean;
+  documentRequired: boolean; documentId?: string | null; cancelReason?: string | null; decidedAt?: string | null; createdAt: string;
+  conflictingShifts?: LeaveShiftConflict[] | null;
+};
+export type LeaveRequestInput = {
+  leaveTypeId: string; startDate: string; endDate: string; startHalf?: boolean; endHalf?: boolean; reason?: string;
+};
+export type LeaveQuote = { days: number; availableDays?: number | null; deductsBalance: boolean; requiresDocument: boolean; problems: string[] };
+
+export const getLeaveTypes = (s: StaffSession) => apiRequest<LeaveType[]>("/hr/leave-types", auth(s));
+export const createLeaveType = (s: StaffSession, body: LeaveTypeInput) => apiRequest<LeaveType>("/hr/leave-types", { ...auth(s), method: "POST", body });
+export const updateLeaveType = (s: StaffSession, id: string, body: LeaveTypeInput) =>
+  apiRequest<LeaveType>(`/hr/leave-types/${id}`, { ...auth(s), method: "PUT", body });
+export const getLeavePolicies = (s: StaffSession, leaveTypeId?: string) =>
+  apiRequest<LeavePolicy[]>(`/hr/leave-policies${query({ leaveTypeId })}`, auth(s));
+export const addLeavePolicy = (s: StaffSession, body: LeavePolicyInput) =>
+  apiRequest<LeavePolicy>("/hr/leave-policies", { ...auth(s), method: "POST", body });
+
+export const getLeaveBalances = (s: StaffSession, employeeId: string, year?: number) =>
+  apiRequest<LeaveBalance[]>(`/hr/employees/${employeeId}/leave-balances${query({ year })}`, auth(s));
+export const adjustLeaveBalance = (s: StaffSession, employeeId: string, body: { leaveTypeId: string; year: number; days: number; note: string }) =>
+  apiRequest<LeaveBalance>(`/hr/employees/${employeeId}/leave-balances/adjust`, { ...auth(s), method: "POST", body });
+export const getLeaveTransactions = (s: StaffSession, balanceId: string) =>
+  apiRequest<LeaveTransaction[]>(`/hr/leave-balances/${balanceId}/transactions`, auth(s));
+
+export const getLeaveRequests = (
+  s: StaffSession,
+  params: { status?: LeaveStatus; branchId?: string; from?: string; to?: string; awaitingMe?: boolean; employeeId?: string } = {},
+) => apiRequest<LeaveRequest[]>(`/hr/leave-requests${query(params)}`, auth(s));
+export const getLeaveRequest = (s: StaffSession, id: string) => apiRequest<LeaveRequest>(`/hr/leave-requests/${id}`, auth(s));
+export const requestLeaveFor = (s: StaffSession, body: LeaveRequestInput & { employeeId: string; recordApproved?: boolean }) =>
+  apiRequest<LeaveRequest>("/hr/leave-requests", { ...auth(s), method: "POST", body });
+export const quoteLeaveFor = (s: StaffSession, body: LeaveRequestInput & { employeeId: string }) =>
+  apiRequest<LeaveQuote>("/hr/leave-requests/quote", { ...auth(s), method: "POST", body });
+export const decideLeave = (s: StaffSession, id: string, body: { approve: boolean; note?: string }) =>
+  apiRequest<LeaveRequest>(`/hr/leave-requests/${id}/decision`, { ...auth(s), method: "POST", body });
+export const cancelLeaveFor = (s: StaffSession, id: string, reason: string) =>
+  apiRequest<LeaveRequest>(`/hr/leave-requests/${id}/cancel`, { ...auth(s), method: "POST", body: { reason } });
+export const getLeaveCalendar = (s: StaffSession, branchId: string, from: string, to: string) =>
+  apiRequest<LeaveRequest[]>(`/hr/leave-calendar${query({ branchId, from, to })}`, auth(s));
+
+export const getMyLeaveBalances = (s: StaffSession, year?: number) => apiRequest<LeaveBalance[]>(`/hr/me/leave-balances${query({ year })}`, auth(s));
+export const getMyLeaveRequests = (s: StaffSession) => apiRequest<LeaveRequest[]>("/hr/me/leave-requests", auth(s));
+export const requestMyLeave = (s: StaffSession, body: LeaveRequestInput) =>
+  apiRequest<LeaveRequest>("/hr/me/leave-requests", { ...auth(s), method: "POST", body });
+export const quoteMyLeave = (s: StaffSession, body: LeaveRequestInput) =>
+  apiRequest<LeaveQuote>("/hr/me/leave-requests/quote", { ...auth(s), method: "POST", body });
+export const cancelMyLeave = (s: StaffSession, id: string, reason?: string) =>
+  apiRequest<LeaveRequest>(`/hr/me/leave-requests/${id}/cancel`, { ...auth(s), method: "POST", body: { reason } });
+
+/** Attaches a supporting document (for example a sick note); `own` uses the self-service endpoint. */
+export async function attachLeaveDocument(s: StaffSession, id: string, file: File, own: boolean): Promise<LeaveRequest> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(`${API_PREFIX}/hr/${own ? "me/" : ""}leave-requests/${id}/document`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${s.accessToken}` },
+    body: form,
+    cache: "no-store",
+  });
+  if (!response.ok) throw await rawError(response, "Upload failed");
+  return (await response.json()) as LeaveRequest;
+}
