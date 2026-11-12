@@ -26,6 +26,7 @@ import {
   getPayment,
   getTables,
   initiatePayment,
+  lookupOrder,
   quoteOrder,
   sendOrderToPrinter,
   verifyPayment,
@@ -310,7 +311,7 @@ export default function PosPage() {
   async function handleInitiatePayment() {
     if (!session) return;
     const nextFieldErrors: { createdOrderId?: string; momoPhone?: string } = {};
-    if (!createdOrderId.trim()) nextFieldErrors.createdOrderId = "Order ID is required";
+    if (!createdOrderId.trim()) nextFieldErrors.createdOrderId = "Enter the order number";
     const cash = paymentMethod === "CASH";
     // Cash is recorded at the counter; MoMo and card go through the provider and need the payer's phone.
     if (!cash && !momoPhone.trim()) nextFieldErrors.momoPhone = paymentMethod === "MOBILE_MONEY" ? "Enter the customer's MoMo number" : "Enter the customer's phone number";
@@ -327,13 +328,25 @@ export default function PosPage() {
     setMessage(null);
     setPaymentFieldErrors({});
     try {
+      // "Pay existing": staff type the number on the ticket (e.g. 7D63D7F5); resolve it to the order first.
+      let target = createdOrder;
+      if (!target || target.id !== createdOrderId.trim()) {
+        target = await authenticatedFetch((activeSession) => lookupOrder(activeSession, createdOrderId));
+        setCreatedOrder(target);
+        setCreatedOrderId(target.id);
+        if (tenderedAmount !== undefined && tenderedAmount < Number(target.total)) {
+          setPaymentFieldErrors({ momoPhone: `Amount received is less than ${formatMoney(target.total)}` });
+          return;
+        }
+      }
+      const orderId = target.id;
       const initiated = await authenticatedFetch((activeSession) =>
         initiatePayment(activeSession, {
-          orderId: createdOrderId.trim(),
+          orderId,
           method: paymentMethod,
           momoPhone: cash ? undefined : momoPhone.trim(),
           amountTendered: tenderedAmount,
-          idempotencyKey: `pos-${createdOrderId}-${Date.now()}`,
+          idempotencyKey: `pos-${orderId}-${Date.now()}`,
         }),
       );
       setChangeDue(initiated.changeDue == null ? null : Number(initiated.changeDue));
@@ -765,12 +778,12 @@ export default function PosPage() {
                 </div>
               ) : (
                 <label className="field">
-                  <span className="field-label">Order ID</span>
+                  <span className="field-label">Order number</span>
                   <input
-                    className="input font-mono"
+                    className="input font-mono uppercase"
                     value={createdOrderId}
                     onChange={(event) => setCreatedOrderId(event.target.value)}
-                    placeholder="Paste the order ID to charge"
+                    placeholder="e.g. 7D63D7F5 (on the ticket)"
                     aria-invalid={paymentFieldErrors.createdOrderId ? true : undefined}
                     aria-describedby={paymentFieldErrors.createdOrderId ? "pos-order-id-error" : undefined}
                   />

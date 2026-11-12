@@ -79,7 +79,7 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative z-10 grid w-full max-h-[100dvh] gap-4 overflow-y-auto rounded-t-[var(--radius-modal)] border border-line bg-surface p-5 shadow-xl
+        className="relative z-10 grid grid-cols-[minmax(0,1fr)] w-full max-h-[100dvh] gap-4 overflow-y-auto overflow-x-hidden rounded-t-[var(--radius-modal)] border border-line bg-surface p-5 shadow-xl
                    animate-[modalIn_var(--duration-base)_var(--ease-out)] sm:max-h-[85dvh] sm:max-w-[520px] sm:rounded-[var(--radius-modal)] sm:p-6"
       >
         {title ? (

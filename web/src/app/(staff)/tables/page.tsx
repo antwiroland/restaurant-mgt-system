@@ -469,7 +469,7 @@ export default function TablesPage() {
 
       <Drawer open={!!selectedTable} title={selectedTable ? `Table ${selectedTable.number}` : "Table Details"} onClose={() => setSelectedTableId(null)}>
         {selectedTable ? (
-          <div className="grid gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <section className="grid grid-cols-3 gap-2 rounded-xl bg-ivory p-3 text-sm">
               <div><p className="text-xs text-ink-muted">Status</p><StatusBadge status={selectedTable.status} className="mt-1" /></div>
               <div><p className="text-xs text-ink-muted">Zone</p><p className="mt-1 font-semibold">{selectedTable.zone || "Main floor"}</p></div>
@@ -517,16 +517,16 @@ export default function TablesPage() {
               </div>
             </section>
 
-            <section className="grid gap-2">
+            <section className="grid grid-cols-1 gap-2">
               <p className="field-label">Active orders</p>
               {selectedTableOrders.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-line p-3 text-sm text-ink-soft">No active orders for this table.</p>
               ) : (
-                <ul className="grid gap-2">
+                <ul className="grid grid-cols-1 gap-2">
                   {selectedTableOrders.map((order) => (
                     <li key={order.id}>
                       <Link href={`/orders/${order.id}`} className="flex items-center justify-between gap-3 rounded-xl border border-line p-3 text-sm hover:border-line-strong">
-                        <span className="min-w-0">
+                        <span className="min-w-0 flex-1">
                           <span className="font-mono font-semibold">#{order.id.slice(0, 8).toUpperCase()}</span>
                           <span className="block truncate text-ink-soft">{order.items.map((item) => `${item.quantity}× ${item.name}`).join(", ")}</span>
                         </span>
@@ -558,7 +558,7 @@ export default function TablesPage() {
 
             <section className="grid gap-2 rounded-xl border border-line p-3">
               <p className="field-label">Guest QR link</p>
-              <code className="input overflow-x-auto">{selectedTable.qrToken}</code>
+              <code className="input block min-w-0 break-all font-mono text-xs leading-relaxed">{selectedTable.qrToken}</code>
               <div className="flex flex-wrap gap-2">
                 <button className="btn btn-secondary btn-sm" onClick={() => void copyToken(selectedTable.qrToken)}>
                   {copied ? "Copied" : "Copy Token"}

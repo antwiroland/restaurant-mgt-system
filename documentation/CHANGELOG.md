@@ -588,3 +588,21 @@ Dine-in stays pay-at-the-end; guests are never prompted. Staff are told when to 
 
 ### Verified
 - Backend `mvn test`: 426 run, 0 failures (+2 in `TablePaymentIntegrationTest`); web 97 passed; `tsc` clean.
+
+---
+
+## [Fixes - staff screen layout and payments] - 2026-11-12
+
+### Fixed
+- The phone bottom bar showed on every screen size (an inline `display: grid` overrode `lg:hidden`). On laptops it
+  covered the bottom of pages: the POS "Send to kitchen" button and the last rows' Cancel buttons on Orders.
+- Orders list: the action buttons and total stay on one line instead of wrapping under each other.
+- Table drawer overflowed sideways: a long item list widened the drawer's grid. Drawers and modals now use a
+  shrinkable single column, and the table drawer's lists truncate.
+- Payments page: cash no longer asks for a MoMo number (cash takes an optional amount received and shows change; the
+  phone is required for Mobile Money only, optional for card).
+- Orders can be found by the number on the ticket (e.g. 7D63D7F5, with or without #) on the Payments page and in the
+  POS "Pay existing" flow: `GET /orders/lookup?number=` (admin, manager, cashier; 404 if none, 409 if ambiguous).
+
+### Verified
+- Backend 427 tests, web 97, `tsc` clean; checked in a browser at 1366×768 and 390×844.

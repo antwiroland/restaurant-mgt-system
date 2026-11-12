@@ -173,7 +173,7 @@ export default function OrdersPage() {
     const busy = updatingId === order.id;
     const cancellable = !["CANCELLED", "VOIDED", "COMPLETED", "DELIVERED"].includes(order.status);
     return (
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className={`flex items-center justify-end gap-2 ${size === "sm" ? "flex-nowrap whitespace-nowrap" : "flex-wrap"}`}>
         {next ? (
           <button className={`btn btn-primary btn-${size}`} disabled={busy} onClick={() => void handleStatusChange(order.id, next)}>
             {busy ? <Spinner className="text-current" size={16} /> : null}
@@ -306,8 +306,8 @@ export default function OrdersPage() {
                           <p className="truncate text-sm text-ink-soft">{order.items.map((item) => `${item.quantity}× ${item.name}`).join(", ")}</p>
                         </td>
                         <td><StatusBadge status={order.status} /></td>
-                        <td className="num font-semibold">{formatMoney(order.total)}</td>
-                        <td>{actions(order)}</td>
+                        <td className="num whitespace-nowrap font-semibold">{formatMoney(order.total)}</td>
+                        <td className="w-px">{actions(order)}</td>
                       </tr>
                     );
                   })}

@@ -196,6 +196,27 @@ public class OrderService {
         return new Pagination.PagedResult<>(toResponses(page.getContent()), page.getTotalElements());
     }
 
+    /** An order by its full id or the short number staff see (at least 6 of the id's leading characters). */
+    @Transactional(readOnly = true)
+    public OrderResponse lookupByNumber(String number, UserPrincipal principal) {
+        String cleaned = number == null ? "" : number.trim().replaceFirst("^#", "").toLowerCase(java.util.Locale.ROOT);
+        if (cleaned.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) {
+            return getOrder(UUID.fromString(cleaned), principal);
+        }
+        if (!cleaned.matches("[0-9a-f]{6,8}")) {
+            throw new ApiException(400, "Enter the order number, e.g. 7D63D7F5");
+        }
+        List<OrderEntity> matches = orderRepository.findByIdPrefix(cleaned + "%", PageRequest.of(0, 2));
+        if (matches.isEmpty()) {
+            throw new ApiException(404, "No order with number " + cleaned.toUpperCase(java.util.Locale.ROOT));
+        }
+        if (matches.size() > 1) {
+            throw new ApiException(409, "More than one order starts with " + cleaned.toUpperCase(java.util.Locale.ROOT) + "; enter all 8 characters");
+        }
+        assertOrderAccess(matches.get(0), principal);
+        return toResponse(matches.get(0));
+    }
+
     @Transactional(readOnly = true)
     public OrderResponse getOrder(UUID id, UserPrincipal principal) {
         OrderEntity order = orderRepository.findById(id)

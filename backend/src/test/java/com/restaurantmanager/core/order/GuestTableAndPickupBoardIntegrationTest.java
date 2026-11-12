@@ -210,6 +210,25 @@ class GuestTableAndPickupBoardIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
+    void staffFindAnOrderByTheShortNumberOnTheTicket() throws Exception {
+        String orderId = pickupOrder();
+        String number = orderId.substring(0, 8).toUpperCase();
+        String auth = "Bearer " + accessToken(cashier);
+
+        mockMvc.perform(get("/orders/lookup?number=" + number).header("Authorization", auth))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(orderId));
+        mockMvc.perform(get("/orders/lookup").param("number", "#" + number.toLowerCase()).header("Authorization", auth))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(orderId)); // "#7d63d7f5" works too
+        mockMvc.perform(get("/orders/lookup?number=" + orderId).header("Authorization", auth))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(orderId));
+        mockMvc.perform(get("/orders/lookup?number=ZZ12").header("Authorization", auth)).andExpect(status().isBadRequest());
+        String other = number.charAt(0) == 'F' ? "E" : "F";
+        mockMvc.perform(get("/orders/lookup?number=" + other + number.substring(1)).header("Authorization", auth))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/orders/lookup?number=" + number)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void afterCommit_defersWorkUntilTheTransactionCommits() {
         List<String> ran = new ArrayList<>();
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {

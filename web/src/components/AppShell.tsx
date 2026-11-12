@@ -241,8 +241,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {bottomItems.length > 1 ? (
         <nav
           aria-label="Quick navigation"
-          className="fixed inset-x-0 bottom-0 z-[var(--z-sticky)] border-t border-line bg-surface/95 px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-2 backdrop-blur-md lg:hidden"
-          style={{ display: "grid", gridTemplateColumns: `repeat(${bottomItems.length}, minmax(0, 1fr))` }}
+          className="fixed inset-x-0 bottom-0 z-[var(--z-sticky)] grid border-t border-line bg-surface/95 px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-2 backdrop-blur-md lg:hidden"
+          style={{ gridTemplateColumns: `repeat(${bottomItems.length}, minmax(0, 1fr))` }}
         >
           {bottomItems.map((item) => {
             const active = current?.href === item.href || (!current && isActivePath(pathname, item.href));

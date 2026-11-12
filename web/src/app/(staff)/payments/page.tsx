@@ -4,21 +4,33 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { Skeleton } from "@/components/Skeleton";
 import { useStaffSession } from "@/components/SessionProvider";
+import { formatMoney } from "@/lib/brand";
 import {
   getPayment,
   initiatePayment,
+  lookupOrder,
   retryPayment,
+  type OrderRecord,
   type PaymentInitiateRecord,
   type PaymentMethod,
   type PaymentRecord,
   verifyPayment,
 } from "@/lib/apiClient";
 
+const METHODS: Array<{ value: PaymentMethod; label: string }> = [
+  { value: "CASH", label: "Cash" },
+  { value: "MOBILE_MONEY", label: "Mobile Money" },
+  { value: "CARD", label: "Card" },
+];
+
 export default function PaymentsPage() {
   const { session, loading, authenticatedFetch } = useStaffSession();
-  const [orderId, setOrderId] = useState("");
-  const [method, setMethod] = useState<PaymentMethod>("MOBILE_MONEY");
+  const [orderNumber, setOrderNumber] = useState("");
+  const [order, setOrder] = useState<OrderRecord | null>(null);
+  const [method, setMethod] = useState<PaymentMethod>("CASH");
   const [momoPhone, setMomoPhone] = useState("");
+  const [tendered, setTendered] = useState("");
+  const [busy, setBusy] = useState(false);
   const [idem, setIdem] = useState("");
   const [splitId, setSplitId] = useState("");
   const [lookupPaymentId, setLookupPaymentId] = useState("");
@@ -27,26 +39,66 @@ export default function PaymentsPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  /** Finds the order from the number on the ticket (e.g. 7D63D7F5) so staff never paste an id. */
+  async function findOrder(): Promise<OrderRecord | null> {
+    if (!session || !orderNumber.trim()) return null;
+    if (order && (order.id === orderNumber.trim() || order.id.slice(0, 8).toUpperCase() === orderNumber.trim().replace(/^#/, "").toUpperCase())) {
+      return order;
+    }
+    const found = await authenticatedFetch((activeSession) => lookupOrder(activeSession, orderNumber));
+    setOrder(found);
+    return found;
+  }
+
+  async function onFindOrder() {
+    setError("");
+    setMessage("");
+    try {
+      await findOrder();
+    } catch (err) {
+      setOrder(null);
+      setError(err instanceof Error ? err.message : "Could not find the order");
+    }
+  }
+
   async function onInitiate(event: FormEvent) {
     event.preventDefault();
     if (!session) return;
+    setError("");
+    setMessage("");
+    const cash = method === "CASH";
+    if (method === "MOBILE_MONEY" && !momoPhone.trim()) {
+      setError("Enter the customer's MoMo number");
+      return;
+    }
+    const amountTendered = cash && tendered.trim() ? Number(tendered) : undefined;
+    setBusy(true);
     try {
-      setError("");
-      setMessage("");
+      const target = await findOrder();
+      if (!target) return;
+      if (amountTendered !== undefined && amountTendered < Number(target.total)) {
+        setError(`Amount received is less than ${formatMoney(target.total)}`);
+        return;
+      }
       const result = await authenticatedFetch((activeSession) =>
         initiatePayment(activeSession, {
-          orderId,
+          orderId: target.id,
           method,
-          momoPhone,
-          idempotencyKey: idem || `${orderId}-${Date.now()}`,
+          momoPhone: cash ? undefined : momoPhone.trim() || undefined,
+          amountTendered,
+          idempotencyKey: idem || `${target.id}-${Date.now()}`,
           splitId: splitId.trim() || undefined,
         }),
       );
       setInitResult(result);
       setLookupPaymentId(result.paymentId);
-      setMessage("Payment initiated");
+      setMessage(cash
+        ? `Cash recorded for order #${target.id.slice(0, 8).toUpperCase()}${result.changeDue != null && Number(result.changeDue) > 0 ? `. Change due: ${formatMoney(result.changeDue)}` : ""}.`
+        : `Payment started for order #${target.id.slice(0, 8).toUpperCase()}. Ask the customer to approve it, then press Verify.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not initiate payment");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -98,17 +150,51 @@ export default function PaymentsPage() {
       <section className="panel">
         <p className="kicker">Payments</p>
         <h1 className="heading-lg mt-1">Initiate Payment</h1>
-        <form className="mt-3 grid gap-2" onSubmit={(event) => void onInitiate(event)}>
-          <input className="input" placeholder="Order ID" value={orderId} onChange={(e) => setOrderId(e.target.value)} required />
-          <select className="select" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
-            <option value="MOBILE_MONEY">MOBILE_MONEY</option>
-            <option value="CARD">CARD</option>
-            <option value="CASH">CASH</option>
-          </select>
-          <input className="input" inputMode="tel" placeholder="MoMo Phone" value={momoPhone} onChange={(e) => setMomoPhone(e.target.value)} required />
-          <input className="input" placeholder="Idempotency key (optional)" value={idem} onChange={(e) => setIdem(e.target.value)} />
-          <input className="input" placeholder="Split share ID (only for split bills)" value={splitId} onChange={(e) => setSplitId(e.target.value)} />
-          <button className="btn btn-primary">Initiate</button>
+        <form className="mt-3 grid gap-3" onSubmit={(event) => void onInitiate(event)}>
+          <label className="field">
+            <span className="field-label">Order number</span>
+            <div className="flex gap-2">
+              <input className="input min-w-0 flex-1 font-mono uppercase" placeholder="e.g. 7D63D7F5" value={orderNumber} required
+                onChange={(e) => { setOrderNumber(e.target.value); setOrder(null); }} onBlur={() => { if (orderNumber.trim() && !order) void onFindOrder(); }} />
+              <button type="button" className="btn btn-secondary btn-md" onClick={() => void onFindOrder()} disabled={!orderNumber.trim()}>Find</button>
+            </div>
+            <span className="text-xs text-ink-muted">The number on the ticket or receipt. A full order id also works.</span>
+          </label>
+          {order ? (
+            <p className="rounded-xl bg-ivory p-3 text-sm" role="status">
+              <span className="font-mono font-semibold">#{order.id.slice(0, 8).toUpperCase()}</span>
+              {" · "}{order.type === "DINE_IN" ? `Table ${order.tableNumber ?? "—"}` : order.type === "PICKUP" ? "Pickup" : "Delivery"}
+              {" · "}<span className="money font-semibold">{formatMoney(order.total)}</span>
+              {" · "}{order.status.toLowerCase()}
+            </p>
+          ) : null}
+          <fieldset className="grid gap-2">
+            <legend className="field-label">Method</legend>
+            <div className="segmented grid grid-cols-3" role="group" aria-label="Payment method">
+              {METHODS.map((m) => (
+                <button key={m.value} type="button" aria-pressed={method === m.value} onClick={() => setMethod(m.value)}>{m.label}</button>
+              ))}
+            </div>
+          </fieldset>
+          {method === "CASH" ? (
+            <label className="field">
+              <span className="field-label">Amount received <span className="font-normal text-ink-muted">(optional, to work out change)</span></span>
+              <input className="input" type="number" min={0} step="0.01" inputMode="decimal" value={tendered} onChange={(e) => setTendered(e.target.value)} />
+            </label>
+          ) : (
+            <label className="field">
+              <span className="field-label">{method === "MOBILE_MONEY" ? "MoMo number" : <>Customer phone <span className="font-normal text-ink-muted">(optional)</span></>}</span>
+              <input className="input" inputMode="tel" autoComplete="tel" placeholder="024 123 4567" value={momoPhone} onChange={(e) => setMomoPhone(e.target.value)} required={method === "MOBILE_MONEY"} />
+            </label>
+          )}
+          <details className="text-sm">
+            <summary className="cursor-pointer text-ink-soft">More options</summary>
+            <div className="mt-2 grid gap-2">
+              <input className="input" placeholder="Idempotency key (optional)" value={idem} onChange={(e) => setIdem(e.target.value)} />
+              <input className="input" placeholder="Split share ID (only for split bills)" value={splitId} onChange={(e) => setSplitId(e.target.value)} />
+            </div>
+          </details>
+          <button className="btn btn-primary btn-lg" disabled={busy}>{method === "CASH" ? "Record cash payment" : "Start payment"}</button>
         </form>
 
         {initResult ? <pre className="mt-3 overflow-auto input text-xs">{JSON.stringify(initResult, null, 2)}</pre> : null}
@@ -117,7 +203,7 @@ export default function PaymentsPage() {
       <section className="panel">
         <h2 className="heading-md">Lookup / Verify / Retry</h2>
         <div className="mt-3 flex flex-wrap gap-2">
-          <input className="min-w-[320px] input" placeholder="Payment ID" value={lookupPaymentId} onChange={(e) => setLookupPaymentId(e.target.value)} />
+          <input className="input min-w-0 flex-1 basis-64" placeholder="Payment ID" value={lookupPaymentId} onChange={(e) => setLookupPaymentId(e.target.value)} />
           <button className="btn btn-secondary btn-sm" onClick={() => void onLookup()}>Load</button>
           <button className="btn btn-secondary btn-sm" onClick={() => void onVerify()}>Verify</button>
           <button className="btn btn-secondary btn-sm" onClick={() => void onRetry()}>Retry</button>
