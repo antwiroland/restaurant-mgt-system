@@ -18,6 +18,8 @@ Describes only what is implemented. Sections for later phases are added as each 
   - `hr.timesheet` — timesheets, overtime rules, public holidays, overtime pre-authorisation
   - `hr.leave` — leave types and entitlements (`LeaveSetupService`), balances, requests and approvals (`LeaveService`),
     pure arithmetic (`LeaveCalculator`), read-only lookups for scheduling/timesheets (`LeaveLookup`), push (`LeaveNotifier`)
+  - `hr.payroll` — deduction rules (`PayrollRuleService`), runs/payslips/adjustments (`PayrollService`), pure arithmetic
+    (`PayrollCalculator`)
   - `hr.branch` — branch assignment history (`BranchAssignmentRecorder` keeps it consistent), secondary/temporary
     assignments, transfers, branch workforce summary
   - `hr.common` — `HrSequenceService` (gap-tolerant sequential numbers), shared helpers
@@ -396,6 +398,85 @@ show the projected balance without writing.
 | `/hr/my-leave` | Balances with history, request leave (live day count and balance check), own requests, attach document, cancel | linked employee |
 | `/hr/employees/[id]` → **Leave** tab | Balances (HR adjustments), the employee's requests, record leave | approve or manage |
 
+## 5f. Payroll (Phase 6, `V33__hr_payroll.sql`)
+
+### Data
+
+| Table | Purpose |
+|---|---|
+| `hr_payroll_rules` | Deductions and employer contributions: `code`, `kind` (`EMPLOYEE_DEDUCTION`/`EMPLOYER_CONTRIBUTION`), `method` (`PERCENT`/`FIXED`/`BRACKETS`), `base` (`BASIC`/`GROSS`/`TAXABLE`), rate, fixed amount, cap, JSON bands, `pre_tax`, optional employment types, optional branch, `effective_from`. Never edited: a change is a new row; a row with `active = false` ends the code from its date. **No statutory rates are seeded.** |
+| `hr_payroll_runs` | One branch and period (≤ 31 days): `run_number` (`PAY-000001`), status, totals, who calculated/approved/finalized, cancel reason, skipped employees (JSON). |
+| `hr_payslips` | Snapshot per employee: contract, pay type and rate, hourly rate, paid/overtime minutes, worked days, unpaid leave days, basic, gross, taxable, deductions, net, employer contributions, issue codes, payment method/reference/time. |
+| `hr_payslip_lines` | Frozen lines: `EARNING`, `DEDUCTION`, `EMPLOYER` with quantity × rate = amount. |
+| `hr_payroll_adjustments` | One-off earnings (taxable or not) and post-tax deductions per employee in a run. |
+| `hr_timesheets.payroll_run_id` | The run that pays a locked timesheet. Reserved at calculation, released on recalculation or cancellation, so a timesheet is never paid twice. |
+
+### Calculation (`PayrollCalculator`, pure)
+
+Who is paid: employees whose **home branch** is the run's branch, employed during the period, with a non-draft contract covering it
+(the most recent one) and not already on another active run overlapping the period. Others are listed as skipped with a reason.
+
+| Pay type | Basic pay | Hourly rate (for overtime/premiums) |
+|---|---|---|
+| `MONTHLY` | salary × employed days ÷ days in the month (full month = salary exactly) | salary × 12 ÷ (52 × weekly hours) |
+| `WEEKLY` | wage × employed days ÷ 7 | wage ÷ weekly hours |
+| `DAILY` | rate × distinct days with paid time on locked timesheets | rate × 5 ÷ weekly hours |
+| `HOURLY` | (paid − approved overtime) minutes × rate | rate |
+| `CONTRACT_SUM`, `COMMISSION` | 0, flagged `MANUAL_PAY_TYPE` (use an adjustment) | — |
+
+Weekly hours default to 40 when the contract has none. Only timesheets lying **inside** the period and **locked** count.
+
+- Approved overtime: minutes × hourly × overtime multiplier. Unapproved overtime minutes of hourly staff are paid at the normal rate.
+- Holiday / weekend / night premiums: minutes × hourly × (multiplier − 1), only when the multiplier is above 1.
+- Multipliers come from the first locked timesheet's rule snapshot, else the overtime rule in force at period end.
+- Unpaid leave (approved leave of a type with `paid = false`) reduces monthly/weekly pay by days × daily rate
+  (monthly: salary × 12 ÷ 260; weekly: wage ÷ 5), counted like the leave type counts days within the period.
+
+Deductions: gross → pre-tax employee rules (base basic or gross) → **taxable** = taxable earnings − pre-tax → other employee rules →
+employer contributions (do not reduce net) → one-off deductions → **net**. Percent and bracket amounts never go below zero; a cap limits
+the amount. Brackets are progressive (each band's rate applies to the part of the base inside it; only the last band is open-ended).
+Rule resolution per code: the latest branch row in force, else the latest organisation row; employment-type limits then apply.
+Money is rounded per line to 2 decimals, half up.
+
+Issue codes on a payslip: **errors** (block approval) `UNLOCKED_TIMESHEETS` (hourly/daily staff), `NEGATIVE_NET`; **warnings**
+`UNLOCKED_OVERTIME` (salaried staff: overtime left out), `PARTIAL_PERIOD`, `MANUAL_PAY_TYPE`, `TIMESHEET_OUTSIDE_PERIOD`.
+
+### Workflow and access
+
+| Step | Permission | Rules |
+|---|---|---|
+| Create run | `hr.payroll.process` + branch | No other active run at the branch overlapping the period |
+| Calculate / recalculate | `hr.payroll.process` | Draft or calculated; replaces all payslips |
+| Add / remove adjustment | `hr.payroll.process` | Draft or calculated; sends the run back to draft |
+| Approve | `hr.payroll.approve` | Calculated; not the person who calculated it; not someone paid in the run; no error issues |
+| Return to draft | process or approve | Calculated or approved; reason audited |
+| Finalize | `hr.payroll.finalize` | Approved; payslips become visible to employees; push "Payslip ready" |
+| Record payment | `hr.payroll.pay` | Finalized; all or selected payslips; method and reference; run becomes Paid when every payslip is |
+| Cancel | `hr.payroll.process` | Not finalized; releases timesheets |
+| View runs and payslips | any `hr.payroll.*` + branch | Employees see their own payslips only once finalized |
+| Rules | `hr.settings.manage` (organisation rows: central only); viewing needs a payroll permission | |
+
+Payroll permissions are **not** in the MANAGER defaults; ADMIN has them, others need a grant. Audit (`HR_PAYROLL_CHANGED`) records
+operations, run numbers and counts — never amounts.
+
+### Endpoints
+
+| Method & path | Permission |
+|---|---|
+| `GET/POST /hr/payroll-rules` | see above |
+| `GET /hr/payroll-runs?branchId`, `POST /hr/payroll-runs`, `GET /hr/payroll-runs/{id}` | payroll permissions |
+| `POST /hr/payroll-runs/{id}/calculate|approve|reopen|finalize|pay|cancel` | see workflow |
+| `POST /hr/payroll-runs/{id}/adjustments`, `DELETE /hr/payroll-runs/{id}/adjustments/{adjustmentId}` | `hr.payroll.process` |
+| `GET /hr/payslips/{id}` | payroll permission + branch, or own finalized payslip |
+| `GET /hr/me/payslips` | linked employee (finalized/paid only) |
+
+### Web
+
+| Route | Purpose | Shown when |
+|---|---|---|
+| `/hr/payroll` | Runs per branch, new run, run drawer (payslips, issues, skipped, adjustments, approve/finalize/pay/cancel), deduction rules | any `hr.payroll.*` |
+| `/hr/my-payslips` | Own finalized payslips with lines | linked employee |
+
 ## 6. Audit
 
 HR events use the shared `audit_logs` table with `AuditAction.HR_*` values (Phase 2 adds `HR_EMPLOYEE_TRANSFERRED`,
@@ -404,7 +485,8 @@ HR events use the shared `audit_logs` table with `AuditAction.HR_*` values (Phas
 `HR_AVAILABILITY_CHANGED`, `HR_SETTINGS_CHANGED`; Phase 4 adds `HR_ATTENDANCE_RECORDED` (manager on behalf),
 `HR_ATTENDANCE_CORRECTION`, `HR_CLOCK_PIN_CHANGED` — PIN values never appear; Phase 5 adds `HR_TIMESHEET_CHANGED`,
 `HR_OVERTIME_DECIDED`, `HR_LEAVE_REQUESTED`, `HR_LEAVE_DECIDED`, `HR_LEAVE_CANCELLED`, `HR_LEAVE_BALANCE_ADJUSTED`; leave types and
-entitlements use `HR_SETTINGS_CHANGED`). Individual clock actions are audited in
+entitlements use `HR_SETTINGS_CHANGED`; Phase 6 adds `HR_PAYROLL_CHANGED` (operation, run number, counts; never amounts) and payroll
+rules use `HR_SETTINGS_CHANGED`). Individual clock actions are audited in
 `hr_attendance_events` rather than the shared log. Metadata never contains salary figures, PINs or
 document contents; salary changes are recorded as "changed" without amounts.
 
@@ -451,6 +533,9 @@ open read-only with only the Overview and Branches tabs. The HR Access drawer al
 | `ScheduleRulesTest` (+1) | Approved leave blocks, half-day and pending leave warn, overnight shift into leave |
 | `HrLeaveIntegrationTest` (10) | Self-service request → approve → cancel with ledger, insufficient vs negative-allowed balance, two-step chain with distinct approvers and decline note, required document, reporting-manager step and fallback, scheduling block/warn and conflicts, holidays and half days, cross-year refusal, carry-over cap and HR-only adjustments, HR-recorded leave on timesheet and day board, branch isolation and central configuration |
 | `web/src/features/hr/leave/leave.test.tsx` (4) | Date/day formatting, live quote and submit, quote problems block submit, decline needs note and approve sends decision |
+| `PayrollCalculatorTest` (6) | Monthly full/partial/unpaid leave, hourly normal vs approved overtime and holiday premium, daily and manual pay types, progressive brackets and validation, pre-tax → tax → employer → one-off order with caps, non-negative amounts |
+| `HrPayrollIntegrationTest` (4) | Full cycle with rules (calculate, four-eyes approval, finalize, self-service visibility, partial then full payment, no amounts in audit), blocking unlocked timesheets, adjustments sending the run back to draft, one run per branch/period, cancel releasing timesheets, new-joiner pro-rating, unpaid leave, skipped employees, rule validation, central rules and ending a rule |
+| `web/src/features/hr/payroll/payroll.test.tsx` (4) | Approve disabled for the calculator and with blocking payslips, finalize action, payslip sections |
 | `HrPostgresFlywayIntegrationTest` | Same flows on the Flyway schema (tag `postgres`, run with `-Ppostgres-it`) |
 | `web/src/features/hr/hr.test.tsx` (9) | Permission-filtered navigation, employee form validation and payload |
 
@@ -469,6 +554,8 @@ open read-only with only the Overview and Branches tabs. The HR Access drawer al
   shared by all terminals of one web server; size it for shift changes.
 - `HR_LEAVE_NON_WORKING_DAYS` (default `SAT,SUN`): weekdays not counted for `WORKDAYS` leave. Restaurants that trade every day may
   want this empty. Changing it does not recount existing requests.
+- Payroll deduction rules are not seeded: configure income tax, pension and other deductions in HR > Payroll > Deductions before the
+  first run. The run currency is `GHS` (the column exists for later multi-currency support).
 - Leave entitlements are not seeded: configure them in HR > Leave > Types & entitlements before staff request balance-tracked leave.
 - `HR_CONTRACT_EXPIRY_CRON` (default `0 15 1 * * *`, in `app.timezone`) schedules the contract expiry job.
 - Running `-Ppostgres-it` against Docker Engine 29+ needs `DOCKER_API_VERSION=1.44` (older docker-java default is rejected).

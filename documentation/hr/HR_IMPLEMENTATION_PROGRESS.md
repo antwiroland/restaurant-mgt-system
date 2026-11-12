@@ -8,7 +8,7 @@
 | Module | Human Resource & Workforce Management |
 | Integration branch | `feature/restaurant-hr-management` (from `feature/operations-expansion` @ `35ef1ed`) |
 | Implementation start | 2026-11-09 |
-| Current status | Phases 0–4 merged to `main`; Phase 5 timesheets/overtime merged (PR #4); Phase 5 leave implemented on `feature/hr-leave-management` |
+| Current status | Phases 0–4 merged to `main`; Phase 5 timesheets/overtime merged (PR #4); Phase 5 leave on `feature/hr-leave-management`; Phase 6 payroll on `feature/hr-payroll` (branched from the leave branch) |
 | Last updated | 2026-11-12 |
 
 ## Overall Progress
@@ -24,13 +24,13 @@
 - [x] Leave (types, effective-dated entitlements, balances with ledger, approval chains, documents, scheduling/timesheet integration)
 - [x] Timesheets
 - [x] Overtime
-- [ ] Payroll
+- [x] Payroll (rules, runs, payslips, adjustments, four-eyes approval, finalize, payments, self-service payslips)
 - [ ] Tips
 - [ ] Service charges
 - [ ] Recruitment
 - [ ] Performance
 - [ ] Training
-- [~] Self-service — read-only profile, own schedule, availability, swap requests, own time clock and PIN, own timesheets, own leave
+- [~] Self-service — read-only profile, own schedule, availability, swap requests, own time clock and PIN, own timesheets, own leave, own payslips
 - [ ] Reporting / HR dashboard
 - [~] Security — HR permission model, branch isolation, private documents, audit done for Phase 1 scope
 - [ ] Performance optimization / benchmarking
@@ -67,8 +67,11 @@
 | Leave balances & ledger | [x] | [x] | [x] | [x] | [x] | Complete (carry-over applied when the next year's balance opens) |
 | Leave requests & approval chain | [x] | [x] | [x] | [x] | [x] | Complete |
 | Leave ↔ scheduling / timesheets / day board | — | [x] | [x] | — | [x] | Complete |
+| Payroll rules (deductions/contributions) | [x] | [x] | [x] | [x] | [x] | Complete (no statutory rates seeded by design) |
+| Payroll runs, payslips & adjustments | [x] | [x] | [x] | [x] | [x] | Complete |
+| Payroll approval, finalize & payment | — | [x] | [x] | [x] | [x] | Complete (payments are recorded, not sent) |
 | Missed clock-out / late notifications | — | [ ] | — | — | [ ] | Flags shown on the board; push alerts not built yet |
-| Payroll … analytics (Phases 6–11) | [ ] | [ ] | [ ] | [ ] | [ ] | Not started |
+| Tips … analytics (Phases 7–11) | [ ] | [ ] | [ ] | [ ] | [ ] | Not started |
 
 ## Git History
 
@@ -131,6 +134,9 @@
 | 2026-11-12 | V32 on PostgreSQL | Booted the packaged app on a temporary `postgres:16-alpine`: Flyway applied V1–V32, Hibernate `validate` passed, seven leave types seeded. API smoke test (entitlement, employee + login link, quote, request, overlap 409, awaiting-me, employee/branch lists, calendar, approve, balance and ledger, shift on approved leave 409, HR adjustment, negative-allowed sick leave, cancel): **28/28 passed** | Manual, passed | `feature/hr-leave-management` | `5cc6c91` |
 | 2026-11-12 | Phase 5 leave web | `/hr/leave`, `/hr/my-leave`, profile Leave tab, leave API client, nav entries, `LEAVE` timesheet flag | `vitest` HR suites **25/25** (4 new leave + 1 nav); full web suite 61/64 with the 3 pre-existing `guest.test.tsx` failures; `tsc` and ESLint clean; `next build` passes | `feature/hr-leave-management` | `b28f1a0` |
 | 2026-11-12 | Leave seed data | `seed_hr.py`: leave types when missing (H2 without Flyway), test entitlements, an HR adjustment, pending/approved/two-step/self-service sick requests | Seeded a fresh local H2 backend end to end; 4 requests in the expected states, approved leave reports its 2 clashing draft shifts | `feature/hr-leave-management` | see Git History |
+| 2026-11-12 | Phase 6 payroll backend | V33, `hr.payroll` package, `payroll_run_id` on timesheets, `HR_PAYROLL_CHANGED` | Backend `mvn test`: **394 run, 0 failures, 0 errors** (384 + 6 calculator + 4 payroll) | `feature/hr-payroll` | see Git History |
+| 2026-11-12 | V33 on PostgreSQL | Booted the packaged app on a temporary `postgres:16-alpine`: Flyway V1–V33, Hibernate `validate` passed. Smoke test (grant, employee + contract, percent/bracket/employer rules with employment-type limit, run, overlap 409, calculate with expected figures, adjustment + recalculate, calculator cannot approve, approve, finalize, employee payslip and lines, pay): **31/31 passed**. Found and fixed run numbers rendered as `PAY--000001` | Manual, passed after fix | `feature/hr-payroll` | see Git History |
+| 2026-11-12 | Phase 6 payroll web | `/hr/payroll` (runs, run drawer, payslip drawer, rules), `/hr/my-payslips`, nav entries | `vitest` HR suites **30/30**; `tsc` and ESLint clean; `next build` passes | `feature/hr-payroll` | see Git History |
 | 2026-11-09 | Phase 4 web | Attendance page, PIN card, My time clock; POS staff clock panel | `vitest` HR suites 20/20; ESLint and `tsc` clean; `next build` passes | `feature/hr-attendance`, `feature/hr-pos-integration` | `953b890`, `b41efea` |
 
 ## Outstanding Issues
@@ -157,6 +163,13 @@
 - **Partial return from leave:** approved leave can be cancelled as a whole, not shortened; cancel and re-request the shorter period.
 - **Carry-over timing:** carry-over is fixed when next year's balance first opens; later changes to last year's balance are not carried.
 - **New entitlements and open balances:** a policy added after a year's balance has opened does not change that balance; use an adjustment.
+- **Payroll scope:** staff are paid by their home branch only; hours worked at other branches count when they are on the employee's
+  own timesheets. One contract per period (the latest covering it); a mid-period pay change needs an adjustment.
+- **Payroll periods:** up to 31 days; monthly pro-rating uses the days of the month the period starts in. Only timesheets lying
+  fully inside the period are paid.
+- **Payroll payments:** recorded only (method and reference); no bank or mobile-money transfer is made by the system.
+- **Payslip documents:** payslips are shown on screen; PDF export is not built yet.
+- **Payroll seed data:** `seed_hr.py` does not create payroll rules or runs.
 - **Small branches:** each approval step needs a different person and nobody approves a request they filed; HR can use
   "record as already approved" for leave agreed outside the system.
 - **Time zones:** the web board enters and shows times in the browser's local zone; devices should use the restaurant's zone.
@@ -169,6 +182,7 @@
 
 ## Next Actions
 
-1. Open a PR from `feature/hr-leave-management` to `main`.
-2. Phase 6: payroll (reads locked timesheets and paid/unpaid leave).
-3. Fix the Testcontainers environment or CI job so the `postgres` test group runs on every phase.
+1. Open PRs: `feature/hr-leave-management` → `main`, then `feature/hr-payroll` (based on the leave branch).
+2. Payroll follow-ups: payslip PDF, payroll seed data, bank/mobile-money payment file export.
+3. Phase 7: tips and service charges (allocate `orders.tip_amount` / `orders.service_charge` per branch and period into payroll).
+4. Fix the Testcontainers environment or CI job so the `postgres` test group runs on every phase.
