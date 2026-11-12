@@ -125,6 +125,12 @@ orders:
     expire-after-minutes: ${ORDERS_UNPAID_PICKUP_EXPIRE_AFTER_MINUTES:30}
     check-every-ms: ${ORDERS_UNPAID_PICKUP_CHECK_EVERY_MS:60000}
 
+# Dine-in is paid at the end. These decide when floor staff are alerted to go to a table with the bill.
+tables:
+  payment-watch:
+    served-unpaid-minutes: ${TABLES_SERVED_UNPAID_MINUTES:20}
+    bill-waiting-minutes: ${TABLES_BILL_WAITING_MINUTES:10}
+
 auth:
   otp:
     required-for-registration: ${OTP_REQUIRED_FOR_REGISTRATION:true}

@@ -27,6 +27,7 @@ const REPORTS: ReportDef[] = [
   { kind: "reconciliation", title: "Daily reconciliation", description: "Gross and net sales, refunds, voids, totals per payment method, expected cash and sign-off.", range: "day", branch: true },
   { kind: "audit", title: "Audit trail", description: "Logins, PIN events, role changes and all financial actions.", range: "period", branch: false },
   { kind: "timesheet", title: "Timesheets", description: "Hours worked against the rota, overtime, late arrivals and missed shifts per staff member.", range: "period", branch: false },
+  { kind: "walkouts", title: "Walkouts", description: "Tables closed out because the guests left without paying: amount lost, reason, who took the orders, the guests' phone and who recorded it. The PDF totals losses by staff member.", range: "period", branch: true },
 ];
 
 export default function ReportsPage() {

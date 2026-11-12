@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Client } from "@stomp/stompjs";
-import type { StaffRole } from "@/lib/apiClient";
+import { useStaffSession } from "@/components/SessionProvider";
+import { watchAlert } from "@/features/tables/paymentWatch";
+import { getTablePaymentWatch, type StaffRole } from "@/lib/apiClient";
 
 type Alert = { id: string; text: string; href: string; tone: "warning" | "danger" };
 
@@ -11,17 +13,56 @@ type LowStockPayload = { ingredientId?: string; name?: string; unit?: string; st
 type LowRatingPayload = { id: string; orderId: string; rating: number; customerName?: string | null; comment?: string | null };
 
 const MAX_ALERTS = 4;
+const TABLE_WATCH_MS = 60_000;
 
 /**
- * Live pop-up alerts for managers: ingredients running low or menu items auto-86'd, and customer ratings of
- * 2 stars or lower. Hidden for roles that cannot act on them.
+ * Live pop-up alerts. Floor staff and managers: a table that was served and has not paid for a while, or asked for
+ * the bill and is still waiting (go over with the bill; the guest is never prompted). Managers also get ingredients
+ * running low, menu items auto-86'd, and ratings of 2 stars or lower. Hidden for roles that cannot act on them.
  */
 export function StaffAlerts({ role }: { role?: StaffRole }) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const enabled = role === "ADMIN" || role === "MANAGER";
+  const { session, authenticatedFetch } = useStaffSession();
+  const managerAlerts = role === "ADMIN" || role === "MANAGER";
+  const enabled = managerAlerts || role === "CASHIER";
+  // Alerts a person dismissed stay hidden until the table's situation changes (a new id).
+  const dismissed = useRef(new Set<string>());
+
+  const userId = session?.user.id;
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !userId) return;
+    let cancelled = false;
+    async function check() {
+      try {
+        const watch = await authenticatedFetch((s) => getTablePaymentWatch(s));
+        if (cancelled) return;
+        const risky = watch.filter((entry) => entry.risk !== "NONE");
+        const ids = new Set(risky.map((entry) => `table-${entry.tableId}-${entry.risk}`));
+        setAlerts((current) => {
+          const others = current.filter((a) => !a.id.startsWith("table-") || ids.has(a.id));
+          const fresh: Alert[] = risky
+            .map((entry) => ({ id: `table-${entry.tableId}-${entry.risk}`, text: watchAlert(entry), href: "/tables", tone: "danger" as const }))
+            .filter((a) => !dismissed.current.has(a.id));
+          const merged = [...fresh, ...others.filter((a) => !fresh.some((f) => f.id === a.id))];
+          return merged.slice(0, MAX_ALERTS);
+        });
+      } catch {
+        // Keep the current alerts if a check fails.
+      }
+    }
+    void check();
+    const timer = window.setInterval(() => void check(), TABLE_WATCH_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+    // Re-run only when the signed-in person changes; authenticatedFetch always uses the current token.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, userId]);
+
+  useEffect(() => {
+    if (!managerAlerts) return;
     const wsUrl = process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? "ws://localhost:8080/ws";
     const push = (alert: Alert) => setAlerts((current) => [alert, ...current.filter((a) => a.id !== alert.id)].slice(0, MAX_ALERTS));
     const client = new Client({
@@ -70,7 +111,12 @@ export function StaffAlerts({ role }: { role?: StaffRole }) {
     return () => {
       void client.deactivate();
     };
-  }, [enabled]);
+  }, [managerAlerts]);
+
+  function dismiss(id: string) {
+    dismissed.current.add(id);
+    setAlerts((c) => c.filter((a) => a.id !== id));
+  }
 
   if (!enabled || alerts.length === 0) return null;
 
@@ -78,14 +124,14 @@ export function StaffAlerts({ role }: { role?: StaffRole }) {
     <div className="fixed bottom-20 right-3 z-[var(--z-toast)] grid w-[min(360px,calc(100vw-24px))] gap-2 lg:bottom-4" role="status" aria-live="polite">
       {alerts.map((alert) => (
         <div key={alert.id} className={`alert ${alert.tone === "danger" ? "alert-danger" : "alert-warning"} flex items-start justify-between gap-2 shadow-lg`}>
-          <Link href={alert.href} className="text-sm underline-offset-2 hover:underline" onClick={() => setAlerts((c) => c.filter((a) => a.id !== alert.id))}>
+          <Link href={alert.href} className="text-sm underline-offset-2 hover:underline" onClick={() => dismiss(alert.id)}>
             {alert.text}
           </Link>
           <button
             type="button"
             className="btn btn-ghost btn-sm"
             aria-label="Dismiss alert"
-            onClick={() => setAlerts((c) => c.filter((a) => a.id !== alert.id))}
+            onClick={() => dismiss(alert.id)}
           >
             ✕
           </button>

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Drawer } from "@/components/Drawer";
+import { Modal } from "@/components/Modal";
+import { WALKOUT_REASONS, isAtRisk, watchStatus } from "@/features/tables/paymentWatch";
 import { Skeleton } from "@/components/Skeleton";
 import { Spinner } from "@/components/Spinner";
 import { Icon } from "@/components/Icon";
@@ -13,12 +15,18 @@ import {
   createTable,
   getActiveTableSessions,
   getOrders,
+  getTablePaymentWatch,
   getTables,
+  recordWalkout,
   updateTable,
   updateTableStatus,
   type OrderRecord,
+  type TablePaymentWatchRecord,
   type TableRecord,
+  type WalkoutReason,
 } from "@/lib/apiClient";
+
+const WATCH_REFRESH_MS = 60_000;
 
 const CARD_STYLES: Record<TableRecord["status"], { tile: string; dot: string; seat: string }> = {
   AVAILABLE: { tile: "border-available/35 bg-surface hover:border-available", dot: "bg-available", seat: "bg-available/30" },
@@ -56,6 +64,13 @@ export default function TablesPage() {
   const [statusBusy, setStatusBusy] = useState<TableRecord["status"] | null>(null);
   const [copied, setCopied] = useState(false);
   const [guestSessions, setGuestSessions] = useState<Record<string, number>>({});
+  const [watchByTable, setWatchByTable] = useState<Record<string, TablePaymentWatchRecord>>({});
+  const [walkoutOpen, setWalkoutOpen] = useState(false);
+  const [walkoutReason, setWalkoutReason] = useState<WalkoutReason>("WALKED_OUT");
+  const [walkoutNote, setWalkoutNote] = useState("");
+  const [walkoutBusy, setWalkoutBusy] = useState(false);
+  const [walkoutError, setWalkoutError] = useState("");
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined") setOrigin(window.location.origin);
@@ -71,11 +86,49 @@ export default function TablesPage() {
     setOrders(nextOrders);
     const sessions = await authenticatedFetch((activeSession) => getActiveTableSessions(activeSession)).catch(() => []);
     setGuestSessions(Object.fromEntries(sessions.map((entry) => [entry.tableId, entry.sessionCount])));
+    await loadWatch();
+  }
+
+  /** What each table still owes, refreshed every minute so "served 20 min ago" stays true. */
+  async function loadWatch() {
+    const watch = await authenticatedFetch((activeSession) => getTablePaymentWatch(activeSession)).catch(() => null);
+    if (watch) setWatchByTable(Object.fromEntries(watch.map((entry) => [entry.tableId, entry])));
   }
 
   useEffect(() => {
     loadData().catch((err) => setError(err instanceof Error ? err.message : "Could not load tables"));
   }, [session]);
+
+  useEffect(() => {
+    if (!session) return;
+    const timer = window.setInterval(() => void loadWatch(), WATCH_REFRESH_MS);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
+  async function submitWalkout() {
+    if (!session || !selectedTable) return;
+    if (walkoutReason === "OTHER" && !walkoutNote.trim()) {
+      setWalkoutError("Say what happened");
+      return;
+    }
+    setWalkoutBusy(true);
+    setWalkoutError("");
+    try {
+      const recorded = await authenticatedFetch((activeSession) =>
+        recordWalkout(activeSession, selectedTable.id, { reason: walkoutReason, note: walkoutNote.trim() || undefined }));
+      setWalkoutOpen(false);
+      setWalkoutNote("");
+      setWalkoutReason("WALKED_OUT");
+      setSelectedTableId(null);
+      setNotice(`Walkout recorded for table ${recorded.tableNumber}: ${formatMoney(recorded.amountOwed)} written off. The table is free again.`);
+      await loadData();
+    } catch (err) {
+      setWalkoutError(err instanceof Error ? err.message : "Could not record the walkout");
+    } finally {
+      setWalkoutBusy(false);
+    }
+  }
 
   const selectedTable = useMemo(
     () => tables.find((table) => table.id === selectedTableId) ?? null,
@@ -214,6 +267,11 @@ export default function TablesPage() {
   }
 
   const isAdmin = session.user.role === "ADMIN";
+  const canRecordWalkout = session.user.role === "ADMIN" || session.user.role === "MANAGER";
+  const owing = Object.values(watchByTable);
+  const atRisk = owing.filter(isAtRisk);
+  const owedTotal = owing.reduce((sum, entry) => sum + Number(entry.outstanding), 0);
+  const selectedWatch = selectedTable ? watchByTable[selectedTable.id] : undefined;
   const statusCounts = STATUS_ORDER.map((status) => ({ status, count: tables.filter((t) => t.status === status).length }));
 
   return (
@@ -277,6 +335,25 @@ export default function TablesPage() {
         </div>
 
         {error ? <ErrorState message={error} onRetry={() => void loadData().catch((err) => setError(err instanceof Error ? err.message : "Could not load tables"))} /> : null}
+        {notice ? <p className="alert alert-success" role="status">{notice}</p> : null}
+
+        {owing.length > 0 ? (
+          <div className={`grid gap-2 rounded-card border p-3 ${atRisk.length > 0 ? "border-danger/40 bg-danger-subtle/40" : "border-line bg-surface"}`} aria-label="Unpaid tables">
+            <p className="text-sm font-semibold text-ink">
+              {owing.length} table{owing.length === 1 ? "" : "s"} owe <span className="money">{formatMoney(owedTotal)}</span>
+              {atRisk.length > 0 ? <span className="text-danger-on"> · {atRisk.length} need{atRisk.length === 1 ? "s" : ""} you now</span> : null}
+            </p>
+            {atRisk.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {atRisk.map((entry) => (
+                  <button key={entry.tableId} type="button" className="btn btn-sm btn-danger" onClick={() => setSelectedTableId(entry.tableId)}>
+                    Table {entry.tableNumber}: {watchStatus(entry)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       {groupedTables.map((group) => (
@@ -289,14 +366,16 @@ export default function TablesPage() {
             {group.tables.map((table) => {
               const tableOrders = activeOrders.filter((order) => order.tableId === table.id);
               const running = tableOrders.reduce((sum, order) => sum + Number(order.total), 0);
+              const watch = watchByTable[table.id];
+              const risky = watch ? isAtRisk(watch) : false;
               const style = CARD_STYLES[table.status];
               const seats = Math.min(table.capacity, 8);
               return (
                 <button
                   key={table.id}
-                  className={`group relative grid min-h-[148px] content-between rounded-xl border-2 p-3 text-left transition-[border-color,box-shadow,opacity] hover:shadow-card ${style.tile}`}
+                  className={`group relative grid min-h-[148px] content-between rounded-xl border-2 p-3 text-left transition-[border-color,box-shadow,opacity] hover:shadow-card ${style.tile} ${risky ? "ring-2 ring-danger ring-offset-1" : ""}`}
                   onClick={() => setSelectedTableId(table.id)}
-                  aria-label={`Table ${table.number}, ${table.capacity} seats, ${table.status.toLowerCase()}${tableOrders.length ? `, ${tableOrders.length} active orders` : ""}`}
+                  aria-label={`Table ${table.number}, ${table.capacity} seats, ${table.status.toLowerCase()}${watch ? `, owes ${formatMoney(watch.outstanding)}, ${watchStatus(watch)}` : tableOrders.length ? `, ${tableOrders.length} active orders` : ""}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <span className="font-display text-2xl font-extrabold leading-none text-ink">{table.number}</span>
@@ -312,7 +391,17 @@ export default function TablesPage() {
                     {table.capacity > 8 ? <span className="text-[10px] text-ink-muted">+{table.capacity - 8}</span> : null}
                   </div>
                   <div className="grid gap-1 text-xs">
-                    {tableOrders.length > 0 ? (
+                    {watch ? (
+                      <>
+                        <span className="flex items-center justify-between font-semibold text-ink">
+                          <span>Owes</span>
+                          <span className="money">{formatMoney(watch.outstanding)}</span>
+                        </span>
+                        <span className={`flex items-center gap-1 font-semibold ${risky ? "text-danger-on" : "text-ink-soft"}`}>
+                          {risky ? <Icon name="alert" size={12} /> : null}{watchStatus(watch)}
+                        </span>
+                      </>
+                    ) : tableOrders.length > 0 ? (
                       <span className="flex items-center justify-between font-semibold text-ink">
                         <span>{tableOrders.length} order{tableOrders.length > 1 ? "s" : ""}</span>
                         <span className="money">{formatMoney(running)}</span>
@@ -342,6 +431,42 @@ export default function TablesPage() {
         />
       ) : null}
 
+      <Modal
+        open={walkoutOpen && !!selectedTable && !!selectedWatch}
+        title={selectedTable ? `Record walkout · Table ${selectedTable.number}` : "Record walkout"}
+        onClose={() => setWalkoutOpen(false)}
+        footer={
+          <div className="flex justify-end gap-2">
+            <button type="button" className="btn btn-secondary btn-md" onClick={() => setWalkoutOpen(false)} disabled={walkoutBusy}>Cancel</button>
+            <button type="button" className="btn btn-danger btn-md" onClick={() => void submitWalkout()} disabled={walkoutBusy}>
+              {walkoutBusy ? <Spinner className="text-current" /> : null}
+              Write off {selectedWatch ? formatMoney(selectedWatch.outstanding) : ""}
+            </button>
+          </div>
+        }
+      >
+        <div className="grid gap-4 text-sm">
+          <p className="text-ink-soft">
+            Use this when the guests have left without paying. The unpaid orders are written off, the table is freed, and the
+            loss goes on the walkout report with who took the orders and any phone number the guests left.
+          </p>
+          <fieldset className="grid gap-2">
+            <legend className="field-label">What happened</legend>
+            {WALKOUT_REASONS.map((option) => (
+              <label key={option.value} className="flex items-center gap-2">
+                <input type="radio" name="walkout-reason" value={option.value} checked={walkoutReason === option.value} onChange={() => setWalkoutReason(option.value)} />
+                {option.label}
+              </label>
+            ))}
+          </fieldset>
+          <label className="field">
+            <span className="field-label">Note {walkoutReason === "OTHER" ? "" : <span className="font-normal text-ink-muted">(optional)</span>}</span>
+            <textarea className="textarea min-h-[72px]" maxLength={500} value={walkoutNote} onChange={(e) => setWalkoutNote(e.target.value)} placeholder="e.g. Left while the waiter was at another table" />
+          </label>
+          {walkoutError ? <p className="alert alert-danger" role="alert">{walkoutError}</p> : null}
+        </div>
+      </Modal>
+
       <Drawer open={!!selectedTable} title={selectedTable ? `Table ${selectedTable.number}` : "Table Details"} onClose={() => setSelectedTableId(null)}>
         {selectedTable ? (
           <div className="grid gap-4">
@@ -350,6 +475,21 @@ export default function TablesPage() {
               <div><p className="text-xs text-ink-muted">Zone</p><p className="mt-1 font-semibold">{selectedTable.zone || "Main floor"}</p></div>
               <div><p className="text-xs text-ink-muted">Seats</p><p className="mt-1 font-semibold">{selectedTable.capacity}</p></div>
             </section>
+
+            {selectedWatch ? (
+              <section className={`grid gap-2 rounded-xl border p-3 text-sm ${isAtRisk(selectedWatch) ? "border-danger/40 bg-danger-subtle/40" : "border-line"}`} aria-label="Bill">
+                <div className="flex items-baseline justify-between">
+                  <span className="font-semibold">Owes</span>
+                  <span className="money font-display text-xl">{formatMoney(selectedWatch.outstanding)}</span>
+                </div>
+                <p className={isAtRisk(selectedWatch) ? "font-semibold text-danger-on" : "text-ink-soft"}>{watchStatus(selectedWatch)}</p>
+                {canRecordWalkout ? (
+                  <button type="button" className="btn btn-secondary btn-sm justify-self-start" onClick={() => { setWalkoutError(""); setWalkoutOpen(true); }}>
+                    Record walkout
+                  </button>
+                ) : null}
+              </section>
+            ) : null}
 
             <section className="grid gap-2 sm:grid-cols-2">
               <Link className="btn btn-primary btn-lg" href={`/pos?table=${selectedTable.id}`}>

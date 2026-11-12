@@ -95,6 +95,9 @@ All requests are proxied through `/api/rm` → backend at `http://localhost:8080
 | `POST` | `/orders/public/dine-in` | 🔓 Place a dine-in order via QR scan |
 | `GET` | `/orders/public/dine-in/tables/{tableToken}/bill` | 🔓 Get table bill (customer view, by QR token) |
 | `GET` | `/orders/public/dine-in/tables/{tableToken}/tracking` | 🔓 Track orders at a table (customer view) |
+| `GET` | `/tables/payment-watch?branchId` | 🔒 Admin, manager, cashier: tables that still owe money, `{tableNumber, outstanding, openOrders, allServed, lastServedAt, billRequestedAt, risk: NONE \| SERVED_UNPAID \| BILL_WAITING, minutesWaiting}`, at-risk first |
+| `POST` | `/tables/{tableId}/walkout` | 🔒 Admin, manager: guests left without paying `{reason: WALKED_OUT \| REFUSED_TO_PAY \| OTHER, note?}`; writes off the unpaid orders and frees the table |
+| `GET` | `/reports/walkouts?from&to&branchId&format=CSV\|PDF` | 🔒 Admin, manager: walkout report |
 | `GET` | `/orders/public/status` | 🔓 Pickup order board: paid pickup orders from CONFIRMED to READY, each as `{orderNumber, status, updatedAt}` only (no items, table, customer or full id) |
 | `POST` | `/orders/public/dine-in/tables/{tableToken}/orders/{orderId}/pay` | 🔓 Guest pays a whole (unsplit) table order by Mobile Money `{momoPhone, idempotencyKey}` |
 

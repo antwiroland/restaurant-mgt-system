@@ -21,9 +21,22 @@ import java.util.UUID;
 @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
 public class ReportController {
     private final ReportService reportService;
+    private final com.restaurantmanager.core.table.payment.WalkoutService walkoutService;
 
-    public ReportController(ReportService reportService) {
+    public ReportController(ReportService reportService,
+                            com.restaurantmanager.core.table.payment.WalkoutService walkoutService) {
         this.reportService = reportService;
+        this.walkoutService = walkoutService;
+    }
+
+    /** Tables closed out because the guests left without paying. */
+    @GetMapping("/walkouts")
+    public ResponseEntity<byte[]> walkouts(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                           @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                                           @RequestParam(required = false) UUID branchId,
+                                           @RequestParam(defaultValue = "CSV") ReportService.Format format,
+                                           @AuthenticationPrincipal UserPrincipal principal) {
+        return download(walkoutService.report(from, to, branchId, principal, format));
     }
 
     @GetMapping("/sales")

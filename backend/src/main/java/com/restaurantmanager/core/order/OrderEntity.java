@@ -73,6 +73,14 @@ public class OrderEntity {
     @Column(name = "guest_phone", length = 20)
     private String guestPhone;
 
+    /** Set when a manager wrote this unpaid order off as a walkout; it then counts as settled. */
+    @Column(name = "walkout_id")
+    private UUID walkoutId;
+
+    /** When the kitchen marked a dine-in order served. */
+    @Column(name = "served_at")
+    private Instant servedAt;
+
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal subtotal;
 
@@ -165,6 +173,31 @@ public class OrderEntity {
         }
         createdAt = now;
         updatedAt = now;
+    }
+
+    @jakarta.persistence.PreUpdate
+    public void preUpdate() {
+        updatedAt = Instant.now();
+    }
+
+    public UUID getWalkoutId() {
+        return walkoutId;
+    }
+
+    public void setWalkoutId(UUID walkoutId) {
+        this.walkoutId = walkoutId;
+    }
+
+    public boolean isWrittenOff() {
+        return walkoutId != null;
+    }
+
+    public Instant getServedAt() {
+        return servedAt;
+    }
+
+    public void setServedAt(Instant servedAt) {
+        this.servedAt = servedAt;
     }
 
     public UUID getId() {

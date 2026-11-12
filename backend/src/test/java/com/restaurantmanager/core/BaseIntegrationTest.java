@@ -149,6 +149,8 @@ public abstract class BaseIntegrationTest {
 
     @Autowired
     protected com.restaurantmanager.core.hr.HrTestCleanup hrTestCleanup;
+    @Autowired
+    protected com.restaurantmanager.core.table.payment.WalkoutRepository walkoutRepository;
 
     @BeforeEach
     void cleanupDb() {
@@ -180,6 +182,7 @@ public abstract class BaseIntegrationTest {
         paymentSplitRepository.deleteAll();
         orderItemRepository.deleteAll();
         orderRepository.deleteAll();
+        walkoutRepository.deleteAll();
         deliveryZoneRepository.deleteAll();
         groupSessionItemRepository.deleteAll();
         groupSessionParticipantRepository.deleteAll();

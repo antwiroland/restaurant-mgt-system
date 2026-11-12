@@ -50,5 +50,7 @@ public enum AuditAction {
     HR_PAYROLL_CHANGED,
     HR_TIPS_CHANGED,
     HR_RECRUITMENT_CHANGED,
-    HR_REPORT_EXPORTED
+    HR_REPORT_EXPORTED,
+    /** A manager closed out a table whose guests left without paying. */
+    WALKOUT_RECORDED
 }

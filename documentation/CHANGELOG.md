@@ -564,3 +564,27 @@ Human resources module under `/hr/**`. Full design, rules and tests: `documentat
 ### Verified
 - Backend `mvn test`: 424 run, 0 failures (+3 pickup tests; KDS and status tests updated for the new rule);
   web 94 passed.
+
+---
+
+## [Dine-in payment safety: watch, alerts, walkouts] - 2026-11-12
+
+Dine-in stays pay-at-the-end; guests are never prompted. Staff are told when to go to a table with the bill.
+
+### Added
+- Floor plan: each table shows what it owes and its state ("Served 25 min ago · not paid", "Asked for the bill");
+  tables that need staff are outlined in red and listed at the top with the total owed. Refreshes every minute.
+- Alerts for cashiers (floor staff) and managers when a table has been served and unpaid for 20 minutes, or asked
+  for the bill 10 minutes ago and is still unpaid (`tables.payment-watch.*`). A dismissed alert stays hidden until
+  the table's situation changes.
+- Walkouts: a manager records that guests left without paying (reason, note). The unpaid orders are written off,
+  the table is freed, and the loss is recorded with who took the orders and any phone the guests left. Audited.
+- Walkout report (`/reports/walkouts`, CSV/PDF, Reports page), with losses by staff member.
+- `orders.served_at` (set when the kitchen marks a dine-in order served) and `orders.updated_at` now updated on
+  every save.
+
+### Migrations
+- `V38__table_walkouts.sql` (`table_walkouts`, `orders.walkout_id`, `orders.served_at`).
+
+### Verified
+- Backend `mvn test`: 426 run, 0 failures (+2 in `TablePaymentIntegrationTest`); web 97 passed; `tsc` clean.

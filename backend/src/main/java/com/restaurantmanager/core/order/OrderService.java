@@ -259,6 +259,9 @@ public class OrderService {
         }
         OrderStatus previous = order.getStatus();
         order.setStatus(request.status());
+        if (request.status() == OrderStatus.COMPLETED && order.getType() == OrderType.DINE_IN && order.getServedAt() == null) {
+            order.setServedAt(Instant.now());
+        }
         OrderEntity saved = orderRepository.save(order);
         realtimePublisher.publishOrderStatusChanged(saved.getId(), previous, saved.getStatus(), tableToken(saved));
         notifyReadyForPickup(saved, previous);
@@ -878,7 +881,7 @@ public class OrderService {
     }
 
     private boolean isOrderSettled(OrderEntity order, BigDecimal paidTotal) {
-        return paidTotal.compareTo(order.getTotal()) >= 0;
+        return order.isWrittenOff() || paidTotal.compareTo(order.getTotal()) >= 0;
     }
 
     private Map<UUID, BigDecimal> paymentTotalsByOrderIds(List<UUID> orderIds) {
@@ -898,7 +901,7 @@ public class OrderService {
         Map<UUID, BigDecimal> paidByOrderId = paymentTotalsByOrderIds(orders.stream().map(OrderEntity::getId).toList());
 
         for (OrderEntity order : orders) {
-            if (order.getType() != OrderType.DINE_IN || order.getStatus() == OrderStatus.CANCELLED) {
+            if (order.getType() != OrderType.DINE_IN || order.getStatus() == OrderStatus.CANCELLED || order.isWrittenOff()) {
                 continue;
             }
             activeOrders++;

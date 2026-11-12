@@ -90,6 +90,19 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
 
     List<OrderEntity> findByTypeAndStatusAndCreatedAtBefore(OrderType type, OrderStatus status, Instant cutoff);
 
+    /** Dine-in orders that may still be owed: not cancelled, not written off, placed since the cutoff. */
+    @Query("""
+            SELECT o FROM OrderEntity o
+            JOIN FETCH o.table t
+            LEFT JOIN FETCH t.branch
+            WHERE o.type = com.restaurantmanager.core.order.OrderType.DINE_IN
+              AND o.status <> com.restaurantmanager.core.order.OrderStatus.CANCELLED
+              AND o.walkoutId IS NULL
+              AND o.createdAt >= :since
+            ORDER BY o.createdAt ASC
+            """)
+    List<OrderEntity> findOpenDineInSince(@Param("since") Instant since);
+
     List<OrderEntity> findByCreatedAtGreaterThanEqualAndCreatedAtLessThanAndStatusNot(Instant from, Instant to, OrderStatus status);
 
     long countByRiderUserIdAndStatusIn(UUID riderUserId, java.util.Collection<OrderStatus> statuses);

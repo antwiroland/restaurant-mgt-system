@@ -591,6 +591,7 @@ public class PaymentService {
         boolean hasOutstanding = orderRepository.findByTableIdOrderByCreatedAtAsc(table.getId()).stream()
                 .filter(order -> order.getType() == OrderType.DINE_IN)
                 .filter(order -> order.getStatus() != OrderStatus.CANCELLED)
+                .filter(order -> !order.isWrittenOff())
                 .filter(order -> order.getTotal().signum() > 0)
                 .anyMatch(order -> {
                     BigDecimal paid = paymentRepository.findByOrderIdAndStatus(order.getId(), PaymentStatus.SUCCESS).stream()
