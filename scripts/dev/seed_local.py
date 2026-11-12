@@ -318,7 +318,7 @@ def main():
     step("Billing & tax")
     api.call("PUT", "/billing/settings", {"serviceChargePercent": 5, "serviceChargeDineInOnly": True,
                                            "pricesIncludeTax": False, "taxDeliveryFee": False, "tipsEnabled": True}, A)
-    for order_, (code, name, rate, compound) in enumerate([("NHIL", "NHIL", 2.5, False), ("GETF", "GETFund levy", 2.5, False), ("VAT", "VAT", 15, True)]):
+    for order_, (code, name, rate, compound) in enumerate([("NHIL", "NHIL", 2.5, False), ("GETFUND", "GETFund Levy", 2.5, False), ("VAT", "VAT", 15, True)]):
         # ok=False: on PostgreSQL, Flyway already seeds these tax codes
         api.call("POST", "/billing/taxes", {"code": code, "name": name, "rate": rate, "compound": compound, "displayOrder": order_, "active": True}, A, ok=False)
 
