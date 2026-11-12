@@ -16,7 +16,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 
 ### Authentication & Access Control
 - JWT access and refresh tokens: register, login, refresh, logout, and refresh-token revocation
-- Five roles: `ADMIN`, `MANAGER`, `CASHIER`, `CUSTOMER`, `RIDER` (method security; riders only reach delivery endpoints and their own web page)
+- Six roles: `ADMIN`, `MANAGER`, `CASHIER`, `CUSTOMER`, `RIDER`, `HR` (method security; riders only reach delivery endpoints and their own web page; HR officers only reach the HR module)
 - **SMS OTP**: `/auth/otp/request`, `/auth/otp/verify`, `/auth/otp/login`
   - Codes are stored hashed, expire after 5 minutes, have a 60-second resend cooldown and a cap of 5 per hour, and lock after 5 wrong attempts
   - Customer sign-up requires a verified phone by default (`OTP_REQUIRED_FOR_REGISTRATION`)
@@ -55,6 +55,11 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
   - The tables page shows how many guest phones are ordering at each table
 - Running table bill: several orders on one table, table close, and manager "reverse table session"
 - Tables are released automatically once payments settle the bill
+- **A table with an open order is not offered for a new one.** Placing a dine-in order marks it occupied, clears the table caches on commit and publishes `/topic/tables.status`. The POS greys out tables that are not free and clears the selected table after an order (a table opened from the floor plan, `/pos?table=`, can still take another round)
+- **Dine-in payment watch** (`GET /tables/payment-watch`): what each table owes, when it was served (`orders.served_at`) and whether the bill was asked for
+  - Floor plan: each table shows what it owes and its state ("Served 25 min ago · not paid"); tables that need staff are outlined and listed at the top
+  - Alerts for cashiers and managers when a table was served and unpaid for 20 minutes, or asked for the bill 10 minutes ago (`tables.payment-watch.*`). Guests are never prompted
+- **Walkouts** (`POST /tables/{id}/walkout`, manager): writes off the unpaid orders, frees the table and records the amount, reason, who took the orders and the guests' phone; audited (`WALKOUT_RECORDED`) and reported (`/reports/walkouts`, CSV/PDF with losses by staff member)
 - Public table bill page (`/bill/[token]`) and public table tracking
 
 ### Reservations
@@ -75,7 +80,9 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Order history with role-aware visibility, date filters and pagination
 - Pickup codes and lookup (`/orders/pickup`)
 - Public dine-in ordering from a table QR without an account
-- Public order status board (`/orders-status`) and table status board (`/tables-status`)
+- **Pickup is paid before it reaches the kitchen.** An unpaid pickup order stays `PENDING` ("awaiting payment"), off the KDS and the pickup board, and staff cannot confirm it. A successful payment confirms it. `UnpaidPickupExpiryJob` cancels pickups still unpaid after 30 minutes (`orders.unpaid-pickup.expire-after-minutes`), releasing stock and promo codes
+- **Order lookup by the number on the ticket** (`GET /orders/lookup?number=7D63D7F5`): the first 8 characters of the id, with or without `#`; a full id also works
+- Public pickup board (`/orders-status`: paid pickup orders, numbers only, grouped In queue / Preparing / Ready to collect) and table status board (`/tables-status`)
 
 ### Billing: Service Charge, Tax and Tips
 - Service charge percentage, optionally on dine-in only
@@ -108,8 +115,9 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - POS and mobile checkout take the delivery address and zone and show the fee
 
 ### Kitchen Display System (KDS)
-- `/kds/board` groups orders by status and shows item notes and modifiers, with a branch filter
-- Web KDS page with WebSocket live updates and screen-reader live regions
+- `/kds/board` groups orders by status and shows item notes and modifiers, with a branch filter. Unpaid pickup orders are left off until paid
+- Web KDS page with WebSocket live updates and screen-reader live regions. Order, table and payment events are sent after the database commit (`common/AfterCommit`), so a refresh triggered by an event always sees the new order
+- Item-level "ready" (`PATCH /orders/{id}/items/{itemId}/ready`)
 
 ### Payments
 - MoMo-first payment initiation with an idempotency key, plus get, verify and retry
@@ -117,8 +125,10 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Paystack webhook with signature verification and deduplication of repeated events
 - A successful payment moves the order from `PENDING` to `CONFIRMED`, refreshes table occupancy and awards loyalty points once the order is fully paid
 - Full and part-amount refunds tracked per payment (`refunded_amount`, `payment_refunds`)
-- `PendingPaymentReconciliationJob` re-checks payments stuck in pending
-- Receipts by payment ID or order ID (web `/receipts`, `/payments`)
+- **Cash at the counter** (no provider round-trip): recorded as received in one write, with amount tendered and change due
+- **An order is paid once.** Staff payments charge what is still owed and refuse an order already paid. Before a new attempt, any attempt still waiting is checked with the provider: a late success is recorded (and the new attempt refused), otherwise it is closed as "Replaced by a new payment attempt"
+- `PendingPaymentReconciliationJob` re-checks payments stuck in pending (never cash: a cash row not recorded as received is closed as failed)
+- **Receipts from anything on the ticket** (`GET /payments/receipts/search?q=`): order number (7D63D7F5), receipt number (RCP-20261112-2FE7D111), payment reference (CASH-DADB89D6) or a full order or payment id. Web `/receipts` (one search box, `?order=` deep link) and `/payments` (order number, method-specific fields, a readable result card with the change to give back)
 - Real-time payment events, including per-order topics
 
 ### Financial Controls (`/financial/*`)
@@ -188,8 +198,8 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Homepage (`/`) built from the live menu: dishes available today, categories, how table ordering works, reservations, about and visit sections
 - Menu (`/explore`) with search, category filter, sorting, an "available now" filter, grid and list views, and filters kept in the URL. Dish page (`/explore/[id]`) shows modifier groups with their prices
 - Reservations (`/reserve`): book by date, time slot, party size and table; manage or cancel a booking by phone number
-- QR table ordering (`/scan/[token]`), designed for phones: options in a bottom sheet, floating cart, kitchen notes, a live progress tracker for each order, paying your own share of a split bill, and rating a finished order
-- Running bill (`/bill/[token]`) and a dark display-screen order board (`/orders-status`)
+- QR table ordering (`/scan/[token]`), designed for phones, with no app or account: the guest enters a phone number (name optional) before the menu, then orders with options in a bottom sheet, a floating cart and kitchen notes, follows a live progress tracker for each order, calls a waiter or asks for the bill, pays the whole order by Mobile Money (phone prefilled) or their share of a split bill, and rates a finished order. The phone is stored on the order (`guest_name`, `guest_phone`) for staff, never on public views
+- Running bill (`/bill/[token]`) and a dark display-screen pickup board (`/orders-status`)
 - Account pages for the links the backend sends: `/forgot-password`, `/reset-password`, `/verify-email`
 
 ### Staff Web App (Next.js)
@@ -263,22 +273,13 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 ## 2. Not Yet Implemented ❌
 
 ### Business features
-- **Push notifications** for the mobile app (Expo push or FCM)
 - **Native rider app** (riders currently use the web `/rider` page) and an in-app map view (customers get a map link)
 - **Third-party delivery integration** (e.g. Bolt Food, Glovo)
-- **Printable / thermal receipts** (ESC/POS) and kitchen ticket printing
-- **Customer-facing web ordering for pickup and delivery** (the web customer pages cover browsing, reservations and dine-in QR ordering only)
-- **Customer accounts on the web** (sign-in, saved addresses, order history and favourites are only in the mobile app; favourites don't exist anywhere)
-- **Guest "call a waiter" / service requests** (there is no backend endpoint; the old button that only showed a message has been removed)
-- **Cash as an offline payment**: every payment method, cash included, goes through the payment provider and needs a payer phone number
-- **Item-level "ready" on the KDS** (the API tracks status per order, not per item)
-- **Restaurant profile API** (name, hours and address are set with environment variables)
-- **Multi-language / localization**
+- **Prepayment for risky dine-in tables** (a second QR order while the first is unpaid above a limit waits for a waiter): proposed, not built
+- **Refunding duplicate payments taken before the pay-once fix** is a manual step (Financial → Refund)
 
-### Known issues (found while seeding local test data)
-- ~~Orders from the mobile app had no branch~~ ✅ Fixed. Every order now gets a branch, tried in this order: the dine-in table, the staff member who created it, an optional `branchId` on the request, the delivery zone's branch, `ORDER_DEFAULT_BRANCH_CODE`, and finally the only active branch if there is just one. Orders that still have no branch (older orders, or several branches with no default) are a shared queue: staff assigned to any branch can see and process them, while orders that belong to another branch stay off-limits
-- **Two logins in the same second fail with a 500 error.** Refresh tokens have no unique ID (`jti`) and their issue time is in whole seconds, so two logins by the same user within one second produce the same token and break the unique index. A double-tap on "Sign in" can trigger it, and it makes `AccountRecoveryIntegrationTest` fail depending on timing. Fix: add `.id(UUID.randomUUID().toString())` to the token builder in `JwtService`
-- ~~Dashboard "Best sellers" names were blank~~ ✅ Fixed: the API sends top items as `name` but the web read `itemName`; the web client now accepts both
+### Known issues
+- **WebSocket connections are not authenticated.** `/ws` accepts any client and any subscription (order, table and payment topics included). Documented in `documentation/hr/HR_TECHNICAL_DOCUMENTATION.md`; needs a token check on connect and per-topic authorisation
 
 ### Platform & operations
 - **CI/CD pipeline**: no `.github/workflows` or other CI config yet
@@ -302,7 +303,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 ## 3. Suggested Priority
 
 1. **Verify before merging**: the Postgres Flyway check for V9–V19, then a click-through of the web and mobile flows using the seeded local environment (`scripts/dev/`)
-2. **Fix the remaining known issue** above: the same-second refresh-token collision
+2. **Fix the remaining known issue** above: authenticate WebSocket connections and subscriptions
 3. **Sandbox the providers**: Paystack test keys, a WhatsApp Cloud API test number, a Hubtel or Arkesel sender ID, an SMTP account, and Cloudinary (or a mounted volume for local images)
 4. **CI/CD and production hardening**: secrets, TLS, lock down admin tools, and a pipeline running backend, web and mobile tests plus the Postgres check
-5. **Push notifications**, then receipt printing and customer web ordering
+5. **Native rider app** and third-party delivery integration

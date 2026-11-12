@@ -56,6 +56,8 @@
 | View own reservations         | ✓     | ✓       | ✓       | ✓        |
 | Confirm reservation           | ✓     | ✓       | ✓       | —        |
 | Cancel reservation            | ✓     | ✓       | ✓       | ✓ (own)  |
+| See unpaid tables and alerts (payment watch) | ✓ | ✓ | ✓  | —        |
+| Record a walkout              | ✓     | ✓ (own branch) | — | —       |
 
 ### Orders
 
@@ -65,6 +67,8 @@
 | View own orders               | ✓     | ✓       | ✓       | ✓        |
 | View all orders               | ✓     | ✓       | ✓       | —        |
 | Update order status           | ✓     | ✓       | ✓       | —        |
+| Send an unpaid pickup to the kitchen | — | —      | —       | —        |
+| Find an order by ticket number | ✓    | ✓       | ✓       | —        |
 | Cancel order (pending)        | ✓     | ✓       | ✓       | ✓ (own)  |
 | Cancel order (confirmed+)     | ✓     | ✓ (PIN) | — (PIN) | —        |
 | Create group order session    | ✓     | ✓       | ✓       | ✓        |
@@ -79,6 +83,8 @@
 | View payment status           | ✓     | ✓       | ✓       | ✓ (own)  |
 | Retry failed payment          | ✓     | ✓       | ✓       | ✓ (own)  |
 | View receipt                  | ✓     | ✓       | ✓       | ✓ (own)  |
+| Search receipts (order, receipt or reference number) | ✓ | ✓ | ✓ | — |
+| Pay an order that is already paid | — | —       | —       | —        |
 
 ### Financial Controls (Manager PIN Required)
 
@@ -172,6 +178,10 @@ The PIN is a short-lived override mechanism. It produces a time-limited override
 ---
 
 ## Notes
+
+- **Dine-in guests need no account.** On the table QR page they give a phone number and can order, call a waiter and pay by
+  Mobile Money (whole order or their share). The phone is visible to staff only.
+- **Walkouts** write off the unpaid orders at a table; the walkout report shows losses by who took the orders.
 
 - `CASHIER` can *trigger* a PIN-required action (e.g., request a discount), which surfaces a PIN modal. The *approving* manager enters their PIN on the same device or via a manager approval workflow.
 - `CUSTOMER` tokens are issued with a `CUSTOMER` role claim. They cannot access any staff endpoints.

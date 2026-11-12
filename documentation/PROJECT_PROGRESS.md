@@ -409,7 +409,7 @@
 
 ---
 
-## Phase 14 - Human Resources (In review)
+## Phase 14 - Human Resources (Complete through Phase 9)
 
 **Last updated:** 2026-11-12. Detailed tracker, design and test records: `documentation/hr/` (`HR_IMPLEMENTATION_PROGRESS.md`, `HR_TECHNICAL_DOCUMENTATION.md`, `HR_IMPLEMENTATION_ANALYSIS.md`).
 
@@ -426,6 +426,39 @@
 - Each HR migration was booted on a temporary PostgreSQL with Flyway and Hibernate validation, then exercised through the API (the Testcontainers suite cannot start containers on this machine)
 - Started locally with seed data; the HR screens have not yet been clicked through in a browser
 
+### Status update (2026-11-12)
+- Phases 5–9 merged to `main`: leave, payroll, tips and service charge, recruitment, the public careers page, the HR
+  dashboard and reports, editable self-service and the HR-only role. Seed data covers payroll, tips and recruitment
+  on Docker PostgreSQL (`scripts/dev/seed_local.py --pg`)
+
 ### Open
-- Phases 5 (leave) to 8 are stacked branches waiting for review, to be merged in order
-- Seed data for payroll, tips and recruitment; payslip PDF; performance reviews, training and an HR reporting dashboard (phases 9–11)
+- Payslip PDF and payment file export; performance reviews and training (phases 10–11)
+- Authenticate WebSocket connections and subscriptions
+
+---
+
+## Phase 15 - Front-of-House Hardening (Complete)
+
+**Goal:** close the gaps found while testing the POS, kitchen, table QR and payment flows end to end.
+
+### Deliverables produced
+- **Kitchen and tables:** realtime events after commit (POS orders reach the KDS at once); a table with an open order
+  is not offered for a new one; item-level ready
+- **Pickup:** paid before it reaches the kitchen; unpaid pickups expire after 30 minutes; a public pickup board of
+  order numbers grouped by status
+- **Guests at the table (no app or account):** phone number before the menu, order, call a waiter, pay the whole
+  order or a share by Mobile Money; the phone is stored for staff only (`V37`)
+- **Dine-in payment safety:** unpaid balances on the floor plan, staff alerts for tables served and unpaid or waiting
+  for the bill, manager walkout records and a walkout report (`V38`)
+- **Payments:** an order is paid once (waiting attempts settled or replaced), cash recorded in one write, order
+  lookup by the 8-character ticket number, receipts from the order number, receipt number or payment reference,
+  a readable payment result with the change to give back
+- **Layout fixes:** the phone bottom bar no longer covers laptop screens; drawers and modals never overflow sideways
+
+### Verification
+- Backend 431 tests, web 103, `tsc` and ESLint clean; screens checked in a headless browser at 1366×768 and 390×844
+  against the seeded Docker PostgreSQL database
+
+### Open
+- Refund the duplicate payments taken before the pay-once fix (local test data only)
+- Optional prepayment for risky dine-in tables
