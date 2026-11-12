@@ -69,11 +69,14 @@ public enum HrPermission {
         return Arrays.stream(values()).filter(p -> p.code.equals(value) || p.name().equals(value)).findFirst();
     }
 
-    /** Operational defaults for the MANAGER role. Compensation, exits, transfers and configuration are not included. */
+    /**
+     * Operational defaults for the MANAGER role (always limited to their branches). Compensation, payroll, exits, transfers
+     * and configuration are not included; hiring is, because managers already register employees.
+     */
     static final Set<HrPermission> MANAGER_DEFAULTS = EnumSet.of(
             EMPLOYEE_VIEW, EMPLOYEE_CREATE, EMPLOYEE_UPDATE,
             CONTRACT_VIEW, DOCUMENT_VIEW, BRANCH_VIEW,
             SCHEDULE_VIEW, SCHEDULE_MANAGE, SCHEDULE_PUBLISH, SHIFT_SWAP_APPROVE,
             ATTENDANCE_VIEW, ATTENDANCE_MANAGE, ATTENDANCE_CORRECT,
-            TIMESHEET_REVIEW, OVERTIME_APPROVE, LEAVE_APPROVE, REPORTS_VIEW);
+            TIMESHEET_REVIEW, OVERTIME_APPROVE, LEAVE_APPROVE, RECRUITMENT_MANAGE, REPORTS_VIEW);
 }
