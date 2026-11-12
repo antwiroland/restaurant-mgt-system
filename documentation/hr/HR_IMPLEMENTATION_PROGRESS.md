@@ -8,14 +8,14 @@
 | Module | Human Resource & Workforce Management |
 | Integration branch | Phases 0–4: `feature/restaurant-hr-management` (from `feature/operations-expansion` @ `35ef1ed`), merged to `main`. From Phase 5 on: one feature branch per phase, each based on the previous one, reviewed into `main` in order |
 | Implementation start | 2026-11-09 |
-| Current status | Phases 0–8 merged to `main` (PR #5 brought leave, payroll, tips and recruitment). Waiting for review, each branch based on the previous one: `chore/seed-pay-recruitment-postgres` (Docker PostgreSQL dev mode, payroll/tips/recruitment seed data) → `feature/public-careers` (public careers page, publish/unpublish) → `feature/hr-dashboard-self-service-role` (Phase 9: HR dashboard and reports, editable self-service, HR role) |
+| Current status | Phases 0–9 merged to `main` (2026-11-12): employees, multi-branch, scheduling, attendance and POS clock, timesheets and overtime, leave, payroll, tips and service charge, recruitment with the public careers page, the HR dashboard and reports, editable self-service and the HR-only role. Not started: performance reviews, training and certifications |
 | Last updated | 2026-11-12 |
 
 ## Overall Progress
 
 - [x] Repository analysis
 - [x] Architecture
-- [~] Database design — Phase 1–4 entities done (V27–V30); later-phase entities not designed in SQL yet
+- [x] Database design — HR migrations V27–V36 (employees to vacancy publishing); performance and training tables not designed yet
 - [x] Employee management (registry, departments, positions, contracts, documents, user linking)
 - [x] Multi-branch management (assignment history, transfers, secondary/temporary assignments, covering-branch visibility, extra branch scope, branch workforce summary)
 - [x] Shift scheduling (templates, validation, drafts/publishing, coverage, availability, swaps, notifications; legacy rota kept compatible)
@@ -34,7 +34,7 @@
 - [x] Reporting / HR dashboard: dashboard (headcount, movement and turnover, 6-month trend, today's attendance, work waiting, expiries, recruitment, labour cost vs sales) and reports with CSV export (employee register, joiners and leavers, leave, hours and attendance, payroll summary)
 - [x] Security — HR permission model, HR role confined to the HR module, branch isolation, private documents, audit, sign-in/permission checks across HR reads (WebSocket topics are an app-wide gap, see Outstanding Issues)
 - [ ] Performance optimization / benchmarking
-- [~] Regression testing — full backend suite and web suite run for Phase 1 (see Development Log)
+- [x] Regression testing — full backend and web suites run on every phase; latest on `main` 2026-11-12: backend 431, web 103, 0 failures (see Development Log)
 - [ ] Final documentation
 
 ## Feature Completion Matrix
@@ -135,6 +135,10 @@
 | `feature/hr-dashboard-self-service-role` | `43b85d0` | feat(hr): HR dashboard, editable self-service and an HR-only role | 2026-11-12 | Phase 9 |
 | `feature/hr-dashboard-self-service-role` | `3471a5a` | fix(hr): return 403 (not 401) when the HR role is refused; count ON_SHIFT on the dashboard | 2026-11-12 | Phase 9 fix |
 | `feature/hr-dashboard-self-service-role` | `70f67ed` | feat(hr): HR reports with on-screen tables and CSV export | 2026-11-12 | Phase 9 reports |
+| `feature/hr-dashboard-self-service-role` | `7561ca5` | docs(hr): record Phase 9 reports, dashboard, self-service, HR role and careers | 2026-11-12 | Phase 9 docs |
+| `main` | `cdd6fc7` | Merge branch `chore/seed-pay-recruitment-postgres` | 2026-11-12 | Dev tooling integration |
+| `main` | `95a1e52` | Merge branch `feature/public-careers` | 2026-11-12 | Careers integration |
+| `main` | `4d19bc9` | Merge branch `feature/hr-dashboard-self-service-role` | 2026-11-12 | Phase 9 integration |
 
 ## Development Log
 
@@ -145,7 +149,6 @@
 | 2026-11-09 | Phase 1 backend | V27 migration, `hr.*` packages, audit actions, test cleanup, compose volume, postgres-it profile fix | Backend `mvn test`: **306 run, 0 failures, 0 errors** (279 existing + 27 HR) | `feature/hr-employee-management` | `c23471a` |
 | 2026-11-09 | V27 on PostgreSQL | Booted the packaged app against a temporary `postgres:16-alpine` container: Flyway applied V1–V27, Hibernate `validate` passed; API smoke test (seeded 7 departments/26 positions, create employee, search, duplicate phone 409, contract create/activate, PDF upload/download with nosniff + attachment, fake PDF rejected 400, audit timeline) | Manual, passed | `feature/hr-employee-management` | `c23471a` |
 | 2026-11-09 | Phase 1 web | HR pages, nav, access context, data layer, proxy headers | `vitest`: 48 run, 45 passed, **3 failed — pre-existing** in `guest.test.tsx` (identical failure on clean `HEAD`); all 9 new HR tests pass. ESLint clean on changed files. `next build` passes | `feature/hr-employee-management` | `add23e3` |
-
 | 2026-11-09 | Phase 2 backend | V28, assignment recorder/service/controller, visible-vs-manageable scoping, extra branch scope, workforce summary | Backend `mvn test`: **315 run, 0 failures, 0 errors** (306 + 9 new) | `feature/hr-multi-branch` | `5d9e484` |
 | 2026-11-09 | V28 on PostgreSQL | Migrated a temporary Postgres to V27, inserted three employees (active, former, head office), then booted the app: V28 applied, backfill produced an open PRIMARY row, a closed row at the exit date, and none for head office. Smoke-tested transfer, secondary assignment, branch filter, workforce counts. **Found and fixed a PostgreSQL-only 500** (untyped null parameter in the overlap query); after the fix both overlap cases return 409 | Manual, passed after fix | `feature/hr-multi-branch` | `5d9e484` |
 | 2026-11-09 | Phase 2 web | Branches tab, read-only covering view, Branch Workforce page, extra branch scope in HR Access | `vitest` HR suite 9/9 pass; ESLint clean on changed files; `next build` passes | `feature/hr-multi-branch` | `1baa588` |
@@ -176,6 +179,7 @@
 | 2026-11-12 | Phase 9 dashboard, self-service, HR role | `Role.HR` with `HR_DEFAULTS`, security allow-list for the role, `GET /hr/dashboard`, `PUT /hr/me/profile`, `GET /hr/me/contracts`, `GET /hr/me/documents`, web `/hr`, My HR profile edits | Backend `mvn test`: **416 run, 0 failures** (+7 new); web **87 passed**. Live on Docker PostgreSQL: HR account 403 on POS/tables/KDS/inventory, 401 signed out, dashboard figures match seed | `feature/hr-dashboard-self-service-role` | `43b85d0` |
 | 2026-11-12 | Phase 9 fix | Error dispatches allowed through security (a filter-level 403 had become 401 on the real server, not under MockMvc); Today tiles use the board's statuses | Backend 416 / web 87 passed; live re-check 403 | `feature/hr-dashboard-self-service-role` | `3471a5a` |
 | 2026-11-12 | Phase 9 reports | `GET /hr/reports`, `/hr/reports/{type}`, `/hr/reports/{type}/csv`, `HR_REPORT_EXPORTED`, web `/hr/reports` | Backend `mvn test`: **418 run, 0 failures** (+1 integration, +1 CSV unit); web **88 passed**; `tsc` and ESLint clean | `feature/hr-dashboard-self-service-role` | `70f67ed` |
+| 2026-11-12 | Phase 9 merged to `main` | `chore/seed-pay-recruitment-postgres`, `feature/public-careers`, `feature/hr-dashboard-self-service-role` merged in order (one footer conflict resolved: Careers link kept); V35, V36 then V37 apply in order on PostgreSQL | Backend `mvn test` on the merged `main`: **422 run, 0 failures**; web **94 passed**; later front-of-house work on `main`: backend **431**, web **103**, 0 failures | `main` | `4d19bc9` |
 | 2026-11-09 | Phase 4 web | Attendance page, PIN card, My time clock; POS staff clock panel | `vitest` HR suites 20/20; ESLint and `tsc` clean; `next build` passes | `feature/hr-attendance`, `feature/hr-pos-integration` | `953b890`, `b41efea` |
 
 ## Outstanding Issues
@@ -213,13 +217,14 @@
   fully inside the period are paid.
 - **Payroll payments:** recorded only (method and reference); no bank or mobile-money transfer is made by the system.
 - **Payslip documents:** payslips are shown on screen; PDF export is not built yet.
-- **Seed data:** `seed_hr.py` covers HR up to leave; it does not create payroll rules or runs, tip/service-charge rules or pools, or
-  vacancies and candidates. Those screens start empty on a fresh local database.
+- **Seed data:** `seed_hr.py` covers every phase up to recruitment (payroll rules and runs, tip and service-charge pools,
+  vacancies, candidates, interviews, offers and a hire). Payroll rules are TEST values, not real statutory rates.
 - **Tips basis:** an order counts in the period of its first successful payment; partially refunded orders count in full, fully refunded
   orders are left out. Refunds after a pool is approved do not change it (return the pool to draft and recalculate if needed).
 - **Tips participants:** based on clocked time at the branch; staff who did not clock (or whose entries are open) get no share.
 - **Tips without a contract:** a share is paid only through payroll, so staff without a contract keep an unpaid approved share.
-- **Recruitment intake:** applicants are entered by staff; there is no public careers page or self-apply form yet.
+- **Recruitment intake:** published vacancies appear on the public careers page (`/careers`), but applicants are still entered
+  by staff; there is no self-apply form yet.
 - **Candidate retention:** personal data is removed on demand (anonymise); there is no automatic retention period yet.
 - **Hire contracts:** only open-ended offers (permanent, probation, part-time) become a draft contract automatically; fixed-term,
   casual, seasonal and internship contracts need an end date and are created from the employee profile.
@@ -236,8 +241,7 @@
 
 ## Next Actions
 
-1. Open PRs in order: `chore/seed-pay-recruitment-postgres` → `main`, then `feature/public-careers`, then `feature/hr-dashboard-self-service-role` (each based on the previous).
-2. Authorise WebSocket connections and subscriptions (see Outstanding Issues).
-3. Payroll follow-ups: payslip PDF, bank/mobile-money payment file export.
-4. Next phases: performance reviews, training and certifications; online applications from the careers page; an edit screen for vacancy text.
-5. Fix the Testcontainers environment or CI job so the `postgres` test group runs on every phase.
+1. Authorise WebSocket connections and subscriptions (see Outstanding Issues).
+2. Payroll follow-ups: payslip PDF, bank/mobile-money payment file export.
+3. Next phases: performance reviews, training and certifications; online applications from the careers page; an edit screen for vacancy text.
+4. Fix the Testcontainers environment or CI job so the `postgres` test group runs on every phase.
