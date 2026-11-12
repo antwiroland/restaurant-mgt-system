@@ -48,6 +48,9 @@ export type PublicOrderTrackingRecord = {
   cancelReason?: string;
   createdAt: string;
   updatedAt: string;
+  /** Order total and what has been paid on it so far. */
+  total?: string;
+  amountPaid?: string;
 };
 
 export type BranchRecord = {
@@ -348,6 +351,9 @@ export type OrderRecord = {
   tableNumber?: string;
   deliveryAddress?: string;
   pickupCode?: string;
+  /** Name and phone a QR guest left with their order. */
+  guestName?: string | null;
+  guestPhone?: string | null;
   notes?: string;
   cancelReason?: string;
   subtotal: string;
@@ -710,12 +716,10 @@ export async function getPublicTableStatus(): Promise<TablePublicStatusView[]> {
   return apiRequest<TablePublicStatusView[]>("/tables/public");
 }
 
+/** One pickup order on the public status board: its short number and status, nothing else. */
 export type OrderPublicStatusView = {
-  orderId: string;
-  tableNumber: string | null;
-  type: "DINE_IN" | "PICKUP" | "DELIVERY";
-  status: "PENDING" | "CONFIRMED" | "PREPARING" | "READY" | "OUT_FOR_DELIVERY" | "DELIVERED";
-  createdAt: string;
+  orderNumber: string;
+  status: "PENDING" | "CONFIRMED" | "PREPARING" | "READY";
   updatedAt: string;
 };
 
@@ -851,6 +855,8 @@ export async function updatePromoCodeStatus(
 export async function createPublicDineInOrder(payload: {
   tableToken: string;
   notes?: string;
+  guestName?: string;
+  guestPhone?: string;
   items: { menuItemId: string; quantity: number; notes?: string; modifierOptionIds?: string[] }[];
 }): Promise<OrderRecord> {
   return apiRequest<OrderRecord>("/orders/public/dine-in", {
@@ -2044,6 +2050,19 @@ export async function payGuestSplit(
   idempotencyKey: string,
 ): Promise<PaymentInitiateRecord> {
   return apiRequest<PaymentInitiateRecord>(`${guestOrderPath(tableToken, orderId)}/splits/${splitId}/pay`, {
+    method: "POST",
+    body: { momoPhone, idempotencyKey },
+  });
+}
+
+/** Pay a whole (unsplit) table order by Mobile Money as a guest. */
+export async function payGuestOrder(
+  tableToken: string,
+  orderId: string,
+  momoPhone: string,
+  idempotencyKey: string,
+): Promise<PaymentInitiateRecord> {
+  return apiRequest<PaymentInitiateRecord>(`${guestOrderPath(tableToken, orderId)}/pay`, {
     method: "POST",
     body: { momoPhone, idempotencyKey },
   });

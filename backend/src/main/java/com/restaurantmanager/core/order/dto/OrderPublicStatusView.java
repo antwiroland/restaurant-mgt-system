@@ -1,17 +1,16 @@
 package com.restaurantmanager.core.order.dto;
 
 import com.restaurantmanager.core.order.OrderStatus;
-import com.restaurantmanager.core.order.OrderType;
 
 import java.time.Instant;
-import java.util.UUID;
 
+/**
+ * One line on the public pickup board: the short order number and its status only. No items, table, customer or
+ * full order id (the id unlocks per-order topics), so the board is safe to show on a screen anyone can see.
+ */
 public record OrderPublicStatusView(
-        UUID orderId,
-        String tableNumber,
-        OrderType type,
+        String orderNumber,
         OrderStatus status,
-        Instant createdAt,
         Instant updatedAt
 ) {
 }

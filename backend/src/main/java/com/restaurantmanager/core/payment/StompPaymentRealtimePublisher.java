@@ -1,5 +1,6 @@
 package com.restaurantmanager.core.payment;
 
+import com.restaurantmanager.core.common.AfterCommit;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
@@ -29,8 +30,8 @@ public class StompPaymentRealtimePublisher implements PaymentRealtimePublisher {
                 "method", method.name(),
                 "updatedAt", Instant.now().toString()
         );
-        messagingTemplate.convertAndSend("/topic/payments.status", payload);
-        messagingTemplate.convertAndSend("/topic/orders." + orderId + ".payments", payload);
+        send("/topic/payments.status", payload);
+        send("/topic/orders." + orderId + ".payments", payload);
     }
 
     @Override
@@ -42,7 +43,12 @@ public class StompPaymentRealtimePublisher implements PaymentRealtimePublisher {
                 "reason", reason,
                 "updatedAt", Instant.now().toString()
         );
-        messagingTemplate.convertAndSend("/topic/payments.failed", payload);
-        messagingTemplate.convertAndSend("/topic/orders." + orderId + ".payments", payload);
+        send("/topic/payments.failed", payload);
+        send("/topic/orders." + orderId + ".payments", payload);
+    }
+
+    /** Sent after the surrounding transaction commits, so listeners that reload see the change. */
+    private void send(String destination, Object payload) {
+        AfterCommit.run(() -> messagingTemplate.convertAndSend(destination, payload));
     }
 }

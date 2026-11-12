@@ -515,3 +515,33 @@ Human resources module under `/hr/**`. Full design, rules and tests: `documentat
 
 ### Verified
 - Backend 408 tests; web HR suites 38/38; V35 on PostgreSQL 36/36 API checks.
+
+---
+
+## [Fixes - POS, KDS, pickup board, guest QR ordering] - 2026-11-12
+
+### Fixed
+- POS orders now reach the KDS straight away. Realtime events (orders, tables, payments) were sent inside the
+  transaction, so the KDS reloaded before the new order was committed and only saw it on the next 15-second poll.
+  They are now sent after commit (`common/AfterCommit`).
+- A table used for a dine-in order is no longer offered as free. Placing the order marked the table OCCUPIED but did
+  not clear the 2-minute per-user table cache or publish `/topic/tables.status`; both now happen on commit. The POS
+  greys out tables that are not AVAILABLE, clears the selected table after a successful order and reloads the
+  tables. A table opened from the floor plan (`/pos?table=`) can still take another round.
+
+### Changed
+- `/orders-status` is now the pickup order board: pickup orders only, order numbers grouped by status in four
+  columns like the KDS (Received, Accepted, Preparing, Ready to collect). `GET /orders/public/status` returns
+  `{orderNumber, status, updatedAt}` only: no items, table, customer or full order id.
+- Table QR page (`/scan/{token}`): guests enter a phone number (name optional) before the menu. No app or account is
+  needed. The contact is remembered on that device and sent as `guestName` / `guestPhone`. It is no longer folded
+  into the order notes, which the kitchen ticket and table tracking show. Staff see it on the order page.
+- Guests can pay a whole order by Mobile Money (`POST .../orders/{orderId}/pay`), with their phone prefilled, as
+  well as splitting the bill. Table tracking returns `total` and `amountPaid`, so paid orders show as paid.
+
+### Migrations
+- `V37__order_guest_contact.sql` (`orders.guest_name`, `orders.guest_phone`). V36 is on `feature/public-careers`:
+  merge that branch first, or Flyway will refuse V36 on a database that already has V37.
+
+### Verified
+- Backend `mvn test`: 412 run, 0 failures (+4 in `GuestTableAndPickupBoardIntegrationTest`); web 83 passed; `tsc` clean.

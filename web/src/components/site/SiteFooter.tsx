@@ -29,7 +29,7 @@ export async function SiteFooter() {
           <Link className="hover:text-espresso-ink" href="/explore">Menu</Link>
           <Link className="hover:text-espresso-ink" href="/reserve">Book a table</Link>
           <Link className="hover:text-espresso-ink" href="/reserve#manage">Manage a booking</Link>
-          <Link className="hover:text-espresso-ink" href="/orders-status">Order status board</Link>
+          <Link className="hover:text-espresso-ink" href="/orders-status">Pickup order board</Link>
           <Link className="hover:text-espresso-ink" href="/careers">Careers</Link>
         </nav>
 

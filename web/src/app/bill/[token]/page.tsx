@@ -128,7 +128,7 @@ export default function PublicBillPage() {
               </dl>
               <div className="flex items-center gap-2 border-t border-line-subtle bg-ivory/70 px-6 py-3 text-sm">
                 <span className={`badge ${paymentMeta.badge}`}>{paymentMeta.label}</span>
-                <span className="text-ink-soft">{outstanding > 0 ? "Pay with our team when you're ready." : "Thank you!"}</span>
+                <span className="text-ink-soft">{outstanding > 0 ? "Pay by Mobile Money from your orders, or with our team." : "Thank you!"}</span>
               </div>
             </section>
 
@@ -156,7 +156,7 @@ export default function PublicBillPage() {
             </section>
 
             <Link href={params?.token ? `/scan/${params.token}` : "/"} className="btn btn-primary btn-lg btn-block">
-              <Icon name="plus" size={18} /> Order more
+              <Icon name="plus" size={18} /> Order more or pay
             </Link>
             <p className="text-center text-xs text-ink-muted">Need anything? Just wave to a member of our team.</p>
           </>

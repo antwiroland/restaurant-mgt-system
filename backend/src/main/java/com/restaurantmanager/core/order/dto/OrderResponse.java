@@ -43,6 +43,9 @@ public record OrderResponse(
         BigDecimal taxTotal,
         boolean taxInclusive,
         BigDecimal tipAmount,
-        List<com.restaurantmanager.core.billing.BillingService.TaxLine> taxLines
+        List<com.restaurantmanager.core.billing.BillingService.TaxLine> taxLines,
+        /** Name and phone a QR guest gave (staff only; never on public views). */
+        String guestName,
+        String guestPhone
 ) {
 }

@@ -14,6 +14,7 @@ import { formatMoney } from "@/lib/brand";
 import { useBrand } from "@/components/BrandProvider";
 import { TableServiceButtons } from "@/components/TableServiceButtons";
 import { Spinner } from "@/components/Spinner";
+import { isValidGuestPhone, loadGuestContact, saveGuestContact, type GuestContact } from "@/features/orders/guestContact";
 import {
   createPublicDineInOrder,
   getMenuItemModifiers,
@@ -72,8 +73,12 @@ export default function GuestScanMenuPage() {
   const [selectionByItemId, setSelectionByItemId] = useState<Record<string, SelectionByGroup>>({});
   const [cart, setCart] = useState<CartLine[]>([]);
   const [trackedOrders, setTrackedOrders] = useState<PublicOrderTrackingRecord[]>([]);
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  const [guest, setGuest] = useState<GuestContact | null>(null);
+  const [guestChecked, setGuestChecked] = useState(false);
+  const [editingGuest, setEditingGuest] = useState(false);
+  const [guestNameInput, setGuestNameInput] = useState("");
+  const [guestPhoneInput, setGuestPhoneInput] = useState("");
+  const [guestPhoneError, setGuestPhoneError] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
@@ -85,6 +90,30 @@ export default function GuestScanMenuPage() {
   const [sheetItemId, setSheetItemId] = useState<string | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [justAdded, setJustAdded] = useState(0);
+
+  // A returning guest on this device skips the phone step.
+  useEffect(() => {
+    const saved = loadGuestContact();
+    setGuest(saved);
+    if (saved) {
+      setGuestNameInput(saved.name);
+      setGuestPhoneInput(saved.phone);
+    }
+    setGuestChecked(true);
+  }, []);
+
+  function submitGuest(event: React.FormEvent) {
+    event.preventDefault();
+    if (!isValidGuestPhone(guestPhoneInput)) {
+      setGuestPhoneError("Enter your phone number, e.g. 024 123 4567");
+      return;
+    }
+    const contact = { name: guestNameInput.trim(), phone: guestPhoneInput.trim() };
+    saveGuestContact(contact);
+    setGuest(contact);
+    setGuestPhoneError("");
+    setEditingGuest(false);
+  }
 
   useEffect(() => {
     if (!params?.token) {
@@ -312,18 +341,19 @@ export default function GuestScanMenuPage() {
 
   async function placeOrder() {
     if (cart.length === 0 || !token) return;
+    if (!guest) {
+      setCartOpen(false);
+      setEditingGuest(true);
+      return;
+    }
     setPlacing(true);
     setError("");
     try {
-      const mergedNotes = [
-        notes.trim(),
-        customerName.trim() ? `Guest: ${customerName.trim()}` : "",
-        customerPhone.trim() ? `Phone: ${customerPhone.trim()}` : "",
-      ].filter(Boolean).join(" | ");
-
       const order = await createPublicDineInOrder({
         tableToken: token,
-        notes: mergedNotes || undefined,
+        notes: notes.trim() || undefined,
+        guestName: guest.name || undefined,
+        guestPhone: guest.phone,
         items: cart.map((line) => ({
           menuItemId: line.item.id,
           quantity: line.quantity,
@@ -427,7 +457,7 @@ export default function GuestScanMenuPage() {
                           ))}
                         </ol>
                       )}
-                      <GuestOrderActions tableToken={token} order={order} refreshKey={liveTick} />
+                      <GuestOrderActions tableToken={token} order={order} refreshKey={liveTick} guestPhone={guest?.phone} />
                     </li>
                   );
                 })}
@@ -439,7 +469,41 @@ export default function GuestScanMenuPage() {
           ) : null}
         </div>
 
-        {loading ? (
+        {guestChecked && (!guest || editingGuest) ? (
+          <form className="mt-5 grid gap-4 rounded-2xl border border-line bg-surface p-5 shadow-sm" onSubmit={submitGuest} aria-labelledby="guest-title">
+            <div>
+              <h1 id="guest-title" className="font-display text-xl font-extrabold">{guest ? "Your details" : `Welcome${table ? ` to table ${table.tableNumber}` : ""}`}</h1>
+              <p className="mt-1 text-sm text-ink-soft">
+                Enter your phone number to see the menu and order. No app or account needed. We use it to reach you about
+                your order and as your Mobile Money number when you pay.
+              </p>
+            </div>
+            <label className="field">
+              <span className="field-label">Phone number</span>
+              <input className="input" type="tel" inputMode="tel" autoComplete="tel" required placeholder="024 123 4567"
+                value={guestPhoneInput} aria-invalid={guestPhoneError ? true : undefined} aria-describedby={guestPhoneError ? "guest-phone-error" : undefined}
+                onChange={(e) => { setGuestPhoneInput(e.target.value); setGuestPhoneError(""); }} />
+              {guestPhoneError ? <span id="guest-phone-error" className="field-error" role="alert">{guestPhoneError}</span> : null}
+            </label>
+            <label className="field">
+              <span className="field-label">Name <span className="font-normal text-ink-muted">(optional)</span></span>
+              <input className="input" autoComplete="given-name" value={guestNameInput} onChange={(e) => setGuestNameInput(e.target.value)} />
+            </label>
+            <div className="flex gap-2">
+              {guest ? <button type="button" className="btn btn-secondary btn-lg" onClick={() => setEditingGuest(false)}>Cancel</button> : null}
+              <button type="submit" className="btn btn-primary btn-lg flex-1"><Icon name="arrowRight" size={18} /> {guest ? "Save" : "See the menu"}</button>
+            </div>
+          </form>
+        ) : null}
+
+        {guest && !editingGuest ? (
+          <p className="mt-4 flex items-center justify-between gap-2 text-sm text-ink-soft">
+            <span>Ordering as <span className="font-semibold text-ink">{guest.name || guest.phone}</span>{guest.name ? ` · ${guest.phone}` : ""}</span>
+            <button type="button" className="font-semibold text-brand underline-offset-2 hover:underline" onClick={() => setEditingGuest(true)}>Change</button>
+          </p>
+        ) : null}
+
+        {!guest || editingGuest ? null : loading ? (
           <div className="mt-6 grid gap-3">
             <Skeleton className="h-10 w-full" />
             {Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-28 w-full" />)}
@@ -498,7 +562,7 @@ export default function GuestScanMenuPage() {
 
             {trackedOrders.length === 0 ? (
               <p className="mt-8 text-center text-xs text-ink-muted">
-                Orders go straight to our kitchen. Pay with our team or from your running bill.
+                Orders go straight to our kitchen. Pay by Mobile Money from your order, or with our team.
               </p>
             ) : null}
           </>
@@ -506,7 +570,7 @@ export default function GuestScanMenuPage() {
       </div>
 
       {/* Floating cart bar */}
-      {cartItemsCount > 0 ? (
+      {cartItemsCount > 0 && guest && !editingGuest ? (
         <div className="fixed inset-x-0 bottom-0 z-[var(--z-sticky)] px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-3">
           <button
             type="button"
@@ -620,19 +684,9 @@ export default function GuestScanMenuPage() {
               <span className="field-label">Note for the kitchen <span className="font-normal text-ink-muted">(optional)</span></span>
               <textarea className="textarea min-h-[72px]" placeholder="Allergies, no onions, extra spicy…" value={notes} onChange={(e) => setNotes(e.target.value)} />
             </label>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="field">
-                <span className="field-label">Name <span className="font-normal text-ink-muted">(optional)</span></span>
-                <input className="input" autoComplete="given-name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-              </label>
-              <label className="field">
-                <span className="field-label">Phone <span className="font-normal text-ink-muted">(optional)</span></span>
-                <input className="input" inputMode="tel" autoComplete="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
-              </label>
-            </div>
           </div>
           {error ? <p className="alert alert-danger" role="alert">{error}</p> : null}
-          <p className="text-xs text-ink-muted">Prices include any options you chose. Your server will confirm the final bill.</p>
+          <p className="text-xs text-ink-muted">Prices include any options you chose. Pay by Mobile Money from your order once it is sent, or pay our team.</p>
         </div>
       </Modal>
     </main>

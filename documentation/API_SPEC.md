@@ -173,16 +173,21 @@ Admin/manager only.
 Staff only.
 
 ### GET `/orders/public/status`
-Public status board.
+Public pickup board. Pickup orders in PENDING, CONFIRMED, PREPARING or READY, each as `{orderNumber, status, updatedAt}`.
+`orderNumber` is the first 8 characters of the order id in capitals (the number on the POS and receipt). No items,
+notes, table, customer or full order id.
 
 ### POST `/orders/public/dine-in`
-Public table order creation.
+Public table order creation, no account needed. Body `{tableToken, items, notes?, promoCode?, guestName?, guestPhone?}`.
+`guestPhone` (optional + then 9–20 digits, spaces, brackets or dashes; 400 otherwise) is stored as digits on the order
+with `guestName`; staff see both on the order, public views never do. Placing a dine-in order marks the table OCCUPIED,
+clears the table caches after commit and publishes `/topic/tables.status`.
 
 ### GET `/orders/public/dine-in/tables/{tableToken}/bill`
 Public.
 
 ### GET `/orders/public/dine-in/tables/{tableToken}/tracking`
-Public.
+Public. Each order also carries `total` and `amountPaid`.
 
 ## 7. Group Orders
 
@@ -376,6 +381,7 @@ Under `/orders/public/dine-in/tables/{tableToken}/orders/{orderId}`. The order m
 - `GET /splits`
 - `POST /splits` `{parts (2-20), names?}`: equal split only
 - `POST /splits/{splitId}/pay` `{momoPhone, idempotencyKey}`: Mobile Money only; 409 if that share is paid or a payment for it is already in progress
+- `POST /pay` `{momoPhone, idempotencyKey}`: pay the whole order by Mobile Money; 409 if the bill is split, a payment is already waiting for approval, or the order is already paid. The same key returns the same payment
 - `POST /payments/{paymentId}/verify`: refreshes the payment status from the provider
 
 Group orders can be viewed (`GET /orders/{id}`, and they appear in `GET /orders`) by every customer who joined the group session. Only the customer who placed the order can split, change or cancel it.

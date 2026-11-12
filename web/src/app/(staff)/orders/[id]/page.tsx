@@ -126,6 +126,9 @@ export default function OrderDetailPage() {
             <p><span className="font-semibold text-ink">Table:</span> {order.tableNumber ?? "-"}</p>
             {order.pickupCode ? <p><span className="font-semibold text-ink">Pickup Code:</span> {order.pickupCode}</p> : null}
             {order.deliveryAddress ? <p><span className="font-semibold text-ink">Delivery Address:</span> {order.deliveryAddress}</p> : null}
+            {order.guestPhone ? (
+              <p><span className="font-semibold text-ink">Guest:</span> {order.guestName ? `${order.guestName} · ` : ""}<a className="underline" href={`tel:${order.guestPhone}`}>{order.guestPhone}</a></p>
+            ) : null}
             {order.notes ? <p className="md:col-span-2"><span className="font-semibold text-ink">Notes:</span> {order.notes}</p> : null}
           </section>
 

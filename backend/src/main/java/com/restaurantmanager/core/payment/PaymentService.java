@@ -224,6 +224,37 @@ public class PaymentService {
         return start(order, split.getAmount(), splitId, PaymentMethod.MOBILE_MONEY, momoPhone.trim(), key);
     }
 
+    /**
+     * A dine-in guest (no account) pays a whole table order by Mobile Money from the table QR page. Only when the
+     * bill is not split, nothing has been paid on it yet and no other payment is waiting for approval.
+     */
+    @Transactional
+    public PaymentInitiateResponse initiateGuestFull(String tableToken, UUID orderId, String momoPhone, String idempotencyKey) {
+        ensureProviderConfigured();
+        OrderEntity order = splitService.requireTableOrder(tableToken, orderId);
+        String key = idempotencyKey.trim();
+        PaymentEntity existing = paymentRepository.findByIdempotencyKey(key).orElse(null);
+        if (existing != null) {
+            if (!existing.getOrder().getId().equals(orderId) || existing.getSplitId() != null) {
+                throw new ApiException(409, "Idempotency key already used for a different payment");
+            }
+            return toInitiateResponse(existing);
+        }
+        if (order.getVoidedAt() != null) {
+            throw new ApiException(409, "This order is closed");
+        }
+        if (!splitService.activeSplits(orderId).isEmpty()) {
+            throw new ApiException(409, "This bill is split; pay your share instead");
+        }
+        if (!paymentRepository.findByOrderIdAndStatusIn(orderId, List.of(PaymentStatus.INITIATED, PaymentStatus.PENDING)).isEmpty()) {
+            throw new ApiException(409, "A payment for this order is already waiting for approval");
+        }
+        if (!paymentRepository.findByOrderIdAndStatusIn(orderId, List.of(PaymentStatus.SUCCESS)).isEmpty()) {
+            throw new ApiException(409, "This order has already been paid");
+        }
+        return start(order, order.getTotal(), null, PaymentMethod.MOBILE_MONEY, momoPhone.trim(), key);
+    }
+
     /** Lets the guest page refresh a share payment's status; the payment must belong to that table's order. */
     @Transactional
     public PaymentResponse verifyGuestPayment(String tableToken, UUID orderId, UUID paymentId) {

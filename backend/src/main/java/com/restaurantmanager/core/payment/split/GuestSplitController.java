@@ -51,6 +51,13 @@ public class GuestSplitController {
         return paymentService.initiateGuestShare(tableToken, orderId, splitId, request.momoPhone(), request.idempotencyKey());
     }
 
+    /** Pay the whole order (bill not split) by Mobile Money. */
+    @PostMapping("/pay")
+    public PaymentInitiateResponse payWhole(@PathVariable String tableToken, @PathVariable UUID orderId,
+                                            @Valid @RequestBody GuestPayRequest request) {
+        return paymentService.initiateGuestFull(tableToken, orderId, request.momoPhone(), request.idempotencyKey());
+    }
+
     @PostMapping("/payments/{paymentId}/verify")
     public PaymentResponse verify(@PathVariable String tableToken, @PathVariable UUID orderId, @PathVariable UUID paymentId) {
         return paymentService.verifyGuestPayment(tableToken, orderId, paymentId);

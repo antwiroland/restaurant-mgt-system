@@ -13,6 +13,9 @@ Both channels require a valid JWT. The token is passed as a query parameter on c
 
 ## WebSocket Topics (STOMP)
 
+Order, table and payment events are sent **after the database transaction commits** (`common/AfterCommit`), so a
+screen that reloads on an event (KDS, POS, floor plan, pickup board) always reads the new state.
+
 ### Subscribe destinations
 
 | Destination                          | Who subscribes        | Description                              |
