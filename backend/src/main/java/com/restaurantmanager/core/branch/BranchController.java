@@ -32,7 +32,7 @@ public class BranchController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','HR')")
     public ResponseEntity<List<BranchResponse>> list(@AuthenticationPrincipal UserPrincipal principal,
                                                      @RequestParam(required = false) Integer page,
                                                      @RequestParam(required = false) Integer size) {

@@ -21,7 +21,7 @@ import java.util.UUID;
 /** Coarse role gate keeps customers out; {@link OrgService} enforces HR permissions and branch scope. */
 @RestController
 @RequestMapping("/hr")
-@PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER')")
+@PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER','HR')")
 public class OrgController {
     private final OrgService orgService;
 

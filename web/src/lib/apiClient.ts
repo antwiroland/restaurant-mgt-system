@@ -1,6 +1,6 @@
 export type TokenPair = { accessToken: string; refreshToken: string; expiresAtEpochMs: number };
 
-export type StaffRole = "ADMIN" | "MANAGER" | "CASHIER" | "CUSTOMER" | "RIDER";
+export type StaffRole = "ADMIN" | "MANAGER" | "CASHIER" | "CUSTOMER" | "RIDER" | "HR";
 
 export type StaffUser = {
   id: string;

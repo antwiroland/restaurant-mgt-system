@@ -30,9 +30,9 @@
 - [x] Recruitment (vacancies, candidates, pipeline, interviews and trial shifts, offers, one-step hire, anonymisation)
 - [ ] Performance
 - [ ] Training
-- [~] Self-service — read-only profile, own schedule, availability, swap requests, own time clock and PIN, own timesheets, own leave, own payslips, own tip and service-charge shares, interviews they run
-- [ ] Reporting / HR dashboard
-- [~] Security — HR permission model, branch isolation, private documents, audit done for Phase 1 scope
+- [x] Self-service — profile with own contact details and emergency contacts editable, own contracts and documents, own schedule, availability, swap requests, own time clock and PIN, own timesheets, own leave, own payslips, own tip and service-charge shares, interviews they run
+- [x] Reporting / HR dashboard (headcount, movement and turnover, 6-month trend, today's attendance, work waiting, expiries, recruitment, labour cost vs sales)
+- [x] Security — HR permission model, HR role confined to the HR module, branch isolation, private documents, audit, sign-in/permission checks across HR reads (WebSocket topics are an app-wide gap, see Outstanding Issues)
 - [ ] Performance optimization / benchmarking
 - [~] Regression testing — full backend suite and web suite run for Phase 1 (see Development Log)
 - [ ] Final documentation
@@ -48,7 +48,9 @@
 | Employment contracts | [x] | [x] | [x] | [x] | [x] | Complete (expiry reminders = due list; notifications pending Phase 3 notification work) |
 | Employee documents | [x] | [x] | [x] | [x] | [x] | Complete |
 | HR audit trail | [x] (shared `audit_logs`) | [x] | [x] | [x] | [x] | Complete |
-| Self-service profile | — | [x] | [x] | [x] | [x] | Partial (read-only profile only) |
+| Self-service profile | — | [x] | [x] | [x] | [x] | Complete (own contact details and emergency contacts editable; own contracts and documents) |
+| HR role (HR-only accounts) | — | [x] | [x] | [x] | [x] | Complete (Phase 9; refused outside HR at the security filter) |
+| HR dashboard | — | [x] | [x] | [x] | [x] | Complete (Phase 9; sections follow the viewer's permissions) |
 | Branch assignment history & transfers | [x] | [x] | [x] | [x] | [x] | Complete |
 | Secondary / temporary assignments | [x] | [x] | [x] | [x] | [x] | Complete |
 | Extra HR branch scope per user | [x] | [x] | [x] | [x] | [x] | Complete |
@@ -163,6 +165,10 @@
 | 2026-11-09 | Phase 4 web | Attendance page, PIN card, My time clock; POS staff clock panel | `vitest` HR suites 20/20; ESLint and `tsc` clean; `next build` passes | `feature/hr-attendance`, `feature/hr-pos-integration` | `953b890`, `b41efea` |
 
 ## Outstanding Issues
+
+- **WebSocket subscriptions are not authorised (app-wide, found in Phase 9).** `/ws` is `permitAll` and the broker checks no
+  subscriptions, so `/topic/orders.*`, `/topic/payments.*` and similar can be read without signing in. Needs token-on-connect in the
+  web and mobile clients plus a subscription interceptor.
 
 - **Not run — Testcontainers suite:** `HrPostgresFlywayIntegrationTest` (and the pre-existing `PostgresFlywayIntegrationTest`) could not start
   containers in this environment (Docker Engine 29.5 rejects docker-java's default API version; with `DOCKER_API_VERSION=1.44` Docker is

@@ -79,4 +79,10 @@ public enum HrPermission {
             SCHEDULE_VIEW, SCHEDULE_MANAGE, SCHEDULE_PUBLISH, SHIFT_SWAP_APPROVE,
             ATTENDANCE_VIEW, ATTENDANCE_MANAGE, ATTENDANCE_CORRECT,
             TIMESHEET_REVIEW, OVERTIME_APPROVE, LEAVE_APPROVE, RECRUITMENT_MANAGE, REPORTS_VIEW);
+
+    /**
+     * Defaults for the HR role: the whole HR module. Branch reach is not a permission here; it follows the account (no branch
+     * = every branch). Granting HR permissions to others stays with ADMIN, and four-eyes rules (payroll, pools) still apply.
+     */
+    static final Set<HrPermission> HR_DEFAULTS = EnumSet.complementOf(EnumSet.of(BRANCH_ALL));
 }

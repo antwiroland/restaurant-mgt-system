@@ -1,5 +1,6 @@
 package com.restaurantmanager.core.security;
 
+import com.restaurantmanager.core.common.Role;
 import com.restaurantmanager.core.config.RateLimitProps;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -7,6 +8,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -14,11 +17,14 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 
 @Configuration
 @EnableMethodSecurity
@@ -67,7 +73,11 @@ public class SecurityConfig {
                         .requestMatchers("/reservations/*/guest-cancel").permitAll()
                         .requestMatchers("/payments/webhook").permitAll()
                         .requestMatchers("/ws/**", "/ws").permitAll()
-                        .anyRequest().authenticated()
+                        // What an HR-role login may call: the HR module, its own account and the lookups HR screens use.
+                        .requestMatchers("/hr/**", "/auth/**", "/users/me", "/notifications/devices", "/notifications/devices/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/branches", "/scheduling/staff").authenticated()
+                        // Everything else (POS, orders, payments, menu admin, reports...) is refused to the HR role
+                        .anyRequest().access(SecurityConfig::authenticatedOutsideHrRole)
                 )
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED))
@@ -77,6 +87,16 @@ public class SecurityConfig {
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
+
+    /** Signed in, and not an HR-role account (those work only in the HR module). */
+    static AuthorizationDecision authenticatedOutsideHrRole(Supplier<Authentication> authentication, RequestAuthorizationContext context) {
+        Authentication auth = authentication.get();
+        boolean signedIn = auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken);
+        boolean hrRole = signedIn && auth.getAuthorities().stream().anyMatch(a -> HR_AUTHORITY.equals(a.getAuthority()));
+        return new AuthorizationDecision(signedIn && !hrRole);
+    }
+
+    private static final String HR_AUTHORITY = "ROLE_" + Role.HR.name();
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {

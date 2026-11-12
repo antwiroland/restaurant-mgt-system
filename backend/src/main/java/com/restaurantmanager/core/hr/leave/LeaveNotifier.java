@@ -65,6 +65,10 @@ public class LeaveNotifier {
                     .map(UserEntity::getId).forEach(ids::add);
             case HR -> {
                 userRepository.findByRoleAndActiveTrueOrderByNameAsc(Role.ADMIN).forEach(u -> ids.add(u.getId()));
+                // HR officers: central HR, or the HR officer of the employee's branch
+                userRepository.findByRoleAndActiveTrueOrderByNameAsc(Role.HR).stream()
+                        .filter(u -> u.getBranch() == null || u.getBranch().getId().equals(branchId))
+                        .forEach(u -> ids.add(u.getId()));
                 List<UUID> staff = userRepository.findByRoleInAndActiveTrueOrderByNameAsc(List.of(Role.MANAGER, Role.CASHIER)).stream()
                         .map(UserEntity::getId).toList();
                 grantRepository.findByUserIdIn(staff).stream()

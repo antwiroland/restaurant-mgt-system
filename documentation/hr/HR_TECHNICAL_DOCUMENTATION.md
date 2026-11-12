@@ -59,11 +59,20 @@ enforced as their phases are implemented.
 Grants can only be managed by ADMIN (`/hr/access/grants`), and every grant/revoke is audited. CUSTOMER accounts can never
 receive HR permissions.
 
+**HR role (Phase 9).** `Role.HR` gets `HrPermission.HR_DEFAULTS`: every HR permission except `hr.branch.all`. Branch reach follows the
+account instead: an HR login without a branch is central HR (all branches); with a branch it covers that branch plus any extra
+`hr_user_branch_access`. Assigning the HR role with no branch clears the account's branch. Four-eyes rules still apply to HR officers,
+and only ADMIN grants HR permissions. `SecurityConfig` confines the role: `/hr/**`, `/auth/**`, `/users/me`,
+`/notifications/devices/**`, `GET /branches` and `GET /scheduling/staff` are allowed; every other request falls to
+`anyRequest().access(authenticatedOutsideHrRole)` and is refused with 403. On the web, `canAccessPath` refuses every route outside
+`/hr` and `/account` for the role, and sign-in lands on `/hr`. Leave requests reaching the HR approval step also notify HR-role
+accounts (central, or of the employee's branch).
+
 ### 2.2 Branch scope
 
 `HrAccessService.scope(principal)`:
 
-- ADMIN, or holder of `hr.branch.all` → all branches.
+- ADMIN, holder of `hr.branch.all`, or an HR-role account without a branch → all branches.
 - Otherwise → the user's own `branch_id` plus any extra branches an admin added (`hr_user_branch_access`); none → no
   branch-specific data.
 
@@ -80,6 +89,14 @@ Employees with no primary branch are visible to all-branch users only. `Employee
 
 Any staff user linked to an employee record can read their own profile (`GET /hr/me/profile`) and their own access summary
 (`GET /hr/me/access`). Self-service cannot modify employment data.
+
+Phase 9 adds, for the linked employee only (anything else is 404):
+
+| Endpoint | What |
+|---|---|
+| `PUT /hr/me/profile` | Own phone, email, address and up to 5 emergency contacts. Same uniqueness and format rules as HR edits, optimistic `version`, refused after an exit. Audited as `HR_EMPLOYEE_UPDATED` with `selfService: true` and the changed field names. |
+| `GET /hr/me/contracts` | Own contracts except drafts, including their own pay (no `hr.compensation.view` needed for oneself). |
+| `GET /hr/me/documents`, `GET /hr/me/documents/{id}/download` | Own current (non-archived) documents; downloads audited as `HR_DOCUMENT_DOWNLOADED` with `selfService: true`. |
 
 ## 3. Database entities (Phase 1, migration `V27__hr_foundation.sql`)
 
@@ -585,6 +602,43 @@ None of these permissions are MANAGER defaults. Audit `HR_TIPS_CHANGED` records 
 |---|---|---|
 | `/hr/recruitment` | Vacancies per branch (new vacancy, drawer with pipeline columns, add applicant — new or existing, status actions) and Candidates (search, history, remove personal data). The application drawer covers documents, moves, interviews and results, offer, offer response and hire. | `hr.recruitment.manage` |
 | `/hr/my-schedule` | "Interviews I run" section with result recording | interviewer with a linked employee record |
+
+## 5i. HR dashboard and HR role (Phase 9)
+
+### Dashboard (`HrDashboardService`, `GET /hr/dashboard?branchId=`)
+
+Needs `hr.reports.view` (ADMIN, HR role, MANAGER default). Scope = the viewer's branches, or one of them with `branchId` (403 outside
+scope). Employees without a home branch count only for all-branch viewers looking at every branch. Each section appears only with
+the permission behind it, so the dashboard never shows more than the viewer could open elsewhere:
+
+| Section | Content | Needs |
+|---|---|---|
+| `headcount` | Employed (hired by today; active, on leave or suspended), starting soon, by status / department / employment type / branch | reports |
+| `movement` | Joiners this month (and starting in the next 30 days), leavers since the 1st of last month, leavers and turnover % over 12 months (leavers / average of headcount a year ago and today) | reports |
+| `trend` | Headcount at each of the last 6 month ends (this month: today), with joiners and leavers | reports |
+| `today` | Attendance-board statuses summed over the branches in view, late arrivals | `hr.attendance.view` |
+| `actions` | Counts of pending leave, attendance corrections, timesheets to review/approve (last ~3 months), shift swaps, payroll runs to approve / finalize / pay, pools to approve; each item only with its permission | per item |
+| `expiring` | Contracts ending (incl. overdue), probations ending, documents expiring in the next 30 days, for employed people | `hr.contract.view` / `hr.document.view` |
+| `recruitment` | Open and published vacancies, openings left, applicants by open stage, interviews in the next 7 days | `hr.recruitment.manage` |
+| `labour` | Latest finalized or paid payroll per branch: gross, employer cost, total, sales collected for that branch in the same period (net of refunds, cancelled orders excluded), labour %, payable overtime | `hr.payroll.view` or `hr.compensation.view` |
+
+Web: `/hr` (HR Dashboard), first item in the Human Resources menu, with a branch filter for multi-branch viewers.
+
+### Self-service web
+
+`/hr/me` adds "My contact details" (view and edit), "My contracts" and "My documents" (download).
+
+### Tests
+
+`HrDashboardIntegrationTest` (scope, starting soon, pay hidden from managers, actions per permission, expiring contracts, branch filter
+and refusal), `HrSelfServiceIntegrationTest` (contact edit, uniqueness, format and stale version; own contracts without drafts and with
+pay; own documents only), `HrRoleSecurityIntegrationTest` (HR defaults and branch reach, refusal outside HR while other roles keep
+access, central HR on role assignment, sign-in and permission required on HR reads); web `hrDashboard.test.tsx`.
+
+### Known gap (not HR-specific)
+
+The STOMP endpoint `/ws` is open and subscriptions are not authorised, so any client that knows a topic (for example `/topic/orders.*`)
+can listen without signing in. Fixing it needs the web and mobile clients to send their token on connect; tracked separately.
 
 ## 6. Audit
 

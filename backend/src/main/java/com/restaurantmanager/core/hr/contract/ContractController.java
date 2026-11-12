@@ -20,7 +20,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/hr")
-@PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER')")
+@PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','RIDER','HR')")
 public class ContractController {
     private final ContractService contractService;
 
@@ -38,6 +38,11 @@ public class ContractController {
     public ContractService.ContractView create(@PathVariable UUID employeeId, @Valid @RequestBody ContractService.ContractRequest request,
                                                @AuthenticationPrincipal UserPrincipal principal) {
         return contractService.create(principal, employeeId, request);
+    }
+
+    @GetMapping("/me/contracts")
+    public List<ContractService.ContractView> mine(@AuthenticationPrincipal UserPrincipal principal) {
+        return contractService.mine(principal);
     }
 
     @GetMapping("/contracts/due")

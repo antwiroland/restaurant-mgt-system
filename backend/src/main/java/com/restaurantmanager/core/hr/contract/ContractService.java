@@ -81,6 +81,16 @@ public class ContractService {
                 .toList();
     }
 
+    /** Self-service: your own contracts (drafts not yet agreed are left out), including your own pay. */
+    @Transactional(readOnly = true)
+    public List<ContractView> mine(UserPrincipal principal) {
+        UUID me = employeeService.myEmployeeId(principal);
+        return contractRepository.findByEmployeeIdOrderByStartDateDescCreatedAtDesc(me).stream()
+                .filter(c -> c.getStatus() != ContractStatus.DRAFT)
+                .map(c -> toView(c, true, null))
+                .toList();
+    }
+
     /** Active contracts ending, or with probation ending, within the next {@code days} days (plus overdue end dates). */
     @Transactional(readOnly = true)
     public List<ContractView> due(UserPrincipal principal, int days) {
@@ -294,7 +304,10 @@ public class ContractService {
     }
 
     private static ContractView toView(ContractEntity c, HrAccess access, String employeeName) {
-        boolean showPay = access.has(HrPermission.COMPENSATION_VIEW);
+        return toView(c, access.has(HrPermission.COMPENSATION_VIEW), employeeName);
+    }
+
+    private static ContractView toView(ContractEntity c, boolean showPay, String employeeName) {
         return new ContractView(c.getId(), c.getContractNumber(), c.getEmployeeId(), employeeName, c.getContractType(), c.getStatus(),
                 c.getStartDate(), c.getEndDate(), c.getProbationEndDate(),
                 showPay ? c.getSalaryType() : null, showPay ? c.getSalaryAmount() : null, showPay ? c.getCurrency() : null, showPay,

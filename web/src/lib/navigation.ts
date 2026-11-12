@@ -26,6 +26,8 @@ export type NavGroup = { title: string; items: NavItem[] };
 const OPS: StaffRole[] = ["ADMIN", "MANAGER", "CASHIER"];
 const MGMT: StaffRole[] = ["ADMIN", "MANAGER"];
 const STAFF: StaffRole[] = ["ADMIN", "MANAGER", "CASHIER", "RIDER"];
+/** HR screens: every staff role (filtered further by HR permission) plus the HR role, which sees nothing else. */
+const HR_STAFF: StaffRole[] = [...STAFF, "HR"];
 
 export const navGroups: NavGroup[] = [
   {
@@ -66,21 +68,22 @@ export const navGroups: NavGroup[] = [
   {
     title: "Human Resources",
     items: [
-      { label: "Employees", href: "/hr/employees", icon: "users", roles: STAFF, hr: ["hr.employee.view"], description: "Employee directory" },
-      { label: "Shift Schedule", href: "/hr/schedule", icon: "calendar", roles: STAFF, hr: ["hr.schedule.view"], description: "Build and publish rotas" },
-      { label: "Attendance", href: "/hr/attendance", icon: "clock", roles: STAFF, hr: ["hr.attendance.view"], description: "Clock-ins, lateness, corrections" },
-      { label: "Leave", href: "/hr/leave", icon: "calendar", roles: STAFF, hr: ["hr.leave.approve", "hr.leave.manage"], description: "Requests, balances, entitlements" },
-      { label: "Timesheets", href: "/hr/timesheets", icon: "note", roles: STAFF, hr: ["hr.timesheet.review", "hr.payroll.view", "hr.payroll.process"], description: "Review, approve, lock" },
-      { label: "Payroll", href: "/hr/payroll", icon: "cash", roles: STAFF, hr: ["hr.payroll.view", "hr.payroll.process", "hr.payroll.approve", "hr.payroll.finalize", "hr.payroll.pay"], description: "Runs, payslips, deductions" },
-      { label: "Tips & Service Charge", href: "/hr/tips", icon: "star", roles: STAFF, hr: ["hr.tips.manage", "hr.service_charge.manage", "hr.payroll.view", "hr.payroll.process"], description: "Share tips and service charge" },
-      { label: "Recruitment", href: "/hr/recruitment", icon: "user", roles: STAFF, hr: ["hr.recruitment.manage"], description: "Vacancies and candidates" },
-      { label: "Branch Workforce", href: "/hr/branches", icon: "store", roles: STAFF, hr: ["hr.branch.view", "hr.employee.view"], description: "Headcount by branch" },
-      { label: "Departments & Positions", href: "/hr/organisation", icon: "clipboard", roles: STAFF, hr: ["hr.employee.view", "hr.department.manage", "hr.position.manage"] },
+      { label: "HR Dashboard", href: "/hr", icon: "chart", roles: HR_STAFF, hr: ["hr.reports.view"], description: "Workforce at a glance" },
+      { label: "Employees", href: "/hr/employees", icon: "users", roles: HR_STAFF, hr: ["hr.employee.view"], description: "Employee directory" },
+      { label: "Shift Schedule", href: "/hr/schedule", icon: "calendar", roles: HR_STAFF, hr: ["hr.schedule.view"], description: "Build and publish rotas" },
+      { label: "Attendance", href: "/hr/attendance", icon: "clock", roles: HR_STAFF, hr: ["hr.attendance.view"], description: "Clock-ins, lateness, corrections" },
+      { label: "Leave", href: "/hr/leave", icon: "calendar", roles: HR_STAFF, hr: ["hr.leave.approve", "hr.leave.manage"], description: "Requests, balances, entitlements" },
+      { label: "Timesheets", href: "/hr/timesheets", icon: "note", roles: HR_STAFF, hr: ["hr.timesheet.review", "hr.payroll.view", "hr.payroll.process"], description: "Review, approve, lock" },
+      { label: "Payroll", href: "/hr/payroll", icon: "cash", roles: HR_STAFF, hr: ["hr.payroll.view", "hr.payroll.process", "hr.payroll.approve", "hr.payroll.finalize", "hr.payroll.pay"], description: "Runs, payslips, deductions" },
+      { label: "Tips & Service Charge", href: "/hr/tips", icon: "star", roles: HR_STAFF, hr: ["hr.tips.manage", "hr.service_charge.manage", "hr.payroll.view", "hr.payroll.process"], description: "Share tips and service charge" },
+      { label: "Recruitment", href: "/hr/recruitment", icon: "user", roles: HR_STAFF, hr: ["hr.recruitment.manage"], description: "Vacancies and candidates" },
+      { label: "Branch Workforce", href: "/hr/branches", icon: "store", roles: HR_STAFF, hr: ["hr.branch.view", "hr.employee.view"], description: "Headcount by branch" },
+      { label: "Departments & Positions", href: "/hr/organisation", icon: "clipboard", roles: HR_STAFF, hr: ["hr.employee.view", "hr.department.manage", "hr.position.manage"] },
       { label: "HR Access", href: "/hr/access", icon: "shield", roles: ["ADMIN"], description: "Grant HR permissions" },
-      { label: "My Schedule", href: "/hr/my-schedule", icon: "timer", roles: STAFF, hr: ["self"], description: "Shifts, swaps, availability" },
-      { label: "My Leave", href: "/hr/my-leave", icon: "calendar", roles: STAFF, hr: ["self"], description: "Balances and leave requests" },
-      { label: "My Payslips", href: "/hr/my-payslips", icon: "receipt", roles: STAFF, hr: ["self"], description: "Your pay" },
-      { label: "My HR Profile", href: "/hr/me", icon: "user", roles: STAFF, hr: ["self"], description: "Your employment record" },
+      { label: "My Schedule", href: "/hr/my-schedule", icon: "timer", roles: HR_STAFF, hr: ["self"], description: "Shifts, swaps, availability" },
+      { label: "My Leave", href: "/hr/my-leave", icon: "calendar", roles: HR_STAFF, hr: ["self"], description: "Balances and leave requests" },
+      { label: "My Payslips", href: "/hr/my-payslips", icon: "receipt", roles: HR_STAFF, hr: ["self"], description: "Your pay" },
+      { label: "My HR Profile", href: "/hr/me", icon: "user", roles: HR_STAFF, hr: ["self"], description: "Your employment record" },
     ],
   },
   {
@@ -97,7 +100,7 @@ export const navGroups: NavGroup[] = [
   },
   {
     title: "You",
-    items: [{ label: "My Account", href: "/account", icon: "user", roles: STAFF, description: "Password and profile" }],
+    items: [{ label: "My Account", href: "/account", icon: "user", roles: HR_STAFF, description: "Password and profile" }],
   },
 ];
 
@@ -132,6 +135,8 @@ export function navItemForPath(pathname: string): NavItem | undefined {
 export function canAccessPath(role: StaffRole | undefined, pathname: string): boolean {
   if (!role) return false;
   const item = navItemForPath(pathname);
+  // the HR role works only in HR (and its own account), even on pages that are not in the menu
+  if (role === "HR" && !isActivePath(pathname, "/hr") && !isActivePath(pathname, "/account")) return false;
   if (!item) return role !== "RIDER" && role !== "CUSTOMER";
   return item.roles.includes(role);
 }
@@ -142,6 +147,7 @@ const bottomByRole: Partial<Record<StaffRole, string[]>> = {
   MANAGER: ["/dashboard", "/pos", "/orders", "/kds", "/tables"],
   CASHIER: ["/pos", "/orders", "/kds", "/tables", "/orders/pickup"],
   RIDER: ["/rider", "/schedule", "/account"],
+  HR: ["/hr", "/hr/employees", "/hr/leave", "/hr/attendance", "/hr/payroll"],
 };
 
 export function bottomNavForRole(role: StaffRole | undefined): NavItem[] {
@@ -157,4 +163,5 @@ export const roleLabel: Record<StaffRole, string> = {
   CASHIER: "Cashier",
   RIDER: "Rider",
   CUSTOMER: "Customer",
+  HR: "HR Officer",
 };

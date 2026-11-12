@@ -58,7 +58,7 @@ import java.util.UUID;
 @Service
 public class EmployeeService {
     static final String SEQUENCE = "EMPLOYEE";
-    private static final Set<Role> STAFF_ROLES = EnumSet.of(Role.ADMIN, Role.MANAGER, Role.CASHIER, Role.RIDER);
+    private static final Set<Role> STAFF_ROLES = EnumSet.of(Role.ADMIN, Role.MANAGER, Role.CASHIER, Role.RIDER, Role.HR);
     private static final int MAX_PAGE_SIZE = 100;
 
     private final EmployeeRepository employeeRepository;
@@ -124,6 +124,44 @@ public class EmployeeService {
         EmployeeEntity employee = employeeRepository.findByUserId(principal.userId())
                 .orElseThrow(() -> new ApiException(404, "No employee record is linked to your account"));
         return toDetail(employeeRepository.findDetailedById(employee.getId()).orElseThrow(), false);
+    }
+
+    /** The employee record linked to the signed-in account (404 when there is none). */
+    @Transactional(readOnly = true)
+    public UUID myEmployeeId(UserPrincipal principal) {
+        return employeeRepository.findByUserId(principal.userId())
+                .orElseThrow(() -> new ApiException(404, "No employee record is linked to your account")).getId();
+    }
+
+    /**
+     * Self-service: an employee keeps their own contact details and emergency contacts current. Employment data (position,
+     * branch, pay, dates, status) stays with HR. Changes are audited like any other edit.
+     */
+    @Transactional
+    public EmployeeDetail updateMyProfile(UserPrincipal principal, MyProfileRequest request) {
+        UUID id = employeeRepository.findByUserId(principal.userId())
+                .orElseThrow(() -> new ApiException(404, "No employee record is linked to your account")).getId();
+        EmployeeEntity employee = employeeRepository.findDetailedById(id).orElseThrow();
+        if (employee.getEmploymentStatus().isExit()) {
+            throw new ApiException(409, "Your employment has ended; contact HR to change your details");
+        }
+        if (request.version() != null && request.version() != employee.getVersion()) {
+            throw new ApiException(409, "Your record was changed meanwhile. Reload and try again.");
+        }
+        Map<String, Object> before = snapshot(employee);
+        employee.setEmail(uniqueEmail(request.email(), id));
+        employee.setPhone(uniquePhone(request.phone(), id));
+        employee.setAddress(blankToNull(request.address()));
+        replaceEmergencyContacts(employee, request.emergencyContacts());
+        Map<String, Object> after = snapshot(employee);
+        List<String> changed = before.keySet().stream().filter(k -> !Objects.equals(before.get(k), after.get(k))).toList();
+        if (!changed.isEmpty()) {
+            Map<String, Object> meta = new LinkedHashMap<>();
+            meta.put("fields", changed);
+            meta.put("selfService", true);
+            audit.log(principal.userId(), AuditAction.HR_EMPLOYEE_UPDATED, "Employee", id, meta);
+        }
+        return toDetail(employeeRepository.saveAndFlush(employee), false);
     }
 
     /**
@@ -405,22 +443,9 @@ public class EmployeeService {
     // ------------------------------------------------------------ helpers
 
     private void applyFields(EmployeeEntity employee, EmployeeRequest request, HrAccess access) {
-        String email = blankToNull(request.email());
-        String phone = blankToNull(request.phone());
         UUID id = employee.getId();
-        if (email != null) {
-            email = email.toLowerCase(Locale.ROOT);
-            boolean taken = id == null ? employeeRepository.existsByEmailIgnoreCase(email) : employeeRepository.existsByEmailIgnoreCaseAndIdNot(email, id);
-            if (taken) {
-                throw new ApiException(409, "Another employee already uses this email");
-            }
-        }
-        if (phone != null) {
-            boolean taken = id == null ? employeeRepository.existsByPhone(phone) : employeeRepository.existsByPhoneAndIdNot(phone, id);
-            if (taken) {
-                throw new ApiException(409, "Another employee already uses this phone number");
-            }
-        }
+        String email = uniqueEmail(request.email(), id);
+        String phone = uniquePhone(request.phone(), id);
         if (request.hireDate().isAfter(LocalDate.now(zone).plusYears(1))) {
             throw new ApiException(400, "Hire date is too far in the future");
         }
@@ -474,8 +499,37 @@ public class EmployeeService {
         employee.setReportingManager(manager);
         employee.setQualifications(blankToNull(request.qualifications()));
         employee.setExperience(blankToNull(request.experience()));
+        replaceEmergencyContacts(employee, request.emergencyContacts());
+    }
+
+    /** Normalised email, refused when another employee already uses it. */
+    private String uniqueEmail(String raw, UUID id) {
+        String email = blankToNull(raw);
+        if (email == null) {
+            return null;
+        }
+        email = email.toLowerCase(Locale.ROOT);
+        boolean taken = id == null ? employeeRepository.existsByEmailIgnoreCase(email) : employeeRepository.existsByEmailIgnoreCaseAndIdNot(email, id);
+        if (taken) {
+            throw new ApiException(409, "Another employee already uses this email");
+        }
+        return email;
+    }
+
+    private String uniquePhone(String raw, UUID id) {
+        String phone = blankToNull(raw);
+        if (phone != null) {
+            boolean taken = id == null ? employeeRepository.existsByPhone(phone) : employeeRepository.existsByPhoneAndIdNot(phone, id);
+            if (taken) {
+                throw new ApiException(409, "Another employee already uses this phone number");
+            }
+        }
+        return phone;
+    }
+
+    private void replaceEmergencyContacts(EmployeeEntity employee, List<EmergencyContactRequest> requested) {
         employee.getEmergencyContacts().clear();
-        List<EmergencyContactRequest> contacts = request.emergencyContacts() == null ? List.of() : request.emergencyContacts();
+        List<EmergencyContactRequest> contacts = requested == null ? List.of() : requested;
         for (int i = 0; i < contacts.size(); i++) {
             EmergencyContactRequest c = contacts.get(i);
             EmergencyContactEntity contact = new EmergencyContactEntity();
@@ -709,6 +763,14 @@ public class EmployeeService {
             UUID primaryBranchId,
             @Size(max = 2000) String qualifications,
             @Size(max = 2000) String experience,
+            @Size(max = 5) List<@Valid EmergencyContactRequest> emergencyContacts,
+            Long version) {}
+
+    /** What an employee may change on their own record. */
+    public record MyProfileRequest(
+            @Email @Size(max = 255) String email,
+            @Size(max = 20) @Pattern(regexp = "^$|[+0-9 ()-]{6,20}", message = "Enter a valid phone number") String phone,
+            @Size(max = 500) String address,
             @Size(max = 5) List<@Valid EmergencyContactRequest> emergencyContacts,
             Long version) {}
 

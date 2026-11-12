@@ -186,7 +186,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="flex items-center gap-2">
-              {role !== "RIDER" && !pathname.startsWith("/pos") ? (
+              {role !== "RIDER" && role !== "HR" && !pathname.startsWith("/pos") ? (
                 <Link href="/pos" className="btn btn-primary btn-sm hidden sm:inline-flex">
                   <Icon name="plus" size={16} /> New order
                 </Link>

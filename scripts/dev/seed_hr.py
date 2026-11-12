@@ -60,6 +60,7 @@ LOGIN_POSITIONS = {
     "+233200000004": "CASHIER",
     "+233200000005": "RIDER",
     "+233200000006": "RIDER",
+    "+233200000007": "HR-OFFICER",
 }
 
 
@@ -775,7 +776,8 @@ def print_hr_summary(summary: dict):
     print(f"    {summary['imported']} staff logins imported as employees, {summary['created']} employees without logins")
     print("    Try: Yaw (manager, Osu) sees Osu staff + Nii Lartey read-only (East Legon, covering Osu); no pay figures")
     print("         Ama (admin) sees everything incl. pay; Abena (cashier) has HR view + documents only (granted)")
-    print("         Kofi (cashier) only has self-service: My Schedule, Leave, Payslips, Tips and HR profile")
+    print("         Kofi (cashier) only has self-service: My Schedule, Leave, Payslips, Tips and HR profile (he can edit his contact details)")
+    print("         Efua (HR role, +233200000007) sees only the HR module, for every branch, starting on the HR Dashboard")
     print("         Contracts due within 30 days: Edem Kpodo, Fiifi Mensah, Kojo Asamoah (probation); draft: Maame Ofori")
     print(f"    Schedule: {summary.get('shifts_this_week', 0)} shifts published this week, {summary.get('shifts_next_week', 0)} drafted for next week (+2 open)")
     print(f"         Swap request: {summary.get('swap')}. Kofi has 'unavailable Sundays'; Gifty unavailable Saturdays")
