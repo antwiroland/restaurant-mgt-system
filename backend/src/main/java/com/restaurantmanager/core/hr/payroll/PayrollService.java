@@ -32,6 +32,8 @@ import com.restaurantmanager.core.hr.timesheet.TimesheetEntity;
 import com.restaurantmanager.core.hr.timesheet.TimesheetLineRepository;
 import com.restaurantmanager.core.hr.timesheet.TimesheetRepository;
 import com.restaurantmanager.core.hr.timesheet.TimesheetStatus;
+import com.restaurantmanager.core.hr.tips.TipService;
+import com.restaurantmanager.core.hr.tips.TipSource;
 import com.restaurantmanager.core.notification.push.PushNotificationService;
 import com.restaurantmanager.core.security.UserPrincipal;
 import jakarta.validation.constraints.DecimalMin;
@@ -92,6 +94,7 @@ public class PayrollService {
     private final HrAuditService audit;
     private final PushNotificationService push;
     private final ObjectMapper objectMapper;
+    private final TipService tipService;
 
     public PayrollService(PayrollRunRepository runRepository, PayslipRepository payslipRepository, PayslipLineRepository lineRepository,
                           PayrollAdjustmentRepository adjustmentRepository, PayrollRuleService ruleService, EmployeeRepository employeeRepository,
@@ -99,7 +102,7 @@ public class PayrollService {
                           TimesheetLineRepository timesheetLineRepository, LeaveRequestRepository leaveRequestRepository,
                           LeaveTypeRepository leaveTypeRepository, LeaveSetupService leaveSetup, OvertimeSettingsService overtimeSettings,
                           HrSequenceService sequences, BranchRepository branchRepository, HrAccessService accessService, HrAuditService audit,
-                          PushNotificationService push, ObjectMapper objectMapper) {
+                          PushNotificationService push, ObjectMapper objectMapper, TipService tipService) {
         this.runRepository = runRepository;
         this.payslipRepository = payslipRepository;
         this.lineRepository = lineRepository;
@@ -120,6 +123,7 @@ public class PayrollService {
         this.audit = audit;
         this.push = push;
         this.objectMapper = objectMapper;
+        this.tipService = tipService;
     }
 
     // ================================================================ runs
@@ -188,6 +192,7 @@ public class PayrollService {
         payslipRepository.deleteByRunId(run.getId());
         timesheetRepository.releaseRun(run.getId());
         timesheetRepository.flush();
+        tipService.release(run.getId());
 
         LocalDate start = run.getPeriodStart();
         LocalDate end = run.getPeriodEnd();
@@ -233,7 +238,8 @@ public class PayrollService {
                 issues.add(hourlyPaid ? "UNLOCKED_TIMESHEETS" : "UNLOCKED_OVERTIME");
             }
             List<PayrollAdjustmentEntity> mine = adjustments.getOrDefault(e.getId(), List.of());
-            if (hourlyPaid && usable.isEmpty() && mine.isEmpty() && !issues.contains("UNLOCKED_TIMESHEETS")) {
+            List<TipService.PayrollShare> shares = tipService.sharesFor(e.getId(), run.getId(), start, end);
+            if (hourlyPaid && usable.isEmpty() && mine.isEmpty() && shares.isEmpty() && !issues.contains("UNLOCKED_TIMESHEETS")) {
                 skipped.add(new Skipped(e.getId(), e.fullName(), "No locked timesheet hours in this period"));
                 continue;
             }
@@ -257,6 +263,11 @@ public class PayrollService {
 
             List<PayrollCalculator.Line> earningLines = new ArrayList<>(earnings.lines());
             List<PayrollCalculator.Line> oneOffDeductions = new ArrayList<>();
+            for (TipService.PayrollShare share : shares) {
+                earningLines.add(new PayrollCalculator.Line(PayslipLineKind.EARNING, share.source() == TipSource.TIPS ? "TIPS" : "SERVICE_CHARGE",
+                        (share.source() == TipSource.TIPS ? "Tips share " : "Service charge share ") + share.poolNumber(), null, null,
+                        share.amount(), share.taxable()));
+            }
             for (PayrollAdjustmentEntity a : mine) {
                 if (a.getKind() == AdjustmentKind.EARNING) {
                     earningLines.add(new PayrollCalculator.Line(PayslipLineKind.EARNING, "ADJUSTMENT", a.getDescription(), null, null, a.getAmount(), a.isTaxable()));
@@ -293,6 +304,7 @@ public class PayrollService {
             }
             lineRepository.saveAll(lines);
             usable.forEach(t -> t.setPayrollRunId(run.getId()));
+            tipService.reserve(shares.stream().map(TipService.PayrollShare::allocationId).toList(), run.getId());
 
             gross = gross.add(result.gross());
             deductions = deductions.add(result.employeeDeductions());
@@ -438,6 +450,8 @@ public class PayrollService {
             throw new ApiException(409, "Only calculated or approved runs can return to draft");
         }
         needsRecalculation(run);
+        timesheetRepository.releaseRun(run.getId());
+        tipService.release(run.getId());
         log(access, run, "reopened", Map.of("reason", r.reason().trim()));
         return detail(runRepository.saveAndFlush(run), access);
     }
@@ -451,6 +465,7 @@ public class PayrollService {
         run.setFinalizedBy(access.userId());
         run.setFinalizedAt(Instant.now());
         log(access, run, "finalized", null);
+        tipService.payrollFinalized(run.getId());
         List<UUID> employees = payslipRepository.findByRunId(run.getId()).stream().map(PayslipEntity::getEmployeeId).toList();
         List<UUID> logins = employeeRepository.findByIdIn(employees).stream().map(EmployeeEntity::getUserId).filter(Objects::nonNull).toList();
         if (!logins.isEmpty()) {
@@ -501,6 +516,7 @@ public class PayrollService {
             throw new ApiException(409, "Finalized, paid or cancelled runs cannot be cancelled");
         }
         timesheetRepository.releaseRun(run.getId());
+        tipService.release(run.getId());
         run.setStatus(PayrollRunStatus.CANCELLED);
         run.setCancelReason(r.reason().trim());
         log(access, run, "cancelled", Map.of("reason", r.reason().trim()));
