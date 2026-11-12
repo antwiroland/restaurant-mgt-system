@@ -13,7 +13,8 @@ Payments use the Paystack stub. They are confirmed by sending the same
 signed `charge.success` webhook Paystack would send, signed with the
 local development secret (PAYSTACK_SECRET_KEY default).
 
-HR data (departments, employees, contracts, documents, branch assignments) is added by seed_hr.py.
+HR data (departments, employees, contracts, documents, scheduling, attendance, leave, timesheets,
+payroll, tip pools and recruitment) is added by seed_hr.py.
 
 Usage (backend started with scripts/dev/run-backend-local.sh):
   python scripts/dev/seed_local.py                    # http://localhost:8080
@@ -182,7 +183,28 @@ def find_h2_jar() -> str:
     return jars[-1]
 
 
+PG_PREFIX = "docker-postgres:"
+
+
+def database_target(pg_container: str | None, h2_path: str) -> str:
+    """Where direct SQL goes: PostgreSQL in a Docker container, or the local H2 file database."""
+    if pg_container:
+        return PG_PREFIX + pg_container
+    return f"jdbc:h2:file:{os.path.abspath(h2_path).replace(os.sep, '/')};MODE=PostgreSQL;AUTO_SERVER=TRUE"
+
+
 def h2_sql(db_url: str, sql: str) -> str:
+    """Runs SQL directly against the dev database (H2 shell, or psql inside the Postgres container)."""
+    if db_url.startswith(PG_PREFIX):
+        container = db_url[len(PG_PREFIX):]
+        out = subprocess.run(
+            ["docker", "exec", "-i", container, "psql", "-v", "ON_ERROR_STOP=1", "-q", "-U", os.environ.get("DB_USERNAME", "postgres"),
+             "-d", os.environ.get("DB_NAME", "restaurant_manager")],
+            input=sql + ";\n", capture_output=True, text=True,
+        )
+        if out.returncode != 0:
+            raise SystemExit("psql failed: " + (out.stderr or out.stdout)[:400])
+        return out.stdout
     out = subprocess.run(
         ["java", "-cp", find_h2_jar(), "org.h2.tools.Shell", "-url", db_url, "-user", "sa", "-password", "", "-sql", sql],
         capture_output=True, text=True,
@@ -230,6 +252,8 @@ def main():
     parser.add_argument("--base", default="http://localhost:8080")
     parser.add_argument("--log", default=os.path.join(ROOT, "backend", "target", "dev-backend.log"))
     parser.add_argument("--db", default=os.path.join(ROOT, "backend", "target", "dev-db", "rm"), help="H2 file path (without .mv.db)")
+    parser.add_argument("--pg", metavar="CONTAINER", nargs="?", const="restaurant_postgres",
+                        help="Use PostgreSQL in this Docker container (default restaurant_postgres) instead of H2")
     parser.add_argument("--secret", default=os.environ.get("PAYSTACK_SECRET_KEY", "test_paystack_secret"))
     parser.add_argument("--no-backdate", action="store_true")
     parser.add_argument("--reset", action="store_true",
@@ -238,9 +262,12 @@ def main():
 
     random.seed(7)
     api = Api(args.base, args.secret)
-    db_url = f"jdbc:h2:file:{args.db.replace(os.sep, '/')};MODE=PostgreSQL;AUTO_SERVER=TRUE"
+    db_url = database_target(args.pg, args.db)
     now = datetime.now(timezone.utc)
 
+    if args.reset and args.pg:
+        raise SystemExit("--reset is for H2 only. For PostgreSQL recreate the database: "
+                         "docker compose down postgres && docker volume rm restaurant-mgt-system_postgres_data")
     if args.reset:
         step("Resetting data (keeping user accounts)")
         listing = h2_sql(db_url, "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='PUBLIC'")
@@ -290,7 +317,8 @@ def main():
     api.call("PUT", "/billing/settings", {"serviceChargePercent": 5, "serviceChargeDineInOnly": True,
                                            "pricesIncludeTax": False, "taxDeliveryFee": False, "tipsEnabled": True}, A)
     for order_, (code, name, rate, compound) in enumerate([("NHIL", "NHIL", 2.5, False), ("GETF", "GETFund levy", 2.5, False), ("VAT", "VAT", 15, True)]):
-        api.call("POST", "/billing/taxes", {"code": code, "name": name, "rate": rate, "compound": compound, "displayOrder": order_, "active": True}, A)
+        # ok=False: on PostgreSQL, Flyway already seeds these tax codes
+        api.call("POST", "/billing/taxes", {"code": code, "name": name, "rate": rate, "compound": compound, "displayOrder": order_, "active": True}, A, ok=False)
 
     # ---------------------------------------------------------------- menu
     step("Menu, modifiers")
@@ -325,9 +353,10 @@ def main():
         api.call("POST", "/tables", {"number": n, "capacity": c, "zone": z, "branchId": legon["id"]}, A)
     zones = [api.call("POST", "/delivery/zones", {"name": n, "description": d, "branchId": osu["id"], "fee": f, "minOrderAmount": m, "estimatedMinutes": e, "active": True}, A)
              for n, d, f, m, e in [("Osu & Labone", "Within 3 km", 15, 50, 30), ("Airport & Cantonments", "3-8 km", 25, 80, 40), ("Spintex & Tema", "8-20 km", 40, 120, 60)]]
-    api.call("POST", "/promotions/codes", {"code": "WELCOME10", "description": "10% off your first order", "discountType": "PERCENTAGE", "discountValue": 10, "minOrderAmount": 0, "maxDiscount": 50, "usageLimit": 500, "active": True}, A)
-    api.call("POST", "/promotions/codes", {"code": "FEAST20", "description": "GHS 20 off orders over GHS 200", "discountType": "FLAT", "discountValue": 20, "minOrderAmount": 200, "active": True}, A)
-    api.call("POST", "/promotions/codes", {"code": "EXPIRED5", "description": "Expired test code", "discountType": "FLAT", "discountValue": 5, "minOrderAmount": 0, "expiryDate": iso(now - timedelta(days=3)), "active": True}, A)
+    # ok=False: on PostgreSQL, Flyway (V7) already seeds some promo codes
+    api.call("POST", "/promotions/codes", {"code": "WELCOME10", "description": "10% off your first order", "discountType": "PERCENTAGE", "discountValue": 10, "minOrderAmount": 0, "maxDiscount": 50, "usageLimit": 500, "active": True}, A, ok=False)
+    api.call("POST", "/promotions/codes", {"code": "FEAST20", "description": "GHS 20 off orders over GHS 200", "discountType": "FLAT", "discountValue": 20, "minOrderAmount": 200, "active": True}, A, ok=False)
+    api.call("POST", "/promotions/codes", {"code": "EXPIRED5", "description": "Expired test code", "discountType": "FLAT", "discountValue": 5, "minOrderAmount": 0, "expiryDate": iso(now - timedelta(days=3)), "active": True}, A, ok=False)
     api.call("POST", "/promotions/offers", {"name": "Kelewele 2 + 1", "description": "Buy two Kelewele, get one free", "menuItemId": items["Kelewele"]["id"], "buyQuantity": 2, "freeQuantity": 1, "active": True}, A)
 
     # ---------------------------------------------------------------- cash shift + schedule
@@ -398,6 +427,8 @@ def main():
         body = {"type": kind, "items": basket(minimum=zone_min(zone) if kind == "DELIVERY" else 0)}
         if kind == "DINE_IN":
             body["tableId"] = random.choice(tables)["id"]
+            if random.random() < 0.6:
+                body["tipAmount"] = random.choice([5, 10, 10, 15, 20, 30])  # shared later through HR tip pools
         if kind == "DELIVERY":
             body.update({"deliveryAddress": random.choice(["12 Oxford St, Osu", "4 Liberation Rd, Airport", "Spintex Rd, near Palace Mall"]),
                          "deliveryZoneId": zone["id"]})
@@ -519,7 +550,7 @@ def main():
 
     # ---------------------------------------------------------------- HR
     from seed_hr import print_hr_summary, seed_hr
-    hr_summary = seed_hr(api, A, {"OSU": osu, "ELG": legon}, users, step=step)
+    hr_summary = seed_hr(api, A, {"OSU": osu, "ELG": legon}, users, step=step, db_url=db_url)
 
     print("\nDone.")
     print(f"  Orders: {counts['completed']} finished (history), {counts['active']} live today, {counts['cancelled']} cancelled")
