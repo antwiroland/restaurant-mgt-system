@@ -7,7 +7,8 @@ import { FoodImage } from "@/components/site/FoodImage";
 import { MenuCard } from "@/components/site/MenuCard";
 import { AddToCart } from "@/components/site/AddToCart";
 import { formatMoney } from "@/lib/brand";
-import { fetchPublicMenu, fetchPublicMenuItem } from "@/lib/publicServer";
+import { DishOffers, offersFor } from "@/components/site/Offers";
+import { fetchPublicMenu, fetchPublicMenuItem, fetchPublicOffers } from "@/lib/publicServer";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -20,7 +21,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function DishPage({ params }: Props) {
   await connection();
   const { id } = await params;
-  const [data, menu] = await Promise.all([fetchPublicMenuItem(id), fetchPublicMenu()]);
+  const [data, menu, offers] = await Promise.all([fetchPublicMenuItem(id), fetchPublicMenu(), fetchPublicOffers()]);
   if (!data || !data.item.active) notFound();
   const { item, modifiers } = data;
   const related = (menu?.items ?? []).filter((other) => other.categoryId === item.categoryId && other.id !== item.id && other.available).slice(0, 3);
@@ -53,6 +54,8 @@ export default async function DishPage({ params }: Props) {
           </div>
           {item.description ? <p className="mt-6 text-lg leading-relaxed text-ink-soft">{item.description}</p> : null}
 
+          <DishOffers offers={offersFor(item.id, offers)} />
+
           <AddToCart item={item} modifiers={modifiers} />
 
           <div className="mt-8 rounded-2xl bg-cream/70 p-6">
@@ -77,7 +80,7 @@ export default async function DishPage({ params }: Props) {
         <section className="site mt-24" aria-labelledby="related-title">
           <h2 id="related-title" className="heading-serif text-3xl">More {item.categoryName.toLowerCase()}</h2>
           <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {related.map((other) => <MenuCard key={other.id} item={other} />)}
+            {related.map((other) => <MenuCard key={other.id} item={other} offers={offers} />)}
           </div>
         </section>
       ) : null}

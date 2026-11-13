@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CategoryRecord, MenuItemRecord } from "@/lib/apiClient";
+import type { CategoryRecord, MenuItemRecord, PublicOfferRecord } from "@/lib/apiClient";
 import { Icon } from "@/components/Icon";
 import { MenuCard } from "@/components/site/MenuCard";
 
@@ -12,9 +12,10 @@ type MenuExplorerProps = {
   categories: CategoryRecord[];
   initialQuery?: string;
   initialCategory?: string;
+  offers?: PublicOfferRecord[];
 };
 
-export function MenuExplorer({ items, categories, initialQuery = "", initialCategory = "all" }: MenuExplorerProps) {
+export function MenuExplorer({ items, categories, initialQuery = "", initialCategory = "all", offers = [] }: MenuExplorerProps) {
   const [query, setQuery] = useState(initialQuery);
   const [category, setCategory] = useState<string>(() =>
     initialCategory === "all" || categories.some((c) => c.id === initialCategory) ? initialCategory : "all",
@@ -81,11 +82,11 @@ export function MenuExplorer({ items, categories, initialQuery = "", initialCate
   const renderItems = (list: MenuItemRecord[]) =>
     view === "grid" ? (
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {list.map((item, index) => <MenuCard key={item.id} item={item} priority={index < 3} />)}
+        {list.map((item, index) => <MenuCard key={item.id} item={item} priority={index < 3} offers={offers} />)}
       </div>
     ) : (
       <div className="grid gap-3 md:grid-cols-2">
-        {list.map((item) => <MenuCard key={item.id} item={item} variant="row" />)}
+        {list.map((item) => <MenuCard key={item.id} item={item} variant="row" offers={offers} />)}
       </div>
     );
 

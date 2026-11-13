@@ -72,7 +72,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 ### Orders & Pricing
 - `PICKUP`, `DELIVERY` and `DINE_IN` order types, with the full status lifecycle including `OUT_FOR_DELIVERY` and `DELIVERED`
 - **Discounts applied automatically at order creation** (POS, mobile, table QR and group orders):
-  1. Buy-X-Get-Y offers
+  1. Menu offers (buy X get Y, buy one dish get another, percentage off, combo price); each unit is discounted by one offer at most, best offer first
   2. Promo code, with atomic usage limits
   3. Loyalty points (signed-in customers, up to `LOYALTY_MAX_REDEEM_PERCENT` of the order)
 - Responses show the full breakdown: promo, offer, loyalty and manual discounts, delivery fee, and total discount
@@ -149,7 +149,13 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 
 ### Promotions & Loyalty
 - Promo code management (`/promotions/codes`) and a validation preview
-- **Buy-X-Get-Y offers** (`menu_offers`): managed on the web `/offers` page and at `/promotions/offers`, with optional start and end dates
+- **Menu offers** (`menu_offers`), managed on the web `/offers` page and at `/promotions/offers`:
+  - Kinds: buy X get Y of the same dish free, buy X of one dish get Y of another free, a percentage off a dish, and several dishes for a combo price
+  - When: optional start and end dates, days of the week and a daily time window (happy hour; an end before the start runs past midnight), in `app.timezone`
+  - Where: every branch, or one branch (applied by the order's branch)
+  - Advertised: `GET /promotions/offers/public` (no login) feeds a Deals strip on the menu, a badge on menu cards and dish pages, and the mobile menu
+  - Suggestions: the quote (`/orders/quote`, `/orders/public/quote`) returns `appliedOffers` and `offerHints` such as "Add 1 more Kelewele: it's free"; the web cart and mobile cart show them with an Add button
+  - `scripts/dev/seed_offers_demo.py` adds one demo offer of each kind
 - Loyalty ledger (`EARN`, `REDEEM`, `ADJUST`), with automatic earning, redemption at checkout and clawback on refunds. Rules are set with `LOYALTY_*` variables
 - Mobile: the profile shows the points balance and history, and checkout has a switch to spend points
 

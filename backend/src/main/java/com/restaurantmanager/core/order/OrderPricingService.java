@@ -4,6 +4,10 @@ import com.restaurantmanager.core.common.ApiException;
 import com.restaurantmanager.core.loyalty.LoyaltyAccountService;
 import com.restaurantmanager.core.promotion.MenuOfferEntity;
 import com.restaurantmanager.core.promotion.MenuOfferRepository;
+import com.restaurantmanager.core.promotion.OfferEngine;
+import com.restaurantmanager.core.menu.MenuItemEntity;
+import com.restaurantmanager.core.menu.MenuItemRepository;
+import org.springframework.beans.factory.annotation.Value;
 import com.restaurantmanager.core.promotion.PromoCode;
 import com.restaurantmanager.core.promotion.PromoCodeEntity;
 import com.restaurantmanager.core.promotion.PromoCodeRepository;
@@ -14,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +26,7 @@ import java.util.UUID;
 
 /**
  * Applies discounts to a freshly created order, in this order:
- * Buy-X-Get-Y offers, then promo code (on the post-offer amount), then loyalty points.
+ * menu offers (see {@link OfferEngine}), then promo code (on the post-offer amount), then loyalty points.
  */
 @Service
 public class OrderPricingService {
@@ -30,11 +35,17 @@ public class OrderPricingService {
     private final LoyaltyAccountService loyaltyAccountService;
     private final com.restaurantmanager.core.billing.BillingService billingService;
     private final PromoService promoService = new PromoService();
+    private final MenuItemRepository menuItemRepository;
+    private final ZoneId zone;
 
     public OrderPricingService(MenuOfferRepository menuOfferRepository,
                                PromoCodeRepository promoCodeRepository,
                                LoyaltyAccountService loyaltyAccountService,
-                               com.restaurantmanager.core.billing.BillingService billingService) {
+                               com.restaurantmanager.core.billing.BillingService billingService,
+                               MenuItemRepository menuItemRepository,
+                               @Value("${app.timezone:Africa/Accra}") String timeZone) {
+        this.menuItemRepository = menuItemRepository;
+        this.zone = ZoneId.of(timeZone);
         this.menuOfferRepository = menuOfferRepository;
         this.promoCodeRepository = promoCodeRepository;
         this.loyaltyAccountService = loyaltyAccountService;
@@ -46,7 +57,7 @@ public class OrderPricingService {
         BigDecimal subtotal = order.getSubtotal();
         Instant now = Instant.now();
 
-        BigDecimal offerDiscount = offerDiscount(items, now).min(subtotal);
+        BigDecimal offerDiscount = offers(items, branchId(order), now).discount().min(subtotal);
         order.setOfferDiscount(offerDiscount);
 
         BigDecimal afterOffers = subtotal.subtract(offerDiscount);
@@ -99,11 +110,11 @@ public class OrderPricingService {
      * customer's balance), then service charge and taxes. Fills the given transient order.
      */
     @Transactional(readOnly = true)
-    public com.restaurantmanager.core.billing.BillingService.Breakdown quote(OrderEntity order, List<OrderItemEntity> items,
-                                                                            String promoCode, Integer loyaltyPointsToRedeem) {
+    public Quote quote(OrderEntity order, List<OrderItemEntity> items, String promoCode, Integer loyaltyPointsToRedeem) {
         BigDecimal subtotal = order.getSubtotal();
         Instant now = Instant.now();
-        BigDecimal offer = offerDiscount(items, now).min(subtotal);
+        OfferEngine.Result offers = offers(items, branchId(order), now);
+        BigDecimal offer = offers.discount().min(subtotal);
         order.setOfferDiscount(offer);
         BigDecimal afterOffers = subtotal.subtract(offer);
         if (promoCode != null && !promoCode.isBlank()) {
@@ -129,7 +140,13 @@ public class OrderPricingService {
         order.setTaxTotal(breakdown.taxTotal());
         order.setTaxInclusive(breakdown.taxInclusive());
         order.recalculateTotal();
-        return breakdown;
+        return new Quote(breakdown, offers.applied(), offers.hints());
+    }
+
+    /** A cart estimate: taxes and charges, the offers that applied, and suggestions to complete a deal. */
+    public record Quote(com.restaurantmanager.core.billing.BillingService.Breakdown breakdown,
+                        List<OfferEngine.AppliedOffer> appliedOffers,
+                        List<OfferEngine.Hint> offerHints) {
     }
 
     /** Releases promo usage and returns redeemed loyalty points for an order cancelled/voided before payment. */
@@ -143,46 +160,37 @@ public class OrderPricingService {
         }
     }
 
-    BigDecimal offerDiscount(List<OrderItemEntity> items, Instant now) {
+    /** Offers for these items at this branch (null: unknown, so only offers that run everywhere) and time. */
+    OfferEngine.Result offers(List<OrderItemEntity> items, UUID branchId, Instant now) {
         if (items.isEmpty()) {
-            return BigDecimal.ZERO;
+            return new OfferEngine.Result(BigDecimal.ZERO, List.of(), List.of());
         }
-        Map<UUID, Integer> quantityByMenuItem = new HashMap<>();
-        Map<UUID, BigDecimal> cheapestUnitByMenuItem = new HashMap<>();
+        List<MenuOfferEntity> running = menuOfferRepository.findActiveForPricing().stream()
+                .filter(offer -> offer.isRunningAt(now, zone))
+                .filter(offer -> offer.appliesToBranch(branchId))
+                .toList();
+        if (running.isEmpty()) {
+            return new OfferEngine.Result(BigDecimal.ZERO, List.of(), List.of());
+        }
+        Map<UUID, String> names = new HashMap<>();
+        List<OfferEngine.CartLine> lines = new java.util.ArrayList<>();
         for (OrderItemEntity item : items) {
-            UUID menuItemId = item.getMenuItem().getId();
-            quantityByMenuItem.merge(menuItemId, item.getQuantity(), Integer::sum);
-            cheapestUnitByMenuItem.merge(menuItemId, item.getPriceSnapshot(), BigDecimal::min);
+            names.put(item.getMenuItem().getId(), item.getMenuItem().getName());
+            lines.add(new OfferEngine.CartLine(item.getMenuItem().getId(), item.getPriceSnapshot(), item.getQuantity()));
         }
-
-        List<MenuOfferEntity> offers = menuOfferRepository.findByMenuItem_IdInAndActiveTrue(quantityByMenuItem.keySet());
-        Map<UUID, BigDecimal> bestByMenuItem = new HashMap<>();
-        offers.stream()
-                .filter(offer -> offer.isRunningAt(now))
-                .forEach(offer -> {
-                    UUID menuItemId = offer.getMenuItem().getId();
-                    int purchased = quantityByMenuItem.getOrDefault(menuItemId, 0);
-                    int free = freeItems(purchased, offer.getBuyQuantity(), offer.getFreeQuantity());
-                    BigDecimal value = cheapestUnitByMenuItem.get(menuItemId).multiply(BigDecimal.valueOf(free));
-                    bestByMenuItem.merge(menuItemId, value, BigDecimal::max);
-                });
-        return bestByMenuItem.values().stream()
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .setScale(2, RoundingMode.HALF_UP);
+        java.util.Set<UUID> unnamed = new java.util.HashSet<>();
+        running.forEach(offer -> offer.menuItemIds().stream().filter(id -> !names.containsKey(id)).forEach(unnamed::add));
+        menuItemRepository.findAllById(unnamed).forEach(dish -> names.put(dish.getId(), dish.getName()));
+        return OfferEngine.evaluate(lines, running, id -> names.getOrDefault(id, "item"));
     }
 
-    /**
-     * "Buy X get Y" applied to a cart: every complete group of (X + Y) units contains Y free units, and a
-     * partial group beyond X units makes the extra units free. The free units must be in the order.
-     */
+    private static UUID branchId(OrderEntity order) {
+        return order.getBranch() == null ? null : order.getBranch().getId();
+    }
+
+    /** "Buy X get Y" on a number of units; see {@link OfferEngine#freeItems}. */
     static int freeItems(int purchased, int buyQty, int freeQty) {
-        if (buyQty <= 0 || freeQty <= 0) {
-            return 0;
-        }
-        int groupSize = buyQty + freeQty;
-        int fullGroups = purchased / groupSize;
-        int remainder = purchased % groupSize;
-        return fullGroups * freeQty + Math.max(0, remainder - buyQty);
+        return OfferEngine.freeItems(purchased, buyQty, freeQty);
     }
 
     private PromoCode toDomain(PromoCodeEntity entity) {

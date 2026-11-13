@@ -14,6 +14,7 @@ import {
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchCategories, fetchMenuItemModifiers } from '../../src/api/menu';
+import { fetchPublicOffers, offersFor, type PublicOffer } from '../../src/api/offers';
 import { useCartStore } from '../../src/store/cart';
 import { useOfflineStore } from '../../src/store/offline';
 import { OfflineBanner } from '../../src/components/OfflineBanner';
@@ -66,6 +67,12 @@ export default function MenuScreen() {
   const { isOnline } = useOfflineStore();
   const canFavourite = useAuthStore((st) => st.isAuthenticated && st.role === 'CUSTOMER');
   const [favouriteIds, setFavouriteIds] = useState<Set<string>>(new Set());
+  const [offers, setOffers] = useState<PublicOffer[]>([]);
+
+  useEffect(() => {
+    if (!isOnline) return;
+    fetchPublicOffers().then(setOffers).catch(() => setOffers([]));
+  }, [isOnline]);
 
   useEffect(() => {
     if (!canFavourite) return;
@@ -263,6 +270,25 @@ export default function MenuScreen() {
               </View>
             )}
 
+            {offers.length > 0 ? (
+              <View style={styles.dealsBox} accessibilityLabel="Deals">
+                <Text style={styles.dealsTitle}>Deals</Text>
+                {[...offers].sort((a, b) => Number(b.runningNow) - Number(a.runningNow)).slice(0, 4).map((offer) => (
+                  <View key={offer.id} style={styles.dealRow}>
+                    <Ionicons name="pricetag" size={14} color={colors.brand} style={{ marginTop: 2 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.dealSummary}>{offer.summary}</Text>
+                      <Text style={styles.dealWhen}>
+                        {offer.runningNow ? 'On now' : offer.schedule ? `Runs ${offer.schedule}` : 'Coming soon'}
+                        {offer.runningNow && offer.schedule ? ` · ${offer.schedule}` : ''}
+                        {offer.branchName ? ` · ${offer.branchName} only` : ''}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
             {/* Categories */}
             <FlatList
               horizontal
@@ -318,6 +344,17 @@ export default function MenuScreen() {
             <View style={styles.rowBody}>
               <Text style={styles.rowName} numberOfLines={2}>{item.name}</Text>
               {item.description ? <Text style={styles.rowDesc} numberOfLines={2}>{item.description}</Text> : null}
+              {offersFor(item.id, offers)[0] ? (
+                <View style={[styles.offerPill, !offersFor(item.id, offers)[0].runningNow && styles.offerPillLater]}>
+                  <Ionicons name="pricetag" size={11} color={offersFor(item.id, offers)[0].runningNow ? colors.white : colors.brand} />
+                  <Text
+                    style={[styles.offerPillText, !offersFor(item.id, offers)[0].runningNow && styles.offerPillTextLater]}
+                    numberOfLines={1}
+                  >
+                    {offersFor(item.id, offers)[0].summary}
+                  </Text>
+                </View>
+              ) : null}
               <View style={styles.rowFooter}>
                 <Text style={styles.rowPrice}>{money(item.price)}</Text>
                 {canFavourite ? (
@@ -464,6 +501,18 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1, justifyContent: 'space-between' },
   rowName: { fontSize: 15, fontWeight: '700', color: colors.ink },
   rowDesc: { fontSize: 13, color: colors.inkSoft, marginTop: 2, lineHeight: 18 },
+  offerPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 6,
+    backgroundColor: colors.brand, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, maxWidth: '100%',
+  },
+  offerPillLater: { backgroundColor: colors.brandSubtle },
+  offerPillText: { fontSize: 11, fontWeight: '700', color: colors.white, flexShrink: 1 },
+  offerPillTextLater: { color: colors.brand },
+  dealsBox: { marginHorizontal: 16, marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: colors.brandSubtle, gap: 8 },
+  dealsTitle: { fontSize: 15, fontWeight: '800', color: colors.ink },
+  dealRow: { flexDirection: 'row', gap: 8 },
+  dealSummary: { fontSize: 13, fontWeight: '700', color: colors.ink },
+  dealWhen: { fontSize: 12, color: colors.inkSoft, marginTop: 1 },
   rowFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   rowPrice: { fontSize: 15, fontWeight: '700', color: colors.ink },
   addBtn: { height: 36, paddingHorizontal: 16, borderRadius: radius.pill, backgroundColor: colors.brand, justifyContent: 'center' },

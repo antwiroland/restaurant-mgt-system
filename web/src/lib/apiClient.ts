@@ -1312,31 +1312,81 @@ export async function getFinancialAudit(session: StaffSession, action?: string):
   return apiRequest<FinancialAuditRecord[]>(`/financial/audit${suffix}`, { token: session.accessToken });
 }
 
+export type OfferType = "BUY_X_GET_Y" | "BUY_X_GET_OTHER" | "PERCENT_OFF" | "COMBO";
+
 export type MenuOfferRecord = {
   id: string;
   name: string;
   description?: string | null;
-  menuItemId: string;
-  menuItemName: string;
+  offerType: OfferType;
+  menuItemId?: string | null;
+  menuItemName?: string | null;
   buyQuantity: number;
   freeQuantity: number;
+  freeMenuItemId?: string | null;
+  freeMenuItemName?: string | null;
+  percentOff?: string | null;
+  comboPrice?: string | null;
+  comboItems: { menuItemId: string; menuItemName: string; quantity: number }[];
+  /** MON..SUN; empty = every day. */
+  daysOfWeek: string[];
+  /** "HH:mm[:ss]"; both null = all day. */
+  dailyStartTime?: string | null;
+  dailyEndTime?: string | null;
+  branchId?: string | null;
+  branchName?: string | null;
   startsAt?: string | null;
   endsAt?: string | null;
   active: boolean;
   running: boolean;
+  /** e.g. "Buy 2 Kelewele, get 1 free". */
+  summary: string;
+  /** e.g. "Mon, Fri · 16:00–18:00"; null = all day, every day. */
+  schedule?: string | null;
   createdAt: string;
 };
 
 export type MenuOfferUpsertRequest = {
   name: string;
   description?: string;
-  menuItemId: string;
-  buyQuantity: number;
-  freeQuantity: number;
+  offerType: OfferType;
+  menuItemId?: string;
+  buyQuantity?: number;
+  freeQuantity?: number;
+  freeMenuItemId?: string;
+  percentOff?: number;
+  comboPrice?: number;
+  comboItems?: { menuItemId: string; quantity: number }[];
   startsAt?: string;
   endsAt?: string;
+  daysOfWeek?: string[];
+  dailyStartTime?: string;
+  dailyEndTime?: string;
+  branchId?: string;
   active?: boolean;
 };
+
+/** An offer as customers see it (GET /promotions/offers/public). */
+export type PublicOfferRecord = {
+  id: string;
+  name: string;
+  description?: string | null;
+  offerType: OfferType;
+  summary: string;
+  schedule?: string | null;
+  /** False outside its days or hours (e.g. a happy hour later today). */
+  runningNow: boolean;
+  menuItemIds: string[];
+  branchId?: string | null;
+  branchName?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+};
+
+export async function getPublicOffers(branchId?: string): Promise<PublicOfferRecord[]> {
+  const query = branchId ? `?branchId=${encodeURIComponent(branchId)}` : "";
+  return apiRequest<PublicOfferRecord[]>(`/promotions/offers/public${query}`);
+}
 
 export async function getMenuOffers(session: StaffSession): Promise<MenuOfferRecord[]> {
   return apiRequest<MenuOfferRecord[]>("/promotions/offers", { token: session.accessToken });
@@ -2242,6 +2292,9 @@ export type OrderQuoteRecord = {
   tipAmount?: string | null;
   discountTotal: string;
   total: string;
+  appliedOffers?: { offerId: string; name: string; discount: string }[];
+  /** Nudges to complete a deal, e.g. "Add 1 more Kelewele: it's free". */
+  offerHints?: { offerId: string; offerName: string; menuItemId: string; quantity: number; message: string }[];
 };
 
 export async function quoteOrder(

@@ -1,17 +1,21 @@
 import Link from "next/link";
-import type { MenuItemRecord } from "@/lib/apiClient";
+import type { MenuItemRecord, PublicOfferRecord } from "@/lib/apiClient";
 import { formatMoney } from "@/lib/brand";
 import { FoodImage } from "@/components/site/FoodImage";
 import { Icon } from "@/components/Icon";
+import { OfferRibbon, offersFor } from "@/components/site/Offers";
 
 type MenuCardProps = {
   item: MenuItemRecord;
   priority?: boolean;
   variant?: "grid" | "row";
+  /** All public offers; the card shows the best one that involves this dish. */
+  offers?: PublicOfferRecord[];
 };
 
-export function MenuCard({ item, priority = false, variant = "grid" }: MenuCardProps) {
+export function MenuCard({ item, priority = false, variant = "grid", offers = [] }: MenuCardProps) {
   const unavailable = !item.available;
+  const dishOffers = offersFor(item.id, offers);
 
   if (variant === "row") {
     return (
@@ -28,6 +32,7 @@ export function MenuCard({ item, priority = false, variant = "grid" }: MenuCardP
             </div>
             {item.description ? <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-ink-soft">{item.description}</p> : null}
           </div>
+          <OfferRibbon offers={dishOffers} />
           {unavailable ? <span className="badge badge-neutral w-fit">Sold out today</span> : null}
         </div>
       </Link>
@@ -61,6 +66,7 @@ export function MenuCard({ item, priority = false, variant = "grid" }: MenuCardP
           <span className="money shrink-0 text-[17px] text-brand">{formatMoney(item.price)}</span>
         </div>
         {item.description ? <p className="line-clamp-2 text-sm leading-relaxed text-ink-soft">{item.description}</p> : null}
+        <OfferRibbon offers={dishOffers} />
         <span className="mt-auto inline-flex items-center gap-1.5 pt-2 text-sm font-semibold text-ink-soft transition-colors group-hover:text-brand">
           View dish <Icon name="arrowRight" size={16} className="transition-transform group-hover:translate-x-0.5" />
         </span>

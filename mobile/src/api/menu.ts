@@ -78,3 +78,8 @@ export async function fetchMenuItemModifiers(menuItemId: string): Promise<MenuMo
     })),
   }));
 }
+
+export async function fetchMenuItem(menuItemId: string): Promise<MenuItem> {
+  const { data } = await apiClient.get<MenuItemResponse>(`/menu/items/${menuItemId}`);
+  return toMenuItem(data);
+}

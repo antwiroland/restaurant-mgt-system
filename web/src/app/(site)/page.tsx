@@ -4,7 +4,7 @@ import { Icon, type IconName } from "@/components/Icon";
 import { FoodImage } from "@/components/site/FoodImage";
 import { MenuCard } from "@/components/site/MenuCard";
 import { formatMoney } from "@/lib/brand";
-import { fetchPublicMenu, getBrand } from "@/lib/publicServer";
+import { fetchPublicMenu, fetchPublicOffers, getBrand } from "@/lib/publicServer";
 import type { MenuItemRecord } from "@/lib/apiClient";
 
 /** Prefer dishes that have photographs, then keep menu order. */
@@ -21,7 +21,7 @@ const steps: { icon: IconName; title: string; body: string }[] = [
 
 export default async function HomePage() {
   await connection();
-  const [menu, brand] = await Promise.all([fetchPublicMenu(), getBrand()]);
+  const [menu, brand, offers] = await Promise.all([fetchPublicMenu(), getBrand(), fetchPublicOffers()]);
   const items = menu?.items ?? [];
   const categories = menu?.categories ?? [];
   const highlights = featured(items, 6);
@@ -155,7 +155,7 @@ export default async function HomePage() {
         {highlights.length > 0 ? (
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {highlights.map((item, index) => (
-              <MenuCard key={item.id} item={item} priority={index < 3} />
+              <MenuCard key={item.id} item={item} priority={index < 3} offers={offers} />
             ))}
           </div>
         ) : (

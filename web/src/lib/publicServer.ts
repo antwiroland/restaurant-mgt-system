@@ -1,5 +1,5 @@
 // Server-only module: imported exclusively from Server Components.
-import type { CategoryRecord, MenuItemRecord, MenuModifierGroupRecord, RestaurantProfileRecord, TablePublicStatusView } from "@/lib/apiClient";
+import type { CategoryRecord, MenuItemRecord, MenuModifierGroupRecord, PublicOfferRecord, RestaurantProfileRecord, TablePublicStatusView } from "@/lib/apiClient";
 import { brandFromProfile, type Brand } from "@/lib/brand";
 
 /**
@@ -48,6 +48,11 @@ export async function fetchPublicMenuItem(id: string) {
     getJson<MenuModifierGroupRecord[]>(`/menu/items/${encodeURIComponent(id)}/modifiers`),
   ]);
   return item ? { item, modifiers: modifiers ?? [] } : null;
+}
+
+/** Offers customers can see, with the dishes they involve. Empty when the backend is unreachable. */
+export async function fetchPublicOffers(): Promise<PublicOfferRecord[]> {
+  return (await getJson<PublicOfferRecord[]>("/promotions/offers/public")) ?? [];
 }
 
 export async function fetchPublicTables(): Promise<TablePublicStatusView[] | null> {

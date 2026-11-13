@@ -413,21 +413,44 @@ public class OrderService {
         if (request.type() == OrderType.DELIVERY) {
             deliveryService.applyZone(draft, request.deliveryZoneId());
         }
+        draft.setBranch(quoteBranch(request, principal, draft.getDeliveryZoneId()));
         if (request.tipAmount() != null && request.tipAmount().signum() > 0) {
             pricingService.setTip(draft, request.tipAmount(), null);
         }
-        var breakdown = pricingService.quote(draft, items, request.promoCode(), request.loyaltyPointsToRedeem());
+        OrderPricingService.Quote quote = pricingService.quote(draft, items, request.promoCode(), request.loyaltyPointsToRedeem());
         return new OrderQuoteResponse(draft.getSubtotal(), draft.getOfferDiscount(), draft.getPromoCode(), draft.getPromoDiscount(),
                 draft.getLoyaltyPointsRedeemed(), draft.getLoyaltyDiscount(), draft.getDeliveryFee(), draft.getServiceCharge(),
-                draft.getTaxTotal(), draft.isTaxInclusive(), breakdown.taxLines(), draft.getTipAmount(), draft.totalDiscount(),
-                draft.getTotal());
+                draft.getTaxTotal(), draft.isTaxInclusive(), quote.breakdown().taxLines(), draft.getTipAmount(), draft.totalDiscount(),
+                draft.getTotal(), quote.appliedOffers(), quote.offerHints());
+    }
+
+    /** The branch the order would get (as at order creation), so branch-only offers are quoted correctly. */
+    private com.restaurantmanager.core.branch.BranchEntity quoteBranch(OrderCreateRequest request, UserPrincipal principal, UUID deliveryZoneId) {
+        if (request.type() == OrderType.DINE_IN) {
+            Optional<RestaurantTableEntity> table = request.tableId() != null
+                    ? tableRepository.findById(request.tableId())
+                    : request.tableToken() == null || request.tableToken().isBlank()
+                            ? Optional.empty()
+                            : tableRepository.findByQrToken(request.tableToken().trim());
+            if (table.isPresent()) {
+                return table.get().getBranch();
+            }
+        } else if (principal != null && principal.role() != Role.CUSTOMER) {
+            var staffBranch = userRepository.findById(principal.userId()).map(UserEntity::getBranch).orElse(null);
+            if (staffBranch != null) {
+                return staffBranch;
+            }
+        }
+        return branchResolver.resolve(request.branchId(), deliveryZoneId).orElse(null);
     }
 
     public record OrderQuoteResponse(BigDecimal subtotal, BigDecimal offerDiscount, String promoCode, BigDecimal promoDiscount,
                                      int loyaltyPointsRedeemed, BigDecimal loyaltyDiscount, BigDecimal deliveryFee,
                                      BigDecimal serviceCharge, BigDecimal taxTotal, boolean taxInclusive,
                                      List<com.restaurantmanager.core.billing.BillingService.TaxLine> taxLines,
-                                     BigDecimal tipAmount, BigDecimal discountTotal, BigDecimal total) {
+                                     BigDecimal tipAmount, BigDecimal discountTotal, BigDecimal total,
+                                     List<com.restaurantmanager.core.promotion.OfferEngine.AppliedOffer> appliedOffers,
+                                     List<com.restaurantmanager.core.promotion.OfferEngine.Hint> offerHints) {
     }
 
     /**
