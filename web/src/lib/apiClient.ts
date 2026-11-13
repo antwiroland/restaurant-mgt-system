@@ -423,6 +423,8 @@ export type GroupViewRecord = {
 
 export type KdsOrderCard = {
   orderId: string;
+  /** Pickups are handed over at the counter with the customer's code, not from the KDS. */
+  orderType?: "DINE_IN" | "PICKUP" | "DELIVERY";
   tableNumber: string;
   branchName?: string;
   status: "PENDING" | "CONFIRMED" | "PREPARING" | "READY";
@@ -649,11 +651,19 @@ export async function getKdsBoard(session: StaffSession, branchId?: string): Pro
   return apiRequest<KdsBoardRecord>(`/kds/board${query}`, { token: session.accessToken });
 }
 
-export async function updateOrderStatus(session: StaffSession, orderId: string, status: OrderRecord["status"]): Promise<OrderRecord> {
+/**
+ * Handing a READY pickup over (COMPLETED) needs the customer's pickup code; admins and managers may leave it out.
+ */
+export async function updateOrderStatus(
+  session: StaffSession,
+  orderId: string,
+  status: OrderRecord["status"],
+  pickupCode?: string,
+): Promise<OrderRecord> {
   return apiRequest<OrderRecord>(`/orders/${orderId}/status`, {
     method: "PATCH",
     token: session.accessToken,
-    body: { status },
+    body: pickupCode ? { status, pickupCode } : { status },
   });
 }
 

@@ -79,7 +79,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Cancelling an unpaid order releases the promo use and returns redeemed points
 - Cancellation: confirmed or later orders need a manager override token
 - Order history with role-aware visibility, date filters and pagination
-- Pickup codes and lookup (`/orders/pickup`)
+- Pickup codes and lookup (`/orders/pickup`). **Handing a pickup over needs the customer's pickup code** (shown in their app and on the web order page): the order number is on the public board, so it is not proof. The lookup page does not show staff the code, and the KDS and orders list send ready pickups to the counter instead of completing them. Admins and managers can hand over without the code for a customer who lost it (logged)
 - Public dine-in ordering from a table QR without an account
 - **Pickup is paid before it reaches the kitchen.** An unpaid pickup order stays `PENDING` ("awaiting payment"), off the KDS and the pickup board, and staff cannot confirm it. A successful payment confirms it. `UnpaidPickupExpiryJob` cancels pickups still unpaid after 30 minutes (`orders.unpaid-pickup.expire-after-minutes`), releasing stock and promo codes
 - **Order lookup by the number on the ticket** (`GET /orders/lookup?number=7D63D7F5`): the first 8 characters of the id, with or without `#`; a full id also works
@@ -278,7 +278,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
     - About 90 orders with 30 days of history: kitchen tickets at every stage, deliveries assigned to riders, customer reviews
     - Reservations, a week of staff rota, an open cash shift and an open group-order session
     - HR (`seed_hr.py`): employees, contracts, documents, schedules, attendance, leave, timesheets, tip pools, payroll with bank/MoMo/cash payout details (bank and MoMo payslips left unpaid so payment files can be downloaded) and recruitment
-    - Everything else (`seed_extras.py`): restaurant profile, printers, dish photos, East Legon history, saved addresses and favourites, loyalty spent at checkout, failed and retried MoMo payments, a closed shift with a cash shortfall, discount/void/full and part refunds, a signed-off reconciliation, split bills (staff, guest QR and group by-items), waiter calls and a bill request, a served-unpaid table, a walkout, guest feedback, review replies, stock delivery/waste/count with a dish taken off the menu, and a pickup awaiting payment
+    - Everything else (`seed_extras.py`): restaurant profile, printers, dish photos, East Legon history, saved addresses and favourites, loyalty spent at checkout, failed and retried MoMo payments, a closed shift with a cash shortfall, discount/void/full and part refunds, a signed-off reconciliation, split bills (staff, guest QR and group by-items), waiter calls and a bill request, a served-unpaid table, a walkout, guest feedback, review replies, stock delivery/waste/count with a dish taken off the menu, and a pickup awaiting payment (cancelled after 30 minutes; `scripts/dev/seed_pickup_demo.py` makes fresh pickups, including a paid READY one to test the handover)
   - `run-backend-local.sh` relaxes the auth and PIN rate limits for local seeding (`RATE_LIMIT_AUTH_REQUESTS`, `RATE_LIMIT_PIN_REQUESTS`)
   - `run-web-local.sh` builds the web app for a given backend port and serves it
   - Steps are in `documentation/DEPLOYMENT_READINESS.md` → "Local test environment"

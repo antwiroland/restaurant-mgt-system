@@ -170,7 +170,13 @@ class GuestTableAndPickupBoardIntegrationTest extends BaseIntegrationTest {
 
         setStatus(deliveryId, "OUT_FOR_DELIVERY"); // the rider took it
         assertThat(boardNumbers()).containsExactly(pickup);
-        setStatus(pickupId, "COMPLETED"); // the customer collected it
+        // the customer collected it, showing their pickup code
+        String code = orderRepository.findById(java.util.UUID.fromString(pickupId)).orElseThrow().getPickupCode();
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/orders/" + pickupId + "/status")
+                        .header("Authorization", "Bearer " + accessToken(cashier))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"COMPLETED\",\"pickupCode\":\"" + code + "\"}"))
+                .andExpect(status().isOk());
         assertThat(boardNumbers()).isEmpty();
     }
 

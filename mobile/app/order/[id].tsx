@@ -134,6 +134,18 @@ export default function OrderTrackingScreen() {
         </View>
       )}
 
+      {order.type === 'PICKUP' && order.pickupCode && !['PENDING', 'CANCELLED', 'VOIDED'].includes(order.status) ? (
+        <View style={styles.section} accessibilityLabel={`Pickup code ${order.pickupCode.split('').join(' ')}`}>
+          <Text style={styles.sectionTitle}>Pickup code</Text>
+          <Text style={styles.pickupCode} selectable>{order.pickupCode}</Text>
+          <Text style={styles.deliveryHint}>
+            {order.status === 'COMPLETED'
+              ? 'Collected.'
+              : 'Show this code at the counter to collect your order. Keep it to yourself: it is your proof of order.'}
+          </Text>
+        </View>
+      ) : null}
+
       {order.type === 'DELIVERY' && delivery ? (
         <View style={styles.section} accessibilityLiveRegion="polite">
           <Text style={styles.sectionTitle}>Delivery</Text>
@@ -266,6 +278,7 @@ const styles = StyleSheet.create({
   stepLabelActive: { color: colors.brand, fontWeight: '600' },
   section: { backgroundColor: colors.white, margin: 12, borderRadius: 12, padding: 16 },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 12 },
+  pickupCode: { fontSize: 32, fontWeight: '800', letterSpacing: 4, color: colors.ink, fontFamily: 'monospace', marginBottom: 8 },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   itemName: { fontSize: 14, color: colors.inkSoft },
   itemModifier: { fontSize: 11, color: colors.inkMuted, marginTop: 2 },

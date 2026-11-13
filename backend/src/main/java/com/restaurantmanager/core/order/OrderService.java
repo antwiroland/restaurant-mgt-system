@@ -74,6 +74,7 @@ import java.util.UUID;
 
 @Service
 public class OrderService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(OrderService.class);
     private static final Instant MIN_FILTER_INSTANT = Instant.EPOCH;
     private static final Instant MAX_FILTER_INSTANT = Instant.parse("9999-12-31T23:59:59Z");
 
@@ -283,6 +284,10 @@ public class OrderService {
         if (order.getType() == OrderType.PICKUP && order.getStatus() == OrderStatus.PENDING
                 && request.status() == OrderStatus.CONFIRMED && !isFullyPaid(order)) {
             throw new ApiException(409, "Pickup orders go to the kitchen once they are paid");
+        }
+        if (order.getType() == OrderType.PICKUP && order.getStatus() == OrderStatus.READY
+                && request.status() == OrderStatus.COMPLETED) {
+            assertPickupCodeForHandover(order, request.pickupCode(), principal);
         }
         OrderStatus previous = order.getStatus();
         order.setStatus(request.status());
@@ -1322,6 +1327,25 @@ public class OrderService {
         return principal != null
                 && (principal.role() == Role.MANAGER || principal.role() == Role.CASHIER)
                 && principal.branchId() != null;
+    }
+
+    /**
+     * Handing over a pickup needs the code the customer shows: the order number is on the public board, so it
+     * alone must not be enough to collect someone's food. Admins and managers may override (customer lost the code).
+     */
+    private void assertPickupCodeForHandover(OrderEntity order, String pickupCode, UserPrincipal principal) {
+        if (pickupCode == null || pickupCode.isBlank()) {
+            if (principal.role() == Role.ADMIN || principal.role() == Role.MANAGER) {
+                log.info("Pickup order {} handed over without a pickup code by {} ({})",
+                        order.getId(), principal.userId(), principal.role());
+                return;
+            }
+            throw new ApiException(400, "Ask the customer for their pickup code to hand this order over");
+        }
+        String entered = pickupCode.trim().replaceFirst("^#", "").toUpperCase(java.util.Locale.ROOT);
+        if (!entered.equals(order.getPickupCode())) {
+            throw new ApiException(409, "That pickup code does not match this order");
+        }
     }
 
     private void notifyReadyForPickup(OrderEntity order, OrderStatus previous) {

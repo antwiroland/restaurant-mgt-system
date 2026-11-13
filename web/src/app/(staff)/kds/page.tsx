@@ -311,10 +311,13 @@ function matchesCardQuery(card: KdsOrderCard, query: string): boolean {
     || card.items.some((item) => item.name.toLowerCase().includes(normalizedQuery));
 }
 
-function nextAction(status: KdsOrderCard["status"]): { label: string; status: KdsAdvanceStatus } | null {
+function nextAction(card: KdsOrderCard): { label: string; status: KdsAdvanceStatus } | null {
+  const { status } = card;
   if (status === "PENDING") return { label: "Accept", status: "CONFIRMED" };
   if (status === "CONFIRMED") return { label: "Start cooking", status: "PREPARING" };
   if (status === "PREPARING") return { label: "Mark ready", status: "READY" };
+  // A ready pickup is handed over at the counter, where the customer shows their pickup code.
+  if (status === "READY" && card.orderType === "PICKUP") return null;
   if (status === "READY") return { label: "Served", status: "COMPLETED" };
   return null;
 }
@@ -334,7 +337,7 @@ function OrderCard({
   onToggleItem: (orderId: string, itemId: string, ready: boolean) => void;
   onPrint: (orderId: string) => void;
 }) {
-  const action = nextAction(card.status);
+  const action = nextAction(card);
   const age = ageMeta(card.createdAt);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
@@ -445,6 +448,10 @@ function OrderCard({
           {busy ? <Spinner className="text-current" /> : <Icon name={card.status === "READY" ? "checkCircle" : "arrowRight"} size={20} />}
           {action.label}
         </button>
+      ) : card.status === "READY" && card.orderType === "PICKUP" ? (
+        <p className="mt-4 flex items-center gap-2 rounded-lg bg-night-raised px-3 py-2 text-sm font-semibold text-night-ink">
+          <Icon name="bag" size={16} /> Pickup: hand over at the counter with the customer&apos;s code
+        </p>
       ) : null}
     </article>
   );

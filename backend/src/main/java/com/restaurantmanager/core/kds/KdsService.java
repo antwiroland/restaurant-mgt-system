@@ -120,7 +120,8 @@ public class KdsService {
                 order.getStatus(),
                 order.getNotes(),
                 order.getCreatedAt(),
-                items
+                items,
+                order.getType()
         );
     }
 }
