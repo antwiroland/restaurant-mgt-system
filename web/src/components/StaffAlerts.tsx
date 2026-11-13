@@ -6,6 +6,12 @@ import { useEffect, useRef, useState } from "react";
 import { useStaffSession } from "@/components/SessionProvider";
 import { watchAlert } from "@/features/tables/paymentWatch";
 import { getTablePaymentWatch, type StaffRole } from "@/lib/apiClient";
+import { playAlertSound } from "@/lib/alertSound";
+
+// Alerts already announced with a sound (kept across page changes). Table alerts present when the page first loads
+// show without a sound; anything new after that plays one.
+const sounded = new Set<string>();
+let tableWatchPrimed = false;
 
 type Alert = { id: string; text: string; href: string; tone: "warning" | "danger" };
 
@@ -40,6 +46,10 @@ export function StaffAlerts({ role }: { role?: StaffRole }) {
         if (cancelled) return;
         const risky = watch.filter((entry) => entry.risk !== "NONE");
         const ids = new Set(risky.map((entry) => `table-${entry.tableId}-${entry.risk}`));
+        const newOnes = [...ids].filter((id) => !sounded.has(id) && !dismissed.current.has(id));
+        newOnes.forEach((id) => sounded.add(id));
+        if (tableWatchPrimed && newOnes.length > 0) playAlertSound("warning");
+        tableWatchPrimed = true;
         setAlerts((current) => {
           const others = current.filter((a) => !a.id.startsWith("table-") || ids.has(a.id));
           const fresh: Alert[] = risky
@@ -64,7 +74,13 @@ export function StaffAlerts({ role }: { role?: StaffRole }) {
 
   useEffect(() => {
     if (!managerAlerts) return;
-    const push = (alert: Alert) => setAlerts((current) => [alert, ...current.filter((a) => a.id !== alert.id)].slice(0, MAX_ALERTS));
+    const push = (alert: Alert) => {
+      if (!sounded.has(alert.id)) {
+        sounded.add(alert.id);
+        playAlertSound("warning");
+      }
+      setAlerts((current) => [alert, ...current.filter((a) => a.id !== alert.id)].slice(0, MAX_ALERTS));
+    };
     const client = createRealtimeClient({
       reconnectDelay: 10000,
       onConnect: () => {

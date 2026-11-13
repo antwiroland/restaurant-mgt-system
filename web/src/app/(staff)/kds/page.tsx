@@ -1,7 +1,8 @@
 "use client";
 
 import { createRealtimeClient, useAccessTokenGetter } from "@/lib/realtime";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { playAlertSound } from "@/lib/alertSound";
 import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
 import { useStaffSession } from "@/components/SessionProvider";
@@ -49,10 +50,16 @@ export default function KdsPage() {
     else void document.documentElement.requestFullscreen?.().catch(() => {});
   }
 
+  // Tickets already on the board; a ding plays when a new one arrives (not for those there on first load).
+  const knownTickets = useRef<Set<string> | null>(null);
+
   async function loadBoard() {
     if (!session) return;
     await authenticatedFetch(async (activeSession) => {
       const next = await getKdsBoard(activeSession, branchId || undefined);
+      const ids = Object.values(next.columns).flat().map((card) => card.orderId);
+      if (knownTickets.current && ids.some((id) => !knownTickets.current!.has(id))) playAlertSound("order");
+      knownTickets.current = new Set([...(knownTickets.current ?? []), ...ids]);
       setBoard(next);
       setLastUpdated(new Date());
     });
@@ -73,6 +80,7 @@ export default function KdsPage() {
 
   useEffect(() => {
     if (!session) return;
+    knownTickets.current = null; // another branch: its current tickets are not "new"
     loadBoard().catch((err) => setError(err instanceof Error ? err.message : "Could not load KDS board"));
 
     const timer = window.setInterval(() => {

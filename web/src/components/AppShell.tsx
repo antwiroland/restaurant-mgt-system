@@ -10,6 +10,7 @@ import { useStaffSession } from "@/components/SessionProvider";
 import { Skeleton } from "@/components/Skeleton";
 import { ServiceRequestsBell } from "@/components/ServiceRequestsBell";
 import { StaffAlerts } from "@/components/StaffAlerts";
+import { SoundToggle } from "@/components/SoundToggle";
 import { routeByRole } from "@/features/auth/auth";
 import { useBrand } from "@/components/BrandProvider";
 import { HrAccessProvider } from "@/features/hr/HrAccessContext";
@@ -191,6 +192,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Icon name="plus" size={16} /> New order
                 </Link>
               ) : null}
+              {role === "ADMIN" || role === "MANAGER" || role === "CASHIER" ? <SoundToggle dark={immersive} /> : null}
               {role === "ADMIN" || role === "MANAGER" || role === "CASHIER" ? <ServiceRequestsBell dark={immersive} /> : null}
               <AccountMenu name={session.user.name} role={role} onSignOut={signOut} dark={immersive} />
             </div>
