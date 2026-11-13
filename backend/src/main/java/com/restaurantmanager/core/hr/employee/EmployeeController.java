@@ -46,6 +46,23 @@ public class EmployeeController {
                 new EmployeeService.EmployeeFilter(q, branchId, departmentId, positionId, status, type, includeExited), page, size, sort);
     }
 
+    @GetMapping(value = "/employees/export", produces = "text/csv")
+    public org.springframework.http.ResponseEntity<String> export(@RequestParam(required = false) String q,
+                                                                  @RequestParam(required = false) UUID branchId,
+                                                                  @RequestParam(required = false) UUID departmentId,
+                                                                  @RequestParam(required = false) UUID positionId,
+                                                                  @RequestParam(required = false) EmploymentStatus status,
+                                                                  @RequestParam(required = false) EmploymentType type,
+                                                                  @RequestParam(defaultValue = "false") boolean includeExited,
+                                                                  @AuthenticationPrincipal UserPrincipal principal) {
+        String csv = employeeService.exportCsv(principal,
+                new EmployeeService.EmployeeFilter(q, branchId, departmentId, positionId, status, type, includeExited));
+        return org.springframework.http.ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"employees.csv\"")
+                .contentType(org.springframework.http.MediaType.parseMediaType("text/csv; charset=utf-8"))
+                .body("\uFEFF" + csv);
+    }
+
     @GetMapping("/employees/linkable-users")
     public List<EmployeeService.LinkableUser> linkableUsers(@AuthenticationPrincipal UserPrincipal principal) {
         return employeeService.linkableUsers(principal);
@@ -90,6 +107,12 @@ public class EmployeeController {
     public EmployeeService.EmployeeDetail linkUser(@PathVariable UUID id, @Valid @RequestBody EmployeeService.LinkUserRequest request,
                                                    @AuthenticationPrincipal UserPrincipal principal) {
         return employeeService.linkUser(principal, id, request.userId());
+    }
+
+    @PostMapping("/employees/{id}/create-login")
+    public EmployeeService.EmployeeDetail createLogin(@PathVariable UUID id, @Valid @RequestBody EmployeeService.CreateLoginRequest request,
+                                                      @AuthenticationPrincipal UserPrincipal principal) {
+        return employeeService.createLogin(principal, id, request);
     }
 
     @DeleteMapping("/employees/{id}/link-user")

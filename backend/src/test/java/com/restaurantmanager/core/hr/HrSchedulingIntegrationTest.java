@@ -196,7 +196,8 @@ class HrSchedulingIntegrationTest extends HrIntegrationTestSupport {
     void publishIsAllOrNothing_whenADraftBecameInvalid() throws Exception {
         createShift(manager, shift(cashierEmployee, monday, 9, 17));
         createShift(manager, shift(cook, monday, 9, 17));
-        postJson("/hr/employees/" + cook + "/status", Map.of("status", "RESIGNED", "reason", "Moved away"), admin).andExpect(status().isOk());
+        // A suspension keeps the shift on the rota but makes it invalid (a resignation instead turns it into an open shift).
+        postJson("/hr/employees/" + cook + "/status", Map.of("status", "SUSPENDED", "reason", "Investigation"), admin).andExpect(status().isOk());
         postJson("/hr/schedules/publish", Map.of("branchId", accra.getId(), "from", monday.toString(), "to", monday.plusDays(6).toString()), manager)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.issues[0].message").value(org.hamcrest.Matchers.containsString("Kwesi Cook")));

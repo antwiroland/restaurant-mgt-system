@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
-import { EmployeeForm, validateEmployee } from "@/features/hr/EmployeeForm";
+import { EmployeeForm, validateEmployee, validateIds } from "@/features/hr/EmployeeForm";
 import { hasHrRequirement } from "@/features/hr/HrAccessContext";
 import { canAccessPath, navForRole } from "@/lib/navigation";
 import type { HrAccess } from "@/lib/hrApi";
@@ -140,5 +140,12 @@ describe("Employee form", () => {
     await userEvent.type(screen.getByLabelText("First name *"), "Kofi");
     await userEvent.click(screen.getByRole("button", { name: "Create employee" }));
     expect(onSubmit.mock.calls[0][0].payout).toBeUndefined();
+  });
+});
+
+describe("validateIds", () => {
+  test("accepts Ghana formats in any case and spacing, and rejects others", () => {
+    expect(validateIds({ ssnitNumber: "c 123456789012", nationalId: "gha-123456789-0", tin: "" })).toEqual([]);
+    expect(validateIds({ ssnitNumber: "12345", nationalId: "GHA-1", tin: "x" })).toHaveLength(3);
   });
 });

@@ -24,6 +24,8 @@ type Props = {
   branches: BranchRecord[];
   /** Branch is locked for users who cannot transfer employees. */
   canChangeBranch: boolean;
+  /** SSNIT, Ghana Card and TIN fields: for those who may see pay details. */
+  showIds?: boolean;
   submitting: boolean;
   onSubmit: (input: EmployeeInput) => void;
   onCancel: () => void;
@@ -56,6 +58,9 @@ type FormState = {
   bankAccountNumber: string;
   momoNetwork: string;
   momoNumber: string;
+  ssnitNumber: string;
+  nationalId: string;
+  tin: string;
 };
 
 function initialState(e?: EmployeeDetail | null): FormState {
@@ -78,6 +83,9 @@ function initialState(e?: EmployeeDetail | null): FormState {
     experience: e?.experience ?? "",
     contacts: e?.emergencyContacts?.map((c) => ({ name: c.name, relationship: c.relationship ?? "", phone: c.phone, email: c.email ?? "" })) ?? [],
     payoutMethod: "", bankName: "", bankBranch: "", bankAccountName: "", bankAccountNumber: "", momoNetwork: "", momoNumber: "",
+    ssnitNumber: e?.statutory?.ssnitNumber ?? "",
+    nationalId: e?.statutory?.nationalId ?? "",
+    tin: e?.statutory?.tin ?? "",
   };
 }
 
@@ -100,6 +108,16 @@ export function validatePayout(form: PayoutFields): string[] {
   return errors;
 }
 
+/** Same formats the API accepts: SSNIT is a letter and 12 digits, Ghana Card is GHA-123456789-0. */
+export function validateIds(form: Pick<FormState, "ssnitNumber" | "nationalId" | "tin">): string[] {
+  const errors: string[] = [];
+  const clean = (v: string) => v.replace(/\s/g, "").toUpperCase();
+  if (form.ssnitNumber.trim() && !/^[A-Z][0-9]{12}$/.test(clean(form.ssnitNumber))) errors.push("SSNIT number should be a letter and 12 digits, e.g. C123456789012.");
+  if (form.nationalId.trim() && !/^GHA-[0-9]{9}-[0-9]$/.test(clean(form.nationalId))) errors.push("Ghana Card number should look like GHA-123456789-0.");
+  if (form.tin.trim() && !/^[A-Z0-9-]{9,20}$/.test(clean(form.tin))) errors.push("TIN should be 9 to 20 letters, digits or dashes.");
+  return errors;
+}
+
 /** Client-side checks mirroring the API's validation, so mistakes are caught before a round trip. */
 export function validateEmployee(form: Pick<FormState, "firstName" | "hireDate" | "email" | "phone" | "dateOfBirth" | "contacts">): string[] {
   const errors: string[] = [];
@@ -115,7 +133,7 @@ export function validateEmployee(form: Pick<FormState, "firstName" | "hireDate" 
   return errors;
 }
 
-export function EmployeeForm({ initial, departments, positions, branches, canChangeBranch, submitting, onSubmit, onCancel, formId }: Props) {
+export function EmployeeForm({ initial, departments, positions, branches, canChangeBranch, showIds = false, submitting, onSubmit, onCancel, formId }: Props) {
   const [form, setForm] = useState<FormState>(() => initialState(initial));
   const [errors, setErrors] = useState<string[]>([]);
   const editing = !!initial;
@@ -132,7 +150,7 @@ export function EmployeeForm({ initial, departments, positions, branches, canCha
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const problems = [...validateEmployee(form), ...(editing ? [] : validatePayout(form))];
+    const problems = [...validateEmployee(form), ...(editing ? [] : validatePayout(form)), ...(showIds ? validateIds(form) : [])];
     setErrors(problems);
     if (problems.length) return;
     onSubmit({
@@ -160,6 +178,11 @@ export function EmployeeForm({ initial, departments, positions, branches, canCha
         email: c.email?.trim() || undefined,
       })),
       version: initial?.version,
+      ...(showIds ? {
+        ssnitNumber: form.ssnitNumber.trim() || undefined,
+        nationalId: form.nationalId.trim() || undefined,
+        tin: form.tin.trim() || undefined,
+      } : {}),
       payout: editing || !form.payoutMethod ? undefined
         : form.payoutMethod === "BANK"
           ? { method: "BANK", bankName: form.bankName.trim(), bankBranch: form.bankBranch.trim() || undefined, bankAccountName: form.bankAccountName.trim(), bankAccountNumber: form.bankAccountNumber.trim() }
@@ -230,6 +253,15 @@ export function EmployeeForm({ initial, departments, positions, branches, canCha
           <textarea className="textarea" rows={2} value={form.experience} onChange={(e) => set("experience", e.target.value)} maxLength={2000} />
         </Field>
       </fieldset>
+
+      {showIds ? (
+        <fieldset className="grid gap-3 sm:grid-cols-3">
+          <legend className="kicker mb-2 sm:col-span-3">ID numbers <span className="font-normal normal-case tracking-normal text-ink-muted">(for payroll and SSNIT returns)</span></legend>
+          <Field label="SSNIT number"><input className="input uppercase" value={form.ssnitNumber} onChange={(e) => set("ssnitNumber", e.target.value)} maxLength={20} placeholder="C123456789012" /></Field>
+          <Field label="Ghana Card number"><input className="input uppercase" value={form.nationalId} onChange={(e) => set("nationalId", e.target.value)} maxLength={20} placeholder="GHA-123456789-0" /></Field>
+          <Field label="TIN"><input className="input uppercase" value={form.tin} onChange={(e) => set("tin", e.target.value)} maxLength={20} /></Field>
+        </fieldset>
+      ) : null}
 
       <fieldset className="grid gap-3">
         <legend className="kicker mb-2">Emergency contacts</legend>

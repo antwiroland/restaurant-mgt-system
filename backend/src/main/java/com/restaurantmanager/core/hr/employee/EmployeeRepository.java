@@ -35,6 +35,14 @@ public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID>,
 
     boolean existsByPhone(String phone);
 
+    boolean existsBySsnitNumberAndIdNot(String ssnitNumber, UUID id);
+
+    boolean existsBySsnitNumber(String ssnitNumber);
+
+    boolean existsByNationalIdAndIdNot(String nationalId, UUID id);
+
+    boolean existsByNationalId(String nationalId);
+
     boolean existsByPhoneAndIdNot(String phone, UUID id);
 
     boolean existsByEmployeeNumberIgnoreCase(String employeeNumber);

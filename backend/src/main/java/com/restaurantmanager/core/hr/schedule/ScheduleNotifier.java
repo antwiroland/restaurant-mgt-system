@@ -42,6 +42,11 @@ public class ScheduleNotifier {
                 "The swap for " + when + (approved ? " was approved. Check your schedule." : " was declined."), "SHIFT_SWAP_DECIDED");
     }
 
+    public void shiftsReleased(java.util.Collection<UUID> managerUserIds, String who, int count) {
+        send(managerUserIds, "Shifts need cover", who + " has left; " + count + " upcoming shift" + (count == 1 ? " is" : "s are")
+                + " now open.", "SHIFTS_RELEASED");
+    }
+
     public void openShiftClaimed(Collection<UUID> managerUserIds, String who, String when) {
         send(managerUserIds, "Open shift taken", who + " took the open shift on " + when + ".", "OPEN_SHIFT_CLAIMED");
     }

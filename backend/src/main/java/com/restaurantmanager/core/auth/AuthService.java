@@ -150,6 +150,11 @@ public class AuthService {
             throw new ApiException(401, "Invalid credentials");
         }
         securityGuardService.clearLoginFailures(phone);
+        // Checked after the password, so a disabled account cannot be told apart from a wrong password by strangers.
+        if (!user.isActive()) {
+            auditService.log(user, AuditAction.USER_LOGIN, "User", user.getId(), "{\"result\":\"DISABLED\"}", ipAddress);
+            throw new ApiException(403, "This account has been disabled. Ask a manager if you think this is wrong.");
+        }
 
         UUID branchId = user.getBranch() == null ? null : user.getBranch().getId();
         String access = jwtService.generateAccessToken(user.getId(), user.getRole(), branchId);
@@ -179,6 +184,9 @@ public class AuthService {
             throw new ApiException(401, "Refresh token revoked");
         }
         UserEntity user = tokenEntity.getUser();
+        if (!user.isActive()) {
+            throw new ApiException(401, "This account has been disabled");
+        }
         UUID branchId = user.getBranch() == null ? null : user.getBranch().getId();
         String access = jwtService.generateAccessToken(user.getId(), user.getRole(), branchId);
         return new RefreshResponse(access, securityProps.getJwt().getAccessTtlSeconds());

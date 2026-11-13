@@ -30,6 +30,7 @@ import {
   getEmployeeAudit,
   getLinkableUsers,
   getPositions,
+  createEmployeeLogin,
   linkEmployeeUser,
   unlinkEmployeeUser,
   updateEmployee,
@@ -55,7 +56,7 @@ export default function EmployeeProfilePage() {
 
 function EmployeeProfile() {
   const { id } = useParams<{ id: string }>();
-  const { authenticatedFetch } = useStaffSession();
+  const { authenticatedFetch, session } = useStaffSession();
   const { can, access } = useHrAccess();
   const [employee, setEmployee] = useState<EmployeeDetail | null>(null);
   const [error, setError] = useState("");
@@ -68,6 +69,7 @@ function EmployeeProfile() {
   const [formError, setFormError] = useState("");
   const [statusOpen, setStatusOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  const [createLoginOpen, setCreateLoginOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
@@ -211,7 +213,12 @@ function EmployeeProfile() {
               employee.linkedUser ? (
                 <button type="button" className="btn btn-ghost btn-sm" onClick={unlink}>Unlink login</button>
               ) : (
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setLinkOpen(true)}>Link login account</button>
+                <span className="flex flex-wrap gap-2">
+                  {!EXIT_STATUSES.includes(s.employmentStatus) ? (
+                    <button type="button" className="btn btn-primary btn-sm" onClick={() => setCreateLoginOpen(true)}>Create login</button>
+                  ) : null}
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setLinkOpen(true)}>Link existing login</button>
+                </span>
               )
             ) : null}
           />
@@ -236,6 +243,7 @@ function EmployeeProfile() {
             positions={positions}
             branches={branches}
             canChangeBranch={can("hr.employee.transfer")}
+            showIds={can("hr.compensation.view", "hr.payroll.view", "hr.payroll.process")}
             submitting={saving}
             onSubmit={save}
             onCancel={() => setEditing(false)}
@@ -248,7 +256,19 @@ function EmployeeProfile() {
           employee={employee}
           canArchive={can("hr.employee.archive")}
           onClose={() => setStatusOpen(false)}
-          onDone={(updated) => { setEmployee(updated); setStatusOpen(false); setNotice(`Status changed to ${humanize(updated.summary.employmentStatus)}.`); }}
+          onDone={(updated) => { setEmployee(updated); setStatusOpen(false); setNotice(statusNotice(updated)); }}
+        />
+      ) : null}
+      {createLoginOpen ? (
+        <CreateLoginModal
+          employee={employee}
+          isAdmin={session?.user.role === "ADMIN"}
+          onClose={() => setCreateLoginOpen(false)}
+          onDone={(updated) => {
+            setEmployee(updated);
+            setCreateLoginOpen(false);
+            setNotice(`Login created. ${updated.summary.fullName} signs in with ${updated.summary.phone} and the temporary password you set.`);
+          }}
         />
       ) : null}
       {linkOpen ? (
@@ -290,6 +310,22 @@ function History({ entries }: { entries: AuditEntry[] | null }) {
   );
 }
 
+/** "Status changed to Resigned. Login switched off · 2 upcoming shifts are now open shifts · …" */
+function statusNotice(updated: EmployeeDetail): string {
+  const parts = [`Status changed to ${humanize(updated.summary.employmentStatus)}.`];
+  const fx = updated.statusEffects;
+  if (fx) {
+    const more: string[] = [];
+    if (fx.loginDisabled) more.push("login switched off and signed out everywhere");
+    if (fx.loginRestored) more.push("login switched back on");
+    if (fx.shiftsReleased) more.push(`${fx.shiftsReleased} upcoming shift${fx.shiftsReleased === 1 ? " is" : "s are"} now open shifts (managers told)`);
+    if (fx.contractsEnded) more.push(`${fx.contractsEnded === 1 ? "contract" : `${fx.contractsEnded} contracts`} ended`);
+    if (fx.leaveCancelled) more.push(`${fx.leaveCancelled} leave request${fx.leaveCancelled === 1 ? "" : "s"} cancelled`);
+    if (more.length) parts.push(more.join(" · ").replace(/^./, (c) => c.toUpperCase()) + ".");
+  }
+  return parts.join(" ");
+}
+
 function StatusModal({ employee, canArchive, onClose, onDone }: {
   employee: EmployeeDetail; canArchive: boolean; onClose: () => void; onDone: (e: EmployeeDetail) => void;
 }) {
@@ -303,6 +339,8 @@ function StatusModal({ employee, canArchive, onClose, onDone }: {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const exiting = !!status && EXIT_STATUSES.includes(status);
+  const blocksLogin = exiting || status === "SUSPENDED";
+  const [keepLogin, setKeepLogin] = useState(false);
 
   async function submit() {
     if (!status) return;
@@ -310,7 +348,12 @@ function StatusModal({ employee, canArchive, onClose, onDone }: {
     setBusy(true);
     setError("");
     try {
-      onDone(await authenticatedFetch((s) => changeEmployeeStatus(s, employee.summary.id, { status, effectiveDate: exiting ? date : undefined, reason: reason.trim() || undefined })));
+      onDone(await authenticatedFetch((s) => changeEmployeeStatus(s, employee.summary.id, {
+        status,
+        effectiveDate: exiting ? date : undefined,
+        reason: reason.trim() || undefined,
+        keepLoginActive: blocksLogin && keepLogin ? true : undefined,
+      })));
     } catch (err) {
       setError(errorMessage(err, "Could not change the status"));
     } finally {
@@ -343,12 +386,98 @@ function StatusModal({ employee, canArchive, onClose, onDone }: {
           {exiting ? (
             <>
               <Field label="Last working day"><input type="date" className="input" value={date} max={todayIso()} min={employee.summary.hireDate} onChange={(e) => setDate(e.target.value)} /></Field>
-              <p className="text-sm text-ink-soft">The employee&apos;s login account stays active until it is deactivated in Staff &amp; Users.</p>
+              <ul className="list-disc pl-5 text-sm text-ink-soft">
+                <li>Shifts after the last working day become open shifts and the branch&apos;s managers are told.</li>
+                <li>The active contract ends on the last working day.</li>
+                <li>Pending leave, and approved leave after the last working day, is cancelled.</li>
+              </ul>
             </>
+          ) : null}
+          {blocksLogin && employee.linkedUser?.active ? (
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-1" checked={keepLogin} onChange={(e) => setKeepLogin(e.target.checked)} />
+              <span>
+                Keep their login switched on
+                <span className="block text-ink-muted">
+                  {keepLogin
+                    ? "They can still sign in to the POS and the staff app."
+                    : `By default the login is switched off and signed out everywhere${status === "SUSPENDED" ? "; it is switched back on when they return to active" : ""}.`}
+                </span>
+              </span>
+            </label>
           ) : null}
           <Field label={exiting ? "Reason *" : "Reason"}><textarea className="textarea" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} /></Field>
         </div>
       )}
+    </Modal>
+  );
+}
+
+const LOGIN_ROLES: { value: string; label: string; adminOnly: boolean }[] = [
+  { value: "CASHIER", label: "Cashier / floor staff", adminOnly: false },
+  { value: "RIDER", label: "Delivery rider", adminOnly: false },
+  { value: "MANAGER", label: "Branch manager", adminOnly: true },
+  { value: "HR", label: "HR officer", adminOnly: true },
+];
+
+function CreateLoginModal({ employee, isAdmin, onClose, onDone }: {
+  employee: EmployeeDetail; isAdmin: boolean; onClose: () => void; onDone: (e: EmployeeDetail) => void;
+}) {
+  const { authenticatedFetch } = useStaffSession();
+  const roles = LOGIN_ROLES.filter((r) => isAdmin || !r.adminOnly);
+  const [role, setRole] = useState(roles[0].value);
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const phone = employee.summary.phone;
+
+  async function submit() {
+    if (password.length < 8) return setError("Use at least 8 characters for the temporary password.");
+    setBusy(true);
+    setError("");
+    try {
+      onDone(await authenticatedFetch((s) => createEmployeeLogin(s, employee.summary.id, { role, temporaryPassword: password })));
+    } catch (err) {
+      setError(errorMessage(err, "Could not create the login"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open
+      title="Create login"
+      onClose={onClose}
+      footer={(
+        <>
+          <button type="button" className="btn btn-ghost btn-md" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-primary btn-md" onClick={submit} disabled={busy || !phone}>{busy ? "Creating…" : "Create login"}</button>
+        </>
+      )}
+    >
+      <div className="grid gap-3 text-sm">
+        {error ? <p className="alert alert-danger" role="alert">{error}</p> : null}
+        {!phone ? (
+          <p className="alert alert-info">Add a phone number to this employee first: it is what they sign in with.</p>
+        ) : (
+          <>
+            <p className="text-ink-soft">
+              {employee.summary.fullName} will sign in with <span className="font-semibold tabular">{phone}</span>
+              {employee.summary.primaryBranchName ? <> at {employee.summary.primaryBranchName}</> : null}. Give them the temporary password in person.
+            </p>
+            <Field label="Role">
+              <select className="select" value={role} onChange={(e) => setRole(e.target.value)}>
+                {roles.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </Field>
+            {!isAdmin ? <p className="text-xs text-ink-muted">Manager and HR logins are created by an admin.</p> : null}
+            <Field label="Temporary password">
+              <input type="text" className="input" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} maxLength={72} autoComplete="new-password" />
+            </Field>
+          </>
+        )}
+      </div>
     </Modal>
   );
 }
@@ -394,7 +523,7 @@ function LinkUserModal({ employeeId, onClose, onDone }: { employeeId: string; on
         <p className="text-ink-soft">Linking lets this person use self-service with their existing login. It does not change their role or POS permissions.</p>
         {error ? <p className="alert alert-danger" role="alert">{error}</p> : null}
         {users === null ? <Skeleton className="h-10 w-full" /> : users.length === 0 ? (
-          <p>No unlinked staff accounts in your branches. Create the login in Staff &amp; Users first.</p>
+          <p>No unlinked staff accounts in your branches. Use Create login instead.</p>
         ) : (
           <Field label="Staff account">
             <select className="select" value={selected} onChange={(e) => setSelected(e.target.value)}>

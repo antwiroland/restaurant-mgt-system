@@ -53,7 +53,23 @@ export type EmployeeSummary = {
   departmentId?: string | null; departmentName?: string | null; positionId?: string | null; positionTitle?: string | null;
   employmentType: EmploymentType; employmentStatus: EmploymentStatus; hireDate: string;
   primaryBranchId?: string | null; primaryBranchName?: string | null; hasUserAccount: boolean;
+  /** What is missing or due on a current employee's record (directory list only). */
+  attention?: EmployeeAttention[];
 };
+
+export type EmployeeAttention = "NO_CONTRACT" | "CONTRACT_ENDING" | "NO_PAYOUT" | "NO_EMERGENCY_CONTACT" | "NO_SSNIT";
+export const ATTENTION_LABELS: Record<EmployeeAttention, string> = {
+  NO_CONTRACT: "No active contract",
+  CONTRACT_ENDING: "Contract ends within 30 days",
+  NO_PAYOUT: "No payout details",
+  NO_EMERGENCY_CONTACT: "No emergency contact",
+  NO_SSNIT: "No SSNIT number",
+};
+
+/** SSNIT, Ghana Card and TIN: only sent to those who may see pay details. */
+export type StatutoryIds = { ssnitNumber?: string | null; nationalId?: string | null; tin?: string | null };
+/** What else changed with a status change. */
+export type StatusEffects = { loginDisabled: boolean; loginRestored: boolean; shiftsReleased: number; contractsEnded: number; leaveCancelled: number };
 
 export type EmergencyContact = { id?: string; name: string; relationship?: string | null; phone: string; email?: string | null };
 
@@ -68,6 +84,8 @@ export type EmployeeDetail = {
   /** False when the employee is visible only through a secondary/temporary assignment at one of your branches. */
   manageable: boolean;
   version: number; createdAt: string; updatedAt: string;
+  statutory?: StatutoryIds | null;
+  statusEffects?: StatusEffects | null;
 };
 
 export type AssignmentType = "PRIMARY" | "SECONDARY" | "TEMPORARY";
@@ -90,6 +108,7 @@ export type EmployeeInput = {
   qualifications?: string; experience?: string; emergencyContacts: EmergencyContact[]; version?: number;
   /** Only when adding an employee: how they are paid, saved as their payout details. */
   payout?: PayoutRequest;
+  ssnitNumber?: string; nationalId?: string; tin?: string;
 };
 
 export type EmployeeFilters = {
@@ -222,12 +241,25 @@ export const createEmployee = (s: StaffSession, input: EmployeeInput) =>
   apiRequest<EmployeeDetail>("/hr/employees", { ...auth(s), method: "POST", body: input });
 export const updateEmployee = (s: StaffSession, id: string, input: EmployeeInput) =>
   apiRequest<EmployeeDetail>(`/hr/employees/${id}`, { ...auth(s), method: "PUT", body: input });
-export const changeEmployeeStatus = (s: StaffSession, id: string, body: { status: EmploymentStatus; effectiveDate?: string; reason?: string }) =>
+export const changeEmployeeStatus = (
+  s: StaffSession,
+  id: string,
+  body: { status: EmploymentStatus; effectiveDate?: string; reason?: string; keepLoginActive?: boolean },
+) =>
   apiRequest<EmployeeDetail>(`/hr/employees/${id}/status`, { ...auth(s), method: "POST", body });
 export const linkEmployeeUser = (s: StaffSession, id: string, userId: string) =>
   apiRequest<EmployeeDetail>(`/hr/employees/${id}/link-user`, { ...auth(s), method: "POST", body: { userId } });
 export const unlinkEmployeeUser = (s: StaffSession, id: string) =>
   apiRequest<EmployeeDetail>(`/hr/employees/${id}/link-user`, { ...auth(s), method: "DELETE" });
+/** Creates the employee's login (their phone, email and home branch) and links it. HR can give cashier or rider; admins any staff role. */
+export const createEmployeeLogin = (s: StaffSession, id: string, body: { role: string; temporaryPassword: string }) =>
+  apiRequest<EmployeeDetail>(`/hr/employees/${id}/create-login`, { ...auth(s), method: "POST", body });
+/** The directory (same filters) as a CSV file. */
+export const exportEmployees = (s: StaffSession, filters: EmployeeFilters): Promise<DownloadedFile> => {
+  const { page: _page, size: _size, sort: _sort, ...rest } = filters;
+  void _page; void _size; void _sort;
+  return downloadFile(s, `/hr/employees/export${query(rest)}`, "employees.csv");
+};
 export const getLinkableUsers = (s: StaffSession) => apiRequest<LinkableUser[]>("/hr/employees/linkable-users", auth(s));
 export const importStaffUsers = (s: StaffSession, body: { employmentType: EmploymentType; hireDate: string }) =>
   apiRequest<ImportResult>("/hr/employees/import-users", { ...auth(s), method: "POST", body });

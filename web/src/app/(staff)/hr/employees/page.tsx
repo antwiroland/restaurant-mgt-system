@@ -12,11 +12,13 @@ import { useStaffSession } from "@/components/SessionProvider";
 import { EmployeeForm } from "@/features/hr/EmployeeForm";
 import { useHrAccess } from "@/features/hr/HrAccessContext";
 import { EmploymentBadge, Field, HrGuard, Pager, errorMessage, formatDate, todayIso } from "@/features/hr/ui";
-import { getBranches, type BranchRecord } from "@/lib/apiClient";
+import { getBranches, saveDownloadedFile, type BranchRecord } from "@/lib/apiClient";
 import {
+  ATTENTION_LABELS,
   EMPLOYMENT_STATUSES,
   EMPLOYMENT_TYPES,
   createEmployee,
+  exportEmployees,
   getDepartments,
   getPositions,
   importStaffUsers,
@@ -111,6 +113,20 @@ function EmployeeDirectory() {
 
   const update = (patch: Partial<EmployeeFilters>) => setFilters((f) => ({ ...f, ...patch, page: patch.page ?? 0 }));
   const canCreate = can("hr.employee.create");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+
+  async function exportCsv() {
+    setExporting(true);
+    setExportError("");
+    try {
+      saveDownloadedFile(await authenticatedFetch((s) => exportEmployees(s, filters)));
+    } catch (err) {
+      setExportError(errorMessage(err, "Could not export the list"));
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div className="grid gap-6">
@@ -119,17 +135,25 @@ function EmployeeDirectory() {
         title="Employees"
         icon="users"
         description="Everyone who works for the business, across the branches you can access."
-        actions={canCreate ? (
+        actions={(
           <>
+            <button type="button" className="btn btn-secondary btn-md" onClick={() => void exportCsv()} disabled={exporting}>
+              <Icon name="download" size={16} /> {exporting ? "Exporting…" : "Export CSV"}
+            </button>
+            {canCreate ? (
+            <>
             <button type="button" className="btn btn-secondary btn-md" onClick={() => setImportOpen(true)}>
               <Icon name="download" size={16} /> Import staff accounts
             </button>
             <button type="button" className="btn btn-primary btn-md" onClick={() => { setFormError(""); setCreating(true); }}>
               <Icon name="plus" size={16} /> New employee
             </button>
+            </>
+            ) : null}
           </>
-        ) : null}
+        )}
       />
+      {exportError ? <p className="alert alert-danger" role="alert">{exportError}</p> : null}
 
       <section className="panel grid gap-4">
         <div className="grid gap-3 md:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]">
@@ -196,6 +220,11 @@ function EmployeeDirectory() {
                       <td>
                         <Link href={`/hr/employees/${e.id}`} className="font-semibold text-ink hover:text-brand">{e.fullName}</Link>
                         <p className="text-xs text-ink-muted tabular">{e.employeeNumber}{e.hasUserAccount ? " · has login" : ""}</p>
+                        {e.attention?.length ? (
+                          <p className="text-xs text-warning-on" title={e.attention.map((a) => ATTENTION_LABELS[a]).join(", ")}>
+                            <Icon name="alert" size={12} /> {e.attention.length === 1 ? ATTENTION_LABELS[e.attention[0]] : `${e.attention.length} things missing`}
+                          </p>
+                        ) : null}
                       </td>
                       <td>{e.positionTitle ?? <span className="text-ink-muted">—</span>}<p className="text-xs text-ink-muted">{e.departmentName ?? ""}</p></td>
                       <td>{e.primaryBranchName ?? <span className="text-ink-muted">Head office</span>}</td>
@@ -221,6 +250,7 @@ function EmployeeDirectory() {
             positions={positions}
             branches={branches}
             canChangeBranch
+            showIds={can("hr.compensation.view", "hr.payroll.view", "hr.payroll.process")}
             submitting={saving}
             onSubmit={submitCreate}
             onCancel={() => setCreating(false)}

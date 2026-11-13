@@ -75,6 +75,9 @@ public class EmployeeService {
     private final com.restaurantmanager.core.workforce.WorkScheduleRepository scheduleRepository;
     private final com.restaurantmanager.core.workforce.TimeEntryRepository timeEntryRepository;
     private final ZoneId zone;
+    private final com.restaurantmanager.core.hr.contract.ContractRepository contractRepository;
+    private final EmploymentChangeEffects changeEffects;
+    private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     public EmployeeService(EmployeeRepository employeeRepository, DepartmentRepository departmentRepository,
                            PositionRepository positionRepository, BranchRepository branchRepository, UserRepository userRepository,
@@ -83,7 +86,13 @@ public class EmployeeService {
                            BranchAssignmentRepository assignmentRepository,
                            com.restaurantmanager.core.workforce.WorkScheduleRepository scheduleRepository,
                            com.restaurantmanager.core.workforce.TimeEntryRepository timeEntryRepository,
+                           com.restaurantmanager.core.hr.contract.ContractRepository contractRepository,
+                           EmploymentChangeEffects changeEffects,
+                           org.springframework.security.crypto.password.PasswordEncoder passwordEncoder,
                            @Value("${app.timezone:Africa/Accra}") String timeZone) {
+        this.contractRepository = contractRepository;
+        this.changeEffects = changeEffects;
+        this.passwordEncoder = passwordEncoder;
         this.employeeRepository = employeeRepository;
         this.departmentRepository = departmentRepository;
         this.positionRepository = positionRepository;
@@ -109,14 +118,91 @@ public class EmployeeService {
             throw new ApiException(403, "You do not have access to this branch");
         }
         PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_PAGE_SIZE), sortOf(sort));
-        return PageResponse.of(employeeRepository.findAll(spec(filter, access, LocalDate.now(zone)), pageable), EmployeeService::toSummary);
+        org.springframework.data.domain.Page<EmployeeEntity> result = employeeRepository.findAll(spec(filter, access, LocalDate.now(zone)), pageable);
+        Map<UUID, List<String>> attention = attention(result.getContent());
+        return PageResponse.of(result, e -> toSummary(e, attention.getOrDefault(e.getId(), List.of())));
+    }
+
+    /**
+     * The directory as CSV (same filters, every match up to 5,000 rows). ID numbers are included only for those who
+     * may see pay details.
+     */
+    @Transactional(readOnly = true)
+    public String exportCsv(UserPrincipal principal, EmployeeFilter filter) {
+        HrAccess access = accessService.require(principal, HrPermission.EMPLOYEE_VIEW);
+        if (filter.branchId() != null && !access.canSeeBranch(filter.branchId())) {
+            throw new ApiException(403, "You do not have access to this branch");
+        }
+        boolean ids = canSeeStatutory(access);
+        List<EmployeeEntity> rows = employeeRepository.findAll(spec(filter, access, LocalDate.now(zone)),
+                PageRequest.of(0, 5000, sortOf("name,asc"))).getContent();
+        Map<UUID, List<String>> attention = attention(rows);
+        StringBuilder csv = new StringBuilder();
+        List<String> header = new ArrayList<>(List.of("Employee number", "Name", "Position", "Department", "Branch", "Type", "Status",
+                "Hire date", "Exit date", "Phone", "Email", "Has login", "Needs attention"));
+        if (ids) header.addAll(List.of("SSNIT number", "Ghana Card", "TIN"));
+        csv.append(String.join(",", header.stream().map(EmployeeService::csv).toList())).append("\r\n");
+        for (EmployeeEntity e : rows) {
+            List<String> cells = new ArrayList<>(List.of(e.getEmployeeNumber(), e.fullName(),
+                    e.getPosition() == null ? "" : e.getPosition().getTitle(),
+                    e.getDepartment() == null ? "" : e.getDepartment().getName(),
+                    e.getPrimaryBranch() == null ? "Head office" : e.getPrimaryBranch().getName(),
+                    e.getEmploymentType().name(), e.getEmploymentStatus().name(),
+                    String.valueOf(e.getHireDate()), e.getExitDate() == null ? "" : e.getExitDate().toString(),
+                    Objects.toString(e.getPhone(), ""), Objects.toString(e.getEmail(), ""), e.getUserId() != null ? "Yes" : "No",
+                    String.join("; ", attention.getOrDefault(e.getId(), List.of()))));
+            if (ids) cells.addAll(List.of(Objects.toString(e.getSsnitNumber(), ""), Objects.toString(e.getNationalId(), ""), Objects.toString(e.getTin(), "")));
+            csv.append(String.join(",", cells.stream().map(EmployeeService::csv).toList())).append("\r\n");
+        }
+        audit.log(access.userId(), AuditAction.HR_EMPLOYEE_UPDATED, "Employee", access.userId(),
+                Map.of("operation", "directory-exported", "rows", rows.size(), "withIds", ids));
+        return csv.toString();
+    }
+
+    /** A spreadsheet-safe CSV cell: quoted, and formulas neutralised. */
+    private static String csv(String value) {
+        String v = value == null ? "" : value;
+        if (!v.isEmpty() && "=+-@".indexOf(v.charAt(0)) >= 0) {
+            v = "'" + v;
+        }
+        return "\"" + v.replace("\"", "\"\"") + "\"";
+    }
+
+    /**
+     * What is missing or due on current staff records: no active contract, contract ending within 30 days, no payout
+     * details, no emergency contact, no SSNIT number.
+     */
+    private Map<UUID, List<String>> attention(List<EmployeeEntity> employees) {
+        List<UUID> current = employees.stream().filter(e -> !e.getEmploymentStatus().isExit()).map(EmployeeEntity::getId).toList();
+        Map<UUID, List<String>> flags = new java.util.HashMap<>();
+        if (current.isEmpty()) {
+            return flags;
+        }
+        Map<UUID, com.restaurantmanager.core.hr.contract.ContractEntity> active = new java.util.HashMap<>();
+        for (com.restaurantmanager.core.hr.contract.ContractEntity c : contractRepository.findByEmployeeIdInAndStatus(current,
+                com.restaurantmanager.core.hr.contract.ContractStatus.ACTIVE)) {
+            active.putIfAbsent(c.getEmployeeId(), c);
+        }
+        LocalDate soon = LocalDate.now(zone).plusDays(30);
+        for (EmployeeEntity e : employees) {
+            if (e.getEmploymentStatus().isExit()) continue;
+            List<String> list = new ArrayList<>();
+            var contract = active.get(e.getId());
+            if (contract == null) list.add("NO_CONTRACT");
+            else if (contract.getEndDate() != null && !contract.getEndDate().isAfter(soon)) list.add("CONTRACT_ENDING");
+            if (e.getPayoutMethod() == null) list.add("NO_PAYOUT");
+            if (e.getEmergencyContacts().isEmpty()) list.add("NO_EMERGENCY_CONTACT");
+            if (e.getSsnitNumber() == null) list.add("NO_SSNIT");
+            if (!list.isEmpty()) flags.put(e.getId(), list);
+        }
+        return flags;
     }
 
     @Transactional(readOnly = true)
     public EmployeeDetail get(UserPrincipal principal, UUID id) {
         HrAccess access = accessService.require(principal, HrPermission.EMPLOYEE_VIEW);
         EmployeeEntity employee = loadVisible(id, access);
-        return toDetail(employee, access.canSeeBranch(employee.primaryBranchId()));
+        return toDetail(employee, access.canSeeBranch(employee.primaryBranchId()), access);
     }
 
     @Transactional(readOnly = true)
@@ -263,7 +349,7 @@ public class EmployeeService {
             audit.log(access.userId(), AuditAction.HR_PAYOUT_DETAILS_CHANGED, "HR_EMPLOYEE", saved.getId(),
                     Map.of("method", saved.getPayoutMethod().name(), "selfService", false, "onCreate", true));
         }
-        return toDetail(saved, true);
+        return toDetail(saved, true, access);
     }
 
     @Transactional
@@ -294,7 +380,7 @@ public class EmployeeService {
             }
             audit.log(access.userId(), AuditAction.HR_EMPLOYEE_UPDATED, "Employee", id, meta);
         }
-        return toDetail(employeeRepository.saveAndFlush(employee), true);
+        return toDetail(employeeRepository.saveAndFlush(employee), true, access);
     }
 
     /** Moves the employee's home branch from a given date, closing the old primary assignment and opening a new one. */
@@ -363,14 +449,25 @@ public class EmployeeService {
                     request.effectiveDate() != null ? request.effectiveDate() : LocalDate.now(zone), "Re-hired", access.userId());
         }
         employee.setEmploymentStatus(to);
+        EmploymentChangeEffects.Effects effects = changeEffects.apply(access, employee, from, to,
+                employee.getExitDate() != null ? employee.getExitDate() : LocalDate.now(zone),
+                Boolean.TRUE.equals(request.keepLoginActive()), request.reason());
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("from", from.name());
         meta.put("to", to.name());
         if (blankToNull(request.reason()) != null) {
             meta.put("reason", request.reason().trim());
         }
+        if (effects.any()) {
+            meta.put("loginDisabled", effects.loginDisabled());
+            meta.put("loginRestored", effects.loginRestored());
+            meta.put("shiftsReleased", effects.shiftsReleased());
+            meta.put("contractsEnded", effects.contractsEnded());
+            meta.put("leaveCancelled", effects.leaveCancelled());
+        }
         audit.log(access.userId(), AuditAction.HR_EMPLOYEE_STATUS_CHANGED, "Employee", id, meta);
-        return toDetail(employeeRepository.saveAndFlush(employee), true);
+        EmployeeDetail detail = toDetail(employeeRepository.saveAndFlush(employee), true, access);
+        return withEffects(detail, effects);
     }
 
     @Transactional
@@ -386,6 +483,59 @@ public class EmployeeService {
         audit.log(access.userId(), AuditAction.HR_EMPLOYEE_USER_LINKED, "Employee", id, Map.of("userId", user.getId().toString()));
         return toDetail(employeeRepository.saveAndFlush(employee), true);
     }
+
+    /** Roles HR may give from the employee page; manager, HR and admin logins are given by an admin only. */
+    private static final Set<Role> HR_GRANTABLE_ROLES = EnumSet.of(Role.CASHIER, Role.RIDER);
+
+    /**
+     * Creates the employee's login (their phone and email, their home branch) and links it, so a new hire does not
+     * need a trip to Staff &amp; Users. They sign in with the temporary password and should change it.
+     */
+    @Transactional
+    public EmployeeDetail createLogin(UserPrincipal principal, UUID id, CreateLoginRequest request) {
+        HrAccess access = accessService.require(principal, HrPermission.EMPLOYEE_UPDATE);
+        EmployeeEntity employee = loadInScope(id, access);
+        if (employee.getUserId() != null) {
+            throw new ApiException(409, "This employee already has a login");
+        }
+        if (employee.getEmploymentStatus().isExit()) {
+            throw new ApiException(409, "This person no longer works here");
+        }
+        Role role = request.role();
+        if (role == Role.CUSTOMER) {
+            throw new ApiException(400, "Choose a staff role");
+        }
+        if (!HR_GRANTABLE_ROLES.contains(role) && principal.role() != Role.ADMIN) {
+            throw new ApiException(403, "Only an admin can create " + role.name().toLowerCase(Locale.ROOT) + " logins");
+        }
+        if (employee.getPhone() == null) {
+            throw new ApiException(400, "Add the employee's phone number first: it is their sign-in name");
+        }
+        if (userRepository.existsByPhone(employee.getPhone())) {
+            throw new ApiException(409, "A login with this phone number already exists. Link it instead");
+        }
+        if (employee.getEmail() != null && userRepository.findByEmailIgnoreCase(employee.getEmail()).isPresent()) {
+            throw new ApiException(409, "A login with this email already exists. Link it instead");
+        }
+        UserEntity user = new UserEntity();
+        user.setName(employee.fullName());
+        user.setPhone(employee.getPhone());
+        user.setEmail(employee.getEmail());
+        user.setRole(role);
+        user.setBranch(employee.getPrimaryBranch());
+        user.setPasswordHash(passwordEncoder.encode(request.temporaryPassword()));
+        user.setActive(employee.getEmploymentStatus() != EmploymentStatus.SUSPENDED);
+        user = userRepository.save(user);
+        employee.setUserId(user.getId());
+        employee.setLoginDisabledByHr(!user.isActive());
+        attachLoginHistory(user.getId(), employee.getId());
+        audit.log(access.userId(), AuditAction.HR_EMPLOYEE_USER_LINKED, "Employee", id,
+                Map.of("userId", user.getId().toString(), "created", true, "role", role.name()));
+        return toDetail(employeeRepository.saveAndFlush(employee), true, access);
+    }
+
+    public record CreateLoginRequest(@NotNull Role role,
+                                     @NotBlank @Size(min = 8, max = 72, message = "Use at least 8 characters") String temporaryPassword) {}
 
     @Transactional
     public EmployeeDetail unlinkUser(UserPrincipal principal, UUID id) {
@@ -509,6 +659,37 @@ public class EmployeeService {
         employee.setQualifications(blankToNull(request.qualifications()));
         employee.setExperience(blankToNull(request.experience()));
         replaceEmergencyContacts(employee, request.emergencyContacts());
+        if (canSeeStatutory(access)) {
+            // Only people who may see pay details see (and so can change) ID numbers; others leave them as they are.
+            employee.setSsnitNumber(statutory(request.ssnitNumber(), "^[A-Z][0-9]{12}$", "SSNIT number",
+                    "a letter and 12 digits, e.g. C123456789012"));
+            employee.setNationalId(statutory(request.nationalId(), "^GHA-[0-9]{9}-[0-9]$", "Ghana Card number", "GHA-123456789-0"));
+            employee.setTin(statutory(request.tin(), "^[A-Z0-9-]{9,20}$", "TIN", "9 to 20 letters, digits or dashes"));
+            if (employee.getSsnitNumber() != null && (id == null ? employeeRepository.existsBySsnitNumber(employee.getSsnitNumber())
+                    : employeeRepository.existsBySsnitNumberAndIdNot(employee.getSsnitNumber(), id))) {
+                throw new ApiException(409, "Another employee already has this SSNIT number");
+            }
+            if (employee.getNationalId() != null && (id == null ? employeeRepository.existsByNationalId(employee.getNationalId())
+                    : employeeRepository.existsByNationalIdAndIdNot(employee.getNationalId(), id))) {
+                throw new ApiException(409, "Another employee already has this Ghana Card number");
+            }
+        }
+    }
+
+    private static String statutory(String raw, String pattern, String label, String example) {
+        String value = raw == null ? null : raw.trim().replace(" ", "").toUpperCase(Locale.ROOT);
+        if (value == null || value.isEmpty()) {
+            return null;
+        }
+        if (!value.matches(pattern)) {
+            throw new ApiException(400, label + " looks wrong: use " + example);
+        }
+        return value;
+    }
+
+    /** ID numbers (SSNIT, Ghana Card, TIN) are for those who may see pay details. */
+    static boolean canSeeStatutory(HrAccess access) {
+        return access.has(HrPermission.COMPENSATION_VIEW) || access.has(HrPermission.PAYROLL_VIEW) || access.has(HrPermission.PAYROLL_PROCESS);
     }
 
     /** Normalised email, refused when another employee already uses it. */
@@ -709,11 +890,15 @@ public class EmployeeService {
     }
 
     static EmployeeSummary toSummary(EmployeeEntity e) {
+        return toSummary(e, List.of());
+    }
+
+    static EmployeeSummary toSummary(EmployeeEntity e, List<String> attention) {
         return new EmployeeSummary(e.getId(), e.getEmployeeNumber(), e.fullName(), e.getEmail(), e.getPhone(),
                 e.getDepartment() == null ? null : e.getDepartment().getId(), e.getDepartment() == null ? null : e.getDepartment().getName(),
                 e.getPosition() == null ? null : e.getPosition().getId(), e.getPosition() == null ? null : e.getPosition().getTitle(),
                 e.getEmploymentType(), e.getEmploymentStatus(), e.getHireDate(), e.primaryBranchId(),
-                e.getPrimaryBranch() == null ? null : e.getPrimaryBranch().getName(), e.getUserId() != null);
+                e.getPrimaryBranch() == null ? null : e.getPrimaryBranch().getName(), e.getUserId() != null, attention);
     }
 
     /** Rota entries and time-clock records made under a login before it was linked now belong to the employee too. */
@@ -727,6 +912,17 @@ public class EmployeeService {
     }
 
     private EmployeeDetail toDetail(EmployeeEntity e, boolean manageable) {
+        return toDetail(e, manageable, null);
+    }
+
+    private static EmployeeDetail withEffects(EmployeeDetail d, EmploymentChangeEffects.Effects effects) {
+        return new EmployeeDetail(d.summary(), d.firstName(), d.middleName(), d.lastName(), d.gender(), d.dateOfBirth(), d.address(),
+                d.exitDate(), d.exitReason(), d.reportingManagerId(), d.reportingManagerName(), d.qualifications(), d.experience(),
+                d.emergencyContacts(), d.linkedUser(), d.manageable(), d.version(), d.createdAt(), d.updatedAt(), d.statutory(), effects);
+    }
+
+    /** {@code access} decides whether ID numbers are included; without it they are left out. */
+    private EmployeeDetail toDetail(EmployeeEntity e, boolean manageable, HrAccess access) {
         LinkedUser linkedUser = e.getUserId() == null ? null : userRepository.findById(e.getUserId())
                 .map(u -> new LinkedUser(u.getId(), u.getName(), u.getRole().name(), u.isActive()))
                 .orElse(null);
@@ -736,7 +932,9 @@ public class EmployeeService {
                 manager == null ? null : manager.getId(), manager == null ? null : manager.fullName(),
                 e.getQualifications(), e.getExperience(),
                 e.getEmergencyContacts().stream().map(c -> new EmergencyContactView(c.getId(), c.getName(), c.getRelationship(), c.getPhone(), c.getEmail())).toList(),
-                linkedUser, manageable, e.getVersion(), e.getCreatedAt(), e.getUpdatedAt());
+                linkedUser, manageable, e.getVersion(), e.getCreatedAt(), e.getUpdatedAt(),
+                access != null && canSeeStatutory(access) ? new StatutoryIds(e.getSsnitNumber(), e.getNationalId(), e.getTin()) : null,
+                null);
     }
 
     private static AuditEntry toAuditEntry(AuditLogEntity a) {
@@ -775,14 +973,19 @@ public class EmployeeService {
             @Size(max = 5) List<@Valid EmergencyContactRequest> emergencyContacts,
             Long version,
             /** Optional when adding an employee: how they are paid (bank or Mobile Money), saved as their payout details. */
-            @Valid com.restaurantmanager.core.hr.payroll.PayrollDocumentService.PayoutRequest payout) {
+            @Valid com.restaurantmanager.core.hr.payroll.PayrollDocumentService.PayoutRequest payout,
+            /** SSNIT number, Ghana Card number and TIN: only saved by those who may see pay details. */
+            @Size(max = 20) String ssnitNumber,
+            @Size(max = 20) String nationalId,
+            @Size(max = 20) String tin) {
 
         public EmployeeRequest(String employeeNumber, UUID userId, String firstName, String middleName, String lastName, Gender gender,
                                LocalDate dateOfBirth, String email, String phone, String address, UUID departmentId, UUID positionId,
                                EmploymentType employmentType, LocalDate hireDate, UUID reportingManagerId, UUID primaryBranchId,
                                String qualifications, String experience, List<EmergencyContactRequest> emergencyContacts, Long version) {
             this(employeeNumber, userId, firstName, middleName, lastName, gender, dateOfBirth, email, phone, address, departmentId, positionId,
-                    employmentType, hireDate, reportingManagerId, primaryBranchId, qualifications, experience, emergencyContacts, version, null);
+                    employmentType, hireDate, reportingManagerId, primaryBranchId, qualifications, experience, emergencyContacts, version, null,
+                    null, null, null);
         }
     }
 
@@ -794,7 +997,13 @@ public class EmployeeService {
             @Size(max = 5) List<@Valid EmergencyContactRequest> emergencyContacts,
             Long version) {}
 
-    public record StatusRequest(@NotNull EmploymentStatus status, @PastOrPresent LocalDate effectiveDate, @Size(max = 500) String reason) {}
+    /** {@code keepLoginActive}: on a suspension or exit, leave the person's login switched on (it is switched off by default). */
+    public record StatusRequest(@NotNull EmploymentStatus status, @PastOrPresent LocalDate effectiveDate, @Size(max = 500) String reason,
+                                Boolean keepLoginActive) {
+        public StatusRequest(EmploymentStatus status, LocalDate effectiveDate, String reason) {
+            this(status, effectiveDate, reason, null);
+        }
+    }
 
     public record LinkUserRequest(@NotNull UUID userId) {}
 
@@ -810,7 +1019,9 @@ public class EmployeeService {
     public record EmployeeSummary(UUID id, String employeeNumber, String fullName, String email, String phone,
                                   UUID departmentId, String departmentName, UUID positionId, String positionTitle,
                                   EmploymentType employmentType, EmploymentStatus employmentStatus, LocalDate hireDate,
-                                  UUID primaryBranchId, String primaryBranchName, boolean hasUserAccount) {}
+                                  UUID primaryBranchId, String primaryBranchName, boolean hasUserAccount,
+                                  /** NO_CONTRACT, CONTRACT_ENDING, NO_PAYOUT, NO_EMERGENCY_CONTACT, NO_SSNIT (current staff only). */
+                                  List<String> attention) {}
 
     public record EmergencyContactView(UUID id, String name, String relationship, String phone, String email) {}
 
@@ -823,7 +1034,13 @@ public class EmployeeService {
                                  UUID reportingManagerId, String reportingManagerName, String qualifications, String experience,
                                  List<EmergencyContactView> emergencyContacts, LinkedUser linkedUser,
                                  boolean manageable, long version,
-                                 Instant createdAt, Instant updatedAt) {}
+                                 Instant createdAt, Instant updatedAt,
+                                 /** Only for those who may see pay details. */
+                                 StatutoryIds statutory,
+                                 /** Set on a status change: what else changed (login, shifts, contract, leave). */
+                                 EmploymentChangeEffects.Effects statusEffects) {}
+
+    public record StatutoryIds(String ssnitNumber, String nationalId, String tin) {}
 
     public record AuditEntry(UUID id, String action, String actorName, String metadata, Instant createdAt) {}
 }
