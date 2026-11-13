@@ -56,6 +56,14 @@ public class ReservationEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /** When this reservation put its table on RESERVED; cleared once the hold is handed back or the party is seated. */
+    @Column(name = "table_held_at")
+    private Instant tableHeldAt;
+
+    /** When the party arrived and ordered at the held table. A seated reservation never holds the table again. */
+    @Column(name = "seated_at")
+    private Instant seatedAt;
+
     @PrePersist
     public void prePersist() {
         Instant now = Instant.now();
@@ -163,5 +171,21 @@ public class ReservationEntity {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Instant getTableHeldAt() {
+        return tableHeldAt;
+    }
+
+    public void setTableHeldAt(Instant tableHeldAt) {
+        this.tableHeldAt = tableHeldAt;
+    }
+
+    public Instant getSeatedAt() {
+        return seatedAt;
+    }
+
+    public void setSeatedAt(Instant seatedAt) {
+        this.seatedAt = seatedAt;
     }
 }

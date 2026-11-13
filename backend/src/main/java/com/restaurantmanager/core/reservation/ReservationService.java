@@ -30,15 +30,18 @@ public class ReservationService {
     private final RestaurantTableRepository tableRepository;
     private final UserRepository userRepository;
     private final WhatsAppService whatsAppService;
+    private final ReservationTableHolds tableHolds;
 
     public ReservationService(ReservationRepository reservationRepository,
                               RestaurantTableRepository tableRepository,
                               UserRepository userRepository,
-                              WhatsAppService whatsAppService) {
+                              WhatsAppService whatsAppService,
+                              ReservationTableHolds tableHolds) {
         this.reservationRepository = reservationRepository;
         this.tableRepository = tableRepository;
         this.userRepository = userRepository;
         this.whatsAppService = whatsAppService;
+        this.tableHolds = tableHolds;
     }
 
     @Transactional
@@ -133,6 +136,9 @@ public class ReservationService {
         ReservationStatus previous = reservation.getStatus();
         reservation.setStatus(request.status());
         ReservationEntity saved = reservationRepository.save(reservation);
+        if (saved.getStatus() == ReservationStatus.CANCELLED) {
+            tableHolds.release(saved, Instant.now());
+        }
         if (previous != ReservationStatus.CONFIRMED && saved.getStatus() == ReservationStatus.CONFIRMED) {
             whatsAppService.sendStatusUpdate(saved.getCustomerPhone(), "Reservation confirmed for table " + saved.getTable().getNumber());
         }
@@ -152,6 +158,7 @@ public class ReservationService {
 
         reservation.setStatus(ReservationStatus.CANCELLED);
         reservationRepository.save(reservation);
+        tableHolds.release(reservation, Instant.now());
     }
 
     @Transactional
@@ -169,6 +176,7 @@ public class ReservationService {
 
         reservation.setStatus(ReservationStatus.CANCELLED);
         reservationRepository.save(reservation);
+        tableHolds.release(reservation, Instant.now());
     }
 
     private ReservationResponse toResponse(ReservationEntity reservation) {

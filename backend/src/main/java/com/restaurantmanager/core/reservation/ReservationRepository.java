@@ -14,35 +14,72 @@ public interface ReservationRepository extends JpaRepository<ReservationEntity, 
     List<ReservationEntity> findAllByCustomerPhoneOrderByReservedAtAsc(String customerPhone);
 
     /**
-     * Find active reservations whose window starts within the next {@code windowEnd} instant
-     * and has not yet expired (reservedAt + durationMins >= now).
+     * Active, not yet seated reservations that should be holding their table now: the booked time is at or before
+     * {@code holdFrom} (now + lead time) and the party is not yet a no-show (booked time at or after {@code noShowCutoff}).
      */
     @Query("""
             SELECT r FROM ReservationEntity r
             JOIN FETCH r.table
             WHERE r.status IN ('PENDING', 'CONFIRMED')
-              AND r.reservedAt <= :windowEnd
-              AND FUNCTION('TIMESTAMPADD', MINUTE, r.durationMins, r.reservedAt) >= :now
+              AND r.seatedAt IS NULL
+              AND r.reservedAt <= :holdFrom
+              AND r.reservedAt >= :noShowCutoff
             """)
-    List<ReservationEntity> findUpcoming(@Param("now") Instant now, @Param("windowEnd") Instant windowEnd);
+    List<ReservationEntity> findDueToHold(@Param("holdFrom") Instant holdFrom,
+                                          @Param("noShowCutoff") Instant noShowCutoff);
 
-    @Modifying
+    /** Reservations still holding a table although they were cancelled or the party did not turn up in time. */
+    @Query("""
+            SELECT r FROM ReservationEntity r
+            JOIN FETCH r.table
+            WHERE r.tableHeldAt IS NOT NULL
+              AND r.seatedAt IS NULL
+              AND (r.status = 'CANCELLED' OR r.reservedAt < :noShowCutoff)
+            """)
+    List<ReservationEntity> findHoldsToRelease(@Param("noShowCutoff") Instant noShowCutoff);
+
+    /** Whether another active reservation is due to hold this table now (so releasing it would be wrong). */
+    @Query("""
+            SELECT COUNT(r) > 0 FROM ReservationEntity r
+            WHERE r.table.id = :tableId
+              AND r.id <> :excludeId
+              AND r.status IN ('PENDING', 'CONFIRMED')
+              AND r.seatedAt IS NULL
+              AND r.reservedAt <= :holdFrom
+              AND r.reservedAt >= :noShowCutoff
+            """)
+    boolean existsOtherDueToHold(@Param("tableId") UUID tableId,
+                                 @Param("excludeId") UUID excludeId,
+                                 @Param("holdFrom") Instant holdFrom,
+                                 @Param("noShowCutoff") Instant noShowCutoff);
+
+    /** Active reservations currently holding this table: the ones a party seated at it belongs to. */
+    @Query("""
+            SELECT r FROM ReservationEntity r
+            WHERE r.table.id = :tableId
+              AND r.tableHeldAt IS NOT NULL
+              AND r.seatedAt IS NULL
+              AND r.status IN ('PENDING', 'CONFIRMED')
+            """)
+    List<ReservationEntity> findActiveHoldsForTable(@Param("tableId") UUID tableId);
+
+    /** Puts a free table on RESERVED. Never touches a table that is OCCUPIED (a guest is still using it) or CLOSED. */
+    @Modifying(flushAutomatically = true)
     @Query("""
             update RestaurantTableEntity t
-               set t.status = 'RESERVED'
+               set t.status = com.restaurantmanager.core.table.TableStatus.RESERVED
              where t.id = :tableId
-               and t.status <> 'RESERVED'
-               and exists (
-                   select r.id from ReservationEntity r
-                    where r.id = :reservationId
-                      and r.table.id = :tableId
-                      and r.status in ('PENDING', 'CONFIRMED')
-                      and r.reservedAt <= :windowEnd
-                      and FUNCTION('TIMESTAMPADD', MINUTE, r.durationMins, r.reservedAt) >= :now
-               )
+               and t.status = com.restaurantmanager.core.table.TableStatus.AVAILABLE
             """)
-    int reserveTableIfReservationStillActive(@Param("reservationId") UUID reservationId,
-                                             @Param("tableId") UUID tableId,
-                                             @Param("now") Instant now,
-                                             @Param("windowEnd") Instant windowEnd);
+    int holdTableIfAvailable(@Param("tableId") UUID tableId);
+
+    /** Hands a RESERVED table back. A table staff have since seated someone at (OCCUPIED) is left alone. */
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update RestaurantTableEntity t
+               set t.status = com.restaurantmanager.core.table.TableStatus.AVAILABLE
+             where t.id = :tableId
+               and t.status = com.restaurantmanager.core.table.TableStatus.RESERVED
+            """)
+    int releaseTableIfReserved(@Param("tableId") UUID tableId);
 }

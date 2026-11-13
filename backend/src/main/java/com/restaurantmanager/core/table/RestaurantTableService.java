@@ -28,13 +28,16 @@ public class RestaurantTableService {
     private final TableRealtimePublisher realtimePublisher;
 
     private final TableSittingService tableSitting;
+    private final com.restaurantmanager.core.reservation.ReservationTableHolds reservationTableHolds;
 
     public RestaurantTableService(RestaurantTableRepository tableRepository,
                                   TableQrCodeService tableQrCodeService,
                                   BranchService branchService,
                                   TableRealtimePublisher realtimePublisher,
-                                  TableSittingService tableSitting) {
+                                  TableSittingService tableSitting,
+                                  com.restaurantmanager.core.reservation.ReservationTableHolds reservationTableHolds) {
         this.tableSitting = tableSitting;
+        this.reservationTableHolds = reservationTableHolds;
         this.tableRepository = tableRepository;
         this.tableQrCodeService = tableQrCodeService;
         this.branchService = branchService;
@@ -104,6 +107,10 @@ public class RestaurantTableService {
         RestaurantTableEntity table = tableRepository.findById(id)
                 .orElseThrow(() -> new ApiException(404, "Table not found"));
         assertTableBranchAccess(table, principal);
+        if (table.getStatus() == TableStatus.RESERVED && request.status() == TableStatus.OCCUPIED) {
+            // Staff seated the party the table was held for.
+            reservationTableHolds.markSeated(table.getId(), java.time.Instant.now());
+        }
         table.setStatus(request.status());
         if (request.status() == TableStatus.AVAILABLE) {
             // Staff freed the table for the next party: hide this party's orders and requests from the QR page.
