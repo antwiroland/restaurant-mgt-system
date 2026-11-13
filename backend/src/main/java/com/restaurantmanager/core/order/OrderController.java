@@ -156,8 +156,8 @@ public class OrderController {
 
     @GetMapping("/pickup/{pickupCode}")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
-    public OrderResponse findByPickupCode(@PathVariable String pickupCode) {
-        return orderService.findByPickupCode(pickupCode);
+    public OrderResponse findByPickupCode(@PathVariable String pickupCode, @AuthenticationPrincipal UserPrincipal principal) {
+        return orderService.findByPickupCode(pickupCode, principal);
     }
 
     @PostMapping("/dine-in/tables/{tableId}/close")

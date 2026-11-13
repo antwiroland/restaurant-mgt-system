@@ -421,11 +421,27 @@ public class OrderService {
                                      BigDecimal tipAmount, BigDecimal discountTotal, BigDecimal total) {
     }
 
+    /**
+     * Finds a pickup order from what the customer shows or says: the pickup code (PK123456) or the order number on
+     * the receipt and the order board (AC724F02, with or without "#", any case).
+     */
     @Transactional(readOnly = true)
-    public OrderResponse findByPickupCode(String pickupCode) {
-        OrderEntity order = orderRepository.findByPickupCode(pickupCode)
-                .orElseThrow(() -> new ApiException(404, "Pickup code not found"));
-        return toResponses(List.of(order)).get(0);
+    public OrderResponse findByPickupCode(String input, UserPrincipal principal) {
+        String cleaned = input == null ? "" : input.trim().replaceFirst("^#", "");
+        if (cleaned.toUpperCase(java.util.Locale.ROOT).matches("PK\\d{6}")) {
+            OrderEntity order = orderRepository.findByPickupCode(cleaned.toUpperCase(java.util.Locale.ROOT))
+                    .orElseThrow(() -> new ApiException(404, "Pickup code not found"));
+            return toResponses(List.of(order)).get(0);
+        }
+        if (!cleaned.toLowerCase(java.util.Locale.ROOT).matches("[0-9a-f]{6,8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) {
+            throw new ApiException(400, "Enter the pickup code (PK123456) or the order number (e.g. 7D63D7F5)");
+        }
+        OrderResponse order = lookupByNumber(cleaned, principal);
+        if (order.type() != OrderType.PICKUP) {
+            throw new ApiException(409, "Order " + orderNumber(order.id()) + " is a "
+                    + (order.type() == OrderType.DELIVERY ? "delivery" : "dine-in") + " order, not a pickup");
+        }
+        return order;
     }
 
     @Transactional

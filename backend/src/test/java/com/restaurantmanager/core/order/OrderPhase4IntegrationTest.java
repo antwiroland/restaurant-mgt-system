@@ -247,6 +247,33 @@ class OrderPhase4IntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
+    void givenOrderNumberFromTheBoard_whenCashierLooksUpPickup_thenOrderFound() throws Exception {
+        UserEntity customer = createUser("C6b", "+233270000007", "c6b@x.com", "secret123", Role.CUSTOMER);
+        UserEntity cashier = createUser("K6b", "+233270000017", "k6b@x.com", "secret123", Role.CASHIER);
+        MenuItemEntity item = createMenuItem("Dish6b", "19.00");
+        com.fasterxml.jackson.databind.JsonNode order = objectMapper.readTree(createPickupOrderRaw(customer, item));
+        String id = order.get("id").asText();
+        String number = id.substring(0, 8).toUpperCase();
+        String auth = "Bearer " + accessToken(cashier);
+
+        for (String typed : new String[]{number, "#" + number, number.toLowerCase(), order.get("pickupCode").asText().toLowerCase()}) {
+            mockMvc.perform(get("/orders/pickup/{code}", typed).header("Authorization", auth))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(id));
+        }
+        mockMvc.perform(get("/orders/pickup/not-a-code").header("Authorization", auth)).andExpect(status().isBadRequest());
+
+        // A delivery order's number is refused with a clear reason
+        String delivery = objectMapper.readTree(mockMvc.perform(post("/orders").header("Authorization", "Bearer " + accessToken(customer))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"DELIVERY\",\"deliveryAddress\":\"Tema\",\"items\":[{\"menuItemId\":\"" + item.getId() + "\",\"quantity\":1}]}"))
+                .andReturn().getResponse().getContentAsString()).get("id").asText();
+        mockMvc.perform(get("/orders/pickup/" + delivery.substring(0, 8)).header("Authorization", auth))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("delivery order")));
+    }
+
+    @Test
     void givenDeliveryOrder_whenStatusUpdatedToOutForDelivery_then200() throws Exception {
         UserEntity customer = createUser("CD1", "+2332700000061", "cd1@x.com", "secret123", Role.CUSTOMER);
         UserEntity cashier = createUser("KD1", "+2332700000161", "kd1@x.com", "secret123", Role.CASHIER);
