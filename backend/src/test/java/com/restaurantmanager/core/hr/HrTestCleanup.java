@@ -54,6 +54,10 @@ public class HrTestCleanup {
         entityManager.createQuery("delete from TimesheetLineEntity").executeUpdate();
         entityManager.createQuery("delete from TimesheetEntity").executeUpdate();
         entityManager.createQuery("delete from OvertimeRequestEntity").executeUpdate();
+        entityManager.createQuery("delete from com.restaurantmanager.core.hr.device.DeviceEventEntity").executeUpdate();
+        entityManager.createQuery("delete from com.restaurantmanager.core.hr.device.EmployeeDeviceIdEntity").executeUpdate();
+        entityManager.createQuery("delete from com.restaurantmanager.core.hr.device.AttendanceDeviceEntity").executeUpdate();
+        entityManager.createQuery("delete from com.restaurantmanager.core.hr.device.AttendanceGatewayEntity").executeUpdate();
         entityManager.createQuery("delete from AttendanceEventEntity").executeUpdate();
         entityManager.createQuery("delete from AttendanceCorrectionEntity").executeUpdate();
         entityManager.createQuery("delete from AttendanceBreakEntity").executeUpdate();

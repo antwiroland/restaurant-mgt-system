@@ -271,8 +271,9 @@ per employee. `break_minutes` keeps meaning *unpaid* break minutes, so the legac
 1. **Idempotency.** Every action carries a client request key. A known key returns the first outcome (`duplicate: true`), or the
    original refusal; a key reused for another employee or action is refused. Concurrent duplicates that both pass the check are
    stopped by the unique constraints and answered by `ClockGateway` with the stored outcome.
-2. **Event time.** A queued device time (`occurredAt`) is accepted if it is at most 12 hours old and at most 2 minutes in the
-   future (clamped to now); actions may not be timed before the entry's last action.
+2. **Event time.** A queued device time (`occurredAt`) is accepted if it is at most 12 hours old (7 days for `DEVICE` events,
+   which a gateway may hold through an internet outage) and at most 2 minutes in the future (clamped to now); actions may
+   not be timed before the entry's last action. A locked timesheet still refuses them.
 3. **Clock-in** requires an employable status (not exited/suspended), an assignment at the branch on that date, and no open
    entry. It links the published shift whose window (start − early clock-in minutes … end) contains the time; without one it is
    flagged `unscheduled` or refused per policy.
@@ -328,6 +329,78 @@ originals. The legacy `/timeclock/entries/{id}` editor now also records an appli
 | `GET/PUT /hr/attendance-policy` | `hr.attendance.view` / `hr.settings.manage` (organisation default: central only) |
 | `GET/PUT/DELETE /hr/employees/{id}/clock-pin` | `hr.attendance.manage` (status also `view`), manageable scope |
 | `GET /hr/me/attendance/status`, `GET /hr/me/attendance`, `POST /hr/me/clock`, `GET/PUT /hr/me/clock-pin` | linked employee |
+
+## 5c-bis. Biometric attendance devices (`V41__hr_attendance_devices.sql`, `hr.device`)
+
+Hikvision terminals (others later) on the restaurant LAN are read by the **attendance gateway**, a separate Spring Boot
+program (`attendance-gateway/`, Java 21, SQLite queue, see its README). It never touches the database: it signs each request
+with its own key and the backend stays the source of truth. Accepted scans become ordinary clock actions (`source DEVICE`,
+terminal `device:<serial>`) through `ClockGateway`, so every rule in 5c (branch assignment, shift matching, breaks, missed
+clock-out, timesheet locks) applies unchanged.
+
+### Data
+
+| Table | Purpose |
+|---|---|
+| `hr_attendance_gateways` | Gateway id, name, branch, **SHA-256 of the key** (key shown once, `rmgw_<prefix>_<secret>`), prefix, revoked, last heartbeat / sync, pending and failed counts, last error, version |
+| `hr_attendance_devices` | Serial (unique), make (`HIKVISION`/`ZKTECO`/`OTHER`), model, IP, port, HTTPS, gateway, branch, `direction_mode`, active, reported status, last event, clock offset. **No device password**: logins live only on the gateway, encrypted |
+| `hr_employee_device_ids` | Device user number to employee, for one device or every device |
+| `hr_device_events` | Every delivered event as received (raw JSON, device / gateway / backend timestamps, auth method, reported type), unique on (serial, device event id), with status, message, applied action, linked `hr_attendance_events` row, and the reviewer's decision beside it |
+
+### Processing (`DeviceEventProcessor`)
+
+1. **Idempotent.** (serial, device event id) is processed once; a redelivery is answered with the first outcome
+   (`duplicate: true`). The clock request key is derived from the same pair, so a race cannot record it twice.
+2. **Direction is never guessed.** The device's attendance status (`checkIn`, `breakOut`, `breakIn`, `checkOut`; overtime
+   in/out count as in/out) wins; otherwise the terminal's `direction_mode` (`CLOCK_IN`, `CLOCK_OUT`, `BREAK_OUT`,
+   `BREAK_IN`); with `DEVICE_REPORTED` and no status the scan goes to review. A second clock-in is refused by the rules and
+   shown as `REJECTED`; it never becomes a clock-out.
+3. **Device time** is the time of the action. A device clock more than 2 minutes ahead sends the scan to review.
+4. **Double scans**: the same action within 5 minutes of an accepted one is `REPEAT_SCAN` (ignored).
+5. Outcomes: `ACCEPTED`, `REPEAT_SCAN`, `NEEDS_REVIEW` (no direction, unregistered/inactive device, clock ahead),
+   `UNMATCHED` (device user not linked), `REJECTED` (attendance rules refused, with the reason), then `RESOLVED` /
+   `DISMISSED` after review. Device breaks are meal breaks (paid or not per policy).
+6. Not one transaction: a refused clock action is recorded by the attendance service in its own transaction; the device
+   event is stored afterwards with the outcome.
+
+### Review and corrections
+
+Reviewers (`hr.attendance.correct`, branch-scoped by the device's branch; scans from unregistered devices: central HR)
+can **record** a scan as a chosen action (at the device time, with the reviewer as `recorded_by`), **try again** (after
+linking a person or registering a device; uses a fresh request key), or **not count** it (reason required). The device
+event is never edited; decisions are written beside it and audited (`HR_ATTENDANCE_DEVICE_EVENT_RESOLVED`). Corrections of
+recorded attendance use the existing correction workflow.
+
+### Monitoring
+
+Gateways heartbeat every minute with pending/failed counts, last error and each device's state and clock offset; the
+answer carries the device list, so changes reach the gateway within a minute. The overview flags: a gateway silent for 3
+minutes (its devices then show offline), a disconnected device, 50+ events waiting, failed sends, clock drift over 2
+minutes, unknown people and scans waiting for review. Configuration changes are audited (`HR_ATTENDANCE_DEVICE_CHANGED`).
+
+### Endpoints
+
+| Endpoint | Access |
+|---|---|
+| `POST /attendance/gateway/events` (batch up to 200, every event answered), `POST /attendance/gateway/heartbeat`, `GET /attendance/gateway/config`, `GET /attendance/gateway/devices`, `POST /attendance/gateway/sync-status` | Gateway key: `X-Gateway-Key: rmgw_...` or `Authorization: Gateway rmgw_...` (401 when missing, wrong or revoked; 403 if the body names another gateway) |
+| `GET /hr/attendance-devices/overview`, `GET .../events?filter=review|all&from&to` | `hr.attendance.view`, branch-scoped |
+| `GET/POST .../gateways`, `POST .../gateways/{id}/rotate-key`, `POST .../gateways/{id}/revoke` | `hr.settings.manage` |
+| `GET .../devices` (also `hr.attendance.view`), `POST .../devices`, `PUT .../devices/{id}` | `hr.settings.manage` + branch |
+| `GET .../device-ids` (also `view`), `POST .../device-ids`, `DELETE .../device-ids/{id}` | `hr.settings.manage`, employee in scope |
+| `POST .../events/{id}/apply` `{action, note}`, `POST .../events/{id}/retry`, `POST .../events/{id}/dismiss` `{note}` | `hr.attendance.correct` + branch |
+
+### Web
+
+**HR > Attendance Devices** (`/hr/attendance/devices`, linked from Attendance): Overview (health and problems), Review
+(waiting scans with Record as / Try again / Don't count), Devices, People on devices, Gateways (register, key shown once
+with setup lines, new key, revoke).
+
+### Tests
+
+`HrAttendanceDeviceIntegrationTest` (full day out of order, redelivery, double scan, second clock-in refused, review and
+apply, exit-only reader, unknown person then link and retry, events two days late, clock ahead, keys revoke/rotate,
+heartbeat and alerts), `DeviceEventProcessorUnitTest`; gateway: parser, multipart stream, ISAPI client against a fake
+Digest-protected device (probe, paged search, alert stream), offline queue and backoff; web `devices.test.tsx`.
 
 ## 5d. Timesheets and overtime (Phase 5, `V31__hr_timesheets_overtime.sql`)
 

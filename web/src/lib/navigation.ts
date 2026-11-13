@@ -73,6 +73,7 @@ export const navGroups: NavGroup[] = [
       { label: "Employees", href: "/hr/employees", icon: "users", roles: HR_STAFF, hr: ["hr.employee.view"], description: "Employee directory" },
       { label: "Shift Schedule", href: "/hr/schedule", icon: "calendar", roles: HR_STAFF, hr: ["hr.schedule.view"], description: "Build and publish rotas" },
       { label: "Attendance", href: "/hr/attendance", icon: "clock", roles: HR_STAFF, hr: ["hr.attendance.view"], description: "Clock-ins, lateness, corrections" },
+      { label: "Attendance Devices", href: "/hr/attendance/devices", icon: "shield", roles: HR_STAFF, hr: ["hr.attendance.view", "hr.settings.manage"], description: "Biometric terminals, gateways, scan review" },
       { label: "Leave", href: "/hr/leave", icon: "calendar", roles: HR_STAFF, hr: ["hr.leave.approve", "hr.leave.manage"], description: "Requests, balances, entitlements" },
       { label: "Timesheets", href: "/hr/timesheets", icon: "note", roles: HR_STAFF, hr: ["hr.timesheet.review", "hr.payroll.view", "hr.payroll.process"], description: "Review, approve, lock" },
       { label: "Payroll", href: "/hr/payroll", icon: "cash", roles: HR_STAFF, hr: ["hr.payroll.view", "hr.payroll.process", "hr.payroll.approve", "hr.payroll.finalize", "hr.payroll.pay"], description: "Runs, payslips, deductions" },

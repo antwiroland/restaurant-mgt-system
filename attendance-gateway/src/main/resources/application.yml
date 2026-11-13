@@ -1,0 +1,51 @@
+# Attendance gateway configuration. Copy to config/application.yml next to the jar (or set the same values as
+# environment variables, e.g. GATEWAY_BACKEND_URL, GATEWAY_KEY) and fill in your values.
+server:
+  # Local status page (and the simulator, when enabled). Never exposed beyond this computer.
+  address: 127.0.0.1
+  port: ${GATEWAY_LOCAL_PORT:8091}
+
+spring:
+  main:
+    banner-mode: off
+  datasource:
+    url: jdbc:sqlite:${gateway.data-dir}/gateway.db
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      # SQLite allows one writer; keep a single connection so writes queue instead of failing.
+      maximum-pool-size: 1
+
+logging:
+  file:
+    name: ${gateway.data-dir}/gateway.log
+  logback:
+    rollingpolicy:
+      max-history: 30
+
+gateway:
+  # Where the restaurant backend runs. Use https:// in production.
+  backend-url: ${GATEWAY_BACKEND_URL:http://localhost:8080}
+  # The key shown once when the gateway was registered (HR > Attendance devices > Gateways). Keep it secret.
+  key: ${GATEWAY_KEY:}
+  # Must match the gateway id registered in the backend.
+  gateway-id: ${GATEWAY_ID:GATEWAY-001}
+  data-dir: ${GATEWAY_DATA_DIR:./gateway-data}
+  # Time zone the devices' clocks are set to (used when asking a device for past events).
+  device-time-zone: ${GATEWAY_DEVICE_TIME_ZONE:Africa/Accra}
+  # How far back to fetch from a device the first time it is seen.
+  initial-lookback-hours: 24
+  # Re-read this much before the last known event on each recovery, to catch anything missed in between.
+  recovery-overlap-minutes: 10
+  # Keep sent events this long (for troubleshooting) before deleting them. Unsent events are never deleted.
+  keep-synced-days: 30
+  # Hikvision access-control "authentication passed" event codes (major 5) that count as attendance:
+  # 1 = card, 38 = fingerprint, 75 = face. Add others your terminals use.
+  accepted-minor-codes: [1, 38, 75]
+  # Device logins. Never sent to the backend. Use "enc:..." values (see README: encrypt) with GATEWAY_MASTER_KEY set.
+  devices: []
+  #  - serial-number: DS-K1T341-0001
+  #    username: admin
+  #    password: enc:AbC...
+  simulator:
+    # POST http://127.0.0.1:8091/local/simulate to inject test scans without a device. Keep off in production.
+    enabled: ${GATEWAY_SIMULATOR:false}

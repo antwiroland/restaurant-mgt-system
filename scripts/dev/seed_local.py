@@ -557,6 +557,10 @@ def main():
     from seed_hr import print_hr_summary, seed_hr
     hr_summary = seed_hr(api, A, {"OSU": osu, "ELG": legon}, users, step=step, db_url=db_url)
 
+    # ---------------------------------------------------------------- biometric attendance devices
+    from seed_devices import print_devices_summary, seed_devices
+    devices_summary = seed_devices(api, A, {"OSU": osu, "ELG": legon}, step=step)
+
     # ---------------------------------------------------------------- everything else (financial, splits, photos…)
     from seed_extras import print_extras_summary, seed_extras
     extras_summary = seed_extras(api, {
@@ -574,6 +578,7 @@ def main():
     print(f"  Promo codes: WELCOME10, FEAST20 (expired: EXPIRED5)   Open group session: {code}")
     print(f"  Guest QR link: /scan/{guest_table['qrToken']}")
     print_hr_summary(hr_summary)
+    print_devices_summary(devices_summary)
     print_extras_summary(extras_summary)
 
 
