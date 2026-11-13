@@ -59,7 +59,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String method = request.getMethod();
         String path = request.getRequestURI();
         if ("GET".equalsIgnoreCase(method)
-                && ("/menu/items".equals(path) || "/tables/public".equals(path))) {
+                && ("/menu/items".equals(path) || "/tables/public".equals(path)
+                    || (path.startsWith("/orders/public/") && path.endsWith("/rating")))) {
             return new LimitSpec("public", rateLimitProps.getPublicRequests(), rateLimitProps.getPublicWindowSeconds() * 1000L);
         }
         if (!"POST".equalsIgnoreCase(method)) {

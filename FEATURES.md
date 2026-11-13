@@ -61,7 +61,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
   - Alerts for cashiers and managers when a table was served and unpaid for 20 minutes, or asked for the bill 10 minutes ago (`tables.payment-watch.*`). Guests are never prompted
 - **Walkouts** (`POST /tables/{id}/walkout`, manager): writes off the unpaid orders, frees the table and records the amount, reason, who took the orders and the guests' phone; audited (`WALKOUT_RECORDED`) and reported (`/reports/walkouts`, CSV/PDF with losses by staff member)
 - Public table bill page (`/bill/[token]`) and public table tracking
-- **Guests only see their own sitting** (`restaurant_tables.guest_history_from`, `TableSittingService`): the QR running bill, order tracker and waiter calls show only the current party's orders. A sitting ends when everything is paid and served (or cancelled/written off), or when staff close, reverse, walk out or free the table; the next party then sees an empty bill. A guest who paid up front keeps tracking the order until it is served. Cash payments now free a settled table too (the check used to run before the cash payment was stored)
+- **Guests only see their own sitting** (`restaurant_tables.guest_history_from`, `TableSittingService`): the QR running bill, order tracker and waiter calls show only the current party's orders. A sitting ends when everything is paid and served (or cancelled/written off), or when staff close, reverse, walk out or free the table; the next party then sees an empty bill. A guest who paid up front keeps tracking the order until it is served. The phone that placed an order remembers its number and, for **2 hours after it is served**, shows a private "How was your meal?" card (`GET /orders/public/dine-in/tables/{token}/orders/{id}/rating`; guest ratings after that are refused with 410), so the same customer back tomorrow sees nothing from before. Cash payments now free a settled table too (the check used to run before the cash payment was stored)
 
 ### Reservations
 - Create, list, change status and cancel, with conflict detection for overlapping bookings on the same table
@@ -83,7 +83,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Public dine-in ordering from a table QR without an account
 - **Pickup is paid before it reaches the kitchen.** An unpaid pickup order stays `PENDING` ("awaiting payment"), off the KDS and the pickup board, and staff cannot confirm it. A successful payment confirms it. `UnpaidPickupExpiryJob` cancels pickups still unpaid after 30 minutes (`orders.unpaid-pickup.expire-after-minutes`), releasing stock and promo codes
 - **Order lookup by the number on the ticket** (`GET /orders/lookup?number=7D63D7F5`): the first 8 characters of the id, with or without `#`; a full id also works
-- Public pickup board (`/orders-status`: paid pickup orders, numbers only, grouped In queue / Preparing / Ready to collect) and table status board (`/tables-status`)
+- Public order board (`/orders-status`: pickup and delivery order numbers tagged Pickup or Delivery, grouped In queue / Preparing / Ready; a pickup leaves once collected, a delivery once the rider takes it; no items, names or tables) and table status board (`/tables-status`)
 
 ### Billing: Service Charge, Tax and Tips
 - Service charge percentage, optionally on dine-in only

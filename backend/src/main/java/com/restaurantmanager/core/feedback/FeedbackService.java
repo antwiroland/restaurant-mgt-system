@@ -36,6 +36,8 @@ import java.util.function.Function;
 public class FeedbackService {
     private static final Set<OrderStatus> RATEABLE = Set.of(OrderStatus.COMPLETED, OrderStatus.DELIVERED);
     private static final int LOW_RATING = 2;
+    /** Guests at a table (no account) can rate an order for this long after it was served. */
+    static final java.time.Duration GUEST_RATING_WINDOW = java.time.Duration.ofHours(2);
 
     private final OrderFeedbackRepository feedbackRepository;
     private final OrderRepository orderRepository;
@@ -74,7 +76,44 @@ public class FeedbackService {
         if (order.getTable() == null || !tableToken.equals(order.getTable().getQrToken())) {
             throw new ApiException(404, "Order not found for this table");
         }
+        if (guestWindowClosed(order)) {
+            throw new ApiException(410, "This order can no longer be rated from the table");
+        }
         return save(order, request, null, request.guestName());
+    }
+
+    /**
+     * Whether the phone that placed a table order may still offer to rate it. The phone keeps its own order numbers
+     * (the table's pages never list a previous party's orders); this answers for one order it already knows.
+     * 404 for an order from another table; 410 once it was cancelled or served more than two hours ago, so the phone
+     * forgets it.
+     */
+    @Transactional(readOnly = true)
+    public GuestRatingPrompt guestRatingPrompt(String tableToken, UUID orderId) {
+        OrderEntity order = orderRepository.findById(orderId).orElseThrow(() -> new ApiException(404, "Order not found"));
+        if (order.getTable() == null || order.getType() != OrderType.DINE_IN || !tableToken.equals(order.getTable().getQrToken())) {
+            throw new ApiException(404, "Order not found for this table");
+        }
+        if (order.getStatus() == OrderStatus.CANCELLED || guestWindowClosed(order)) {
+            throw new ApiException(410, "This order can no longer be rated from the table");
+        }
+        boolean finished = order.getStatus() == OrderStatus.COMPLETED;
+        Instant servedAt = finished ? servedAt(order) : null;
+        return new GuestRatingPrompt(order.getId(), order.getId().toString().substring(0, 8).toUpperCase(java.util.Locale.ROOT),
+                order.getStatus(), finished, feedbackRepository.existsByOrderId(order.getId()), servedAt,
+                servedAt == null ? null : servedAt.plus(GUEST_RATING_WINDOW));
+    }
+
+    private static Instant servedAt(OrderEntity order) {
+        return order.getServedAt() != null ? order.getServedAt() : order.getUpdatedAt();
+    }
+
+    private static boolean guestWindowClosed(OrderEntity order) {
+        if (order.getStatus() != OrderStatus.COMPLETED) {
+            return false;
+        }
+        Instant served = servedAt(order);
+        return served != null && served.plus(GUEST_RATING_WINDOW).isBefore(Instant.now());
     }
 
     @Transactional(readOnly = true)
@@ -175,6 +214,9 @@ public class FeedbackService {
         return new FeedbackView(e.getId(), e.getOrderId(), e.getCustomerUserId(), customerName, e.getRating(), e.getFoodRating(),
                 e.getServiceRating(), e.getDeliveryRating(), e.getComment(), e.getResponse(), e.getRespondedAt(), e.getCreatedAt());
     }
+
+    public record GuestRatingPrompt(UUID orderId, String orderNumber, OrderStatus status, boolean rateable, boolean rated,
+                                    Instant servedAt, Instant rateUntil) {}
 
     public record FeedbackRequest(@Min(1) @Max(5) int rating,
                                   @Min(1) @Max(5) Integer foodRating,

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getPublicOrderStatus, type OrderPublicStatusView } from "@/lib/apiClient";
 import { BrandMark } from "@/components/NavSidebar";
 import { useBrand } from "@/components/BrandProvider";
-import { PICKUP_COLUMNS, groupPickupBoard, type PickupStatus } from "@/features/orders/pickupBoard";
+import { PICKUP_COLUMNS, TYPE_LABEL, groupPickupBoard, type PickupStatus } from "@/features/orders/pickupBoard";
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -15,7 +15,7 @@ const COLUMN_STYLE: Record<PickupStatus, { dot: string; accent: string }> = {
   READY: { dot: "animate-pulse bg-success", accent: "border-t-success" },
 };
 
-/** Public pickup board: order numbers grouped by status, no order details. */
+/** Public order board: pickup and delivery order numbers grouped by status, no order details. */
 export default function OrdersStatusPage() {
   const brand = useBrand();
   const [orders, setOrders] = useState<OrderPublicStatusView[]>([]);
@@ -67,7 +67,7 @@ export default function OrdersStatusPage() {
           <BrandMark size={48} />
           <div>
             <p className="font-serif text-2xl font-semibold leading-tight">{brand.name}</p>
-            <p className="text-sm text-night-soft">Pickup orders</p>
+            <p className="text-sm text-night-soft">Pickup &amp; delivery orders</p>
           </div>
         </div>
         <div className="text-right">
@@ -85,7 +85,7 @@ export default function OrdersStatusPage() {
 
       <main className="grid flex-1 gap-4 p-4 md:grid-cols-[1fr_1fr_1.4fr] lg:gap-5 lg:p-8">
         {PICKUP_COLUMNS.map((column) => {
-          const numbers = groups[column.status];
+          const entries = groups[column.status];
           const ready = column.status === "READY";
           return (
             <section
@@ -97,7 +97,7 @@ export default function OrdersStatusPage() {
                 <h2 id={`col-${column.status}`} className="flex items-center gap-3 font-display text-lg font-extrabold uppercase tracking-[0.12em]">
                   <span className={`h-3 w-3 rounded-full ${COLUMN_STYLE[column.status].dot}`} aria-hidden="true" /> {column.label}
                 </h2>
-                <span className="font-display text-2xl font-extrabold tabular text-night-soft" aria-label={`${numbers.length} orders`}>{numbers.length}</span>
+                <span className="font-display text-2xl font-extrabold tabular text-night-soft" aria-label={`${entries.length} orders`}>{entries.length}</span>
               </div>
               <ul
                 className={`grid flex-1 content-start gap-3 p-4 ${ready ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-2"}`}
@@ -105,17 +105,26 @@ export default function OrdersStatusPage() {
               >
                 {loading ? (
                   Array.from({ length: 4 }).map((_, i) => <li key={i} className="h-16 animate-pulse rounded-2xl bg-night-card" />)
-                ) : numbers.length === 0 ? (
+                ) : entries.length === 0 ? (
                   <li className="col-span-full py-8 text-center text-night-soft">{column.empty}</li>
                 ) : (
-                  numbers.map((number) => (
+                  entries.map(({ number, type }) => (
                     <li
                       key={number}
-                      className={`grid place-items-center rounded-2xl bg-night-card font-mono font-bold tracking-wider ${
-                        ready ? "animate-fade-up border border-success/30 py-6 text-4xl text-gold lg:text-5xl" : "py-4 text-2xl"
+                      className={`grid place-items-center gap-1 rounded-2xl bg-night-card ${
+                        ready ? "animate-fade-up border border-success/30 py-5" : "py-3"
                       }`}
                     >
-                      <span className="sr-only">Order </span>{number}
+                      <span className={`font-mono font-bold tracking-wider ${ready ? "text-4xl text-gold lg:text-5xl" : "text-2xl"}`}>
+                        <span className="sr-only">Order </span>{number}
+                      </span>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em] ${
+                          type === "DELIVERY" ? "bg-info-subtle text-info-on" : "bg-night-line text-night-ink"
+                        }`}
+                      >
+                        {ready ? (type === "DELIVERY" ? "Delivery · waiting for rider" : "Pickup · collect now") : TYPE_LABEL[type]}
+                      </span>
                     </li>
                   ))
                 )}
@@ -125,7 +134,7 @@ export default function OrdersStatusPage() {
         })}
       </main>
       <p className="px-6 pb-4 text-center text-xs text-night-soft lg:px-10">
-        Your order number is on your receipt. Collected orders leave the board automatically.
+        Your order number is on your receipt. Pickup orders leave the board once collected, delivery orders once the rider has them.
       </p>
     </div>
   );

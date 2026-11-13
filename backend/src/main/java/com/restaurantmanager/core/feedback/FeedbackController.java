@@ -42,6 +42,11 @@ public class FeedbackController {
         return feedbackService.submitAsGuest(tableToken, orderId, request);
     }
 
+    @GetMapping("/orders/public/dine-in/tables/{tableToken}/orders/{orderId}/rating")
+    public FeedbackService.GuestRatingPrompt guestRatingPrompt(@PathVariable String tableToken, @PathVariable UUID orderId) {
+        return feedbackService.guestRatingPrompt(tableToken, orderId);
+    }
+
     @GetMapping("/orders/{orderId}/feedback")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','CUSTOMER')")
     public FeedbackService.FeedbackView forOrder(@PathVariable UUID orderId, @AuthenticationPrincipal UserPrincipal principal) {
