@@ -7,4 +7,6 @@ import java.util.UUID;
 
 public interface GroupSessionItemRepository extends JpaRepository<GroupSessionItemEntity, UUID> {
     List<GroupSessionItemEntity> findBySessionId(UUID sessionId);
+
+    List<GroupSessionItemEntity> findByParticipantId(UUID participantId);
 }

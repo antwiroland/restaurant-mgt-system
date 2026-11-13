@@ -253,9 +253,11 @@ export type GroupSessionItem = {
   menuItemId: string;
   menuItemName: string;
   quantity: number;
+  /** Unit price including the chosen modifiers. */
   unitPrice: string;
   totalPrice: string;
   notes?: string;
+  modifiers: { id: string; groupName: string; optionName: string; priceDelta: string }[];
 };
 
 export type GroupSessionDetail = {
@@ -263,8 +265,10 @@ export type GroupSessionDetail = {
   status: 'OPEN' | 'COMPLETED' | 'CANCELLED';
   /** Set once the group cart has been placed as an order. */
   orderId?: string | null;
+  hostUserId?: string | null;
   participants: {
     participantId: string;
+    userId?: string | null;
     displayName: string;
     items: GroupSessionItem[];
     subtotal: string;

@@ -101,6 +101,9 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 
 ### Group Ordering
 - Create or join a session by code, add items per participant, view the combined cart, and finalize it into one order (with promo code and delivery zone)
+- Items keep their modifiers (size, spice, add-ons), priced into the cart and carried into the order. Participants change the quantity of or remove their own items; the host can remove anyone's
+- Participants can leave (their items go with them); the host, an admin or a manager can cancel the session. Open sessions idle for 24 hours are cancelled automatically (`app.group-orders.idle-expiry-hours`)
+- Only participants and floor staff can view a session's cart
 - Live group-cart events, a web `/group-ordering` page and a mobile `group/[code]` screen
 
 ### Delivery

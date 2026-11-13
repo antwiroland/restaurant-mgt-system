@@ -1,7 +1,6 @@
 package com.restaurantmanager.core.order.dto;
 
 import com.restaurantmanager.core.order.GroupSessionStatus;
-
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -12,6 +11,7 @@ public record GroupViewResponse(
         GroupSessionStatus status,
         BigDecimal groupTotal,
         List<GroupParticipantCartResponse> participants,
-        UUID orderId
+        UUID orderId,
+        UUID hostUserId
 ) {
 }

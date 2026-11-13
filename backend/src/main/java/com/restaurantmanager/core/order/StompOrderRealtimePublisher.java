@@ -57,13 +57,14 @@ public class StompOrderRealtimePublisher implements OrderRealtimePublisher {
 
     @Override
     public void publishGroupCartUpdated(String sessionCode, UUID participantId, BigDecimal groupTotal) {
-        send("/topic/group." + sessionCode, Map.of(
-                "event", "GROUP_CART_UPDATED",
-                "sessionCode", sessionCode,
-                "participantId", participantId,
-                "groupTotal", groupTotal,
-                "updatedAt", Instant.now().toString()
-        ));
+        // participantId is null when the whole session changed (cancelled or expired); Map.of rejects nulls.
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("event", "GROUP_CART_UPDATED");
+        payload.put("sessionCode", sessionCode);
+        payload.put("participantId", participantId);
+        payload.put("groupTotal", groupTotal);
+        payload.put("updatedAt", Instant.now().toString());
+        send("/topic/group." + sessionCode, payload);
     }
 
     /** Sent after the surrounding transaction commits, so listeners that reload see the change. */

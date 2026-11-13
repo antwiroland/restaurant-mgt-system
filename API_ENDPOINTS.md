@@ -115,8 +115,12 @@ All requests are proxied through `/api/rm` → backend at `http://localhost:8080
 |--------|------|-------------|
 | `POST` | `/orders/group/sessions` | 🔒 Create a group ordering session |
 | `POST` | `/orders/group/sessions/{code}/join` | 🔒 Join a group session |
-| `GET` | `/orders/group/sessions/{code}` | 🔒 Get group session details |
-| `POST` | `/orders/group/sessions/{code}/items` | 🔒 Add items for a participant |
+| `GET` | `/orders/group/sessions/{code}` | 🔒 Get group session details (participants and floor staff only) |
+| `POST` | `/orders/group/sessions/{code}/items` | 🔒 Add items for a participant (with `modifierOptionIds`) |
+| `PATCH` | `/orders/group/sessions/{code}/items/{itemId}` | 🔒 Change quantity/notes of your own item |
+| `DELETE` | `/orders/group/sessions/{code}/items/{itemId}` | 🔒 Remove your own item (host: anyone's) |
+| `POST` | `/orders/group/sessions/{code}/leave` | 🔒 Leave a session (not the host); your items are removed |
+| `POST` | `/orders/group/sessions/{code}/cancel` | 🔒 Cancel a session (host, admin or manager) |
 | `POST` | `/orders/group/sessions/{code}/finalize` | 🔒 Finalize a group session into an order |
 
 **Create session request:** `{ displayName? }`
