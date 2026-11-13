@@ -34,6 +34,11 @@ import java.util.stream.Collectors;
 public class AttendanceService {
     /** Queued device times older than this are refused; such gaps go through a correction instead. */
     static final Duration MAX_EVENT_AGE = Duration.ofHours(12);
+    /**
+     * Biometric devices keep their own clock and the gateway queues events while the internet is down, so a device
+     * event may arrive days late and is still trusted (a locked timesheet still refuses it).
+     */
+    public static final Duration DEVICE_MAX_EVENT_AGE = Duration.ofDays(7);
     static final Duration MAX_CLOCK_SKEW = Duration.ofMinutes(2);
 
     private final TimeEntryRepository entryRepository;
@@ -86,7 +91,7 @@ public class AttendanceService {
         }
         EmployeeEntity employee = employeeRepository.findById(cmd.employeeId()).orElseThrow(() -> new ApiException(404, "Employee not found"));
         Instant now = Instant.now();
-        Instant at = eventTime(cmd.occurredAt(), now);
+        Instant at = eventTime(cmd.occurredAt(), now, cmd.source() == AttendanceSource.DEVICE ? DEVICE_MAX_EVENT_AGE : MAX_EVENT_AGE);
         try {
             timesheetGuard.assertEditable(employee.getId(), at.atZone(zone).toLocalDate());
             TimeEntryEntity entry = switch (cmd.action()) {
@@ -266,13 +271,17 @@ public class AttendanceService {
     }
 
     static Instant eventTime(Instant occurredAt, Instant now) {
+        return eventTime(occurredAt, now, MAX_EVENT_AGE);
+    }
+
+    static Instant eventTime(Instant occurredAt, Instant now, Duration maxAge) {
         if (occurredAt == null) {
             return now;
         }
         if (occurredAt.isAfter(now.plus(MAX_CLOCK_SKEW))) {
             throw new ApiException(400, "The device clock is ahead of the server; check the terminal's time");
         }
-        if (occurredAt.isBefore(now.minus(MAX_EVENT_AGE))) {
+        if (occurredAt.isBefore(now.minus(maxAge))) {
             throw new ApiException(400, "This clock action is too old to record automatically; ask a manager for a correction");
         }
         return occurredAt.isAfter(now) ? now : occurredAt;

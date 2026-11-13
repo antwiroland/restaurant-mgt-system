@@ -76,6 +76,8 @@ public class SecurityConfig {
                         .requestMatchers("/reservations/guest/**").permitAll()
                         .requestMatchers("/reservations/*/guest-cancel").permitAll()
                         .requestMatchers("/payments/webhook").permitAll()
+                        // Local attendance gateways sign each request with their own revocable key (checked in GatewayService)
+                        .requestMatchers("/attendance/gateway/**").permitAll()
                         .requestMatchers("/ws/**", "/ws").permitAll()
                         // What an HR-role login may call: the HR module, its own account and the lookups HR screens use.
                         .requestMatchers("/hr/**", "/auth/**", "/users/me", "/notifications/devices", "/notifications/devices/**").authenticated()
