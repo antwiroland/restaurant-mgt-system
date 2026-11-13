@@ -15,7 +15,6 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -32,12 +31,22 @@ class InventoryIntegrationTest extends BaseIntegrationTest {
     private UserEntity customer;
     private MenuItemEntity fufu;
     private UUID cassava;
+    private com.restaurantmanager.core.branch.BranchEntity branch;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.restaurantmanager.core.branch.BranchRepository branchRepository;
 
     @BeforeEach
     void setUpData() throws Exception {
         manager = createUser("Manager", "+233310000001", "inv-manager@x.com", "secret123", Role.MANAGER);
         customer = createUser("Adwoa", "+233310000002", "adwoa@x.com", "secret123", Role.CUSTOMER);
         fufu = createMenuItem("Fufu", "40.00");
+        // Stock is per branch; this test works on its own branch so other tests' branches do not matter.
+        branch = new com.restaurantmanager.core.branch.BranchEntity();
+        branch.setCode("INV" + java.util.UUID.randomUUID().toString().substring(0, 8));
+        branch.setName("Inventory test branch");
+        branch.setActive(true);
+        branch = branchRepository.save(branch);
         cassava = createIngredient("Cassava", "kg", "1.0", "3.0");
         mockMvc.perform(put("/inventory/menu-items/" + fufu.getId() + "/recipe")
                         .header("Authorization", "Bearer " + accessToken(manager))
@@ -52,11 +61,11 @@ class InventoryIntegrationTest extends BaseIntegrationTest {
         assertEquals(0, new BigDecimal("2.000").compareTo(stock()));
 
         order(2); // 1.0 kg left -> at threshold
-        mockMvc.perform(get("/inventory/low-stock")
+        mockMvc.perform(get("/inventory/low-stock").param("branchId", branch.getId().toString())
                         .header("Authorization", "Bearer " + accessToken(manager)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].name").value("Cassava"));
-        assertTrue(ingredientRepository.findById(cassava).orElseThrow().isLowStockAlerted());
+        assertTrue(ingredientStockRepository.findByIngredient_Id(cassava).get(0).isLowStockAlerted());
     }
 
     @Test
@@ -70,22 +79,24 @@ class InventoryIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
-    void givenLastPortionsSold_whenStockRunsOut_thenItemAuto86dAndRestockBringsItBack() throws Exception {
+    void givenLastPortionsSold_whenStockRunsOut_thenItemSoldOutAndRestockBringsItBack() throws Exception {
         order(6); // uses all 3.0 kg
-        MenuItemEntity after = menuItemRepository.findById(fufu.getId()).orElseThrow();
-        assertFalse(after.isAvailable());
-        assertTrue(after.isAuto86());
+        assertEquals(1, menuItemStockoutRepository.findByMenuItemId(fufu.getId()).size());
+        mockMvc.perform(get("/menu/items/" + fufu.getId()).header("Authorization", "Bearer " + accessToken(manager)))
+                .andExpect(jsonPath("$.soldOutBranchIds[0]").value(branch.getId().toString()));
+        // Manual availability is untouched: it is sold out, not switched off.
+        assertTrue(menuItemRepository.findById(fufu.getId()).orElseThrow().isAvailable());
 
         mockMvc.perform(post("/inventory/ingredients/" + cassava + "/restock")
                         .header("Authorization", "Bearer " + accessToken(manager))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"quantity\":10,\"note\":\"Market run\"}"))
+                        .content("{\"quantity\":10,\"note\":\"Market run\",\"branchId\":\"" + branch.getId() + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.stockQuantity").value(10.0))
                 .andExpect(jsonPath("$.low").value(false));
-        MenuItemEntity back = menuItemRepository.findById(fufu.getId()).orElseThrow();
-        assertTrue(back.isAvailable());
-        assertFalse(back.isAuto86());
+        assertTrue(menuItemStockoutRepository.findByMenuItemId(fufu.getId()).isEmpty());
+        mockMvc.perform(get("/menu/items/" + fufu.getId()).header("Authorization", "Bearer " + accessToken(manager)))
+                .andExpect(jsonPath("$.soldOutBranchIds").isEmpty());
     }
 
     @Test
@@ -108,12 +119,12 @@ class InventoryIntegrationTest extends BaseIntegrationTest {
         mockMvc.perform(post("/inventory/ingredients/" + cassava + "/adjust")
                         .header("Authorization", "Bearer " + accessToken(manager))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"reason\":\"WASTE\",\"delta\":0.5,\"note\":\"Spoiled\"}"))
+                        .content("{\"reason\":\"WASTE\",\"delta\":0.5,\"note\":\"Spoiled\",\"branchId\":\"" + branch.getId() + "\"}"))
                 .andExpect(jsonPath("$.stockQuantity").value(2.5));
         mockMvc.perform(post("/inventory/ingredients/" + cassava + "/adjust")
                         .header("Authorization", "Bearer " + accessToken(manager))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"reason\":\"ADJUSTMENT\",\"countedQuantity\":4}"))
+                        .content("{\"reason\":\"ADJUSTMENT\",\"countedQuantity\":4,\"branchId\":\"" + branch.getId() + "\"}"))
                 .andExpect(jsonPath("$.stockQuantity").value(4.0));
     }
 
@@ -125,7 +136,7 @@ class InventoryIntegrationTest extends BaseIntegrationTest {
     }
 
     private UUID createIngredient(String name, String unit, String threshold, String initial) throws Exception {
-        String body = mockMvc.perform(post("/inventory/ingredients")
+        String body = mockMvc.perform(post("/inventory/ingredients").param("branchId", branch.getId().toString())
                         .header("Authorization", "Bearer " + accessToken(manager))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"%s\",\"unit\":\"%s\",\"lowStockThreshold\":%s,\"initialStock\":%s}".formatted(name, unit, threshold, initial)))
@@ -145,11 +156,13 @@ class InventoryIntegrationTest extends BaseIntegrationTest {
     }
 
     private String orderBody(int quantity) {
-        return "{\"type\":\"PICKUP\",\"items\":[{\"menuItemId\":\"" + fufu.getId() + "\",\"quantity\":" + quantity + "}]}";
+        return "{\"type\":\"PICKUP\",\"branchId\":\"" + branch.getId() + "\",\"items\":[{\"menuItemId\":\"" + fufu.getId() + "\",\"quantity\":" + quantity + "}]}";
     }
 
     private BigDecimal stock() {
-        return ingredientRepository.findById(cassava).orElseThrow().getStockQuantity();
+        return ingredientStockRepository.findByIngredient_Id(cassava).stream()
+                .filter(row -> branch.getId().equals(row.getBranchId()))
+                .findFirst().orElseThrow().getStockQuantity();
     }
 
     private MenuItemEntity createMenuItem(String name, String price) {

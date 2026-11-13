@@ -120,6 +120,12 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected com.restaurantmanager.core.inventory.RecipeLineRepository recipeLineRepository;
     @Autowired
+    protected com.restaurantmanager.core.inventory.IngredientStockRepository ingredientStockRepository;
+    @Autowired
+    protected com.restaurantmanager.core.inventory.ModifierRecipeLineRepository modifierRecipeLineRepository;
+    @Autowired
+    protected com.restaurantmanager.core.inventory.MenuItemStockoutRepository menuItemStockoutRepository;
+    @Autowired
     protected com.restaurantmanager.core.inventory.IngredientRepository ingredientRepositoryForCleanup;
     @Autowired
     protected com.restaurantmanager.core.payment.split.PaymentSplitRepository paymentSplitRepository;
@@ -174,6 +180,9 @@ public abstract class BaseIntegrationTest {
         orderFeedbackRepository.deleteAll();
         stockMovementRepository.deleteAll();
         recipeLineRepository.deleteAll();
+        modifierRecipeLineRepository.deleteAll();
+        ingredientStockRepository.deleteAll();
+        menuItemStockoutRepository.deleteAll();
         ingredientRepositoryForCleanup.deleteAll();
         orderTaxLineRepository.deleteAll();
         taxRateRepositoryForCleanup.deleteAll();

@@ -163,12 +163,16 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Mobile: the profile shows the points balance and history, and checkout has a switch to spend points
 
 ### Inventory
-- Ingredients with units, cost, low-stock level and a stock ledger (restock, used by order, order cancelled, waste, stock count)
-- Recipes per menu item. Orders deduct stock and cancellations return it
-- Items are taken off the menu automatically when an ingredient runs out, and come back when restocked
-- Optionally reject orders that would take stock below zero (`INVENTORY_BLOCK_WHEN_INSUFFICIENT`)
-- Low-stock alerts on `/topic/inventory.alerts`, shown live to managers in the web app
-- Web `/inventory` page, and a recipe editor on the menu page
+- Ingredients with units, cost, a low-stock level and a stock ledger (restock, used by order, order cancelled, waste, stock count). Each movement records its branch and the cost per unit at the time
+- **Stock is per branch.** Each branch receives, counts and uses its own stock; a branch that has never received or counted an ingredient does not track it (its orders use none of it). Branch managers and cashiers work on their own branch; admins choose one, or see every branch together. The restaurant's own stock (no branch) is used when there are no branches
+- Recipes per menu item, plus **extra ingredients per modifier option** (e.g. "Whole chicken" uses one more chicken). Orders deduct both from the ordering branch; cancellations before preparation put them back
+- A dish is **sold out at a branch** when an ingredient runs out there, and back once restocked. It stays on the customer menu while another branch can make it (`soldOutBranchIds` on menu items); the POS hides it at that branch. A dish switched off by hand is never switched back on
+- Orders that would take a branch's stock below zero are refused (on by default; `INVENTORY_BLOCK_WHEN_INSUFFICIENT=false` allows negative stock instead)
+- Inactive ingredients are ignored: not deducted, never block an order, never make a dish sold out
+- Restocks record the price paid per unit and the supplier; the latest price becomes the ingredient's cost
+- **Food cost report** (`GET /inventory/reports/food-cost`, Inventory page): ingredients used by orders at their recorded cost against net sales (food cost %), waste, stock-count differences, purchases, and each dish's recipe cost and margin
+- Low-stock alerts per branch on `/topic/inventory.alerts`, shown live to managers in the web app
+- Web `/inventory` page (branch picker, restock with price and supplier, food cost), and a recipe editor on the menu page with option ingredients and recipe cost
 
 ### Customer Feedback
 - Customers rate a completed or delivered order once (overall, food, service or delivery, and a comment); dine-in guests rate from the web table QR page

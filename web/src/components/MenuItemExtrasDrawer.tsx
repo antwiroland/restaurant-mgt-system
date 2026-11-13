@@ -5,18 +5,87 @@ import { Drawer } from "@/components/Drawer";
 import { useStaffSession } from "@/components/SessionProvider";
 import {
   getIngredients,
+  getMenuItemModifiers,
+  getModifierRecipe,
   getRecipe,
   removeMenuItemImage,
+  setModifierRecipe,
   setRecipe,
   uploadMenuItemImage,
   type IngredientRecord,
   type MenuItemRecord,
+  type MenuModifierGroupRecord,
 } from "@/lib/apiClient";
+import { formatMoney } from "@/lib/brand";
 
 type RecipeDraftLine = { ingredientId: string; quantity: string };
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp"];
+
+/** Rows of ingredient + quantity, shared by the dish recipe and option recipes. */
+function RecipeLines({
+  lines,
+  ingredients,
+  onChange,
+}: {
+  lines: RecipeDraftLine[];
+  ingredients: IngredientRecord[];
+  onChange: (lines: RecipeDraftLine[]) => void;
+}) {
+  const unitFor = (id: string) => ingredients.find((i) => i.id === id)?.unit ?? "";
+  return (
+    <>
+      {lines.map((line, index) => (
+        <div key={index} className="grid grid-cols-[1fr_7rem_auto] items-end gap-2">
+          <label className="grid gap-1 text-sm">
+            <span className={index === 0 ? "" : "sr-only"}>Ingredient</span>
+            <select
+              className="select"
+              value={line.ingredientId}
+              onChange={(e) => onChange(lines.map((l, i) => (i === index ? { ...l, ingredientId: e.target.value } : l)))}
+            >
+              <option value="">Select</option>
+              {ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name}</option>)}
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm">
+            <span className={index === 0 ? "" : "sr-only"}>Quantity {unitFor(line.ingredientId) ? `(${unitFor(line.ingredientId)})` : ""}</span>
+            <input
+              className="input"
+              type="number"
+              min={0}
+              step="0.001"
+              value={line.quantity}
+              onChange={(e) => onChange(lines.map((l, i) => (i === index ? { ...l, quantity: e.target.value } : l)))}
+            />
+          </label>
+          <button type="button" className="btn btn-ghost btn-sm" aria-label="Remove ingredient line" onClick={() => onChange(lines.filter((_, i) => i !== index))}>
+            ✕
+          </button>
+        </div>
+      ))}
+    </>
+  );
+}
+
+/** Ingredient cost of recipe lines at today's costs; null when an ingredient has no cost. */
+function linesCost(lines: RecipeDraftLine[], ingredients: IngredientRecord[]): number | null {
+  let total = 0;
+  for (const line of lines) {
+    if (!line.ingredientId || !(Number(line.quantity) > 0)) continue;
+    const cost = ingredients.find((i) => i.id === line.ingredientId)?.costPerUnit;
+    if (!cost) return null;
+    total += Number(line.quantity) * Number(cost);
+  }
+  return total;
+}
+
+function toPayload(lines: RecipeDraftLine[]) {
+  return lines
+    .filter((line) => line.ingredientId && Number(line.quantity) > 0)
+    .map((line) => ({ ingredientId: line.ingredientId, quantity: Number(line.quantity) }));
+}
 
 type Props = {
   item: MenuItemRecord | null;
@@ -32,6 +101,9 @@ export function MenuItemExtrasDrawer({ item, onClose, onChanged }: Props) {
   const [preview, setPreview] = useState<string | null>(null);
   const [ingredients, setIngredients] = useState<IngredientRecord[]>([]);
   const [lines, setLines] = useState<RecipeDraftLine[]>([]);
+  const [modifierGroups, setModifierGroups] = useState<MenuModifierGroupRecord[]>([]);
+  const [optionId, setOptionId] = useState("");
+  const [optionLines, setOptionLines] = useState<RecipeDraftLine[]>([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -41,14 +113,56 @@ export function MenuItemExtrasDrawer({ item, onClose, onChanged }: Props) {
     setMessage("");
     setFile(null);
     setImageUrl(item?.imageUrl);
+    setOptionId("");
+    setOptionLines([]);
     if (!item) return;
-    Promise.all([authenticatedFetch((s) => getIngredients(s)), authenticatedFetch((s) => getRecipe(s, item.id))])
-      .then(([allIngredients, recipe]) => {
+    Promise.all([
+      authenticatedFetch((s) => getIngredients(s)),
+      authenticatedFetch((s) => getRecipe(s, item.id)),
+      getMenuItemModifiers(item.id).catch(() => [] as MenuModifierGroupRecord[]),
+    ])
+      .then(([allIngredients, recipe, groups]) => {
         setIngredients(allIngredients.filter((i) => i.active));
         setLines(recipe.map((line) => ({ ingredientId: line.ingredientId, quantity: String(Number(line.quantity)) })));
+        setModifierGroups(groups);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load the recipe"));
   }, [authenticatedFetch, item]);
+
+  async function chooseOption(nextOptionId: string) {
+    setOptionId(nextOptionId);
+    setOptionLines([]);
+    if (!nextOptionId) return;
+    try {
+      const recipe = await authenticatedFetch((s) => getModifierRecipe(s, nextOptionId));
+      setOptionLines(recipe.map((line) => ({ ingredientId: line.ingredientId, quantity: String(Number(line.quantity)) })));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load the option's ingredients");
+    }
+  }
+
+  async function saveOptionRecipe(event: React.FormEvent) {
+    event.preventDefault();
+    if (!optionId) return;
+    const payload = toPayload(optionLines);
+    const ids = payload.map((line) => line.ingredientId);
+    if (new Set(ids).size !== ids.length) {
+      setError("Each ingredient can only appear once");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const saved = await authenticatedFetch((s) => setModifierRecipe(s, optionId, payload));
+      setOptionLines(saved.map((line) => ({ ingredientId: line.ingredientId, quantity: String(Number(line.quantity)) })));
+      setMessage(saved.length === 0 ? "This option uses no extra ingredients" : "Option ingredients saved");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the option's ingredients");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!file) {
@@ -111,9 +225,7 @@ export function MenuItemExtrasDrawer({ item, onClose, onChanged }: Props) {
   async function saveRecipe(event: React.FormEvent) {
     event.preventDefault();
     if (!item) return;
-    const payload = lines
-      .filter((line) => line.ingredientId && Number(line.quantity) > 0)
-      .map((line) => ({ ingredientId: line.ingredientId, quantity: Number(line.quantity) }));
+    const payload = toPayload(lines);
     const ids = payload.map((line) => line.ingredientId);
     if (new Set(ids).size !== ids.length) {
       setError("Each ingredient can only appear once");
@@ -134,8 +246,9 @@ export function MenuItemExtrasDrawer({ item, onClose, onChanged }: Props) {
     }
   }
 
-  const unitFor = (id: string) => ingredients.find((i) => i.id === id)?.unit ?? "";
   const shown = preview ?? imageUrl;
+  const recipeCost = linesCost(lines, ingredients);
+  const options = modifierGroups.flatMap((group) => group.options.map((option) => ({ id: option.id, label: `${group.name}: ${option.name}` })));
 
   return (
     <Drawer open={item !== null} title={item ? `${item.name}: photo and recipe` : "Menu item"} onClose={onClose}>
@@ -164,45 +277,20 @@ export function MenuItemExtrasDrawer({ item, onClose, onChanged }: Props) {
           <form className="grid gap-2" onSubmit={(e) => void saveRecipe(e)} aria-labelledby="item-recipe-heading">
             <h3 id="item-recipe-heading" className="font-semibold">Recipe (per portion)</h3>
             <p className="text-sm text-ink-soft">
-              Each order deducts these quantities from stock. The item is taken off the menu automatically when any ingredient runs out.
+              Each order uses these quantities from the ordering branch&apos;s stock. The dish is marked sold out at a branch when an ingredient runs out there.
             </p>
             {ingredients.length === 0 ? (
               <p className="text-sm text-ink-soft">Add ingredients on the Inventory page first.</p>
             ) : null}
-            {lines.map((line, index) => (
-              <div key={index} className="grid grid-cols-[1fr_7rem_auto] items-end gap-2">
-                <label className="grid gap-1 text-sm">
-                  <span className={index === 0 ? "" : "sr-only"}>Ingredient</span>
-                  <select
-                    className="select"
-                    value={line.ingredientId}
-                    onChange={(e) => setLines(lines.map((l, i) => (i === index ? { ...l, ingredientId: e.target.value } : l)))}
-                  >
-                    <option value="">Select</option>
-                    {ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name}</option>)}
-                  </select>
-                </label>
-                <label className="grid gap-1 text-sm">
-                  <span className={index === 0 ? "" : "sr-only"}>Quantity {unitFor(line.ingredientId) ? `(${unitFor(line.ingredientId)})` : ""}</span>
-                  <input
-                    className="input"
-                    type="number"
-                    min={0}
-                    step="0.001"
-                    value={line.quantity}
-                    onChange={(e) => setLines(lines.map((l, i) => (i === index ? { ...l, quantity: e.target.value } : l)))}
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  aria-label="Remove ingredient line"
-                  onClick={() => setLines(lines.filter((_, i) => i !== index))}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
+            <RecipeLines lines={lines} ingredients={ingredients} onChange={setLines} />
+            {lines.some((line) => line.ingredientId) ? (
+              <p className="text-xs text-ink-soft">
+                Ingredient cost per portion: {recipeCost === null ? "set a cost for every ingredient to see it" : formatMoney(recipeCost)}
+                {recipeCost !== null && Number(item.price) > 0
+                  ? ` · margin ${Math.round(((Number(item.price) - recipeCost) / Number(item.price)) * 100)}%`
+                  : ""}
+              </p>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -215,6 +303,38 @@ export function MenuItemExtrasDrawer({ item, onClose, onChanged }: Props) {
               <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>Save recipe</button>
             </div>
           </form>
+
+          {options.length > 0 ? (
+            <form className="grid gap-2" onSubmit={(e) => void saveOptionRecipe(e)} aria-labelledby="option-recipe-heading">
+              <h3 id="option-recipe-heading" className="font-semibold">Extra ingredients for options</h3>
+              <p className="text-sm text-ink-soft">
+                What an option uses on top of the recipe, per portion: e.g. &quot;Large&quot; uses 0.1 kg more rice, &quot;Add chicken&quot; one more piece.
+              </p>
+              <label className="grid gap-1 text-sm">
+                <span>Option</span>
+                <select className="select" value={optionId} onChange={(e) => void chooseOption(e.target.value)}>
+                  <option value="">Choose an option</option>
+                  {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                </select>
+              </label>
+              {optionId ? (
+                <>
+                  <RecipeLines lines={optionLines} ingredients={ingredients} onChange={setOptionLines} />
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={ingredients.length === 0}
+                      onClick={() => setOptionLines([...optionLines, { ingredientId: "", quantity: "" }])}
+                    >
+                      Add ingredient
+                    </button>
+                    <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>Save option ingredients</button>
+                  </div>
+                </>
+              ) : null}
+            </form>
+          ) : null}
 
           <div aria-live="polite">
             {error ? <p className="alert alert-danger" role="alert">{error}</p> : null}

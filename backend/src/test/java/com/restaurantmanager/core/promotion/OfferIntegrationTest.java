@@ -168,7 +168,7 @@ class OfferIntegrationTest extends BaseIntegrationTest {
 
     private BranchEntity branch(String code) {
         BranchEntity branch = new BranchEntity();
-        branch.setCode(code + System.nanoTime() % 100000);
+        branch.setCode(code + java.util.UUID.randomUUID().toString().substring(0, 8));
         branch.setName("Branch " + code);
         branch.setActive(true);
         return branchRepository.save(branch);

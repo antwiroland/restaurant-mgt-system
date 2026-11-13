@@ -116,6 +116,11 @@ INGREDIENTS = [
     ("Black-eyed beans", "kg", 4, 20, 25),
     ("Garden eggs", "pcs", 15, 2, 90),
 ]
+# dish, modifier group, option, ingredient, extra quantity per portion (on top of the recipe)
+OPTION_RECIPES = [
+    ("Charcoal Chicken", "Portion", "Whole chicken", "Chicken", "1"),
+    ("Sobolo", "Size", "Large", "Hibiscus leaves", "0.01"),
+]
 RECIPES = {
     "Jollof & Grilled Tilapia": [("Rice", "0.25"), ("Tilapia", "1")],
     "Charcoal Chicken": [("Chicken", "1")],
@@ -344,12 +349,31 @@ def main():
 
     # ---------------------------------------------------------------- inventory
     step("Inventory & recipes")
+    # Stock is per branch: the opening stock is Osu's; East Legon gets its own (smaller) delivery.
     ingredients = {}
     for name, unit, low, cost, stock in INGREDIENTS:
-        ingredients[name] = api.call("POST", "/inventory/ingredients", {"name": name, "unit": unit, "lowStockThreshold": low, "costPerUnit": cost, "initialStock": stock, "active": True}, A)
+        ingredients[name] = api.call("POST", f"/inventory/ingredients?branchId={osu['id']}",
+                                     {"name": name, "unit": unit, "lowStockThreshold": low, "costPerUnit": cost, "initialStock": stock, "active": True}, A)
+    for name, unit, low, cost, stock in INGREDIENTS:
+        if name == "Palm oil":
+            continue  # East Legon does not stock palm oil: it is not tracked there
+        api.call("POST", f"/inventory/ingredients/{ingredients[name]['id']}/restock",
+                 {"quantity": round(stock / 2, 3), "unitCost": round(cost * 1.05, 2), "supplier": "Makola Market (test)",
+                  "note": "Opening delivery", "branchId": legon["id"]}, A)
     for dish, lines in RECIPES.items():
         api.call("PUT", f"/inventory/menu-items/{items[dish]['id']}/recipe",
                  [{"ingredientId": ingredients[i]["id"], "quantity": q} for i, q in lines], A)
+
+    # Options that use more than the base recipe.
+    def option_id(dish, group_name, option_name):
+        for g_index, (gname, *_rest, options) in enumerate(MODIFIERS[dish]):
+            if gname == group_name:
+                return modifier_groups[dish][g_index]["options"][[o for o, _p in options].index(option_name)]
+        raise KeyError((dish, group_name, option_name))
+
+    for dish, group_name, option_name, ingredient, quantity in OPTION_RECIPES:
+        api.call("PUT", f"/inventory/modifier-options/{option_id(dish, group_name, option_name)}/recipe",
+                 [{"ingredientId": ingredients[ingredient]["id"], "quantity": quantity}], A)
 
     # ---------------------------------------------------------------- tables, zones, promos
     step("Tables, delivery zones, promotions")

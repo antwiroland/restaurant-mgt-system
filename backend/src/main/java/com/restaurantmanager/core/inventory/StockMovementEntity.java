@@ -42,6 +42,17 @@ public class StockMovementEntity {
     @Column(name = "actor_user_id")
     private UUID actorUserId;
 
+    /** Where the stock moved: a branch, or null for the restaurant's own stock. */
+    @Column(name = "branch_id")
+    private UUID branchId;
+
+    /** Cost per unit at the time (the purchase price for a restock); null when unknown. */
+    @Column(name = "unit_cost", precision = 12, scale = 4)
+    private BigDecimal unitCost;
+
+    @Column(length = 120)
+    private String supplier;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -69,4 +80,10 @@ public class StockMovementEntity {
     public UUID getActorUserId() { return actorUserId; }
     public void setActorUserId(UUID actorUserId) { this.actorUserId = actorUserId; }
     public Instant getCreatedAt() { return createdAt; }
+    public UUID getBranchId() { return branchId; }
+    public void setBranchId(UUID branchId) { this.branchId = branchId; }
+    public BigDecimal getUnitCost() { return unitCost; }
+    public void setUnitCost(BigDecimal unitCost) { this.unitCost = unitCost; }
+    public String getSupplier() { return supplier; }
+    public void setSupplier(String supplier) { this.supplier = supplier; }
 }
