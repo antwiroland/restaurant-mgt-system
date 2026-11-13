@@ -22,6 +22,7 @@ import {
   getBillingConfig,
   getDeliveryZones,
   getMenuItemModifiers,
+  getMe,
   getMenuItems,
   getPayment,
   getTables,
@@ -121,8 +122,15 @@ export default function PosPage() {
   useEffect(() => {
     if (!session) return;
     authenticatedFetch(async (activeSession) => {
-      const [nextMenuItems, nextTables] = await Promise.all([getMenuItems(activeSession), getTables(activeSession)]);
-      setMenuItems(nextMenuItems.filter((item) => item.active && item.available));
+      const [nextMenuItems, nextTables, me] = await Promise.all([
+        getMenuItems(activeSession),
+        getTables(activeSession),
+        getMe(activeSession).catch(() => null),
+      ]);
+      // A dish sold out at this till's branch (an ingredient ran out here) is not offered, even if other branches have it.
+      const myBranch = me?.branchId ?? null;
+      setMenuItems(nextMenuItems.filter((item) =>
+        item.active && item.available && !(myBranch && (item.soldOutBranchIds ?? []).includes(myBranch))));
       setTables(nextTables);
       // Deep link from the floor plan: /pos?table=<id> preselects a dine-in table.
       const linkedTable = new URLSearchParams(window.location.search).get("table");

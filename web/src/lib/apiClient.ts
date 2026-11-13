@@ -258,8 +258,11 @@ export type MenuItemRecord = {
   description?: string;
   price: string;
   imageUrl?: string;
+  /** On the menu: switched on, and not sold out at every branch. */
   available: boolean;
   active: boolean;
+  /** Branches where an ingredient has run out. */
+  soldOutBranchIds?: (string | null)[];
 };
 
 export type CategoryRecord = {
@@ -1910,12 +1913,19 @@ export type IngredientRecord = {
   id: string;
   name: string;
   unit: string;
+  /** At the branch asked for, or the total across branches when none was. */
   stockQuantity: string;
   lowStockThreshold: string;
   costPerUnit?: string | null;
   low: boolean;
   active: boolean;
   updatedAt: string;
+  /** False when this branch has never received or counted it: its orders use none of it. */
+  tracked: boolean;
+  branchId?: string | null;
+  branchName?: string | null;
+  /** Across every branch. */
+  totalStock: string;
 };
 
 export type IngredientRequest = {
@@ -1938,44 +1948,116 @@ export type StockMovementRecord = {
   note?: string | null;
   actorUserId?: string | null;
   createdAt: string;
+  branchId?: string | null;
+  branchName?: string | null;
+  /** Cost per unit at the time (the purchase price for a restock). */
+  unitCost?: string | null;
+  supplier?: string | null;
 };
 
-export type RecipeLineRecord = { ingredientId: string; ingredientName: string; unit: string; quantity: string };
+export type RecipeLineRecord = { ingredientId: string; ingredientName: string; unit: string; quantity: string; costPerUnit?: string | null };
 
-export async function getIngredients(session: StaffSession): Promise<IngredientRecord[]> {
-  return apiRequest<IngredientRecord[]>("/inventory/ingredients", { token: session.accessToken });
+export type FoodCostRecord = {
+  from: string;
+  to: string;
+  branchId?: string | null;
+  netSales: string;
+  usedCost: string;
+  wasteCost: string;
+  countDifferenceCost: string;
+  purchasesCost: string;
+  /** Ingredients used by orders / net sales; null without sales. */
+  foodCostPercent?: string | null;
+  ingredientsMissingCost: number;
+  ingredients: {
+    ingredientId: string;
+    name: string;
+    unit: string;
+    usedQuantity: string;
+    usedCost: string;
+    wasteQuantity: string;
+    wasteCost: string;
+    countDifference: string;
+    countDifferenceCost: string;
+    purchasedQuantity: string;
+    purchasesCost: string;
+    costMissing: boolean;
+  }[];
+  dishes: { menuItemId: string; name: string; price: string; recipeCost?: string | null; marginPercent?: string | null }[];
+};
+
+function branchQuery(branchId?: string | null): string {
+  return branchId ? `?branchId=${encodeURIComponent(branchId)}` : "";
 }
 
-export async function getLowStock(session: StaffSession): Promise<IngredientRecord[]> {
-  return apiRequest<IngredientRecord[]>("/inventory/low-stock", { token: session.accessToken });
+/** Stock at one branch, or (no branch, admins) the total across branches. Branch staff always get their branch. */
+export async function getIngredients(session: StaffSession, branchId?: string | null): Promise<IngredientRecord[]> {
+  return apiRequest<IngredientRecord[]>(`/inventory/ingredients${branchQuery(branchId)}`, { token: session.accessToken });
 }
 
-export async function createIngredient(session: StaffSession, payload: IngredientRequest): Promise<IngredientRecord> {
-  return apiRequest<IngredientRecord>("/inventory/ingredients", { method: "POST", token: session.accessToken, body: payload });
+export async function getLowStock(session: StaffSession, branchId?: string | null): Promise<IngredientRecord[]> {
+  return apiRequest<IngredientRecord[]>(`/inventory/low-stock${branchQuery(branchId)}`, { token: session.accessToken });
+}
+
+/** Opening stock (if any) goes to {@code branchId}. */
+export async function createIngredient(session: StaffSession, payload: IngredientRequest, branchId?: string | null): Promise<IngredientRecord> {
+  return apiRequest<IngredientRecord>(`/inventory/ingredients${branchQuery(branchId)}`, { method: "POST", token: session.accessToken, body: payload });
 }
 
 export async function updateIngredient(session: StaffSession, id: string, payload: IngredientRequest): Promise<IngredientRecord> {
   return apiRequest<IngredientRecord>(`/inventory/ingredients/${id}`, { method: "PUT", token: session.accessToken, body: payload });
 }
 
-export async function restockIngredient(session: StaffSession, id: string, quantity: number, note?: string): Promise<IngredientRecord> {
+/** A delivery. {@code unitCost} (price paid per unit) becomes the ingredient's cost from now on. */
+export async function restockIngredient(
+  session: StaffSession,
+  id: string,
+  quantity: number,
+  note?: string,
+  extra?: { unitCost?: number; supplier?: string; branchId?: string | null },
+): Promise<IngredientRecord> {
   return apiRequest<IngredientRecord>(`/inventory/ingredients/${id}/restock`, {
     method: "POST",
     token: session.accessToken,
-    body: { quantity, note },
+    body: { quantity, note, unitCost: extra?.unitCost, supplier: extra?.supplier, branchId: extra?.branchId ?? undefined },
   });
 }
 
 export async function adjustIngredient(
   session: StaffSession,
   id: string,
-  payload: { reason: "WASTE" | "ADJUSTMENT"; delta?: number; countedQuantity?: number; note?: string },
+  payload: { reason: "WASTE" | "ADJUSTMENT"; delta?: number; countedQuantity?: number; note?: string; branchId?: string | null },
 ): Promise<IngredientRecord> {
   return apiRequest<IngredientRecord>(`/inventory/ingredients/${id}/adjust`, { method: "POST", token: session.accessToken, body: payload });
 }
 
-export async function getStockMovements(session: StaffSession, id: string): Promise<StockMovementRecord[]> {
-  return apiRequest<StockMovementRecord[]>(`/inventory/ingredients/${id}/movements`, { token: session.accessToken });
+export async function getStockMovements(session: StaffSession, id: string, branchId?: string | null): Promise<StockMovementRecord[]> {
+  return apiRequest<StockMovementRecord[]>(`/inventory/ingredients/${id}/movements${branchQuery(branchId)}`, { token: session.accessToken });
+}
+
+/** Food cost for a period (default the last 30 days), at one branch or all of them. */
+export async function getFoodCostReport(
+  session: StaffSession,
+  params: { from?: string; to?: string; branchId?: string | null },
+): Promise<FoodCostRecord> {
+  const query = new URLSearchParams();
+  if (params.from) query.set("from", params.from);
+  if (params.to) query.set("to", params.to);
+  if (params.branchId) query.set("branchId", params.branchId);
+  return apiRequest<FoodCostRecord>(`/inventory/reports/food-cost${query.toString() ? `?${query}` : ""}`, { token: session.accessToken });
+}
+
+/** Ingredients a modifier option (e.g. "Large") uses per unit ordered, on top of the dish's recipe. */
+export async function getModifierRecipe(session: StaffSession, optionId: string): Promise<RecipeLineRecord[]> {
+  return apiRequest<RecipeLineRecord[]>(`/inventory/modifier-options/${optionId}/recipe`, { token: session.accessToken });
+}
+
+export async function setModifierRecipe(
+  session: StaffSession,
+  optionId: string,
+  lines: { ingredientId: string; quantity: number }[],
+): Promise<RecipeLineRecord[]> {
+  return apiRequest<RecipeLineRecord[]>(`/inventory/modifier-options/${optionId}/recipe`, { method: "PUT", token: session.accessToken, body: lines });
 }
 
 export async function getRecipe(session: StaffSession, menuItemId: string): Promise<RecipeLineRecord[]> {
@@ -2493,7 +2575,7 @@ export async function registerCustomer(payload: { name: string; phone: string; e
   return loginStaff(payload.phone, payload.password);
 }
 
-export type CustomerProfileRecord = { id: string; name: string; phone: string; email?: string | null; role: StaffRole };
+export type CustomerProfileRecord = { id: string; name: string; phone: string; email?: string | null; role: StaffRole; branchId?: string | null; branchName?: string | null };
 
 export async function getMe(session: StaffSession): Promise<CustomerProfileRecord> {
   return apiRequest<CustomerProfileRecord>("/users/me", { token: session.accessToken });

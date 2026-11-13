@@ -12,6 +12,10 @@ import com.restaurantmanager.core.menu.dto.MenuModifierOptionResponse;
 import com.restaurantmanager.core.menu.dto.MenuItemRequest;
 import com.restaurantmanager.core.menu.dto.MenuItemResponse;
 import com.restaurantmanager.core.security.UserPrincipal;
+import com.restaurantmanager.core.branch.BranchEntity;
+import com.restaurantmanager.core.branch.BranchRepository;
+import com.restaurantmanager.core.inventory.MenuItemStockoutEntity;
+import com.restaurantmanager.core.inventory.MenuItemStockoutRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -28,10 +32,17 @@ public class MenuService {
     private final MenuModifierGroupRepository modifierGroupRepository;
     private final MenuModifierOptionRepository modifierOptionRepository;
 
+    private final MenuItemStockoutRepository stockoutRepository;
+    private final BranchRepository branchRepository;
+
     public MenuService(CategoryRepository categoryRepository,
                        MenuItemRepository menuItemRepository,
                        MenuModifierGroupRepository modifierGroupRepository,
-                       MenuModifierOptionRepository modifierOptionRepository) {
+                       MenuModifierOptionRepository modifierOptionRepository,
+                       MenuItemStockoutRepository stockoutRepository,
+                       BranchRepository branchRepository) {
+        this.stockoutRepository = stockoutRepository;
+        this.branchRepository = branchRepository;
         this.categoryRepository = categoryRepository;
         this.menuItemRepository = menuItemRepository;
         this.modifierGroupRepository = modifierGroupRepository;
@@ -85,14 +96,16 @@ public class MenuService {
                                             String query,
                                             UserPrincipal principal) {
         boolean publicRequest = principal == null;
+        Stockouts stockouts = stockouts();
         return menuItemRepository.findByActiveTrue().stream()
                 .filter(item -> categoryId == null || item.getCategory().getId().equals(categoryId))
                 .filter(item -> {
+                    boolean onMenu = stockouts.onMenu(item);
                     if (available != null) {
-                        return item.isAvailable() == available;
+                        return onMenu == available;
                     }
                     if (publicRequest) {
-                        return item.isAvailable();
+                        return onMenu;
                     }
                     return true;
                 })
@@ -104,7 +117,7 @@ public class MenuService {
                     }
                     return a.getName().compareToIgnoreCase(b.getName());
                 })
-                .map(this::toMenuItemResponse)
+                .map(item -> toMenuItemResponse(item, stockouts))
                 .toList();
     }
 
@@ -116,10 +129,11 @@ public class MenuService {
         if (!item.isActive()) {
             throw new ApiException(404, "Menu item not found");
         }
-        if (principal == null && !item.isAvailable()) {
+        Stockouts stockouts = stockouts();
+        if (principal == null && !stockouts.onMenu(item)) {
             throw new ApiException(404, "Menu item not found");
         }
-        return toMenuItemResponse(item);
+        return toMenuItemResponse(item, stockouts);
     }
 
     @Transactional(readOnly = true)
@@ -387,6 +401,10 @@ public class MenuService {
     }
 
     private MenuItemResponse toMenuItemResponse(MenuItemEntity item) {
+        return toMenuItemResponse(item, stockouts());
+    }
+
+    private MenuItemResponse toMenuItemResponse(MenuItemEntity item, Stockouts stockouts) {
         return new MenuItemResponse(
                 item.getId(),
                 item.getCategory().getId(),
@@ -395,8 +413,45 @@ public class MenuService {
                 item.getDescription(),
                 item.getPrice(),
                 item.getImageUrl(),
-                item.isAvailable(),
-                item.isActive());
+                stockouts.onMenu(item),
+                item.isActive(),
+                stockouts.soldOutAt(item.getId()));
+    }
+
+    /**
+     * Where dishes are sold out because an ingredient ran out. A dish stays on the menu while at least one location
+     * can make it (a branch that does not track an ingredient can always make it).
+     */
+    private record Stockouts(java.util.Map<UUID, List<UUID>> byItem, java.util.Set<UUID> activeBranches) {
+        boolean onMenu(MenuItemEntity item) {
+            if (!item.isAvailable()) {
+                return false;
+            }
+            List<UUID> soldOut = byItem.getOrDefault(item.getId(), List.of());
+            if (soldOut.isEmpty()) {
+                return true;
+            }
+            if (activeBranches.isEmpty()) {
+                return !soldOut.contains(null);
+            }
+            return !soldOut.containsAll(activeBranches);
+        }
+
+        List<UUID> soldOutAt(UUID menuItemId) {
+            return byItem.getOrDefault(menuItemId, List.of());
+        }
+    }
+
+    private Stockouts stockouts() {
+        java.util.Map<UUID, List<UUID>> byItem = new java.util.HashMap<>();
+        for (MenuItemStockoutEntity stockout : stockoutRepository.findAll()) {
+            byItem.computeIfAbsent(stockout.getMenuItemId(), k -> new java.util.ArrayList<>()).add(stockout.getBranchId());
+        }
+        java.util.Set<UUID> active = branchRepository.findAll().stream()
+                .filter(BranchEntity::isActive)
+                .map(BranchEntity::getId)
+                .collect(java.util.stream.Collectors.toSet());
+        return new Stockouts(byItem, active);
     }
 
     private String blankToNull(String value) {
