@@ -19,9 +19,11 @@ import java.util.List;
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
+    private final DisabledAccounts disabledAccounts;
 
-    public JwtAuthFilter(JwtService jwtService) {
+    public JwtAuthFilter(JwtService jwtService, DisabledAccounts disabledAccounts) {
         this.jwtService = jwtService;
+        this.disabledAccounts = disabledAccounts;
     }
 
     @Override
@@ -37,6 +39,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             String token = authHeader.substring(7);
             Claims claims = jwtService.parse(token);
             if (jwtService.tokenType(claims) != TokenType.ACCESS) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+            if (disabledAccounts.isDisabled(jwtService.userId(claims))) {
                 filterChain.doFilter(request, response);
                 return;
             }

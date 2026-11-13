@@ -46,6 +46,17 @@ export function EmployeeOverview({ employee, linkActions }: { employee: Employee
         ) : null}
       </section>
 
+      {employee.statutory ? (
+        <section className="grid gap-3">
+          <SectionHeader title="ID numbers" />
+          <dl className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <Detail label="SSNIT number" value={employee.statutory.ssnitNumber} />
+            <Detail label="Ghana Card" value={employee.statutory.nationalId} />
+            <Detail label="TIN" value={employee.statutory.tin} />
+          </dl>
+        </section>
+      ) : null}
+
       <section className="grid gap-3">
         <SectionHeader title="Login account" actions={linkActions} />
         {employee.linkedUser ? (
@@ -54,7 +65,7 @@ export function EmployeeOverview({ employee, linkActions }: { employee: Employee
             {employee.linkedUser.active ? "" : " · deactivated"}
           </p>
         ) : (
-          <p className="text-sm text-ink-soft">Not linked. This employee cannot use self-service until a login is linked.</p>
+          <p className="text-sm text-ink-soft">No login. This employee cannot sign in or use self-service until one is created or linked.</p>
         )}
       </section>
 

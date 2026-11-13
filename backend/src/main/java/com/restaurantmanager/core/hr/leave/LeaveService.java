@@ -545,6 +545,24 @@ public class LeaveService {
         return detail(request, access);
     }
 
+    /**
+     * Employment ended: cancels pending requests and approved leave starting after the last working day, giving the
+     * days back to the balance as any cancellation does. The employee is not notified (they have left).
+     */
+    @Transactional
+    public int cancelForExit(HrAccess access, EmployeeEntity employee, java.time.LocalDate lastWorkingDay, String reason) {
+        int cancelled = 0;
+        for (LeaveRequestEntity request : requestRepository.findByEmployeeIdOrderByStartDateDesc(employee.getId())) {
+            boolean pending = request.getStatus() == LeaveStatus.PENDING;
+            boolean approvedLater = request.getStatus() == LeaveStatus.APPROVED && request.getStartDate().isAfter(lastWorkingDay);
+            if (pending || approvedLater) {
+                cancel(access, request, employee, reason, false);
+                cancelled++;
+            }
+        }
+        return cancelled;
+    }
+
     private void cancel(HrAccess access, LeaveRequestEntity request, EmployeeEntity employee, String reason, boolean byManager) {
         if (!ACTIVE.contains(request.getStatus())) {
             throw new ApiException(409, "This request is already " + request.getStatus().name().toLowerCase());

@@ -257,4 +257,29 @@ public class EmployeeEntity {
     public void setMomoNumber(String momoNumber) { this.momoNumber = momoNumber; }
     public java.time.Instant getPayoutUpdatedAt() { return payoutUpdatedAt; }
     public void setPayoutUpdatedAt(java.time.Instant payoutUpdatedAt) { this.payoutUpdatedAt = payoutUpdatedAt; }
+
+    /** SSNIT number (social security). */
+    @Column(name = "ssnit_number", length = 20)
+    private String ssnitNumber;
+
+    /** Ghana Card number (national ID), e.g. GHA-123456789-0. */
+    @Column(name = "national_id", length = 20)
+    private String nationalId;
+
+    /** Taxpayer identification number (for individuals usually the Ghana Card number). */
+    @Column(name = "tin", length = 20)
+    private String tin;
+
+    /** HR switched the login off on a suspension or exit; it is switched back on when the employee returns. */
+    @Column(name = "login_disabled_by_hr", nullable = false)
+    private boolean loginDisabledByHr;
+
+    public String getSsnitNumber() { return ssnitNumber; }
+    public void setSsnitNumber(String ssnitNumber) { this.ssnitNumber = ssnitNumber; }
+    public String getNationalId() { return nationalId; }
+    public void setNationalId(String nationalId) { this.nationalId = nationalId; }
+    public String getTin() { return tin; }
+    public void setTin(String tin) { this.tin = tin; }
+    public boolean isLoginDisabledByHr() { return loginDisabledByHr; }
+    public void setLoginDisabledByHr(boolean loginDisabledByHr) { this.loginDisabledByHr = loginDisabledByHr; }
 }

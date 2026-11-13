@@ -12,6 +12,8 @@ import java.util.UUID;
 public interface ContractRepository extends JpaRepository<ContractEntity, UUID> {
     List<ContractEntity> findByEmployeeIdOrderByStartDateDescCreatedAtDesc(UUID employeeId);
 
+    List<ContractEntity> findByEmployeeIdInAndStatus(java.util.Collection<UUID> employeeIds, ContractStatus status);
+
     Optional<ContractEntity> findFirstByEmployeeIdAndStatus(UUID employeeId, ContractStatus status);
 
     boolean existsByPreviousContractIdAndStatusIn(UUID previousContractId, List<ContractStatus> statuses);
