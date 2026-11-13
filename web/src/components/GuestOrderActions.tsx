@@ -277,6 +277,7 @@ export function GuestRating({ tableToken, orderId, onRated }: { tableToken: stri
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -302,6 +303,7 @@ export function GuestRating({ tableToken, orderId, onRated }: { tableToken: stri
         rating,
         comment: comment.trim() || undefined,
         guestName: name.trim() || undefined,
+        guestPhone: phone.trim() || undefined,
       });
       setDone(true);
       onRated?.();
@@ -323,7 +325,7 @@ export function GuestRating({ tableToken, orderId, onRated }: { tableToken: stri
     }
   }
 
-  if (done) return <p className="mt-2 text-ink-soft">Thanks for rating this order!</p>;
+  if (done) return <p className="mt-2 text-ink-soft">Thanks for rating this order!{phone.trim() ? " We'll reply on WhatsApp." : ""}</p>;
 
   return (
     <form className="mt-2 grid gap-2 rounded-lg bg-sunken p-2" onSubmit={(e) => void submit(e)}>
@@ -352,6 +354,10 @@ export function GuestRating({ tableToken, orderId, onRated }: { tableToken: stri
       <label className="grid gap-1">
         <span>Your name (optional)</span>
         <input className="input" maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <label className="grid gap-1">
+        <span>Phone (optional): we&apos;ll WhatsApp you our reply</span>
+        <input className="input" type="tel" inputMode="tel" maxLength={20} placeholder="+233 24 000 0000" value={phone} onChange={(e) => setPhone(e.target.value)} />
       </label>
       {error ? <p className="alert alert-danger" role="alert">{error}</p> : null}
       <button type="submit" className="btn btn-primary btn-sm justify-self-start" disabled={busy}>Send rating</button>

@@ -2112,6 +2112,23 @@ export type FeedbackRecord = {
   response?: string | null;
   respondedAt?: string | null;
   createdAt: string;
+  branchId?: string | null;
+  branchName?: string | null;
+  riderUserId?: string | null;
+  riderName?: string | null;
+  staffUserId?: string | null;
+  staffName?: string | null;
+  /** A signed-in customer, or a guest who left a phone number: a reply reaches them by WhatsApp. */
+  canReceiveReply?: boolean;
+};
+
+export type FeedbackScoreRecord = { userId: string; name?: string | null; count: number; average?: string | null; averageOverall?: string | null };
+
+/** Averages per rider (delivery), staff member (service) and dish (food). */
+export type FeedbackBreakdownRecord = {
+  riders: FeedbackScoreRecord[];
+  staff: FeedbackScoreRecord[];
+  dishes: { menuItemId: string; name?: string | null; count: number; averageFood?: string | null; averageOverall?: string | null }[];
 };
 
 export type FeedbackSummaryRecord = {
@@ -2132,17 +2149,35 @@ export type FeedbackRequest = {
   deliveryRating?: number;
   comment?: string;
   guestName?: string;
+  /** Guests only: where to send the manager's reply. */
+  guestPhone?: string;
 };
 
+/** Branch managers get their branch; admins everything, or {@code branchId}. */
 export async function getFeedback(
   session: StaffSession,
-  params: { from?: string; to?: string; maxRating?: number } = {},
+  params: { from?: string; to?: string; maxRating?: number; branchId?: string } = {},
 ): Promise<FeedbackRecord[]> {
   return apiRequest<FeedbackRecord[]>(`/feedback${query(params)}`, { token: session.accessToken });
 }
 
-export async function getFeedbackSummary(session: StaffSession, params: { from?: string; to?: string } = {}): Promise<FeedbackSummaryRecord> {
+export async function getFeedbackSummary(
+  session: StaffSession,
+  params: { from?: string; to?: string; branchId?: string } = {},
+): Promise<FeedbackSummaryRecord> {
   return apiRequest<FeedbackSummaryRecord>(`/feedback/summary${query(params)}`, { token: session.accessToken });
+}
+
+export async function getFeedbackBreakdown(
+  session: StaffSession,
+  params: { from?: string; to?: string; branchId?: string } = {},
+): Promise<FeedbackBreakdownRecord> {
+  return apiRequest<FeedbackBreakdownRecord>(`/feedback/breakdown${query(params)}`, { token: session.accessToken });
+}
+
+/** A signed-in customer rates their own completed or delivered order. */
+export async function submitOrderFeedback(session: StaffSession, orderId: string, payload: FeedbackRequest): Promise<FeedbackRecord> {
+  return apiRequest<FeedbackRecord>(`/orders/${orderId}/feedback`, { method: "POST", token: session.accessToken, body: payload });
 }
 
 export async function respondToFeedback(session: StaffSession, id: string, response: string): Promise<FeedbackRecord> {
@@ -2163,6 +2198,9 @@ export type GuestRatingPromptRecord = {
   rated: boolean;
   servedAt?: string | null;
   rateUntil?: string | null;
+  /** The restaurant's reply to this guest's rating, once there is one. */
+  response?: string | null;
+  respondedAt?: string | null;
 };
 
 export async function getGuestRatingPrompt(tableToken: string, orderId: string): Promise<GuestRatingPromptRecord | null> {

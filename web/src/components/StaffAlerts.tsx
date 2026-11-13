@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useStaffSession } from "@/components/SessionProvider";
 import { watchAlert } from "@/features/tables/paymentWatch";
-import { getTablePaymentWatch, type StaffRole } from "@/lib/apiClient";
+import { getMe, getTablePaymentWatch, type StaffRole } from "@/lib/apiClient";
 import { playAlertSound } from "@/lib/alertSound";
 
 // Alerts already announced with a sound (kept across page changes). Table alerts present when the page first loads
@@ -15,8 +15,13 @@ let tableWatchPrimed = false;
 
 type Alert = { id: string; text: string; href: string; tone: "warning" | "danger" };
 
-type LowStockPayload = { ingredientId?: string; name?: string; unit?: string; stockQuantity?: number | string; event?: "ITEM_86" | "ITEM_BACK"; menuItemId?: string };
-type LowRatingPayload = { id: string; orderId: string; rating: number; customerName?: string | null; comment?: string | null };
+type LowStockPayload = {
+  ingredientId?: string; name?: string; unit?: string; stockQuantity?: number | string; event?: "ITEM_86" | "ITEM_BACK"; menuItemId?: string;
+  branchId?: string | null; branchName?: string | null;
+};
+type LowRatingPayload = {
+  id: string; orderId: string; rating: number; customerName?: string | null; comment?: string | null; branchId?: string | null; branchName?: string | null;
+};
 
 const MAX_ALERTS = 4;
 const TABLE_WATCH_MS = 60_000;
@@ -36,6 +41,18 @@ export function StaffAlerts({ role }: { role?: StaffRole }) {
   const dismissed = useRef(new Set<string>());
 
   const userId = session?.user.id;
+  // A manager who belongs to a branch only hears about their branch (alerts carry the branch they are about).
+  const myBranch = useRef<string | null>(null);
+  useEffect(() => {
+    if (!managerAlerts || !userId) return;
+    authenticatedFetch((s) => getMe(s))
+      .then((me) => {
+        myBranch.current = me.branchId ?? null;
+      })
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [managerAlerts, userId]);
+  const forOtherBranch = (branchId?: string | null) => !!branchId && !!myBranch.current && branchId !== myBranch.current;
 
   useEffect(() => {
     if (!enabled || !userId) return;
@@ -87,10 +104,12 @@ export function StaffAlerts({ role }: { role?: StaffRole }) {
         client.subscribe("/topic/inventory.alerts", (frame) => {
           try {
             const payload = JSON.parse(frame.body) as LowStockPayload;
+            if (forOtherBranch(payload.branchId)) return;
+            const at = payload.branchName && !myBranch.current ? ` at ${payload.branchName}` : "";
             if (payload.ingredientId) {
               push({
                 id: `stock-${payload.ingredientId}`,
-                text: `Low stock: ${payload.name} (${Number(payload.stockQuantity ?? 0)} ${payload.unit ?? ""} left)`,
+                text: `Low stock${at}: ${payload.name} (${Number(payload.stockQuantity ?? 0)} ${payload.unit ?? ""} left)`,
                 href: "/inventory",
                 tone: Number(payload.stockQuantity ?? 0) <= 0 ? "danger" : "warning",
               });
@@ -98,7 +117,7 @@ export function StaffAlerts({ role }: { role?: StaffRole }) {
               const back = payload.event === "ITEM_BACK";
               push({
                 id: `item-${payload.menuItemId}`,
-                text: back ? `${payload.name} is back on the menu (restocked)` : `${payload.name} is off the menu: out of an ingredient`,
+                text: back ? `${payload.name} is back${at} (restocked)` : `${payload.name} is sold out${at}: out of an ingredient`,
                 href: back ? "/menu" : "/inventory",
                 tone: back ? "warning" : "danger",
               });
@@ -110,6 +129,7 @@ export function StaffAlerts({ role }: { role?: StaffRole }) {
         client.subscribe("/topic/feedback.alerts", (frame) => {
           try {
             const payload = JSON.parse(frame.body) as LowRatingPayload;
+            if (forOtherBranch(payload.branchId)) return;
             push({
               id: `feedback-${payload.id}`,
               text: `${payload.rating}★ rating from ${payload.customerName || "a guest"}${payload.comment ? `: “${payload.comment.slice(0, 80)}”` : ""}`,

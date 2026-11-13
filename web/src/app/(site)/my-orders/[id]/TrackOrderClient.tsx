@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { useBrand } from "@/components/BrandProvider";
 import { useStaffSession } from "@/components/SessionProvider";
 import { Spinner } from "@/components/Spinner";
+import { OrderRating } from "@/components/site/OrderRating";
 import {
   getDeliveryTracking,
   getOrderById,
@@ -169,6 +170,8 @@ export function TrackOrderClient({ orderId }: { orderId: string }) {
       ) : (
         <p className="alert alert-danger">This order was cancelled{order.cancelReason ? `: ${order.cancelReason}` : "."}</p>
       )}
+
+      <OrderRating orderId={order.id} orderType={order.type} status={order.status} />
 
       {unpaid && !cancelled ? (
         <section className="rounded-card border border-warning-border bg-warning-subtle p-5">

@@ -33,8 +33,10 @@ export function GuestRatePrompt({ tableToken, shownOrderIds, refreshKey = 0 }: P
       candidates.map(async (o) => {
         try {
           const prompt = await getGuestRatingPrompt(tableToken, o.orderId);
-          if (!prompt || prompt.rated) forgetOrder(o.orderId); // expired, cancelled or already rated
-          return prompt && prompt.rateable && !prompt.rated ? prompt : null;
+          if (!prompt) forgetOrder(o.orderId); // expired or cancelled
+          // Rated: keep it (until the window closes) to show the restaurant's reply once there is one.
+          if (prompt && prompt.rated) return prompt.response ? prompt : null;
+          return prompt && prompt.rateable ? prompt : null;
         } catch {
           return null; // offline: try again next time
         }
@@ -56,7 +58,7 @@ export function GuestRatePrompt({ tableToken, shownOrderIds, refreshKey = 0 }: P
 
   return (
     <section className="rounded-2xl border border-line bg-surface p-4 shadow-sm" aria-labelledby="rate-meal">
-      <h2 id="rate-meal" className="font-display font-bold">How was your meal?</h2>
+      <h2 id="rate-meal" className="font-display font-bold">{prompts.every((p) => p.rated) ? "Thanks for your rating" : "How was your meal?"}</h2>
       <p className="mt-1 text-sm text-ink-soft">Tell us about your last order at this table. Only you can see this.</p>
       <ul className="mt-3 grid gap-4">
         {prompts.map((prompt) => (
@@ -67,7 +69,14 @@ export function GuestRatePrompt({ tableToken, shownOrderIds, refreshKey = 0 }: P
                 Not now
               </button>
             </div>
-            <GuestRating tableToken={tableToken} orderId={prompt.orderId} onRated={() => forgetOrder(prompt.orderId)} />
+            {prompt.rated && prompt.response ? (
+              <div className="mt-2 rounded-lg bg-sunken p-2 text-sm">
+                <p className="font-semibold">Reply from the restaurant</p>
+                <p className="mt-1 text-ink-soft">{prompt.response}</p>
+              </div>
+            ) : (
+              <GuestRating tableToken={tableToken} orderId={prompt.orderId} />
+            )}
           </li>
         ))}
       </ul>

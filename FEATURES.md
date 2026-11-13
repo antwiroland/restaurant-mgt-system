@@ -175,9 +175,13 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Web `/inventory` page (branch picker, restock with price and supplier, food cost), and a recipe editor on the menu page with option ingredients and recipe cost
 
 ### Customer Feedback
-- Customers rate a completed or delivered order once (overall, food, service or delivery, and a comment); dine-in guests rate from the web table QR page
-- Managers see averages, the rating spread and comments, and can reply. Ratings of 2 or lower raise a live alert
-- Web `/feedback` page; the order detail page shows the rating. Mobile: rate from the order screen and see the reply
+- Customers rate a completed or delivered order once (overall, food, service or delivery, and a comment): in the mobile app, on the website's order page, or (dine-in guests without an account) from the table QR page
+- Customers are asked: a push notification when a pickup/dine-in order is completed or a delivery is delivered opens the order to rate it
+- Rating windows: signed-in customers for 14 days after the order (`app.feedback.customer-window-days`), table guests for 2 hours
+- Each rating belongs to the order's branch: branch managers see, are alerted about and answer only their branch's (plus ratings of orders that have no branch, a shared queue); admins see all or filter by branch. Ratings of 2 or lower raise a live alert for that branch's managers
+- Ratings are attributed to the staff member who took the order (service) and the rider who delivered it (delivery); `GET /feedback/breakdown` and the Feedback page show averages per rider, per staff member and per dish (food)
+- Replies reach signed-in customers by WhatsApp and in the app; guests can leave a phone number for a WhatsApp reply and see the reply on the table page while their phone remembers the order
+- Web `/feedback` page (branch filter, breakdowns, replies); the order detail page shows the rating
 
 ### Biometric Attendance Devices
 - **Hikvision terminals** (face, fingerprint, card) read by a standalone **attendance gateway** on the restaurant network (`attendance-gateway/`, Java 21 + SQLite): live ISAPI alert stream plus periodic event search to recover anything missed, an offline queue that keeps every scan until the backend confirms it, encrypted device logins that never leave the restaurant, heartbeats, and a local simulator for testing

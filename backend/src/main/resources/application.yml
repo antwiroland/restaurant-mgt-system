@@ -75,6 +75,9 @@ app:
     expo-endpoint: ${EXPO_PUSH_ENDPOINT:https://exp.host/--/api/v2/push/send}
     # Optional: required only if "enhanced push security" is turned on for the Expo project.
     expo-access-token: ${EXPO_ACCESS_TOKEN:}
+  feedback:
+    # Signed-in customers can rate an order for this many days after it finished (table guests: 2 hours).
+    customer-window-days: ${FEEDBACK_CUSTOMER_WINDOW_DAYS:14}
   shifts:
     # Staff must have an open cash shift to take or refund cash, so every cash movement lands in a drawer count.
     require-open-shift-for-cash: ${SHIFTS_REQUIRE_OPEN_FOR_CASH:true}

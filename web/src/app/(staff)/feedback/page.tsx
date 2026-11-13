@@ -5,9 +5,13 @@ import { useCallback, useEffect, useState } from "react";
 import { Skeleton } from "@/components/Skeleton";
 import { useStaffSession } from "@/components/SessionProvider";
 import {
+  getBranches,
   getFeedback,
+  getFeedbackBreakdown,
   getFeedbackSummary,
   respondToFeedback,
+  type BranchRecord,
+  type FeedbackBreakdownRecord,
   type FeedbackRecord,
   type FeedbackSummaryRecord,
 } from "@/lib/apiClient";
@@ -33,6 +37,10 @@ export default function FeedbackPage() {
   const [lowOnly, setLowOnly] = useState(false);
   const [items, setItems] = useState<FeedbackRecord[]>([]);
   const [summary, setSummary] = useState<FeedbackSummaryRecord | null>(null);
+  const [breakdown, setBreakdown] = useState<FeedbackBreakdownRecord | null>(null);
+  const [branches, setBranches] = useState<BranchRecord[]>([]);
+  const [branchId, setBranchId] = useState("");
+  const isAdmin = session?.user.role === "ADMIN";
   const [replying, setReplying] = useState<string | null>(null);
   const [reply, setReply] = useState("");
   const [error, setError] = useState("");
@@ -44,18 +52,29 @@ export default function FeedbackPage() {
     if (!session) return;
     setError("");
     try {
-      const [list, stats] = await Promise.all([
-        authenticatedFetch((s) => getFeedback(s, { from, to, maxRating: lowOnly ? 2 : undefined })),
-        authenticatedFetch((s) => getFeedbackSummary(s, { from, to })),
+      // Branch managers always get their own branch; admins can pick one.
+      const scope = { from, to, branchId: branchId || undefined };
+      const [list, stats, scores] = await Promise.all([
+        authenticatedFetch((s) => getFeedback(s, { ...scope, maxRating: lowOnly ? 2 : undefined })),
+        authenticatedFetch((s) => getFeedbackSummary(s, scope)),
+        authenticatedFetch((s) => getFeedbackBreakdown(s, scope)).catch(() => null),
       ]);
       setItems(list);
       setSummary(stats);
+      setBreakdown(scores);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load feedback");
     } finally {
       setLoaded(true);
     }
-  }, [authenticatedFetch, from, lowOnly, session, to]);
+  }, [authenticatedFetch, from, lowOnly, session, to, branchId]);
+
+  useEffect(() => {
+    if (!session || !isAdmin) return;
+    authenticatedFetch((s) => getBranches(s))
+      .then((list) => setBranches(list.filter((b) => b.active)))
+      .catch(() => setBranches([]));
+  }, [authenticatedFetch, session, isAdmin]);
 
   useEffect(() => {
     void load();
@@ -101,7 +120,10 @@ export default function FeedbackPage() {
         <div>
           <p className="kicker">Customers</p>
           <h1 className="text-2xl font-semibold">Feedback and ratings</h1>
-          <p className="text-sm text-ink-soft">Customers rate an order once it is completed or delivered. Ratings of 2 stars or lower alert managers in real time.</p>
+          <p className="text-sm text-ink-soft">
+            Customers rate an order once it is completed or delivered, and are asked to by a notification. Ratings of 2 stars or lower
+            alert the branch&apos;s managers in real time. Replies reach the customer by WhatsApp.
+          </p>
         </div>
         <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void load(); }}>
           <label className="grid gap-1 text-sm">
@@ -112,6 +134,15 @@ export default function FeedbackPage() {
             <span>To</span>
             <input className="input" type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
           </label>
+          {isAdmin && branches.length > 0 ? (
+            <label className="grid gap-1 text-sm">
+              <span>Branch</span>
+              <select className="select" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                <option value="">All branches</option>
+                {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+              </select>
+            </label>
+          ) : null}
           <label className="flex min-h-[var(--touch-md)] items-center gap-2 text-sm">
             <input type="checkbox" className="h-5 w-5" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} />
             Low ratings only
@@ -152,6 +183,32 @@ export default function FeedbackPage() {
         </section>
       ) : null}
 
+      {breakdown && (breakdown.riders.length > 0 || breakdown.staff.length > 0 || breakdown.dishes.length > 0) ? (
+        <section className="grid gap-4 lg:grid-cols-3" aria-label="Ratings by rider, staff and dish">
+          {[
+            { title: "Riders (delivery)", rows: breakdown.riders.map((r) => ({ key: r.userId, name: r.name ?? "Rider", count: r.count, score: r.average })) },
+            { title: "Staff (service)", rows: breakdown.staff.map((r) => ({ key: r.userId, name: r.name ?? "Staff", count: r.count, score: r.average })) },
+            { title: "Dishes (food)", rows: breakdown.dishes.map((r) => ({ key: r.menuItemId, name: r.name ?? "Dish", count: r.count, score: r.averageFood })) },
+          ].map((block) => (
+            <div key={block.title} className="panel">
+              <h2 className="font-semibold">{block.title}</h2>
+              {block.rows.length === 0 ? (
+                <p className="mt-2 text-sm text-ink-soft">No ratings yet.</p>
+              ) : (
+                <ul className="mt-2 grid gap-1 text-sm">
+                  {block.rows.slice(0, 10).map((row) => (
+                    <li key={row.key} className="flex justify-between gap-2 border-b border-line py-1">
+                      <span>{row.name} <span className="text-ink-soft">({row.count})</span></span>
+                      <span className={`font-semibold ${row.score && Number(row.score) < 3 ? "text-danger-on" : ""}`}>{avg(row.score)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </section>
+      ) : null}
+
       <div aria-live="polite">
         {error ? <p className="alert alert-danger" role="alert">{error}</p> : null}
         {message ? <p className="alert alert-success">{message}</p> : null}
@@ -172,6 +229,7 @@ export default function FeedbackPage() {
                     <Stars value={item.rating} />{" "}
                     <span className="font-semibold">{item.customerName || "Guest"}</span>
                     <span className="text-ink-soft"> · {new Date(item.createdAt).toLocaleString()}</span>
+                    {item.branchName ? <span className="text-ink-soft"> · {item.branchName}</span> : null}
                   </p>
                   <Link href={`/orders/${item.orderId}`} className="text-sm underline">Order #{item.orderId.slice(0, 8).toUpperCase()}</Link>
                 </div>
@@ -182,6 +240,13 @@ export default function FeedbackPage() {
                     {item.deliveryRating ? `· Delivery ${item.deliveryRating}/5` : ""}
                   </p>
                 ) : null}
+                {item.staffName || item.riderName ? (
+                  <p className="text-xs text-ink-soft">
+                    {item.staffName ? `Taken by ${item.staffName}` : ""}
+                    {item.staffName && item.riderName ? " · " : ""}
+                    {item.riderName ? `Delivered by ${item.riderName}` : ""}
+                  </p>
+                ) : null}
                 {item.comment ? <p className="text-sm">“{item.comment}”</p> : <p className="text-sm text-ink-soft">No comment.</p>}
                 {item.response ? (
                   <p className="rounded-md bg-sunken p-2 text-sm">
@@ -189,6 +254,9 @@ export default function FeedbackPage() {
                   </p>
                 ) : replying === item.id ? (
                   <form className="grid gap-2" onSubmit={(e) => void sendReply(e, item)}>
+                    {item.canReceiveReply === false ? (
+                      <p className="text-xs text-warning-on">This guest left no phone number, so the reply is saved but not sent.</p>
+                    ) : null}
                     <label className="grid gap-1 text-sm">
                       <span>Reply</span>
                       <textarea className="input" rows={2} maxLength={2000} required value={reply} onChange={(e) => setReply(e.target.value)} />
