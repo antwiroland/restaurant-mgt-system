@@ -72,6 +72,8 @@ public class LeaveService {
     private final HrAccessService accessService;
     private final HrAuditService audit;
     private final LeaveNotifier notifier;
+    private final LeaveDayCounter dayCounter;
+    private final com.restaurantmanager.core.hr.schedule.ScheduleNotifier scheduleNotifier;
     private final ZoneId zone;
 
     public LeaveService(LeaveTypeRepository typeRepository, LeaveBalanceRepository balanceRepository, LeaveRequestRepository requestRepository,
@@ -79,7 +81,10 @@ public class LeaveService {
                         EmployeeRepository employeeRepository, EmployeeService employeeService, UserRepository userRepository,
                         WorkScheduleRepository scheduleRepository, OvertimeSettingsService overtimeSettings, HrDocumentService documentService,
                         HrAccessService accessService, HrAuditService audit, LeaveNotifier notifier,
+                        LeaveDayCounter dayCounter, com.restaurantmanager.core.hr.schedule.ScheduleNotifier scheduleNotifier,
                         @Value("${app.timezone:Africa/Accra}") String timeZone) {
+        this.dayCounter = dayCounter;
+        this.scheduleNotifier = scheduleNotifier;
         this.typeRepository = typeRepository;
         this.balanceRepository = balanceRepository;
         this.requestRepository = requestRepository;
@@ -171,6 +176,8 @@ public class LeaveService {
             throw new ApiException(409, "This adjustment would leave a negative " + type.getName().toLowerCase() + " balance");
         }
         transactionRepository.save(LeaveTransactionEntity.of(balance.getId(), LeaveTxKind.ADJUSTMENT, r.days(), null, r.note().trim(), access.userId()));
+        balanceRepository.saveAndFlush(balance);
+        refreshCarryOver(employee, type, r.year(), access.userId());
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("leaveType", type.getCode());
         meta.put("year", r.year());
@@ -251,7 +258,8 @@ public class LeaveService {
         }
         LeaveTypeEntity type = setup.loadType(r.leaveTypeId());
         checkDates(r.startDate(), r.endDate());
-        BigDecimal days = countDays(employee, type, r.startDate(), r.endDate(), r.startHalf(), r.endHalf());
+        LeaveDayCounter.Count count = dayCounter.count(employee, type, r.startDate(), r.endDate(), r.startHalf(), r.endHalf());
+        BigDecimal days = count.days();
         BigDecimal available = null;
         if (type.isDeductsBalance()) {
             LeaveBalanceEntity balance = balanceRepository.findByEmployeeIdAndLeaveTypeIdAndLeaveYear(employee.getId(), type.getId(), r.startDate().getYear())
@@ -269,7 +277,9 @@ public class LeaveService {
         if (!requestRepository.findOverlapping(employee.getId(), ACTIVE, r.startDate(), r.endDate()).isEmpty()) {
             problems.add("Overlaps another leave request");
         }
-        return new Quote(days, available, type.isDeductsBalance(), type.isRequiresDocument(), problems);
+        String capProblem = yearlyCapProblem(employee, type, r.startDate(), count);
+        if (capProblem != null) problems.add(capProblem);
+        return new Quote(days, available, type.isDeductsBalance(), type.isRequiresDocument(), problems, count.basis(), count.nextYearDays());
     }
 
     @Transactional
@@ -317,9 +327,14 @@ public class LeaveService {
         if (employee.getHireDate() != null && r.startDate().isBefore(employee.getHireDate())) {
             throw new ApiException(400, "Leave cannot start before the hire date");
         }
-        BigDecimal days = countDays(employee, type, r.startDate(), r.endDate(), r.startHalf(), r.endHalf());
+        LeaveDayCounter.Count count = dayCounter.count(employee, type, r.startDate(), r.endDate(), r.startHalf(), r.endHalf());
+        BigDecimal days = count.days();
         if (days.signum() == 0) {
             throw new ApiException(400, "The selected dates contain no working days");
+        }
+        String capProblem = yearlyCapProblem(employee, type, r.startDate(), count);
+        if (capProblem != null) {
+            throw new ApiException(409, capProblem);
         }
         if (type.getMaxDaysPerRequest() != null && days.compareTo(type.getMaxDaysPerRequest()) > 0) {
             throw new ApiException(400, "At most " + type.getMaxDaysPerRequest().stripTrailingZeros().toPlainString() + " days of "
@@ -350,6 +365,7 @@ public class LeaveService {
         request.setStartHalf(r.startHalf());
         request.setEndHalf(r.endHalf());
         request.setDays(days);
+        request.setNextYearDays(count.nextYearDays());
         request.setReason(blankToNull(r.reason()));
         request.setDocumentId(r.documentId());
         request.setApprovalSteps(LeaveTypeEntity.formatSteps(resolveSteps(type, employee)));
@@ -357,14 +373,20 @@ public class LeaveService {
         requestRepository.saveAndFlush(request);
 
         if (type.isDeductsBalance()) {
-            LeaveBalanceEntity balance = lockedBalance(employee, type, year, access.userId());
-            BigDecimal available = available(balance, r.startDate());
-            if (days.compareTo(available) > 0 && !type.isAllowNegative()) {
-                throw new ApiException(409, "Only " + available.stripTrailingZeros().toPlainString() + " days of "
-                        + type.getName().toLowerCase() + " are available");
+            for (Map.Entry<Integer, BigDecimal> part : request.daysByYear().entrySet()) {
+                int y = part.getKey();
+                BigDecimal partDays = part.getValue();
+                LeaveBalanceEntity balance = lockedBalance(employee, type, y, access.userId());
+                BigDecimal available = available(balance, y == year ? r.startDate() : LocalDate.of(y, 1, 1));
+                if (partDays.compareTo(available) > 0 && !type.isAllowNegative()) {
+                    throw new ApiException(409, "Only " + available.stripTrailingZeros().toPlainString() + " days of "
+                            + type.getName().toLowerCase() + " are available" + (y == year ? "" : " in " + y));
+                }
+                balance.setPendingDays(balance.getPendingDays().add(partDays));
+                transactionRepository.save(LeaveTransactionEntity.of(balance.getId(), LeaveTxKind.PENDING, partDays, request.getId(), null, access.userId()));
+                balanceRepository.saveAndFlush(balance);
+                refreshCarryOver(employee, type, y, access.userId());
             }
-            balance.setPendingDays(balance.getPendingDays().add(days));
-            transactionRepository.save(LeaveTransactionEntity.of(balance.getId(), LeaveTxKind.PENDING, days, request.getId(), null, access.userId()));
         }
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("requestId", request.getId().toString());
@@ -388,17 +410,15 @@ public class LeaveService {
     }
 
     private BigDecimal countDays(EmployeeEntity employee, LeaveTypeEntity type, LocalDate start, LocalDate end, boolean startHalf, boolean endHalf) {
-        Set<LocalDate> holidays = type.getCountBasis() == CountBasis.WORKDAYS
-                ? overtimeSettings.observedHolidays(employee.primaryBranchId(), start, end) : Set.of();
-        return LeaveCalculator.countDays(start, end, startHalf, endHalf, type.getCountBasis(), setup.nonWorkingDays(), holidays);
+        return dayCounter.count(employee, type, start, end, startHalf, endHalf).days();
     }
 
     private static void checkDates(LocalDate start, LocalDate end) {
         if (end.isBefore(start)) {
             throw new ApiException(400, "The end date is before the start date");
         }
-        if (start.getYear() != end.getYear()) {
-            throw new ApiException(400, "Leave that continues into a new year must be requested as two requests, one per year");
+        if (end.getYear() > start.getYear() + 1 || java.time.temporal.ChronoUnit.DAYS.between(start, end) > 366) {
+            throw new ApiException(400, "A leave request can cover at most a year");
         }
     }
 
@@ -457,13 +477,20 @@ public class LeaveService {
         request.setCurrentStep(request.steps().size());
         request.setDecidedAt(Instant.now());
         if (type.isDeductsBalance()) {
-            LeaveBalanceEntity balance = lockedBalance(employee, type, request.getStartDate().getYear(), actorId);
-            balance.setPendingDays(balance.getPendingDays().subtract(request.getDays()));
-            balance.setUsedDays(balance.getUsedDays().add(request.getDays()));
-            transactionRepository.save(LeaveTransactionEntity.of(balance.getId(), LeaveTxKind.RELEASE, request.getDays().negate(), request.getId(), "Approved", actorId));
-            transactionRepository.save(LeaveTransactionEntity.of(balance.getId(), LeaveTxKind.USE, request.getDays(), request.getId(), null, actorId));
+            for (Map.Entry<Integer, BigDecimal> part : request.daysByYear().entrySet()) {
+                LeaveBalanceEntity balance = lockedBalance(employee, type, part.getKey(), actorId);
+                balance.setPendingDays(balance.getPendingDays().subtract(part.getValue()));
+                balance.setUsedDays(balance.getUsedDays().add(part.getValue()));
+                transactionRepository.save(LeaveTransactionEntity.of(balance.getId(), LeaveTxKind.RELEASE, part.getValue().negate(), request.getId(), "Approved", actorId));
+                transactionRepository.save(LeaveTransactionEntity.of(balance.getId(), LeaveTxKind.USE, part.getValue(), request.getId(), null, actorId));
+                balanceRepository.saveAndFlush(balance);
+                refreshCarryOver(employee, type, part.getKey(), actorId);
+            }
         }
         notifier.decided(employee, true, describe(type, request));
+        releaseShifts(request, employee);
+        requestRepository.saveAndFlush(request);
+        syncLeaveStatus(employee, actorId);
     }
 
     private void saveApproval(LeaveRequestEntity request, int index, ApprovalStep step, UUID actorId, String decision, String note) {
@@ -594,6 +621,9 @@ public class LeaveService {
         request.setStatus(LeaveStatus.CANCELLED);
         request.setCancelReason(blankToNull(reason));
         requestRepository.saveAndFlush(request);
+        if (before == LeaveStatus.APPROVED) {
+            syncLeaveStatus(employee, access.userId());
+        }
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("requestId", request.getId().toString());
         meta.put("previousStatus", before.name());
@@ -610,13 +640,175 @@ public class LeaveService {
             return;
         }
         EmployeeEntity employee = employeeRepository.findById(request.getEmployeeId()).orElseThrow();
-        LeaveBalanceEntity balance = lockedBalance(employee, type, request.getStartDate().getYear(), actorId);
-        if (kind == LeaveTxKind.RELEASE) {
-            balance.setPendingDays(balance.getPendingDays().subtract(request.getDays()));
-        } else {
-            balance.setUsedDays(balance.getUsedDays().subtract(request.getDays()));
+        for (Map.Entry<Integer, BigDecimal> part : request.daysByYear().entrySet()) {
+            LeaveBalanceEntity balance = lockedBalance(employee, type, part.getKey(), actorId);
+            if (kind == LeaveTxKind.RELEASE) {
+                balance.setPendingDays(balance.getPendingDays().subtract(part.getValue()));
+            } else {
+                balance.setUsedDays(balance.getUsedDays().subtract(part.getValue()));
+            }
+            transactionRepository.save(LeaveTransactionEntity.of(balance.getId(), kind, part.getValue().negate(), request.getId(), note, actorId));
+            balanceRepository.saveAndFlush(balance);
+            refreshCarryOver(employee, type, part.getKey(), actorId);
         }
-        transactionRepository.save(LeaveTransactionEntity.of(balance.getId(), kind, request.getDays().negate(), request.getId(), note, actorId));
+    }
+
+    /**
+     * The carry-over into {@code year + 1} follows the {@code year} balance: when next year's balance is already open and
+     * this year's changes (late approvals, cancellations, adjustments), the carried days are corrected in the ledger.
+     */
+    private void refreshCarryOver(EmployeeEntity employee, LeaveTypeEntity type, int year, UUID actorId) {
+        Optional<LeaveBalanceEntity> next = balanceRepository.findByEmployeeIdAndLeaveTypeIdAndLeaveYear(employee.getId(), type.getId(), year + 1);
+        Optional<LeaveBalanceEntity> prev = balanceRepository.findByEmployeeIdAndLeaveTypeIdAndLeaveYear(employee.getId(), type.getId(), year);
+        if (next.isEmpty() || prev.isEmpty()) {
+            return;
+        }
+        Optional<LeavePolicyEntity> policy = setup.resolvePolicy(type.getId(), employee, year + 1);
+        if (policy.isEmpty()) {
+            return;
+        }
+        LeaveBalanceEntity balance = next.get();
+        BigDecimal carry = LeaveCalculator.carryOver(available(prev.get(), LocalDate.of(year, 12, 31)), policy.get().getCarryOverMaxDays());
+        BigDecimal diff = carry.subtract(balance.getCarriedOverDays());
+        if (diff.signum() == 0) {
+            return;
+        }
+        balance.setCarriedOverDays(carry);
+        balanceRepository.saveAndFlush(balance);
+        transactionRepository.save(LeaveTransactionEntity.of(balance.getId(), LeaveTxKind.CARRY_OVER, diff, null,
+                "Carry-over corrected: the " + year + " balance changed", actorId));
+    }
+
+    /** Most days of a type in a year (for types with a yearly limit), counting pending and approved requests. */
+    private String yearlyCapProblem(EmployeeEntity employee, LeaveTypeEntity type, LocalDate start, LeaveDayCounter.Count count) {
+        if (type.getMaxDaysPerYear() == null || employee.getId() == null) {
+            return null;
+        }
+        Map<Integer, BigDecimal> taken = new java.util.HashMap<>();
+        for (LeaveRequestEntity other : requestRepository.findByEmployeeIdOrderByStartDateDesc(employee.getId())) {
+            if (!other.getLeaveTypeId().equals(type.getId()) || !ACTIVE.contains(other.getStatus())) continue;
+            other.daysByYear().forEach((y, d) -> taken.merge(y, d, BigDecimal::add));
+        }
+        Map<Integer, BigDecimal> asked = new java.util.LinkedHashMap<>();
+        BigDecimal first = count.days().subtract(count.nextYearDays());
+        if (first.signum() > 0) asked.put(start.getYear(), first);
+        if (count.nextYearDays().signum() > 0) asked.put(start.getYear() + 1, count.nextYearDays());
+        for (Map.Entry<Integer, BigDecimal> a : asked.entrySet()) {
+            BigDecimal already = taken.getOrDefault(a.getKey(), BigDecimal.ZERO);
+            if (already.add(a.getValue()).compareTo(type.getMaxDaysPerYear()) > 0) {
+                BigDecimal left = type.getMaxDaysPerYear().subtract(already).max(BigDecimal.ZERO);
+                return type.getName() + " is limited to " + type.getMaxDaysPerYear().stripTrailingZeros().toPlainString() + " days a year; "
+                        + left.stripTrailingZeros().toPlainString() + " left in " + a.getKey();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Approved leave takes the person off the rota: their shifts on whole days of leave that have not started become
+     * open shifts, and the branch's managers are told the shifts need cover. Half days keep their shift.
+     */
+    private void releaseShifts(LeaveRequestEntity request, EmployeeEntity employee) {
+        Instant now = Instant.now();
+        Instant from = request.getStartDate().atStartOfDay(zone).toInstant();
+        Instant to = request.getEndDate().plusDays(1).atStartOfDay(zone).toInstant();
+        if (!to.isAfter(now)) {
+            return;
+        }
+        List<com.restaurantmanager.core.workforce.WorkScheduleEntity> shifts = scheduleRepository.findActiveForEmployee(from, to, employee.getId())
+                .stream()
+                .filter(sh -> sh.getStartsAt().isAfter(now) && !sh.getStartsAt().isBefore(from) && sh.getStartsAt().isBefore(to))
+                .filter(sh -> {
+                    LocalDate day = sh.getStartsAt().atZone(zone).toLocalDate();
+                    return !(request.isStartHalf() && day.equals(request.getStartDate())) && !(request.isEndHalf() && day.equals(request.getEndDate()));
+                })
+                .toList();
+        if (shifts.isEmpty()) {
+            return;
+        }
+        Set<UUID> branches = new java.util.HashSet<>();
+        for (com.restaurantmanager.core.workforce.WorkScheduleEntity sh : shifts) {
+            sh.setEmployeeId(null);
+            sh.setUserId(null);
+            String note = "Was " + employee.fullName() + " (on leave)";
+            sh.setNotes(sh.getNotes() == null ? note : sh.getNotes() + " · " + note);
+            branches.add(sh.getBranchId());
+        }
+        scheduleRepository.saveAll(shifts);
+        List<UUID> managers = userRepository.findByRoleAndActiveTrueOrderByNameAsc(com.restaurantmanager.core.common.Role.MANAGER).stream()
+                .filter(u -> u.getBranch() != null && branches.contains(u.getBranch().getId()))
+                .map(com.restaurantmanager.core.user.UserEntity::getId).toList();
+        scheduleNotifier.shiftsReleased(managers, employee.fullName(), shifts.size(), "is on leave");
+    }
+
+    /**
+     * Status follows approved leave: ACTIVE becomes ON_LEAVE while approved leave covers today, and returns to ACTIVE
+     * afterwards when it was leave that changed it (a status HR set by hand is left alone).
+     */
+    void syncLeaveStatus(EmployeeEntity employee, UUID actorId) {
+        LocalDate day = today();
+        boolean covered = !requestRepository.findOverlapping(employee.getId(), EnumSet.of(LeaveStatus.APPROVED), day, day).isEmpty();
+        com.restaurantmanager.core.hr.employee.EmploymentStatus status = employee.getEmploymentStatus();
+        com.restaurantmanager.core.hr.employee.EmploymentStatus to = null;
+        if (covered && status == com.restaurantmanager.core.hr.employee.EmploymentStatus.ACTIVE) {
+            to = com.restaurantmanager.core.hr.employee.EmploymentStatus.ON_LEAVE;
+            employee.setStatusFromLeave(true);
+        } else if (!covered && status == com.restaurantmanager.core.hr.employee.EmploymentStatus.ON_LEAVE && employee.isStatusFromLeave()) {
+            to = com.restaurantmanager.core.hr.employee.EmploymentStatus.ACTIVE;
+            employee.setStatusFromLeave(false);
+        }
+        if (to == null) {
+            return;
+        }
+        employee.setEmploymentStatus(to);
+        employeeRepository.saveAndFlush(employee);
+        Map<String, Object> meta = new LinkedHashMap<>();
+        meta.put("from", status.name());
+        meta.put("to", to.name());
+        meta.put("reason", covered ? "Approved leave started" : "Approved leave ended");
+        meta.put("automatic", true);
+        audit.log(actorId, AuditAction.HR_EMPLOYEE_STATUS_CHANGED, "Employee", employee.getId(), meta);
+    }
+
+    /** Daily: statuses follow the day's approved leave. */
+    @Transactional
+    public int syncLeaveStatuses() {
+        LocalDate day = today();
+        Set<UUID> ids = new java.util.HashSet<>();
+        requestRepository.findAllBranches(EnumSet.of(LeaveStatus.APPROVED), day.minusDays(1), day).forEach(r -> ids.add(r.getEmployeeId()));
+        employeeRepository.findAll().stream().filter(EmployeeEntity::isStatusFromLeave).forEach(e -> ids.add(e.getId()));
+        int changed = 0;
+        for (UUID id : ids) {
+            EmployeeEntity e = employeeRepository.findById(id).orElse(null);
+            if (e == null) continue;
+            com.restaurantmanager.core.hr.employee.EmploymentStatus before = e.getEmploymentStatus();
+            syncLeaveStatus(e, null);
+            if (before != e.getEmploymentStatus()) changed++;
+        }
+        return changed;
+    }
+
+    /**
+     * Daily: pending requests waiting two days or more, or starting within two days, remind the approvers of the current
+     * step; once the leave has started, HR is told as well.
+     */
+    @Transactional(readOnly = true)
+    public int remindPending() {
+        LocalDate day = today();
+        Instant twoDaysAgo = Instant.now().minus(java.time.Duration.ofDays(2));
+        int sent = 0;
+        for (LeaveRequestEntity r : requestRepository.findByStatusOrderByCreatedAtAsc(LeaveStatus.PENDING)) {
+            boolean old = r.getCreatedAt() != null && r.getCreatedAt().isBefore(twoDaysAgo);
+            boolean soon = !r.getStartDate().isAfter(day.plusDays(2));
+            if (!old && !soon) continue;
+            EmployeeEntity employee = employeeRepository.findDetailedById(r.getEmployeeId()).orElse(null);
+            ApprovalStep step = r.pendingStep();
+            if (employee == null || step == null) continue;
+            LeaveTypeEntity type = setup.loadType(r.getLeaveTypeId());
+            notifier.reminder(step, employee, r.getBranchId(), describe(type, r), !r.getStartDate().isAfter(day));
+            sent++;
+        }
+        return sent;
     }
 
     @Transactional
@@ -826,7 +1018,9 @@ public class LeaveService {
     public record QuoteRequest(UUID employeeId, @NotNull UUID leaveTypeId, @NotNull LocalDate startDate, @NotNull LocalDate endDate,
                                boolean startHalf, boolean endHalf) {}
 
-    public record Quote(BigDecimal days, BigDecimal availableDays, boolean deductsBalance, boolean requiresDocument, List<String> problems) {}
+    /** {@code countedFrom}: ROTA, USUAL_PATTERN, STANDARD_WEEK or CALENDAR. {@code nextYearDays}: days charged to next year's balance. */
+    public record Quote(BigDecimal days, BigDecimal availableDays, boolean deductsBalance, boolean requiresDocument, List<String> problems,
+                        String countedFrom, BigDecimal nextYearDays) {}
 
     public record RequestInput(@NotNull UUID leaveTypeId, @NotNull LocalDate startDate, @NotNull LocalDate endDate,
                                boolean startHalf, boolean endHalf, @Size(max = 500) String reason, UUID documentId) {}

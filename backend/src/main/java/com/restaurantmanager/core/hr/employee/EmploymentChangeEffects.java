@@ -121,7 +121,7 @@ public class EmploymentChangeEffects {
             List<UUID> managers = userRepository.findByRoleAndActiveTrueOrderByNameAsc(Role.MANAGER).stream()
                     .filter(u -> u.getBranch() != null && branches.contains(u.getBranch().getId()))
                     .map(UserEntity::getId).toList();
-            scheduleNotifier.shiftsReleased(managers, employee.fullName(), shifts.size());
+            scheduleNotifier.shiftsReleased(managers, employee.fullName(), shifts.size(), "has left");
         }
         return shifts.size();
     }

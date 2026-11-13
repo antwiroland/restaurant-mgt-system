@@ -654,6 +654,8 @@ export const APPROVAL_STEPS: ApprovalStep[] = ["REPORTING_MANAGER", "BRANCH_MANA
 export type LeaveType = {
   id: string; code: string; name: string; paid: boolean; deductsBalance: boolean; requiresDocument: boolean; allowNegative: boolean;
   countBasis: CountBasis; approvalSteps: ApprovalStep[]; maxDaysPerRequest?: number | null; active: boolean; displayOrder: number;
+  /** Most days one person may take in a calendar year (types without a balance). */
+  maxDaysPerYear?: number | null;
 };
 export type LeaveTypeInput = Omit<LeaveType, "id">;
 export type LeavePolicy = {
@@ -682,7 +684,13 @@ export type LeaveRequest = {
 export type LeaveRequestInput = {
   leaveTypeId: string; startDate: string; endDate: string; startHalf?: boolean; endHalf?: boolean; reason?: string;
 };
-export type LeaveQuote = { days: number; availableDays?: number | null; deductsBalance: boolean; requiresDocument: boolean; problems: string[] };
+export type LeaveQuote = {
+  days: number; availableDays?: number | null; deductsBalance: boolean; requiresDocument: boolean; problems: string[];
+  /** How working days were counted: from the rota, the usual pattern, the standard week, or calendar days. */
+  countedFrom?: "ROTA" | "USUAL_PATTERN" | "STANDARD_WEEK" | "CALENDAR";
+  /** Days charged to next year's balance (leave over New Year). */
+  nextYearDays?: number;
+};
 
 export const getLeaveTypes = (s: StaffSession) => apiRequest<LeaveType[]>("/hr/leave-types", auth(s));
 export const createLeaveType = (s: StaffSession, body: LeaveTypeInput) => apiRequest<LeaveType>("/hr/leave-types", { ...auth(s), method: "POST", body });

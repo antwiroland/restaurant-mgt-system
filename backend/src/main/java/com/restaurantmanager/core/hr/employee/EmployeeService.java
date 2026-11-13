@@ -449,6 +449,7 @@ public class EmployeeService {
                     request.effectiveDate() != null ? request.effectiveDate() : LocalDate.now(zone), "Re-hired", access.userId());
         }
         employee.setEmploymentStatus(to);
+        employee.setStatusFromLeave(false); // set by hand: leave no longer switches it back
         EmploymentChangeEffects.Effects effects = changeEffects.apply(access, employee, from, to,
                 employee.getExitDate() != null ? employee.getExitDate() : LocalDate.now(zone),
                 Boolean.TRUE.equals(request.keepLoginActive()), request.reason());

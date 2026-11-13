@@ -262,7 +262,8 @@ class HrLeaveIntegrationTest extends HrIntegrationTestSupport {
         postJson("/hr/schedules", acknowledged, manager).andExpect(status().isCreated());
 
         JsonNode approved = decide(id, manager, true, null);
-        assertThat(approved.get("conflictingShifts")).hasSize(1);
+        // approval takes the cook off the rota: the Monday shift is now an open shift
+        assertThat(approved.get("conflictingShifts")).isEmpty();
         postJson("/hr/schedules", shift(cook, monday.plusDays(1)), manager)
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.issues[0].code").value("ON_APPROVED_LEAVE"));
         // the weekend after is free
@@ -289,7 +290,9 @@ class HrLeaveIntegrationTest extends HrIntegrationTestSupport {
         postJson("/hr/me/leave-requests", weekend, cookUser)
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("The selected dates contain no working days"));
         Map<String, Object> acrossYears = leave(annual, LocalDate.of(year, 12, 30), LocalDate.of(year + 1, 1, 2));
-        postJson("/hr/me/leave-requests", acrossYears, cookUser).andExpect(status().isBadRequest());
+        // leave over New Year is one request; the days in the new year are charged to that year
+        JsonNode overNewYear = json(postJson("/hr/me/leave-requests", acrossYears, cookUser).andExpect(status().isCreated()));
+        assertThat(overNewYear.get("days").decimalValue()).isPositive();
     }
 
     @Test
