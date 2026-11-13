@@ -155,17 +155,22 @@ export default function OffersPage() {
 
   const load = useCallback(async () => {
     if (!session) return;
-    try {
-      const [nextOffers, nextItems, nextBranches] = await Promise.all([
-        authenticatedFetch((s) => getMenuOffers(s)),
-        authenticatedFetch((s) => getMenuItems(s)),
-        authenticatedFetch((s) => getBranches(s)).catch(() => [] as BranchRecord[]),
-      ]);
-      setOffers(nextOffers);
-      setMenuItems(nextItems);
-      setBranches(nextBranches.filter((branch) => branch.active));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load offers");
+    // Load each list on its own: a failure in one (say the offers list) must not leave the dish pickers empty.
+    const [nextOffers, nextItems, nextBranches] = await Promise.allSettled([
+      authenticatedFetch((s) => getMenuOffers(s)),
+      authenticatedFetch((s) => getMenuItems(s)),
+      authenticatedFetch((s) => getBranches(s)),
+    ]);
+    if (nextItems.status === "fulfilled") setMenuItems(nextItems.value);
+    if (nextBranches.status === "fulfilled") setBranches(nextBranches.value.filter((branch) => branch.active));
+    if (nextOffers.status === "fulfilled") setOffers(nextOffers.value);
+    const failed = [
+      nextOffers.status === "rejected" ? "offers" : null,
+      nextItems.status === "rejected" ? "menu dishes" : null,
+    ].filter(Boolean);
+    if (failed.length > 0) {
+      const reason = [nextOffers, nextItems].find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
+      setError(`Could not load ${failed.join(" and ")}${reason?.reason instanceof Error ? `: ${reason.reason.message}` : ""}`);
     }
   }, [authenticatedFetch, session]);
 
