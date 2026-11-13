@@ -35,8 +35,12 @@ public class ServiceRequestService {
     private final RestaurantTableRepository tableRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
+    private final com.restaurantmanager.core.table.TableSittingService tableSitting;
+
     public ServiceRequestService(ServiceRequestRepository repository, RestaurantTableRepository tableRepository,
-                                 SimpMessagingTemplate messagingTemplate) {
+                                 SimpMessagingTemplate messagingTemplate,
+                                 com.restaurantmanager.core.table.TableSittingService tableSitting) {
+        this.tableSitting = tableSitting;
         this.repository = repository;
         this.tableRepository = tableRepository;
         this.messagingTemplate = messagingTemplate;
@@ -65,7 +69,10 @@ public class ServiceRequestService {
     @Transactional(readOnly = true)
     public List<RequestView> listForTable(String tableToken) {
         RestaurantTableEntity table = requireTable(tableToken);
-        return repository.findByTable_IdAndCreatedAtAfterOrderByCreatedAtDesc(table.getId(), Instant.now().minus(GUEST_HISTORY))
+        // Only this sitting's requests: never the previous party's waiter calls or bill requests.
+        Instant from = tableSitting.guestHistoryFrom(table);
+        Instant window = Instant.now().minus(GUEST_HISTORY);
+        return repository.findByTable_IdAndCreatedAtAfterOrderByCreatedAtDesc(table.getId(), from.isAfter(window) ? from.minusMillis(1) : window)
                 .stream().map(ServiceRequestService::toView).toList();
     }
 

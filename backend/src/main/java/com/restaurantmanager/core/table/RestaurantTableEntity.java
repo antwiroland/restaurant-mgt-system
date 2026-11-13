@@ -47,6 +47,10 @@ public class RestaurantTableEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /** Guest QR views only show orders and requests from this moment on (the current sitting). */
+    @Column(name = "guest_history_from")
+    private Instant guestHistoryFrom;
+
     @PrePersist
     public void prePersist() {
         Instant now = Instant.now();
@@ -114,6 +118,14 @@ public class RestaurantTableEntity {
 
     public void setBranch(BranchEntity branch) {
         this.branch = branch;
+    }
+
+    public Instant getGuestHistoryFrom() {
+        return guestHistoryFrom;
+    }
+
+    public void setGuestHistoryFrom(Instant guestHistoryFrom) {
+        this.guestHistoryFrom = guestHistoryFrom;
     }
 
     public Instant getCreatedAt() {

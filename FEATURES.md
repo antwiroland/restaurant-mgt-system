@@ -61,6 +61,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
   - Alerts for cashiers and managers when a table was served and unpaid for 20 minutes, or asked for the bill 10 minutes ago (`tables.payment-watch.*`). Guests are never prompted
 - **Walkouts** (`POST /tables/{id}/walkout`, manager): writes off the unpaid orders, frees the table and records the amount, reason, who took the orders and the guests' phone; audited (`WALKOUT_RECORDED`) and reported (`/reports/walkouts`, CSV/PDF with losses by staff member)
 - Public table bill page (`/bill/[token]`) and public table tracking
+- **Guests only see their own sitting** (`restaurant_tables.guest_history_from`, `TableSittingService`): the QR running bill, order tracker and waiter calls show only the current party's orders. A sitting ends when everything is paid and served (or cancelled/written off), or when staff close, reverse, walk out or free the table; the next party then sees an empty bill. A guest who paid up front keeps tracking the order until it is served. Cash payments now free a settled table too (the check used to run before the cash payment was stored)
 
 ### Reservations
 - Create, list, change status and cancel, with conflict detection for overlapping bookings on the same table
@@ -265,6 +266,9 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
     - 3 delivery zones, promo codes and a buy-X-get-Y offer
     - About 90 orders with 30 days of history: kitchen tickets at every stage, deliveries assigned to riders, customer reviews
     - Reservations, a week of staff rota, an open cash shift and an open group-order session
+    - HR (`seed_hr.py`): employees, contracts, documents, schedules, attendance, leave, timesheets, tip pools, payroll with bank/MoMo/cash payout details (bank and MoMo payslips left unpaid so payment files can be downloaded) and recruitment
+    - Everything else (`seed_extras.py`): restaurant profile, printers, dish photos, East Legon history, saved addresses and favourites, loyalty spent at checkout, failed and retried MoMo payments, a closed shift with a cash shortfall, discount/void/full and part refunds, a signed-off reconciliation, split bills (staff, guest QR and group by-items), waiter calls and a bill request, a served-unpaid table, a walkout, guest feedback, review replies, stock delivery/waste/count with a dish taken off the menu, and a pickup awaiting payment
+  - `run-backend-local.sh` relaxes the auth and PIN rate limits for local seeding (`RATE_LIMIT_AUTH_REQUESTS`, `RATE_LIMIT_PIN_REQUESTS`)
   - `run-web-local.sh` builds the web app for a given backend port and serves it
   - Steps are in `documentation/DEPLOYMENT_READINESS.md` → "Local test environment"
 

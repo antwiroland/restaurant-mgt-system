@@ -74,6 +74,7 @@ public class WalkoutService {
     private final PaymentRepository paymentRepository;
     private final UserRepository userRepository;
     private final TableSessionService tableSessionService;
+    private final com.restaurantmanager.core.table.TableSittingService tableSitting;
     private final TableRealtimePublisher tableRealtimePublisher;
     private final OrderRealtimePublisher orderRealtimePublisher;
     private final CacheManager cacheManager;
@@ -83,7 +84,7 @@ public class WalkoutService {
 
     public WalkoutService(WalkoutRepository walkoutRepository, RestaurantTableRepository tableRepository,
                           OrderRepository orderRepository, PaymentRepository paymentRepository,
-                          UserRepository userRepository, TableSessionService tableSessionService,
+                          UserRepository userRepository, TableSessionService tableSessionService, com.restaurantmanager.core.table.TableSittingService tableSitting,
                           TableRealtimePublisher tableRealtimePublisher, OrderRealtimePublisher orderRealtimePublisher,
                           CacheManager cacheManager, AuditService auditService, ObjectMapper objectMapper,
                           @Value("${app.time-zone:Africa/Accra}") String timeZone) {
@@ -93,6 +94,7 @@ public class WalkoutService {
         this.paymentRepository = paymentRepository;
         this.userRepository = userRepository;
         this.tableSessionService = tableSessionService;
+        this.tableSitting = tableSitting;
         this.tableRealtimePublisher = tableRealtimePublisher;
         this.orderRealtimePublisher = orderRealtimePublisher;
         this.cacheManager = cacheManager;
@@ -175,6 +177,7 @@ public class WalkoutService {
 
         table.setStatus(TableStatus.AVAILABLE);
         tableRepository.save(table);
+        tableSitting.endSitting(table);
         tableSessionService.closeAll(table.getId());
         AfterCommit.run(this::evictTableCaches);
         tableRealtimePublisher.publishTableStatusChanged(table.getNumber(), TableStatus.AVAILABLE);

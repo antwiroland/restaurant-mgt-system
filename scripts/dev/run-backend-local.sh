@@ -28,6 +28,10 @@ mkdir -p "$BACKEND/target"
 export PORT="${PORT:-8080}"
 export MANAGEMENT_TRACING_ENABLED=false
 export MANAGEMENT_TRACING_SAMPLING_PROBABILITY=0
+# Local seeding signs in many accounts and asks for several manager PIN approvals from one IP;
+# relax the production rate limits here (override with the same variables if you want to test them).
+export RATE_LIMIT_AUTH_REQUESTS="${RATE_LIMIT_AUTH_REQUESTS:-300}"
+export RATE_LIMIT_PIN_REQUESTS="${RATE_LIMIT_PIN_REQUESTS:-100}"
 export PUBLIC_WEB_URL="${PUBLIC_WEB_URL:-http://localhost:3000}"
 export MEDIA_LOCAL_DIR="${MEDIA_LOCAL_DIR:-$BACKEND/target/dev-uploads}"
 export HR_DOCUMENTS_DIR="${HR_DOCUMENTS_DIR:-$BACKEND/target/dev-hr-documents}"

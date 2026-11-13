@@ -27,10 +27,14 @@ public class RestaurantTableService {
     private final BranchService branchService;
     private final TableRealtimePublisher realtimePublisher;
 
+    private final TableSittingService tableSitting;
+
     public RestaurantTableService(RestaurantTableRepository tableRepository,
                                   TableQrCodeService tableQrCodeService,
                                   BranchService branchService,
-                                  TableRealtimePublisher realtimePublisher) {
+                                  TableRealtimePublisher realtimePublisher,
+                                  TableSittingService tableSitting) {
+        this.tableSitting = tableSitting;
         this.tableRepository = tableRepository;
         this.tableQrCodeService = tableQrCodeService;
         this.branchService = branchService;
@@ -101,6 +105,10 @@ public class RestaurantTableService {
                 .orElseThrow(() -> new ApiException(404, "Table not found"));
         assertTableBranchAccess(table, principal);
         table.setStatus(request.status());
+        if (request.status() == TableStatus.AVAILABLE) {
+            // Staff freed the table for the next party: hide this party's orders and requests from the QR page.
+            table.setGuestHistoryFrom(java.time.Instant.now());
+        }
         TableResponse saved = toResponse(tableRepository.save(table));
         realtimePublisher.publishTableStatusChanged(table.getNumber(), request.status());
         return saved;

@@ -224,7 +224,8 @@ def seed_hr(api, admin_token: str, branches: dict, users_by_phone: dict, step=pr
     schedule_summary = seed_scheduling(api, A, branches, people, step)
     attendance_summary = seed_attendance(api, A, branches, people, linked, step)
     leave_summary = seed_leave(api, A, people, step)
-    pay_summary = seed_pay(api, A, branches, people, linked, users_by_phone, db_url, step)
+    payout_methods = seed_payouts(api, A, people, linked, step)
+    pay_summary = seed_pay(api, A, branches, people, linked, users_by_phone, db_url, step, payout_methods)
     recruitment_summary = seed_recruitment(api, A, branches, people, users_by_phone, pos, step)
     return {"imported": result["created"], "created": len(people), "skipped": result["skipped"], **schedule_summary, **attendance_summary,
             **leave_summary, **pay_summary, **recruitment_summary}
@@ -544,7 +545,46 @@ def backfill_attendance(db_url: str, branches: dict, people: dict, linked: dict,
     return len(statements)
 
 
-def seed_pay(api, A: str, branches: dict, people: dict, linked: dict, users_by_phone: dict, db_url: str | None, step=print) -> dict:
+# Payout details (fictional account numbers): name or login phone -> BANK (bank, branch, account) / MOBILE_MONEY (network) / CASH
+PAYOUTS = {
+    "+233200000001": ("BANK", "GCB Bank", "Osu"), "+233200000002": ("BANK", "Ecobank Ghana", "Ring Road Central"),
+    "+233200000003": ("MOBILE_MONEY", "MTN"), "+233200000004": ("MOBILE_MONEY", "Telecel"),
+    "+233200000005": ("MOBILE_MONEY", "MTN"), "+233200000006": ("MOBILE_MONEY", "AT"), "+233200000007": ("BANK", "Stanbic Bank", "Airport City"),
+    "Kwesi Arthur": ("BANK", "GCB Bank", "Osu"), "Akua Nyarko": ("BANK", "Fidelity Bank", "Ridge"), "Fiifi Mensah": ("MOBILE_MONEY", "MTN"),
+    "Maame Ofori": ("MOBILE_MONEY", "MTN"), "Selorm Agbeko": ("MOBILE_MONEY", "Telecel"), "Afia Boakye": ("CASH",),
+    "Kobby Ansah": ("BANK", "Absa Bank Ghana", "Osu"), "Gifty Amoah": ("CASH",), "Edem Kpodo": ("MOBILE_MONEY", "AT"),
+    "Adjoa Badu": ("BANK", "Ecobank Ghana", "East Legon"), "Kojo Asamoah": ("MOBILE_MONEY", "MTN"), "Dzifa Tetteh": ("MOBILE_MONEY", "MTN"),
+    # Nii Lartey has no payout details yet (shows as missing for East Legon)
+    "Ewurabena Quansah": ("MOBILE_MONEY", "Telecel"), "Yaw Frimpong": ("CASH",), "Akosua Danquah": ("BANK", "Stanbic Bank", "Airport City"),
+}
+
+
+def seed_payouts(api, A: str, people: dict, linked: dict, step=print) -> dict:
+    """Bank, Mobile Money or cash payout details per employee. Returns employee id -> payout method."""
+    step("HR: payout details (bank & Mobile Money)")
+    methods = {}
+    targets = {**{name: rec for name, rec in people.items()}, **{phone: rec for phone, rec in linked.items()}}
+    for index, (key, spec) in enumerate(PAYOUTS.items()):
+        record = targets.get(key)
+        if not record:
+            continue
+        employee_id = record["summary"]["id"]
+        name = record["summary"].get("fullName") or key
+        if spec[0] == "BANK":
+            body = {"method": "BANK", "bankName": spec[1], "bankBranch": spec[2], "bankAccountName": name,
+                    "bankAccountNumber": f"10{index:02d}4400{7310 + index * 37:05d}"}
+        elif spec[0] == "MOBILE_MONEY":
+            phone = record["summary"].get("phone") or f"+23324{index:07d}"
+            body = {"method": "MOBILE_MONEY", "momoNetwork": spec[1], "momoNumber": phone}
+        else:
+            body = {"method": "CASH"}
+        if _ok(api.call("PUT", f"/hr/employees/{employee_id}/payout", body, A, ok=False)):
+            methods[employee_id] = spec[0]
+    return methods
+
+
+def seed_pay(api, A: str, branches: dict, people: dict, linked: dict, users_by_phone: dict, db_url: str | None, step=print,
+             payout_methods: dict | None = None) -> dict:
     """Payroll and tip rules, timesheets, tip and service charge pools, and payroll runs in several states.
     Ama (admin) prepares; Yaw (Osu manager, granted payroll approval) approves, so every run and pool has two people."""
     today = date.today()
@@ -644,8 +684,12 @@ def seed_pay(api, A: str, branches: dict, people: dict, linked: dict, users_by_p
         status = "approved by Yaw"
         if _ok(api.call("POST", f"/hr/payroll-runs/{rid}/finalize", {}, A, ok=False)):
             status = "finalized"
-            if _ok(api.call("POST", f"/hr/payroll-runs/{rid}/pay", {"method": "MOBILE_MONEY", "reference": f"MOMO-BULK-{first:%Y%m}"}, A, ok=False)):
-                status = "paid by mobile money"
+            # Pay the cash payslips only; bank and Mobile Money stay unpaid so their bulk payment files can be downloaded
+            detail = api.call("GET", f"/hr/payroll-runs/{rid}", token=A)
+            cash = [p["id"] for p in detail.get("payslips", []) if (payout_methods or {}).get(p["employeeId"]) == "CASH"]
+            if cash and _ok(api.call("POST", f"/hr/payroll-runs/{rid}/pay", {"payslipIds": cash, "method": "CASH",
+                                                                            "reference": f"CASH-ENVELOPES-{first:%Y%m}"}, A, ok=False)):
+                status = f"finalized; {len(cash)} cash payslips paid, bank and MoMo payment files ready (Payroll run > Payment files)"
     elif res:
         status += f" (approval refused: {res.get('_detail', '')[:120]})"
     s = api.call("GET", f"/hr/payroll-runs/{rid}", token=A)

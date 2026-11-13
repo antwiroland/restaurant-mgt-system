@@ -5,6 +5,31 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { useStaffSession } from "@/components/SessionProvider";
 import { getServiceRequests, updateServiceRequest, type ServiceRequestRecord } from "@/lib/apiClient";
+import { playAlertSound } from "@/lib/alertSound";
+
+const REMIND_EVERY_MS = 2 * 60_000;
+// Requests already announced (kept across page changes, so moving between pages does not ding again).
+const announced = new Set<string>();
+let primed = false;
+let lastReminder = 0;
+
+/** Dings for each new guest request; reminds every 2 minutes while one is still waiting for someone to go over. */
+function announce(requests: ServiceRequestRecord[]) {
+  const open = requests.filter((r) => r.status === "OPEN");
+  const fresh = open.filter((r) => !announced.has(r.id));
+  open.forEach((r) => announced.add(r.id));
+  if (!primed) {
+    // Requests already waiting when the page opened: a reminder will follow, no ding on load.
+    primed = true;
+    lastReminder = Date.now();
+    return;
+  }
+  if (fresh.length > 0) {
+    if (playAlertSound("request")) lastReminder = Date.now();
+  } else if (open.length > 0 && Date.now() - lastReminder >= REMIND_EVERY_MS) {
+    if (playAlertSound("request")) lastReminder = Date.now();
+  }
+}
 
 const LABEL: Record<ServiceRequestRecord["type"], string> = {
   CALL_WAITER: "Wants a waiter",
@@ -28,7 +53,9 @@ export function ServiceRequestsBell({ dark = false }: { dark?: boolean }) {
 
   const load = useCallback(async () => {
     try {
-      setRequests(await authenticatedFetch((s) => getServiceRequests(s)));
+      const next = await authenticatedFetch((s) => getServiceRequests(s));
+      setRequests(next);
+      announce(next);
     } catch {
       /* bell stays quiet if the endpoint is unavailable */
     }

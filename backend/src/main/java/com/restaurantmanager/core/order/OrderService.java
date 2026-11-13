@@ -94,6 +94,7 @@ public class OrderService {
     private final WhatsAppService whatsAppService;
     private final OrderPricingService pricingService;
     private final TableSessionService tableSessionService;
+    private final com.restaurantmanager.core.table.TableSittingService tableSitting;
     private final DeliveryService deliveryService;
     private final com.restaurantmanager.core.inventory.InventoryService inventoryService;
     private final OrderBranchResolver branchResolver;
@@ -117,7 +118,7 @@ public class OrderService {
                         PaymentRepository paymentRepository,
                         WhatsAppService whatsAppService,
                         OrderPricingService pricingService,
-                        TableSessionService tableSessionService,
+                        TableSessionService tableSessionService, com.restaurantmanager.core.table.TableSittingService tableSitting,
                         DeliveryService deliveryService,
                         com.restaurantmanager.core.inventory.InventoryService inventoryService,
                         OrderBranchResolver branchResolver,
@@ -145,6 +146,7 @@ public class OrderService {
         this.whatsAppService = whatsAppService;
         this.pricingService = pricingService;
         this.tableSessionService = tableSessionService;
+        this.tableSitting = tableSitting;
         this.deliveryService = deliveryService;
         this.inventoryService = inventoryService;
     }
@@ -284,6 +286,7 @@ public class OrderService {
             order.setServedAt(Instant.now());
         }
         OrderEntity saved = orderRepository.save(order);
+        endSittingIfFinished(saved);
         realtimePublisher.publishOrderStatusChanged(saved.getId(), previous, saved.getStatus(), tableToken(saved));
         notifyReadyForPickup(saved, previous);
         pushNotifications.orderStatusChanged(saved, saved.getStatus());
@@ -316,6 +319,7 @@ public class OrderService {
         }
         inventoryService.restoreForOrder(order, previous);
         OrderEntity saved = orderRepository.save(order);
+        endSittingIfFinished(saved);
         realtimePublisher.publishOrderStatusChanged(saved.getId(), previous, saved.getStatus(), tableToken(saved));
         pushNotifications.orderStatusChanged(saved, OrderStatus.CANCELLED);
 
@@ -435,6 +439,7 @@ public class OrderService {
         }
         table.setStatus(TableStatus.AVAILABLE);
         tableRepository.save(table);
+        tableSitting.endSitting(table);
         tableSessionService.closeAll(tableId);
     }
 
@@ -467,6 +472,7 @@ public class OrderService {
 
         table.setStatus(TableStatus.AVAILABLE);
         tableRepository.save(table);
+        tableSitting.endSitting(table);
         tableSessionService.closeAll(tableId);
     }
 
@@ -482,7 +488,8 @@ public class OrderService {
     public TableBillResponse tableBillByTableToken(String tableToken) {
         RestaurantTableEntity table = tableRepository.findByQrToken(tableToken)
                 .orElseThrow(() -> new ApiException(404, "Table token not found"));
-        return toTableBillResponse(table, orderRepository.findByTable_QrTokenOrderByCreatedAtAsc(tableToken));
+        // Guests only see the current sitting: never what the previous party at this table ordered or paid.
+        return toTableBillResponse(table, tableSitting.visibleToGuests(table, orderRepository.findByTable_QrTokenOrderByCreatedAtAsc(tableToken)));
     }
 
     @Transactional(readOnly = true)
@@ -501,6 +508,15 @@ public class OrderService {
                 .toList();
     }
 
+    /** A dine-in order finished or was cancelled: if the table now has nothing open, the sitting is over. */
+    private void endSittingIfFinished(OrderEntity order) {
+        if (order.getType() == OrderType.DINE_IN && order.getTable() != null
+                && (order.getStatus() == OrderStatus.COMPLETED || order.getStatus() == OrderStatus.CANCELLED)) {
+            orderRepository.flush();
+            tableSitting.endSittingIfFinished(order.getTable().getId());
+        }
+    }
+
     /** The short number shown on the POS and receipts ("Order #1A2B3C4D"). */
     static String orderNumber(UUID orderId) {
         return orderId.toString().substring(0, 8).toUpperCase(java.util.Locale.ROOT);
@@ -510,9 +526,8 @@ public class OrderService {
     public List<PublicOrderTrackingResponse> publicTableTracking(String tableToken) {
         RestaurantTableEntity table = tableRepository.findByQrToken(tableToken)
                 .orElseThrow(() -> new ApiException(404, "Table token not found"));
-        List<OrderEntity> orders = orderRepository.findByTable_QrTokenOrderByCreatedAtAsc(table.getQrToken()).stream()
-                .filter(order -> order.getType() == OrderType.DINE_IN)
-                .toList();
+        List<OrderEntity> orders = tableSitting.visibleToGuests(table,
+                orderRepository.findByTable_QrTokenOrderByCreatedAtAsc(table.getQrToken()));
         Map<UUID, BigDecimal> paidByOrderId = paymentTotalsByOrderIds(orders.stream().map(OrderEntity::getId).toList());
         return orders.stream()
                 .map(order -> new PublicOrderTrackingResponse(
@@ -715,6 +730,7 @@ public class OrderService {
             order.setPickupCode(generatePickupCode());
         } else if (request.type() == OrderType.DINE_IN) {
             RestaurantTableEntity table = resolveTable(request.tableId(), request.tableToken(), principal);
+            tableSitting.startSittingIfIdle(table);
             boolean newlyOccupied = table.getStatus() != TableStatus.OCCUPIED;
             table.setStatus(TableStatus.OCCUPIED);
             tableRepository.save(table);
