@@ -97,4 +97,13 @@ public class PayslipEntity {
     public void setPaidAt(Instant v) { this.paidAt = v; }
     public UUID getPaidBy() { return paidBy; }
     public void setPaidBy(UUID v) { this.paidBy = v; }
+
+    /** The employee's SSNIT number and TIN (or Ghana Card) when the payslip was calculated, for the returns. */
+    @Column(name = "ssnit_number", length = 20) private String ssnitNumber;
+    @Column(name = "tin", length = 20) private String tin;
+
+    public String getSsnitNumber() { return ssnitNumber; }
+    public void setSsnitNumber(String ssnitNumber) { this.ssnitNumber = ssnitNumber; }
+    public String getTin() { return tin; }
+    public void setTin(String tin) { this.tin = tin; }
 }

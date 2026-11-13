@@ -216,6 +216,23 @@ public class LeaveService {
         return balanceRepository.lockById(balance.getId()).orElseThrow();
     }
 
+    /**
+     * Final pay: unused days on the last working day, per leave type paid out on exit (annual leave), never below zero.
+     * Read-only: balances that were never opened count as nothing owed.
+     */
+    @Transactional(readOnly = true)
+    public Map<LeaveTypeEntity, BigDecimal> payableOnExit(UUID employeeId, LocalDate lastWorkingDay) {
+        Map<LeaveTypeEntity, BigDecimal> owed = new LinkedHashMap<>();
+        for (LeaveTypeEntity type : typeRepository.findAll()) {
+            if (!type.isPayOutOnExit() || !type.isPaid()) continue;
+            balanceRepository.findByEmployeeIdAndLeaveTypeIdAndLeaveYear(employeeId, type.getId(), lastWorkingDay.getYear())
+                    .map(b -> available(b, lastWorkingDay))
+                    .filter(days -> days.signum() > 0)
+                    .ifPresent(days -> owed.put(type, days));
+        }
+        return owed;
+    }
+
     private static BigDecimal available(LeaveBalanceEntity b, LocalDate asOf) {
         BigDecimal earned = LeaveCalculator.earned(b.getEntitledDays(), b.getAccrual(), b.getAccrualStart(), b.getLeaveYear(), asOf);
         return LeaveCalculator.available(earned, b.getCarriedOverDays(), b.getAdjustmentDays(), b.getUsedDays(), b.getPendingDays());

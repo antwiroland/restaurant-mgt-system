@@ -88,4 +88,10 @@ public class PayrollRuleEntity {
     public void setNote(String v) { this.note = v; }
     public void setCreatedBy(UUID v) { this.createdBy = v; }
     public Instant getCreatedAt() { return createdAt; }
+
+    /** What this rule is filed as: SSNIT_EMPLOYEE, SSNIT_EMPLOYER, PAYE or TIER2 (null for anything else). */
+    @Column(name = "report_as", length = 20) private String reportAs;
+
+    public String getReportAs() { return reportAs; }
+    public void setReportAs(String reportAs) { this.reportAs = reportAs; }
 }

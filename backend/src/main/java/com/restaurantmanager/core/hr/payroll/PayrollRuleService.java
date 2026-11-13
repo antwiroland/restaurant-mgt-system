@@ -133,6 +133,7 @@ public class PayrollRuleService {
             rule.setMethod(previous.getMethod());
             rule.setBase(previous.getBase());
         }
+        rule.setReportAs(reportAs(r.reportAs(), rule.getKind()));
         rule.setCreatedBy(access.userId());
         repository.save(rule);
         Map<String, Object> meta = new LinkedHashMap<>();
@@ -143,6 +144,76 @@ public class PayrollRuleService {
         meta.put("active", rule.isActive());
         audit.log(access.userId(), AuditAction.HR_SETTINGS_CHANGED, "PayrollRule", rule.getId(), meta);
         return toView(rule);
+    }
+
+    /** SSNIT_EMPLOYEE, SSNIT_EMPLOYER, PAYE or TIER2; must fit the rule's kind. */
+    static final Set<String> REPORT_AS = Set.of("SSNIT_EMPLOYEE", "SSNIT_EMPLOYER", "PAYE", "TIER2");
+
+    private static String reportAs(String raw, PayrollRuleKind kind) {
+        String value = blank(raw);
+        if (value == null) {
+            return null;
+        }
+        value = value.toUpperCase(Locale.ROOT);
+        if (!REPORT_AS.contains(value)) {
+            throw new ApiException(400, "Report as must be SSNIT_EMPLOYEE, SSNIT_EMPLOYER, PAYE or TIER2");
+        }
+        boolean employerKind = kind == PayrollRuleKind.EMPLOYER_CONTRIBUTION;
+        if (value.equals("SSNIT_EMPLOYER") != employerKind && !value.equals("TIER2")) {
+            throw new ApiException(400, value.equals("SSNIT_EMPLOYER") ? "Only employer contributions are filed as SSNIT (employer)"
+                    : "Employer contributions cannot be filed as " + value);
+        }
+        return value;
+    }
+
+    /** Rule code to what it is filed as (the latest row per code decides). */
+    @Transactional(readOnly = true)
+    public Map<String, String> reportCodes() {
+        Map<String, String> codes = new java.util.HashMap<>();
+        for (PayrollRuleEntity r : repository.findAllByOrderByDisplayOrderAscCodeAscEffectiveFromDesc()) {
+            if (r.getReportAs() != null) {
+                codes.putIfAbsent(r.getCode(), r.getReportAs());
+            }
+        }
+        return codes;
+    }
+
+    /**
+     * Adds Ghana's statutory payroll rules organisation-wide: SSNIT 5.5% (employee, before tax), SSNIT 13% (employer) on
+     * basic pay, and monthly PAYE bands. Codes that already exist are left alone. The rates are a starting point that
+     * finance must check against the current SSNIT and GRA rates.
+     */
+    @Transactional
+    public List<RuleView> addGhanaPreset(UserPrincipal principal, LocalDate effectiveFrom) {
+        HrAccess access = accessService.require(principal, HrPermission.SETTINGS_MANAGE);
+        if (!access.allBranches()) {
+            throw new ApiException(403, "Only central HR can set organisation-wide payroll rules");
+        }
+        LocalDate from = effectiveFrom == null ? LocalDate.of(LocalDate.now().getYear(), 1, 1) : effectiveFrom;
+        Set<String> existing = repository.findAll().stream().map(PayrollRuleEntity::getCode).collect(Collectors.toSet());
+        List<RuleView> added = new ArrayList<>();
+        String note = "Ghana preset: check against current SSNIT and GRA rates";
+        if (!existing.contains("SSNIT_EE")) {
+            added.add(add(principal, new RuleRequest("SSNIT_EE", "SSNIT (employee 5.5%)", PayrollRuleKind.EMPLOYEE_DEDUCTION, PayrollRuleMethod.PERCENT,
+                    PayrollRuleBase.BASIC, new BigDecimal("5.5"), null, null, null, true, null, null, from, true, 1, note, "SSNIT_EMPLOYEE")));
+        }
+        if (!existing.contains("PAYE")) {
+            List<PayrollCalculator.Bracket> bands = List.of(
+                    new PayrollCalculator.Bracket(new BigDecimal("490"), BigDecimal.ZERO),
+                    new PayrollCalculator.Bracket(new BigDecimal("600"), new BigDecimal("5")),
+                    new PayrollCalculator.Bracket(new BigDecimal("730"), new BigDecimal("10")),
+                    new PayrollCalculator.Bracket(new BigDecimal("3896.67"), new BigDecimal("17.5")),
+                    new PayrollCalculator.Bracket(new BigDecimal("19896.67"), new BigDecimal("25")),
+                    new PayrollCalculator.Bracket(new BigDecimal("50416.67"), new BigDecimal("30")),
+                    new PayrollCalculator.Bracket(null, new BigDecimal("35")));
+            added.add(add(principal, new RuleRequest("PAYE", "Income tax (PAYE)", PayrollRuleKind.EMPLOYEE_DEDUCTION, PayrollRuleMethod.BRACKETS,
+                    PayrollRuleBase.TAXABLE, null, null, null, bands, false, null, null, from, true, 2, note, "PAYE")));
+        }
+        if (!existing.contains("SSNIT_ER")) {
+            added.add(add(principal, new RuleRequest("SSNIT_ER", "SSNIT (employer 13%)", PayrollRuleKind.EMPLOYER_CONTRIBUTION, PayrollRuleMethod.PERCENT,
+                    PayrollRuleBase.BASIC, new BigDecimal("13"), null, null, null, false, null, null, from, true, 10, note, "SSNIT_EMPLOYER")));
+        }
+        return added;
     }
 
     /**
@@ -194,7 +265,7 @@ public class PayrollRuleService {
                 : java.util.Arrays.stream(r.getEmploymentTypes().split(",")).map(EmploymentType::valueOf).toList();
         return new RuleView(r.getId(), r.getCode(), r.getName(), r.getKind(), r.getMethod(), r.getBase(), r.getRatePercent(), r.getFixedAmount(),
                 r.getCapAmount(), brackets(r.getBrackets()), r.isPreTax(), types, r.getBranchId(), r.getEffectiveFrom(), r.isActive(),
-                r.getDisplayOrder(), r.getNote(), r.getCreatedAt());
+                r.getDisplayOrder(), r.getNote(), r.getCreatedAt(), r.getReportAs());
     }
 
     private static String blank(String s) {
@@ -208,10 +279,12 @@ public class PayrollRuleService {
                               @Valid @Size(max = 20) List<PayrollCalculator.Bracket> brackets,
                               boolean preTax, List<EmploymentType> employmentTypes, UUID branchId,
                               @NotNull LocalDate effectiveFrom, Boolean active, @Min(0) @Max(999) Integer displayOrder,
-                              @Size(max = 300) String note) {}
+                              @Size(max = 300) String note,
+                              /** SSNIT_EMPLOYEE, SSNIT_EMPLOYER, PAYE or TIER2: how the rule is filed (returns, year to date). */
+                              String reportAs) {}
 
     public record RuleView(UUID id, String code, String name, PayrollRuleKind kind, PayrollRuleMethod method, PayrollRuleBase base,
                            BigDecimal ratePercent, BigDecimal fixedAmount, BigDecimal capAmount, List<PayrollCalculator.Bracket> brackets,
                            boolean preTax, List<EmploymentType> employmentTypes, UUID branchId, LocalDate effectiveFrom, boolean active,
-                           int displayOrder, String note, Instant createdAt) {}
+                           int displayOrder, String note, Instant createdAt, String reportAs) {}
 }

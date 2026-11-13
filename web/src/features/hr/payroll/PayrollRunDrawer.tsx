@@ -21,6 +21,7 @@ import {
 } from "@/lib/hrApi";
 import { PayslipDrawer } from "./PayslipDrawer";
 import { PaymentFilesPanel } from "./PaymentFilesPanel";
+import { RunReportsPanel } from "./RunReportsPanel";
 import { BLOCKING_ISSUES, issueLabel, money, runTone } from "./payrollUtils";
 
 type Action = "calculate" | "approve" | "reopen" | "finalize" | "pay" | "cancel";
@@ -195,6 +196,10 @@ export function PayrollRunDrawer({ id, onClose, onChanged }: { id: string; onClo
             )}
             {editable && process ? <AdjustmentForm runId={id} branchId={s.branchId} onSaved={(r) => { setRun(r); onChanged(); }} /> : null}
           </section>
+
+          {s.status !== "DRAFT" && s.status !== "CANCELLED" && run.payslips.length ? (
+            <RunReportsPanel runId={id} currency={s.currency} refreshKey={s.calculatedAt ?? ""} />
+          ) : null}
 
           {(s.status === "FINALIZED" || s.status === "PAID") && can("hr.payroll.pay") ? <PaymentFilesPanel runId={id} refreshKey={run.summary.paidCount ?? 0} /> : null}
 

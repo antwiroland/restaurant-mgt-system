@@ -64,6 +64,8 @@ export function PayslipDrawer({ id, onClose }: { id: string; onClose: () => void
             <Detail label="Pay type" value={s.salaryType ? `${humanize(s.salaryType)} · ${money(s.rate, slip.currency)}` : "—"} />
             <Detail label="Hours (locked timesheets)" value={formatMinutes(s.paidMinutes)} />
             <Detail label="Approved overtime" value={formatMinutes(s.overtimeMinutes)} />
+            <Detail label="SSNIT no." value={slip.ssnitNumber ?? "Not recorded"} />
+            <Detail label="TIN / Ghana Card" value={slip.tin ?? "Not recorded"} />
           </dl>
 
           <LineTable title="Earnings" lines={section("EARNING")} currency={slip.currency} total={s.gross} totalLabel="Gross pay" />
@@ -74,6 +76,18 @@ export function PayslipDrawer({ id, onClose }: { id: string; onClose: () => void
           </div>
           {section("EMPLOYER").length ? (
             <LineTable title="Paid by the employer (not deducted)" lines={section("EMPLOYER")} currency={slip.currency} total={s.employerContributions} totalLabel="Employer total" />
+          ) : null}
+          {slip.yearToDate ? (
+            <section className="grid gap-2">
+              <h3 className="text-sm font-semibold">Year to date ({slip.yearToDate.year})</h3>
+              <dl className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+                <Detail label="Gross" value={money(slip.yearToDate.gross, slip.currency)} />
+                <Detail label="Taxable" value={money(slip.yearToDate.taxable, slip.currency)} />
+                <Detail label="PAYE" value={money(slip.yearToDate.paye, slip.currency)} />
+                <Detail label="SSNIT (you)" value={money(slip.yearToDate.ssnitEmployee, slip.currency)} />
+                <Detail label="Net" value={money(slip.yearToDate.net, slip.currency)} />
+              </dl>
+            </section>
           ) : null}
           <p className="text-xs text-ink-muted">Taxable pay {money(s.taxable, slip.currency)}. {s.paidAt ? `Payment recorded ${formatDateTime(s.paidAt)}.` : ""}</p>
         </div>

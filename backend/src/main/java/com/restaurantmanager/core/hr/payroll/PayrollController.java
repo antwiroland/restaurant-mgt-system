@@ -24,9 +24,11 @@ import java.util.UUID;
 public class PayrollController {
     private final PayrollService payroll;
     private final PayrollRuleService rules;
+    private final PayrollExtrasService extras;
     private final PayrollDocumentService documents;
 
-    public PayrollController(PayrollService payroll, PayrollRuleService rules, PayrollDocumentService documents) {
+    public PayrollController(PayrollService payroll, PayrollRuleService rules, PayrollDocumentService documents, PayrollExtrasService extras) {
+        this.extras = extras;
         this.payroll = payroll;
         this.rules = rules;
         this.documents = documents;
@@ -41,6 +43,43 @@ public class PayrollController {
     @ResponseStatus(HttpStatus.CREATED)
     public PayrollRuleService.RuleView addRule(@Valid @RequestBody PayrollRuleService.RuleRequest request, @AuthenticationPrincipal UserPrincipal principal) {
         return rules.add(principal, request);
+    }
+
+    /** Adds SSNIT (5.5% / 13%) and PAYE bands as organisation-wide rules; codes already in use are skipped. */
+    @PostMapping("/payroll-rules/presets/ghana")
+    public List<PayrollRuleService.RuleView> ghanaPreset(@RequestBody(required = false) java.util.Map<String, String> body,
+                                                         @AuthenticationPrincipal UserPrincipal principal) {
+        String from = body == null ? null : body.get("effectiveFrom");
+        return rules.addGhanaPreset(principal, from == null || from.isBlank() ? null : java.time.LocalDate.parse(from));
+    }
+
+    @GetMapping("/payroll-runs/{id}/returns/{type}")
+    public org.springframework.http.ResponseEntity<byte[]> statutoryReturn(@PathVariable UUID id, @PathVariable String type,
+                                                                           @AuthenticationPrincipal UserPrincipal principal) {
+        return download(extras.statutoryReturn(principal, id, type));
+    }
+
+    @GetMapping("/payroll-runs/{id}/cost-allocation")
+    public PayrollExtrasService.CostAllocation costAllocation(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal) {
+        return extras.costAllocation(principal, id);
+    }
+
+    @GetMapping("/employees/{id}/recurring-deductions")
+    public List<PayrollExtrasService.RecurringView> recurring(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal) {
+        return extras.listRecurring(principal, id);
+    }
+
+    @PostMapping("/employees/{id}/recurring-deductions")
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.CREATED)
+    public PayrollExtrasService.RecurringView addRecurring(@PathVariable UUID id, @Valid @RequestBody PayrollExtrasService.RecurringRequest request,
+                                                           @AuthenticationPrincipal UserPrincipal principal) {
+        return extras.addRecurring(principal, id, request);
+    }
+
+    @PostMapping("/recurring-deductions/{id}/stop")
+    public PayrollExtrasService.RecurringView stopRecurring(@PathVariable UUID id, @Valid @RequestBody PayrollExtrasService.StopRequest request,
+                                                            @AuthenticationPrincipal UserPrincipal principal) {
+        return extras.stopRecurring(principal, id, request);
     }
 
     @GetMapping("/payroll-runs")

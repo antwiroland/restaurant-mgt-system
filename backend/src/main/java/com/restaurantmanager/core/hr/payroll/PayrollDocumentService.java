@@ -65,10 +65,17 @@ public class PayrollDocumentService {
                 .subtitle("Pay period " + DATE.format(slip.periodStart()) + " to " + DATE.format(slip.periodEnd())
                         + (slip.payDate() == null ? "" : "  |  Pay date " + DATE.format(slip.payDate())))
                 .subtitle("Payroll run " + slip.runNumber() + (slip.branchName() == null ? "" : "  |  " + slip.branchName()))
+                .subtitle("SSNIT no. " + (slip.ssnitNumber() == null ? "not recorded" : slip.ssnitNumber())
+                        + "  |  TIN " + (slip.tin() == null ? "not recorded" : slip.tin()))
                 .summary("Gross pay (" + currency + ")", money(s.gross()))
                 .summary("Deductions (" + currency + ")", money(s.employeeDeductions()))
                 .summary("Net pay (" + currency + ")", money(s.net()))
                 .summary("Employer contributions (" + currency + ")", money(s.employerContributions()));
+        PayrollService.YearToDate ytd = slip.yearToDate();
+        if (ytd != null) {
+            pdf.summary("Year to date " + ytd.year() + ": gross / PAYE / SSNIT / net (" + currency + ")",
+                    money(ytd.gross()) + " / " + money(ytd.paye()) + " / " + money(ytd.ssnitEmployee()) + " / " + money(ytd.net()));
+        }
         if (s.paidAt() != null) {
             pdf.summary("Paid", humanize(s.paymentMethod()) + (s.paymentReference() == null ? "" : " (" + s.paymentReference() + ")"));
         }

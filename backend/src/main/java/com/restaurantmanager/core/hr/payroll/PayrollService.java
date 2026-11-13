@@ -95,6 +95,9 @@ public class PayrollService {
     private final PushNotificationService push;
     private final ObjectMapper objectMapper;
     private final TipService tipService;
+    private final RecurringDeductionRepository recurringRepository;
+    private final RecurringInstallmentRepository installmentRepository;
+    private final com.restaurantmanager.core.hr.leave.LeaveService leaveService;
 
     public PayrollService(PayrollRunRepository runRepository, PayslipRepository payslipRepository, PayslipLineRepository lineRepository,
                           PayrollAdjustmentRepository adjustmentRepository, PayrollRuleService ruleService, EmployeeRepository employeeRepository,
@@ -102,7 +105,12 @@ public class PayrollService {
                           TimesheetLineRepository timesheetLineRepository, LeaveRequestRepository leaveRequestRepository,
                           LeaveTypeRepository leaveTypeRepository, LeaveSetupService leaveSetup, OvertimeSettingsService overtimeSettings,
                           HrSequenceService sequences, BranchRepository branchRepository, HrAccessService accessService, HrAuditService audit,
-                          PushNotificationService push, ObjectMapper objectMapper, TipService tipService) {
+                          PushNotificationService push, ObjectMapper objectMapper, TipService tipService,
+                          RecurringDeductionRepository recurringRepository, RecurringInstallmentRepository installmentRepository,
+                          @org.springframework.context.annotation.Lazy com.restaurantmanager.core.hr.leave.LeaveService leaveService) {
+        this.recurringRepository = recurringRepository;
+        this.installmentRepository = installmentRepository;
+        this.leaveService = leaveService;
         this.runRepository = runRepository;
         this.payslipRepository = payslipRepository;
         this.lineRepository = lineRepository;
@@ -190,6 +198,7 @@ public class PayrollService {
         }
         lineRepository.deleteByRunId(run.getId());
         payslipRepository.deleteByRunId(run.getId());
+        installmentRepository.deleteByRunId(run.getId());
         timesheetRepository.releaseRun(run.getId());
         timesheetRepository.flush();
         tipService.release(run.getId());
@@ -200,6 +209,7 @@ public class PayrollService {
                 .collect(Collectors.groupingBy(PayrollAdjustmentEntity::getEmployeeId));
         Map<UUID, LeaveTypeEntity> leaveTypes = leaveTypeRepository.findAll().stream().collect(Collectors.toMap(LeaveTypeEntity::getId, Function.identity()));
         Function<LocalDate, TimesheetCalculator.Rule> overtimeRules = overtimeSettings.ruleResolver(run.getBranchId());
+        Map<String, String> reportCodes = ruleService.reportCodes();
         List<Skipped> skipped = new ArrayList<>();
         BigDecimal gross = BigDecimal.ZERO, deductions = BigDecimal.ZERO, net = BigDecimal.ZERO, employer = BigDecimal.ZERO;
         int count = 0;
@@ -275,9 +285,45 @@ public class PayrollService {
                     oneOffDeductions.add(new PayrollCalculator.Line(PayslipLineKind.DEDUCTION, "ADJUSTMENT", a.getDescription(), null, null, a.getAmount(), false));
                 }
             }
-            PayrollCalculator.Result result = PayrollCalculator.apply(earningLines, earnings.basic(),
-                    ruleService.resolve(run.getBranchId(), e.getEmploymentType(), end), oneOffDeductions);
+            // Final pay: unused annual leave is paid out to someone whose last working day falls in this period.
+            boolean leaving = e.getExitDate() != null && !e.getExitDate().isBefore(start) && !e.getExitDate().isAfter(end);
+            if (leaving) {
+                issues.add("FINAL_PAY");
+                BigDecimal weekly = contract.getWeeklyHours() == null || contract.getWeeklyHours().signum() <= 0
+                        ? PayrollCalculator.DEFAULT_WEEKLY_HOURS : contract.getWeeklyHours();
+                BigDecimal dailyRate = earnings.hourlyRate().multiply(weekly)
+                        .divide(BigDecimal.valueOf(PayrollCalculator.WORKDAYS_PER_WEEK), 4, java.math.RoundingMode.HALF_UP);
+                if (dailyRate.signum() > 0) {
+                    leaveService.payableOnExit(e.getId(), e.getExitDate()).forEach((type, days) ->
+                            earningLines.add(new PayrollCalculator.Line(PayslipLineKind.EARNING, "LEAVE_PAYOUT",
+                                    "Unused " + type.getName().toLowerCase(java.util.Locale.ROOT) + " paid out", days, dailyRate,
+                                    dailyRate.multiply(days).setScale(2, java.math.RoundingMode.HALF_UP), true)));
+                }
+            }
+            // Loans, advances and other recurring deductions: the instalment, or the whole balance in the final pay.
+            List<RecurringInstallmentEntity> installments = new ArrayList<>();
+            for (RecurringDeductionEntity d : recurringRepository.findByEmployeeIdAndActiveTrueOrderByCreatedAtAsc(e.getId())) {
+                if (d.getStartDate().isAfter(end)) continue;
+                BigDecimal remaining = d.getTotalAmount() == null ? null
+                        : d.getTotalAmount().subtract(installmentRepository.repaidExcept(d.getId(), run.getId()));
+                if (remaining != null && remaining.signum() <= 0) continue;
+                BigDecimal amount = leaving && remaining != null ? remaining : d.getInstallmentAmount();
+                if (remaining != null) amount = amount.min(remaining);
+                String label = d.getDescription() + (remaining == null ? ""
+                        : " (balance after: " + remaining.subtract(amount).setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + ")");
+                oneOffDeductions.add(new PayrollCalculator.Line(PayslipLineKind.DEDUCTION, "RECURRING", label, null, null, amount, false));
+                installments.add(RecurringInstallmentEntity.of(d.getId(), run.getId(), null, amount));
+            }
+            List<PayrollCalculator.RuleSpec> rules = ruleService.resolve(run.getBranchId(), e.getEmploymentType(), end);
+            if (rules.stream().noneMatch(spec -> "PAYE".equals(reportCodes.get(spec.code())))) issues.add("NO_PAYE_RULE");
+            if (rules.stream().noneMatch(spec -> "SSNIT_EMPLOYEE".equals(reportCodes.get(spec.code())))) issues.add("NO_SSNIT_RULE");
+            PayrollCalculator.Result result = PayrollCalculator.apply(earningLines, earnings.basic(), rules, oneOffDeductions);
             if (result.net().signum() < 0) issues.add("NEGATIVE_NET");
+            boolean ssnitTaken = result.lines().stream().anyMatch(l -> l.amount().signum() > 0
+                    && String.valueOf(reportCodes.get(l.code())).startsWith("SSNIT"));
+            boolean payeTaken = result.lines().stream().anyMatch(l -> l.amount().signum() > 0 && "PAYE".equals(reportCodes.get(l.code())));
+            if (ssnitTaken && e.getSsnitNumber() == null) issues.add("NO_SSNIT_NUMBER");
+            if (payeTaken && e.getTin() == null && e.getNationalId() == null) issues.add("NO_TIN");
 
             PayslipEntity slip = new PayslipEntity();
             slip.setRunId(run.getId());
@@ -297,7 +343,11 @@ public class PayrollService {
             slip.setNet(result.net());
             slip.setEmployerContributions(result.employerContributions());
             slip.setIssues(issues.isEmpty() ? null : String.join(",", issues));
+            slip.setSsnitNumber(e.getSsnitNumber());
+            slip.setTin(e.getTin() != null ? e.getTin() : e.getNationalId());
             payslipRepository.save(slip);
+            installmentRepository.saveAll(installments.stream()
+                    .map(i -> RecurringInstallmentEntity.of(i.getDeductionId(), run.getId(), slip.getId(), i.getAmount())).toList());
             List<PayslipLineEntity> lines = new ArrayList<>();
             for (int i = 0; i < result.lines().size(); i++) {
                 lines.add(PayslipLineEntity.of(slip.getId(), result.lines().get(i), i));
@@ -517,6 +567,7 @@ public class PayrollService {
         }
         timesheetRepository.releaseRun(run.getId());
         tipService.release(run.getId());
+        installmentRepository.deleteByRunId(run.getId());
         run.setStatus(PayrollRunStatus.CANCELLED);
         run.setCancelReason(r.reason().trim());
         log(access, run, "cancelled", Map.of("reason", r.reason().trim()));
@@ -624,7 +675,35 @@ public class PayrollService {
         List<LineView> lines = lineRepository.findByPayslipIdOrderBySortOrderAsc(p.getId()).stream()
                 .map(l -> new LineView(l.getKind(), l.getCode(), l.getDescription(), l.getQuantity(), l.getRate(), l.getAmount())).toList();
         return new PayslipDetail(payslipSummary(p, e), run.getRunNumber(), run.getStatus(), run.getPeriodStart(), run.getPeriodEnd(), run.getPayDate(),
-                run.getCurrency(), branchNames().get(run.getBranchId()), p.getHourlyRate(), lines);
+                run.getCurrency(), branchNames().get(run.getBranchId()), p.getHourlyRate(), lines,
+                p.getSsnitNumber(), p.getTin(), yearToDate(p, run));
+    }
+
+    /**
+     * Year to date: this payslip plus the employee's finalized or paid payslips ending earlier in the same calendar year.
+     * PAYE and SSNIT come from the rules filed as such.
+     */
+    private YearToDate yearToDate(PayslipEntity p, PayrollRunEntity run) {
+        int year = run.getPeriodEnd().getYear();
+        List<PayslipEntity> mine = payslipRepository.findByEmployeeId(p.getEmployeeId());
+        Map<UUID, PayrollRunEntity> runs = runRepository.findByIdInAndStatusIn(mine.stream().map(PayslipEntity::getRunId).toList(),
+                EnumSet.of(PayrollRunStatus.FINALIZED, PayrollRunStatus.PAID)).stream().collect(Collectors.toMap(PayrollRunEntity::getId, Function.identity()));
+        runs.put(run.getId(), run);
+        Map<String, String> codes = ruleService.reportCodes();
+        BigDecimal gross = BigDecimal.ZERO, taxable = BigDecimal.ZERO, net = BigDecimal.ZERO, paye = BigDecimal.ZERO, ssnit = BigDecimal.ZERO;
+        for (PayslipEntity slip : mine) {
+            PayrollRunEntity r = runs.get(slip.getRunId());
+            if (r == null || r.getPeriodEnd().getYear() != year || r.getPeriodEnd().isAfter(run.getPeriodEnd())) continue;
+            gross = gross.add(slip.getGross());
+            taxable = taxable.add(slip.getTaxable());
+            net = net.add(slip.getNet());
+            for (PayslipLineEntity l : lineRepository.findByPayslipIdOrderBySortOrderAsc(slip.getId())) {
+                String as = codes.get(l.getCode());
+                if ("PAYE".equals(as)) paye = paye.add(l.getAmount());
+                if ("SSNIT_EMPLOYEE".equals(as)) ssnit = ssnit.add(l.getAmount());
+            }
+        }
+        return new YearToDate(year, gross, taxable, paye, ssnit, net);
     }
 
     static List<String> issues(PayslipEntity p) {
@@ -710,7 +789,10 @@ public class PayrollService {
     public record LineView(PayslipLineKind kind, String code, String description, BigDecimal quantity, BigDecimal rate, BigDecimal amount) {}
 
     public record PayslipDetail(PayslipSummary summary, String runNumber, PayrollRunStatus runStatus, LocalDate periodStart, LocalDate periodEnd,
-                                LocalDate payDate, String currency, String branchName, BigDecimal hourlyRate, List<LineView> lines) {}
+                                LocalDate payDate, String currency, String branchName, BigDecimal hourlyRate, List<LineView> lines,
+                                String ssnitNumber, String tin, YearToDate yearToDate) {}
+
+    public record YearToDate(int year, BigDecimal gross, BigDecimal taxable, BigDecimal paye, BigDecimal ssnitEmployee, BigDecimal net) {}
 
     public record MyPayslip(UUID id, String runNumber, LocalDate periodStart, LocalDate periodEnd, LocalDate payDate, String currency,
                             BigDecimal gross, BigDecimal deductions, BigDecimal net, Instant paidAt) {}

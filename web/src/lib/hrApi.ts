@@ -757,11 +757,21 @@ export type PayrollRule = {
   ratePercent?: number | null; fixedAmount?: number | null; capAmount?: number | null; brackets: PayrollBracket[]; preTax: boolean;
   employmentTypes: EmploymentType[]; branchId?: string | null; effectiveFrom: string; active: boolean; displayOrder: number;
   note?: string | null; createdAt: string;
+  /** How the rule is filed (returns and year to date). */
+  reportAs?: PayrollReportAs | null;
+};
+export type PayrollReportAs = "SSNIT_EMPLOYEE" | "SSNIT_EMPLOYER" | "PAYE" | "TIER2";
+export const REPORT_AS_LABELS: Record<PayrollReportAs, string> = {
+  SSNIT_EMPLOYEE: "SSNIT (employee)",
+  SSNIT_EMPLOYER: "SSNIT (employer)",
+  PAYE: "PAYE income tax",
+  TIER2: "Tier 2 pension",
 };
 export type PayrollRuleInput = {
   code: string; name?: string; kind?: PayrollRuleKind; method?: PayrollRuleMethod; base?: PayrollRuleBase; ratePercent?: number | null;
   fixedAmount?: number | null; capAmount?: number | null; brackets?: PayrollBracket[]; preTax?: boolean; employmentTypes?: EmploymentType[];
   branchId?: string | null; effectiveFrom: string; active?: boolean; displayOrder?: number; note?: string;
+  reportAs?: PayrollReportAs | null;
 };
 export type PayrollRunSummary = {
   id: string; runNumber: string; branchId: string; branchName?: string | null; periodStart: string; periodEnd: string; payDate?: string | null;
@@ -786,6 +796,8 @@ export type PayslipLine = { kind: "EARNING" | "DEDUCTION" | "EMPLOYER"; code: st
 export type PayslipDetail = {
   summary: PayslipSummary; runNumber: string; runStatus: PayrollRunStatus; periodStart: string; periodEnd: string; payDate?: string | null;
   currency: string; branchName?: string | null; hourlyRate?: number | null; lines: PayslipLine[];
+  ssnitNumber?: string | null; tin?: string | null;
+  yearToDate?: { year: number; gross: number; taxable: number; paye: number; ssnitEmployee: number; net: number } | null;
 };
 export type MyPayslip = {
   id: string; runNumber: string; periodStart: string; periodEnd: string; payDate?: string | null; currency: string;
@@ -795,6 +807,32 @@ export type MyPayslip = {
 export const getPayrollRules = (s: StaffSession) => apiRequest<PayrollRule[]>("/hr/payroll-rules", auth(s));
 export const addPayrollRule = (s: StaffSession, body: PayrollRuleInput) =>
   apiRequest<PayrollRule>("/hr/payroll-rules", { ...auth(s), method: "POST", body });
+/** Adds SSNIT 5.5% / 13% and PAYE bands organisation-wide (codes already in use are skipped). */
+export const addGhanaPayrollPreset = (s: StaffSession, effectiveFrom?: string) =>
+  apiRequest<PayrollRule[]>("/hr/payroll-rules/presets/ghana", { ...auth(s), method: "POST", body: { effectiveFrom } });
+export const downloadStatutoryReturn = (s: StaffSession, runId: string, type: "ssnit" | "paye"): Promise<DownloadedFile> =>
+  downloadFile(s, `/hr/payroll-runs/${runId}/returns/${type}`, `${type}-return.csv`);
+
+export type BranchCost = { branchId: string; branchName?: string | null; people: number; gross: number; employer: number; total: number };
+export type CostAllocation = { runId: string; branches: BranchCost[]; splitEmployees: { employeeId: string; employeeName: string; shareByBranch: Record<string, number> }[] };
+export const getCostAllocation = (s: StaffSession, runId: string) =>
+  apiRequest<CostAllocation>(`/hr/payroll-runs/${runId}/cost-allocation`, auth(s));
+
+export type RecurringKind = "LOAN" | "ADVANCE" | "OTHER";
+export type RecurringDeduction = {
+  id: string; employeeId: string; kind: RecurringKind; description: string; installmentAmount: number; totalAmount?: number | null;
+  repaid: number; remaining?: number | null; startDate: string; active: boolean; finished: boolean; stoppedReason?: string | null; createdAt: string;
+};
+export const getRecurringDeductions = (s: StaffSession, employeeId: string) =>
+  apiRequest<RecurringDeduction[]>(`/hr/employees/${employeeId}/recurring-deductions`, auth(s));
+export const addRecurringDeduction = (
+  s: StaffSession,
+  employeeId: string,
+  body: { kind: RecurringKind; description: string; installmentAmount: number; totalAmount?: number | null; startDate: string },
+) => apiRequest<RecurringDeduction>(`/hr/employees/${employeeId}/recurring-deductions`, { ...auth(s), method: "POST", body });
+export const stopRecurringDeduction = (s: StaffSession, id: string, reason: string) =>
+  apiRequest<RecurringDeduction>(`/hr/recurring-deductions/${id}/stop`, { ...auth(s), method: "POST", body: { reason } });
+
 export const getPayrollRuns = (s: StaffSession, branchId?: string) =>
   apiRequest<PayrollRunSummary[]>(`/hr/payroll-runs${query({ branchId })}`, auth(s));
 export const createPayrollRun = (s: StaffSession, body: { branchId: string; periodStart: string; periodEnd: string; payDate?: string; notes?: string }) =>
