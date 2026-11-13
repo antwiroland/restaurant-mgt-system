@@ -236,6 +236,7 @@ export type ShiftRecord = {
   status: ShiftStatus;
   openingCash: string;
   closingCash?: string;
+  /** For an open shift: the live figure so far. For a closed one: as at closing. */
   expectedCash?: string;
   variance?: string;
   notes?: string;
@@ -621,6 +622,56 @@ export async function updateBranch(
 
 export async function getActiveShifts(session: StaffSession): Promise<ShiftRecord[]> {
   return apiRequest<ShiftRecord[]>("/shifts/active", { token: session.accessToken });
+}
+
+export type CashMovementType = "PAY_IN" | "PAY_OUT";
+
+export type CashMovementRecord = {
+  id: string;
+  type: CashMovementType;
+  amount: string;
+  reason: string;
+  createdBy: string;
+  createdByName?: string | null;
+  createdAt: string;
+};
+
+/** Expected cash = opening + cash sales - cash refunds + pay-ins - pay-outs. */
+export type ShiftDetailRecord = {
+  shift: ShiftRecord;
+  cashSalesCount: number;
+  cashSales: string;
+  cashRefundsCount: number;
+  cashRefunds: string;
+  payIns: string;
+  payOuts: string;
+  expectedCash: string;
+  movements: CashMovementRecord[];
+};
+
+/** Shifts opened in a period (default the last 30 days), newest first. */
+export async function getShiftHistory(
+  session: StaffSession,
+  params?: { from?: string; to?: string; branchId?: string; cashierId?: string },
+): Promise<ShiftRecord[]> {
+  const query = new URLSearchParams();
+  Object.entries(params ?? {}).forEach(([key, value]) => {
+    if (value) query.set(key, value);
+  });
+  const suffix = query.toString() ? `?${query}` : "";
+  return apiRequest<ShiftRecord[]>(`/shifts${suffix}`, { token: session.accessToken });
+}
+
+export async function getShiftDetail(session: StaffSession, shiftId: string): Promise<ShiftDetailRecord> {
+  return apiRequest<ShiftDetailRecord>(`/shifts/${shiftId}`, { token: session.accessToken });
+}
+
+export async function addCashMovement(
+  session: StaffSession,
+  shiftId: string,
+  payload: { type: CashMovementType; amount: number; reason: string },
+): Promise<ShiftDetailRecord> {
+  return apiRequest<ShiftDetailRecord>(`/shifts/${shiftId}/movements`, { method: "POST", token: session.accessToken, body: payload });
 }
 
 export async function openShift(

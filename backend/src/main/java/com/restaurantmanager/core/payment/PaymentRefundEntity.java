@@ -38,6 +38,10 @@ public class PaymentRefundEntity {
     @Column(name = "requested_by")
     private UUID requestedBy;
 
+    /** The cash shift (drawer) this cash went into or came out of; null for non-cash. */
+    @Column(name = "shift_id")
+    private java.util.UUID shiftId;
+
     @Column(name = "approved_by")
     private UUID approvedBy;
 
@@ -68,4 +72,12 @@ public class PaymentRefundEntity {
     public UUID getApprovedBy() { return approvedBy; }
     public void setApprovedBy(UUID approvedBy) { this.approvedBy = approvedBy; }
     public Instant getCreatedAt() { return createdAt; }
+
+    public java.util.UUID getShiftId() {
+        return shiftId;
+    }
+
+    public void setShiftId(java.util.UUID shiftId) {
+        this.shiftId = shiftId;
+    }
 }

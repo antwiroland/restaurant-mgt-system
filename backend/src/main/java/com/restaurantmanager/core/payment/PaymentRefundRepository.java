@@ -9,6 +9,9 @@ import java.util.UUID;
 public interface PaymentRefundRepository extends JpaRepository<PaymentRefundEntity, UUID> {
     List<PaymentRefundEntity> findByPayment_IdOrderByCreatedAtDesc(UUID paymentId);
 
+    /** Cash refunds handed back from a shift's drawer. */
+    List<PaymentRefundEntity> findByShiftId(UUID shiftId);
+
     List<PaymentRefundEntity> findByCreatedAtBetween(Instant from, Instant to);
 
     @org.springframework.data.jpa.repository.Query("""

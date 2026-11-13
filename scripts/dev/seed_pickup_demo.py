@@ -70,6 +70,7 @@ def main() -> int:
     base = parser.parse_args().api.rstrip("/")
 
     admin = login(base, ADMIN_PHONE)
+    me = call(base, "GET", "/users/me", token=admin)
     customer = login(base, CUSTOMER_PHONE)
     lines = [{"menuItemId": dish["id"], "quantity": 1} for dish in pick_dishes(base)]
 
@@ -77,6 +78,9 @@ def main() -> int:
                                            "notes": "Customer paying at the counter"}, customer)
 
     ready = call(base, "POST", "/orders", {"type": "PICKUP", "items": lines}, customer)
+    # Cash goes into the admin's drawer: open one if they have none (it stays open; close it on the Shifts page).
+    if not any(shift["cashierUserId"] == me["id"] for shift in call(base, "GET", "/shifts/active", token=admin)):
+        call(base, "POST", "/shifts/open", {"openingCash": 0, "notes": "Pickup demo drawer"}, admin)
     call(base, "POST", "/payments/initiate", {"orderId": ready["id"], "method": "CASH",
                                              "idempotencyKey": f"pickup-demo-{ready['id']}",
                                              "amountTendered": float(ready["total"])}, admin)

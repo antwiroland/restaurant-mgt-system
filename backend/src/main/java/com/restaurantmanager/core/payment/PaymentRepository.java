@@ -19,6 +19,9 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, UUID> {
 
     List<PaymentEntity> findByOrderIdOrderByCreatedAtDesc(UUID orderId);
 
+    /** Cash taken into a shift's drawer (refunded ones included: their refunds are counted separately). */
+    List<PaymentEntity> findByShiftIdAndMethodAndStatusIn(UUID shiftId, PaymentMethod method, java.util.Collection<PaymentStatus> statuses);
+
     List<PaymentEntity> findByOrderIdAndStatus(UUID orderId, PaymentStatus status);
 
     List<PaymentEntity> findByOrderIdInAndStatus(Iterable<UUID> orderIds, PaymentStatus status);

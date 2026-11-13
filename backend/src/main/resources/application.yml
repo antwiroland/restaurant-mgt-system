@@ -75,6 +75,9 @@ app:
     expo-endpoint: ${EXPO_PUSH_ENDPOINT:https://exp.host/--/api/v2/push/send}
     # Optional: required only if "enhanced push security" is turned on for the Expo project.
     expo-access-token: ${EXPO_ACCESS_TOKEN:}
+  shifts:
+    # Staff must have an open cash shift to take or refund cash, so every cash movement lands in a drawer count.
+    require-open-shift-for-cash: ${SHIFTS_REQUIRE_OPEN_FOR_CASH:true}
   group-orders:
     # An open group session with no join or cart change for this long is cancelled.
     idle-expiry-hours: ${GROUP_ORDER_IDLE_EXPIRY_HOURS:24}

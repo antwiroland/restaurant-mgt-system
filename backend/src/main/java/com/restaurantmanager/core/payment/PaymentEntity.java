@@ -62,6 +62,10 @@ public class PaymentEntity {
     @Column(name = "change_due", precision = 12, scale = 2)
     private BigDecimal changeDue;
 
+    /** The cash shift (drawer) this cash went into or came out of; null for non-cash. */
+    @Column(name = "shift_id")
+    private java.util.UUID shiftId;
+
     @Column(name = "received_by")
     private java.util.UUID receivedBy;
 
@@ -257,5 +261,13 @@ public class PaymentEntity {
 
     public void setSplitId(UUID splitId) {
         this.splitId = splitId;
+    }
+
+    public java.util.UUID getShiftId() {
+        return shiftId;
+    }
+
+    public void setShiftId(java.util.UUID shiftId) {
+        this.shiftId = shiftId;
     }
 }

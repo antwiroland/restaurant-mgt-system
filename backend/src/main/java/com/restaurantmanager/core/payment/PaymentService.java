@@ -63,6 +63,7 @@ public class PaymentService {
     private final com.restaurantmanager.core.table.TableSittingService tableSitting;
     private final com.restaurantmanager.core.billing.BillingService billingService;
     private final com.restaurantmanager.core.payment.split.SplitService splitService;
+    private final com.restaurantmanager.core.shift.CashDrawer cashDrawer;
     private final com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications;
     private final com.restaurantmanager.core.order.OrderRealtimePublisher orderRealtimePublisher;
 
@@ -84,7 +85,9 @@ public class PaymentService {
                           com.restaurantmanager.core.billing.BillingService billingService,
                           com.restaurantmanager.core.payment.split.SplitService splitService,
             com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications,
-                          com.restaurantmanager.core.order.OrderRealtimePublisher orderRealtimePublisher) {
+                          com.restaurantmanager.core.order.OrderRealtimePublisher orderRealtimePublisher,
+                          com.restaurantmanager.core.shift.CashDrawer cashDrawer) {
+        this.cashDrawer = cashDrawer;
         this.pushNotifications = pushNotifications;
         this.orderRealtimePublisher = orderRealtimePublisher;
         this.paymentRepository = paymentRepository;
@@ -240,6 +243,7 @@ public class PaymentService {
         payment.setPaystackReference("CASH-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
         payment.setIdempotencyKey(key);
         payment.setReceivedBy(principal.userId());
+        payment.setShiftId(cashDrawer.shiftForCash(principal.userId()));
         if (tendered != null) {
             payment.setAmountTendered(tendered);
             payment.setChangeDue(tendered.subtract(amount));
@@ -596,6 +600,10 @@ public class PaymentService {
             throw new ApiException(400, "Refund amount exceeds refundable balance of " + refundable);
         }
 
+        // Cash handed back comes out of the drawer of whoever hands it over.
+        UUID refundShiftId = payment.getMethod() == PaymentMethod.CASH && requestedBy != null
+                ? cashDrawer.shiftForCash(requestedBy)
+                : null;
         PaystackClient.RefundResult result = payment.getMethod() == PaymentMethod.CASH
                 ? new PaystackClient.RefundResult(null, "processed", "Cash refund recorded")
                 : paystackClient.refund(payment.getPaystackReference(), amount, payment.getCurrency());
@@ -611,6 +619,7 @@ public class PaymentService {
         refund.setReason(reason);
         refund.setRequestedBy(requestedBy);
         refund.setApprovedBy(approvedBy);
+        refund.setShiftId(refundShiftId);
         refundRepository.save(refund);
 
         PaymentStatus previous = payment.getStatus();
