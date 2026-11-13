@@ -95,4 +95,10 @@ public class LeaveTypeEntity {
     public void setActive(boolean active) { this.active = active; }
     public int getDisplayOrder() { return displayOrder; }
     public void setDisplayOrder(int displayOrder) { this.displayOrder = displayOrder; }
+
+    /** Unused days are paid out in the final pay of someone who leaves (annual leave). */
+    @Column(name = "pay_out_on_exit", nullable = false) private boolean payOutOnExit;
+
+    public boolean isPayOutOnExit() { return payOutOnExit; }
+    public void setPayOutOnExit(boolean payOutOnExit) { this.payOutOnExit = payOutOnExit; }
 }

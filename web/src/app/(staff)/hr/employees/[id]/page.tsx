@@ -1,5 +1,6 @@
 "use client";
 
+import { LoansPanel } from "@/features/hr/payroll/LoansPanel";
 import { PayoutPanel } from "@/features/hr/payroll/PayoutPanel";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -227,7 +228,12 @@ function EmployeeProfile() {
         {tab === "documents" ? (
           <DocumentsPanel employeeId={id} documents={documents} showArchived={showArchivedDocs} onToggleArchived={setShowArchivedDocs} onChanged={loadDocuments} />
         ) : null}
-        {tab === "payout" ? <PayoutPanel employeeId={id} canEdit={can("hr.payroll.process", "hr.payroll.pay")} /> : null}
+        {tab === "payout" ? (
+          <div className="grid gap-8">
+            <PayoutPanel employeeId={id} canEdit={can("hr.payroll.process", "hr.payroll.pay")} />
+            <LoansPanel employeeId={id} canEdit={can("hr.payroll.process")} />
+          </div>
+        ) : null}
         {tab === "leave" ? <EmployeeLeavePanel employeeId={id} employeeName={s.fullName} manageable={employee.manageable} /> : null}
         {tab === "history" ? <History entries={audit} /> : null}
         {tab === "branches" ? <BranchesPanel employee={employee} onEmployeeChanged={(updated) => { setEmployee(updated); setNotice("Transfer recorded."); }} /> : null}

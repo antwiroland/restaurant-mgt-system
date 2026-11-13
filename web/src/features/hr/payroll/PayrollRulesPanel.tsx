@@ -8,12 +8,15 @@ import { useHrAccess } from "@/features/hr/HrAccessContext";
 import { Field, errorMessage, formatDate } from "@/features/hr/ui";
 import {
   EMPLOYMENT_TYPES,
+  REPORT_AS_LABELS,
+  addGhanaPayrollPreset,
   addPayrollRule,
   getPayrollRules,
   type EmploymentType,
   type PayrollBracket,
   type PayrollRule,
   type PayrollRuleBase,
+  type PayrollReportAs,
   type PayrollRuleKind,
   type PayrollRuleMethod,
 } from "@/lib/hrApi";
@@ -47,6 +50,26 @@ export function PayrollRulesPanel({ branchId }: { branchId?: string }) {
 
   useEffect(() => { void load(); }, [load]);
 
+  const [presetBusy, setPresetBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+
+  async function addPreset() {
+    setPresetBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const added = await authenticatedFetch((s) => addGhanaPayrollPreset(s, `${new Date().getFullYear()}-01-01`));
+      setNotice(added.length
+        ? `Added ${added.map((r) => r.name).join(", ")}. Check the rates against current SSNIT and GRA figures before running payroll.`
+        : "SSNIT and PAYE rules already exist; nothing was added.");
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, "Could not add the Ghana rules"));
+    } finally {
+      setPresetBusy(false);
+    }
+  }
+
   async function end(rule: PayrollRule) {
     const date = window.prompt(`End "${rule.name}" from which date? (YYYY-MM-DD)`, new Date().toISOString().slice(0, 10));
     if (!date) return;
@@ -62,18 +85,31 @@ export function PayrollRulesPanel({ branchId }: { branchId?: string }) {
     <section className="panel grid gap-3">
       <SectionHeader
         title="Deductions & employer contributions"
-        description="Income tax, pension, welfare and similar. Rates are legal and business decisions: none are preset. A change is a new row from a date; branch rows replace organisation rows with the same code."
-        actions={can("hr.settings.manage") ? <button type="button" className="btn btn-primary btn-sm" onClick={() => setAdding(true)}>Add rule</button> : null}
+        description="Income tax, pension, welfare and similar. A change is a new row from a date; branch rows replace organisation rows with the same code. Mark SSNIT and PAYE rules with “Filed as” so the returns and year-to-date totals pick them up."
+        actions={can("hr.settings.manage") ? (
+          <span className="flex flex-wrap gap-2">
+            {access?.allBranches ? (
+              <button type="button" className="btn btn-secondary btn-sm" disabled={presetBusy} onClick={() => void addPreset()}>
+                {presetBusy ? "Adding…" : "Add Ghana SSNIT & PAYE"}
+              </button>
+            ) : null}
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => setAdding(true)}>Add rule</button>
+          </span>
+        ) : null}
       />
       {error ? <p className="alert alert-danger" role="alert">{error}</p> : null}
-      {rules.length === 0 ? <p className="text-sm text-ink-soft">No rules yet: payslips will show gross pay with no deductions.</p> : (
+      {notice ? <p className="alert alert-info" role="status">{notice}</p> : null}
+      {rules.length > 0 && !rules.some((r) => r.active && r.reportAs === "PAYE") ? (
+        <p className="alert alert-warning">No rule is filed as PAYE: payslips will flag that no income tax was deducted.</p>
+      ) : null}
+      {rules.length === 0 ? <p className="alert alert-warning">No rules yet: payslips will show gross pay with no tax or SSNIT deducted. Start with “Add Ghana SSNIT &amp; PAYE”.</p> : (
         <div className="overflow-x-auto">
           <table className="data-table">
             <thead><tr><th>Rule</th><th>Type</th><th>Amount</th><th>Applies to</th><th>From</th><th /></tr></thead>
             <tbody>
               {rules.map((r) => (
                 <tr key={r.id} className={r.active ? "" : "opacity-60"}>
-                  <td><p className="font-semibold">{r.name}</p><p className="text-xs text-ink-muted">{r.code}</p></td>
+                  <td><p className="font-semibold">{r.name}</p><p className="text-xs text-ink-muted">{r.code}{r.reportAs ? ` · filed as ${REPORT_AS_LABELS[r.reportAs]}` : ""}</p></td>
                   <td className="text-sm">{r.kind === "EMPLOYER_CONTRIBUTION" ? "Employer pays" : "Deducted"}</td>
                   <td className="text-sm">{describe(r)}</td>
                   <td className="text-sm">{r.branchId ? "This branch" : "All branches"}{r.employmentTypes.length ? ` · ${r.employmentTypes.map(humanize).join(", ")}` : ""}</td>
@@ -101,6 +137,7 @@ function RuleModal({ branchId, central, onClose, onSaved }: { branchId?: string;
   const [fixed, setFixed] = useState("");
   const [cap, setCap] = useState("");
   const [preTax, setPreTax] = useState(false);
+  const [reportAs, setReportAs] = useState<PayrollReportAs | "">("");
   const [bands, setBands] = useState<{ upTo: string; rate: string }[]>([{ upTo: "", rate: "0" }, { upTo: "", rate: "" }]);
   const [types, setTypes] = useState<EmploymentType[]>([]);
   const [scope, setScope] = useState(central ? "" : branchId ?? "");
@@ -118,7 +155,7 @@ function RuleModal({ branchId, central, onClose, onSaved }: { branchId?: string;
         code, name, kind, method, base, preTax: kind === "EMPLOYEE_DEDUCTION" && base !== "TAXABLE" && preTax,
         ratePercent: method === "PERCENT" ? Number(rate) : null, fixedAmount: method === "FIXED" ? Number(fixed) : null,
         capAmount: cap ? Number(cap) : null, brackets: method === "BRACKETS" ? brackets : undefined, employmentTypes: types,
-        branchId: scope || null, effectiveFrom,
+        branchId: scope || null, effectiveFrom, reportAs: reportAs || null,
       }));
       onSaved();
     } catch (err) {
@@ -186,6 +223,13 @@ function RuleModal({ branchId, central, onClose, onSaved }: { branchId?: string;
             <button type="button" className="btn btn-ghost btn-sm w-fit" onClick={() => setBands([...bands.slice(0, -1), { upTo: "", rate: "" }, bands[bands.length - 1]])}>Add band</button>
           </fieldset>
         ) : null}
+        <Field label="Filed as" hint="For the SSNIT and PAYE returns and year-to-date totals">
+          <select className="select" value={reportAs} onChange={(e) => setReportAs(e.target.value as PayrollReportAs | "")}>
+            <option value="">Not filed (other deduction)</option>
+            {(kind === "EMPLOYER_CONTRIBUTION" ? (["SSNIT_EMPLOYER", "TIER2"] as PayrollReportAs[]) : (["SSNIT_EMPLOYEE", "PAYE", "TIER2"] as PayrollReportAs[]))
+              .map((v) => <option key={v} value={v}>{REPORT_AS_LABELS[v]}</option>)}
+          </select>
+        </Field>
         {kind === "EMPLOYEE_DEDUCTION" && base !== "TAXABLE" ? (
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={preTax} onChange={(e) => setPreTax(e.target.checked)} /> Taken before tax (reduces taxable pay)</label>
         ) : null}

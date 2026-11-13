@@ -43,6 +43,8 @@ public class HrTestCleanup {
         entityManager.createQuery("delete from TipAllocationEntity").executeUpdate();
         entityManager.createQuery("delete from TipPoolEntity").executeUpdate();
         entityManager.createQuery("update TimesheetEntity t set t.payrollRunId = null").executeUpdate();
+        entityManager.createQuery("delete from com.restaurantmanager.core.hr.payroll.RecurringInstallmentEntity").executeUpdate();
+        entityManager.createQuery("delete from com.restaurantmanager.core.hr.payroll.RecurringDeductionEntity").executeUpdate();
         entityManager.createQuery("delete from PayslipLineEntity").executeUpdate();
         entityManager.createQuery("delete from PayslipEntity").executeUpdate();
         entityManager.createQuery("delete from PayrollAdjustmentEntity").executeUpdate();

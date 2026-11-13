@@ -450,15 +450,15 @@ KOFI_HISTORY = ("OSU", "09:00", "17:00", 30, [0, 1, 2, 3, 4])
 # Test values only, NOT tax or legal advice: real rates are configured by HR/finance.
 PAYROLL_RULES = [
     {"code": "SSNIT_EE", "name": "Social security (employee)", "kind": "EMPLOYEE_DEDUCTION", "method": "PERCENT", "base": "BASIC",
-     "ratePercent": 5.5, "preTax": True, "displayOrder": 1},
-    {"code": "PAYE", "name": "Income tax (PAYE)", "kind": "EMPLOYEE_DEDUCTION", "method": "BRACKETS", "base": "TAXABLE", "displayOrder": 2,
+     "ratePercent": 5.5, "preTax": True, "displayOrder": 1, "reportAs": "SSNIT_EMPLOYEE"},
+    {"code": "PAYE", "name": "Income tax (PAYE)", "kind": "EMPLOYEE_DEDUCTION", "method": "BRACKETS", "base": "TAXABLE", "displayOrder": 2, "reportAs": "PAYE",
      "brackets": [{"upTo": 490, "ratePercent": 0}, {"upTo": 600, "ratePercent": 5}, {"upTo": 730, "ratePercent": 10},
                   {"upTo": 3896.67, "ratePercent": 17.5}, {"upTo": 19896.67, "ratePercent": 25}, {"upTo": 50416.67, "ratePercent": 30},
                   {"upTo": None, "ratePercent": 35}]},
     {"code": "WELFARE", "name": "Staff welfare fund", "kind": "EMPLOYEE_DEDUCTION", "method": "FIXED", "base": "GROSS", "fixedAmount": 20,
      "employmentTypes": ["FULL_TIME"], "displayOrder": 3},
     {"code": "SSNIT_ER", "name": "Social security (employer)", "kind": "EMPLOYER_CONTRIBUTION", "method": "PERCENT", "base": "BASIC",
-     "ratePercent": 13, "displayOrder": 4},
+     "ratePercent": 13, "displayOrder": 4, "reportAs": "SSNIT_EMPLOYER"},
 ]
 
 # Service charge points per position (test values)
