@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Skeleton } from "@/components/Skeleton";
@@ -96,6 +97,7 @@ function Attendance() {
         description="Who is in, who is late or missing, and the record of every clock-in, break and correction."
         actions={(
           <div className="flex flex-wrap gap-2">
+            <Link href="/hr/attendance/devices" className="btn btn-secondary btn-sm"><Icon name="shield" size={16} /> Devices</Link>
             {branches.length > 1 ? (
               <select className="select w-auto" value={branchId} onChange={(e) => setBranchId(e.target.value)} aria-label="Branch">
                 {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
