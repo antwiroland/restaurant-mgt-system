@@ -1922,6 +1922,27 @@ export async function getOrderFeedback(session: StaffSession, orderId: string): 
 }
 
 /** Public: a dine-in guest rates their order from the table QR page. */
+/** Whether this phone may still rate an order it placed at the table (null: no longer, so forget it). */
+export type GuestRatingPromptRecord = {
+  orderId: string;
+  orderNumber: string;
+  status: PublicOrderTrackingRecord["status"];
+  rateable: boolean;
+  rated: boolean;
+  servedAt?: string | null;
+  rateUntil?: string | null;
+};
+
+export async function getGuestRatingPrompt(tableToken: string, orderId: string): Promise<GuestRatingPromptRecord | null> {
+  const response = await fetch(
+    `${API_PREFIX}/orders/public/dine-in/tables/${encodeURIComponent(tableToken)}/orders/${encodeURIComponent(orderId)}/rating`,
+    { cache: "no-store" },
+  );
+  if (response.status === 404 || response.status === 410) return null;
+  if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+  return (await response.json()) as GuestRatingPromptRecord;
+}
+
 export async function submitGuestFeedback(tableToken: string, orderId: string, payload: FeedbackRequest): Promise<FeedbackRecord> {
   return apiRequest<FeedbackRecord>(
     `/orders/public/dine-in/tables/${encodeURIComponent(tableToken)}/orders/${orderId}/feedback`,

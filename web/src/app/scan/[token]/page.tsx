@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { GuestOrderActions } from "@/components/GuestOrderActions";
+import { GuestRatePrompt } from "@/components/GuestRatePrompt";
+import { rememberOrder } from "@/features/orders/guestOrders";
 import { Skeleton } from "@/components/Skeleton";
 import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
@@ -360,6 +362,7 @@ export default function GuestScanMenuPage() {
           modifierOptionIds: line.modifierOptionIds.length > 0 ? line.modifierOptionIds : undefined,
         })),
       });
+      rememberOrder(token, order.id); // lets this phone (only) rate it later, after the table has moved on
       setCart([]);
       setNotes("");
       setMessage(`Order #${order.id.slice(0, 8).toUpperCase()} is on its way to the kitchen.`);
@@ -423,6 +426,8 @@ export default function GuestScanMenuPage() {
           {message ? (
             <p className="alert alert-success shadow-sm" role="status"><Icon name="checkCircle" size={18} className="mt-0.5 shrink-0" />{message}</p>
           ) : null}
+
+          {token ? <GuestRatePrompt tableToken={token} shownOrderIds={trackedOrders.map((o) => o.orderId)} refreshKey={liveTick} /> : null}
 
           {recentOrders.length > 0 ? (
             <section className="rounded-2xl border border-line bg-surface p-4 shadow-sm" aria-labelledby="your-orders">

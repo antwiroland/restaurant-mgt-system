@@ -272,7 +272,7 @@ function GuestSplitPay({ tableToken, order, refreshKey, guestPhone }: { tableTok
   );
 }
 
-function GuestRating({ tableToken, orderId }: { tableToken: string; orderId: string }) {
+export function GuestRating({ tableToken, orderId, onRated }: { tableToken: string; orderId: string; onRated?: () => void }) {
   const storageKey = `rated-${orderId}`;
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
@@ -304,6 +304,7 @@ function GuestRating({ tableToken, orderId }: { tableToken: string; orderId: str
         guestName: name.trim() || undefined,
       });
       setDone(true);
+      onRated?.();
       try {
         window.localStorage.setItem(storageKey, "1");
       } catch {
@@ -313,6 +314,7 @@ function GuestRating({ tableToken, orderId }: { tableToken: string; orderId: str
       const text = err instanceof Error ? err.message : "Could not send your rating";
       if (/already/i.test(text)) {
         setDone(true);
+        onRated?.();
       } else {
         setError(text);
       }
