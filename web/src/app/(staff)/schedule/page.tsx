@@ -2,31 +2,24 @@
 
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { ConfirmModal } from "@/components/ConfirmModal";
 import { Drawer } from "@/components/Drawer";
 import { Skeleton } from "@/components/Skeleton";
 import { useStaffSession } from "@/components/SessionProvider";
 import {
   clockIn,
   clockOut,
-  createSchedule,
-  deleteSchedule,
   editTimeEntry,
   getClockStatus,
   getMySchedules,
   getMyTimesheet,
-  getSchedulableStaff,
   getSchedules,
   getTimesheet,
-  updateSchedule,
   type ScheduleRecord,
-  type StaffMemberRecord,
   type TimeEntryRecord,
   type TimesheetRowRecord,
 } from "@/lib/apiClient";
 import { addDays, formatMinutes, formatTime, isoDate, sameDay, startOfWeek, toLocalInput } from "@/features/workforce/time";
 
-type ShiftDraft = { id?: string; userId: string; startsAt: string; endsAt: string; position: string; notes: string };
 type EntryDraft = { entry: TimeEntryRecord; staffName: string; clockInAt: string; clockOutAt: string; breakMinutes: string; reason: string };
 
 export default function SchedulePage() {
@@ -35,15 +28,12 @@ export default function SchedulePage() {
 
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [shifts, setShifts] = useState<ScheduleRecord[]>([]);
-  const [staff, setStaff] = useState<StaffMemberRecord[]>([]);
   const [clock, setClock] = useState<TimeEntryRecord | null>(null);
   const [breakMinutes, setBreakMinutes] = useState("0");
   const [clockNote, setClockNote] = useState("");
   const [timesheet, setTimesheet] = useState<TimesheetRowRecord[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [shiftDraft, setShiftDraft] = useState<ShiftDraft | null>(null);
   const [entryDraft, setEntryDraft] = useState<EntryDraft | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<ScheduleRecord | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -79,13 +69,6 @@ export default function SchedulePage() {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    if (!session || !isManager) return;
-    authenticatedFetch((s) => getSchedulableStaff(s))
-      .then(setStaff)
-      .catch(() => setStaff([]));
-  }, [authenticatedFetch, isManager, session]);
-
   async function run(task: () => Promise<unknown>, success: string) {
     setBusy(true);
     setError("");
@@ -115,27 +98,6 @@ export default function SchedulePage() {
     }, "Clocked out");
   }
 
-  function saveShift(event: React.FormEvent) {
-    event.preventDefault();
-    if (!shiftDraft) return;
-    const draft = shiftDraft;
-    const payload = {
-      userId: draft.userId,
-      startsAt: new Date(draft.startsAt).toISOString(),
-      endsAt: new Date(draft.endsAt).toISOString(),
-      position: draft.position.trim() || undefined,
-      notes: draft.notes.trim() || undefined,
-    };
-    void run(async () => {
-      if (draft.id) {
-        await authenticatedFetch((s) => updateSchedule(s, draft.id as string, payload));
-      } else {
-        await authenticatedFetch((s) => createSchedule(s, payload));
-      }
-      setShiftDraft(null);
-    }, draft.id ? "Shift updated" : "Shift added");
-  }
-
   function saveEntry(event: React.FormEvent) {
     event.preventDefault();
     if (!entryDraft) return;
@@ -151,21 +113,6 @@ export default function SchedulePage() {
       );
       setEntryDraft(null);
     }, "Time entry corrected");
-  }
-
-  function confirmDelete() {
-    if (!pendingDelete) return;
-    const target = pendingDelete;
-    setPendingDelete(null);
-    void run(() => authenticatedFetch((s) => deleteSchedule(s, target.id)), "Shift removed");
-  }
-
-  function newShift(day: Date) {
-    const start = new Date(day);
-    start.setHours(9, 0, 0, 0);
-    const end = new Date(day);
-    end.setHours(17, 0, 0, 0);
-    setShiftDraft({ userId: staff[0]?.id ?? "", startsAt: toLocalInput(start.toISOString()), endsAt: toLocalInput(end.toISOString()), position: "", notes: "" });
   }
 
   if (loading) return <main className="shell"><section className="panel grid gap-3"><Skeleton className="h-6 w-40" /><Skeleton className="h-48 w-full" /></section></main>;
@@ -186,7 +133,6 @@ export default function SchedulePage() {
     (acc, row) => ({ worked: acc.worked + row.workedMinutes, scheduled: acc.scheduled + row.scheduledMinutes, overtime: acc.overtime + row.overtimeMinutes }),
     { worked: 0, scheduled: 0, overtime: 0 },
   );
-  const nameFor = (userId: string) => timesheet.find((r) => r.userId === userId)?.name ?? staff.find((s) => s.id === userId)?.name ?? "Staff";
 
   return (
     <main className="shell grid gap-4">
@@ -194,6 +140,12 @@ export default function SchedulePage() {
         <div>
           <p className="kicker">Workforce</p>
           <h1 className="text-2xl font-semibold">{isManager ? "Staff schedule and timesheets" : "My shifts and hours"}</h1>
+          {isManager ? (
+            <p className="mt-1 text-sm">
+              Plan and change shifts in <Link href="/hr/schedule" className="font-semibold underline">HR › Schedule</Link>: it checks leave,
+              rest time, weekly hours and availability, lets you publish the week and tells staff. This page shows the published rota.
+            </p>
+          ) : null}
           <p className="text-sm text-ink-soft">
             Clock in when you start work and out when you finish. Arriving more than 5 minutes after a scheduled start counts as late;
             over 8 hours in a day counts as overtime.
@@ -264,37 +216,9 @@ export default function SchedulePage() {
                       <p className="font-semibold text-ink">{shift.userName}</p>
                       <p>{formatTime(shift.startsAt)}–{formatTime(shift.endsAt)}</p>
                       {shift.position ? <p className="text-ink-soft">{shift.position}</p> : null}
-                      {isManager ? (
-                        <div className="mt-1 flex gap-1">
-                          <button
-                            type="button"
-                            className="underline"
-                            onClick={() =>
-                              setShiftDraft({
-                                id: shift.id,
-                                userId: shift.userId,
-                                startsAt: toLocalInput(shift.startsAt),
-                                endsAt: toLocalInput(shift.endsAt),
-                                position: shift.position ?? "",
-                                notes: shift.notes ?? "",
-                              })
-                            }
-                            aria-label={`Edit ${shift.userName}'s shift`}
-                          >
-                            Edit
-                          </button>
-                          <button type="button" className="underline text-danger-on" onClick={() => setPendingDelete(shift)} aria-label={`Remove ${shift.userName}'s shift`}>
-                            Remove
-                          </button>
-                        </div>
-                      ) : null}
                     </div>
                   ))}
-                  {isManager ? (
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => newShift(day)} disabled={staff.length === 0}>
-                      Add shift
-                    </button>
-                  ) : null}
+
                 </section>
               );
             })}
@@ -392,39 +316,6 @@ export default function SchedulePage() {
         )}
       </section>
 
-      <Drawer open={shiftDraft !== null} title={shiftDraft?.id ? "Edit shift" : "Add shift"} onClose={() => setShiftDraft(null)}>
-        {shiftDraft ? (
-          <form className="grid gap-2" onSubmit={saveShift}>
-            <label className="grid gap-1 text-sm">
-              <span>Staff member</span>
-              <select className="select" required value={shiftDraft.userId} onChange={(e) => setShiftDraft({ ...shiftDraft, userId: e.target.value })}>
-                <option value="">Select staff</option>
-                {staff.map((member) => (
-                  <option key={member.id} value={member.id}>{member.name} ({member.role})</option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm">
-              <span>Starts</span>
-              <input className="input" type="datetime-local" required value={shiftDraft.startsAt} onChange={(e) => setShiftDraft({ ...shiftDraft, startsAt: e.target.value })} />
-            </label>
-            <label className="grid gap-1 text-sm">
-              <span>Ends</span>
-              <input className="input" type="datetime-local" required value={shiftDraft.endsAt} onChange={(e) => setShiftDraft({ ...shiftDraft, endsAt: e.target.value })} />
-            </label>
-            <label className="grid gap-1 text-sm">
-              <span>Position (optional)</span>
-              <input className="input" maxLength={60} placeholder="Grill, Front of house…" value={shiftDraft.position} onChange={(e) => setShiftDraft({ ...shiftDraft, position: e.target.value })} />
-            </label>
-            <label className="grid gap-1 text-sm">
-              <span>Notes (optional)</span>
-              <textarea className="input" rows={2} maxLength={500} value={shiftDraft.notes} onChange={(e) => setShiftDraft({ ...shiftDraft, notes: e.target.value })} />
-            </label>
-            <button type="submit" className="btn btn-primary" disabled={busy}>{shiftDraft.id ? "Save shift" : "Add shift"}</button>
-          </form>
-        ) : null}
-      </Drawer>
-
       <Drawer open={entryDraft !== null} title={entryDraft ? `Correct ${entryDraft.staffName}'s time` : "Correct time"} onClose={() => setEntryDraft(null)}>
         {entryDraft ? (
           <form className="grid gap-2" onSubmit={saveEntry}>
@@ -449,15 +340,6 @@ export default function SchedulePage() {
         ) : null}
       </Drawer>
 
-      <ConfirmModal
-        open={pendingDelete !== null}
-        title="Remove shift?"
-        message={pendingDelete ? `${nameFor(pendingDelete.userId)}'s shift on ${new Date(pendingDelete.startsAt).toLocaleString()} will be removed.` : ""}
-        confirmLabel="Remove"
-        danger
-        onConfirm={confirmDelete}
-        onClose={() => setPendingDelete(null)}
-      />
     </main>
   );
 }

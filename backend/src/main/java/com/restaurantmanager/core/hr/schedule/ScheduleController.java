@@ -30,9 +30,12 @@ public class ScheduleController {
     private final SchedulingSetupService setupService;
     private final AvailabilityService availabilityService;
     private final SwapService swapService;
+    private final ScheduleExtrasService extrasService;
 
     public ScheduleController(ScheduleService scheduleService, SchedulingSetupService setupService,
-                              AvailabilityService availabilityService, SwapService swapService) {
+                              AvailabilityService availabilityService, SwapService swapService,
+                              ScheduleExtrasService extrasService) {
+        this.extrasService = extrasService;
         this.scheduleService = scheduleService;
         this.setupService = setupService;
         this.availabilityService = availabilityService;
@@ -78,6 +81,19 @@ public class ScheduleController {
     public ScheduleService.PublishResult publish(@Valid @RequestBody ScheduleService.PublishRequest request,
                                                  @AuthenticationPrincipal UserPrincipal principal) {
         return scheduleService.publish(principal, request);
+    }
+
+    /** Publishes one draft shift (re-checked) and tells the employee. */
+    @PostMapping("/schedules/{id}/publish")
+    public ScheduleService.ShiftView publishOne(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal) {
+        return extrasService.publishShift(principal, id);
+    }
+
+    /** Copies a week's shifts at a branch to another week as drafts; shifts that would break a rule are skipped. */
+    @PostMapping("/schedules/copy-week")
+    public ScheduleExtrasService.CopyWeekResult copyWeek(@Valid @RequestBody ScheduleExtrasService.CopyWeekRequest request,
+                                                         @AuthenticationPrincipal UserPrincipal principal) {
+        return extrasService.copyWeek(principal, request);
     }
 
     // ---------------------------------------------------------------- templates & policy
@@ -183,6 +199,21 @@ public class ScheduleController {
     public void deleteMyAvailability(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal) {
         availabilityService.deleteMine(principal, id);
     }
+
+    /** Open shifts in the coming weeks at my branches that I could take. */
+    @GetMapping("/me/open-shifts")
+    public List<ScheduleExtrasService.OpenShift> openShifts(@AuthenticationPrincipal UserPrincipal principal) {
+        return extrasService.openShiftsForMe(principal);
+    }
+
+    @PostMapping("/me/open-shifts/{id}/claim")
+    public ScheduleService.ShiftView claimOpenShift(@PathVariable UUID id,
+                                                    @RequestBody(required = false) ClaimRequest request,
+                                                    @AuthenticationPrincipal UserPrincipal principal) {
+        return extrasService.claimOpenShift(principal, id, request != null && request.acknowledgeWarnings());
+    }
+
+    public record ClaimRequest(boolean acknowledgeWarnings) {}
 
     @GetMapping("/me/swaps")
     public List<SwapService.SwapView> mySwaps(@AuthenticationPrincipal UserPrincipal principal) {

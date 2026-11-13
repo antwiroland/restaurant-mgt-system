@@ -5,11 +5,13 @@ import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { useStaffSession } from "@/components/SessionProvider";
 import { Field, errorMessage } from "@/features/hr/ui";
+import { useHrAccess } from "@/features/hr/HrAccessContext";
 import { formatMinutes } from "@/features/workforce/time";
 import {
   ScheduleIssuesError,
   cancelShift,
   deleteDraftShift,
+  publishOneShift,
   saveShift,
   type BoardEmployee,
   type ScheduleIssue,
@@ -71,6 +73,7 @@ export function ShiftDialog({ branchId, employees, templates, shift, defaults, c
   const [cancelling, setCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const readOnly = !canManage || shift?.status === "CANCELLED";
+  const canPublish = useHrAccess().can("hr.schedule.publish");
 
   const dayTemplates = templates.filter((t) => t.active && (!date || t.days.includes(dayCode(new Date(`${date}T00:00:00`)))));
   const chosen = templates.find((t) => t.id === templateId);
@@ -140,6 +143,20 @@ export function ShiftDialog({ branchId, employees, templates, shift, defaults, c
     }
   }
 
+  async function doPublish() {
+    if (!shift) return;
+    setBusy(true);
+    try {
+      await authenticatedFetch((s) => publishOneShift(s, shift.id));
+      onSaved("Shift published; the employee has been notified.");
+    } catch (err) {
+      if (err instanceof ScheduleIssuesError) setIssues(err.issues);
+      else setError(errorMessage(err, "Could not publish the shift"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function doDelete() {
     if (!shift) return;
     setBusy(true);
@@ -159,7 +176,10 @@ export function ShiftDialog({ branchId, employees, templates, shift, defaults, c
     <>
       {editing && !cancelling ? (
         shift?.status === "DRAFT" ? (
-          <button type="button" className="btn btn-ghost btn-md mr-auto text-danger" onClick={doDelete} disabled={busy}><Icon name="trash" size={16} /> Delete draft</button>
+          <>
+            <button type="button" className="btn btn-ghost btn-md mr-auto text-danger" onClick={doDelete} disabled={busy}><Icon name="trash" size={16} /> Delete draft</button>
+            {canPublish ? <button type="button" className="btn btn-secondary btn-md" onClick={doPublish} disabled={busy}>Publish this shift</button> : null}
+          </>
         ) : (
           <button type="button" className="btn btn-ghost btn-md mr-auto text-danger" onClick={() => setCancelling(true)} disabled={busy}>Cancel shift</button>
         )

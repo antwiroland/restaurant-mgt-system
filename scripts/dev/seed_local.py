@@ -389,18 +389,10 @@ def main():
     api.call("POST", "/promotions/offers", {"name": "Kelewele 2 + 1", "description": "Buy two Kelewele, get one free", "menuItemId": items["Kelewele"]["id"], "buyQuantity": 2, "freeQuantity": 1, "active": True}, A)
 
     # ---------------------------------------------------------------- cash shift + schedule
-    step("Cash shifts & rota")
+    step("Cash shift and clock-ins")
     api.call("POST", "/shifts/open", {"openingCash": 300, "branchId": osu["id"], "notes": "Morning float"}, C1)
     base_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    rota = [("+233200000002", "Manager", 9, 18), ("+233200000003", "Cashier", 9, 17), ("+233200000004", "Cashier", 14, 22),
-            ("+233200000005", "Rider", 11, 20), ("+233200000006", "Rider", 16, 23)]
-    for day in range(0, 7):
-        for phone, position, start, end in rota:
-            if (day + len(phone)) % 6 == 0:
-                continue  # a day off now and then
-            api.call("POST", "/scheduling/shifts", {"userId": users[phone]["id"], "branchId": osu["id"],
-                                                    "startsAt": iso(base_day + timedelta(days=day, hours=start)),
-                                                    "endsAt": iso(base_day + timedelta(days=day, hours=end)), "position": position}, M)
+    # The week's rota is built by seed_hr.py through HR scheduling (staff need employee records, which it creates).
     for token in (C1, M):
         api.call("POST", "/timeclock/clock-in", {}, token, ok=False)
 

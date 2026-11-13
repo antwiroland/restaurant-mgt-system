@@ -12,6 +12,7 @@ import { IssuesList } from "@/features/hr/schedule/ShiftDialog";
 import { MyTimeClock } from "@/features/hr/attendance/MyTimeClock";
 import { MyTimesheets } from "@/features/hr/timesheets/MyTimesheets";
 import { MyInterviews } from "@/features/hr/recruitment/MyInterviews";
+import { OpenShifts } from "@/features/hr/schedule/OpenShifts";
 import { DAY_CODES, shiftLabel, trimTime } from "@/features/hr/schedule/scheduleUtils";
 import { addDays, formatMinutes, isoDate } from "@/features/workforce/time";
 import {
@@ -125,6 +126,8 @@ function MySchedule() {
           </ul>
         )}
       </section>
+
+      <OpenShifts onTaken={() => void load()} />
 
       <section className="panel grid gap-3">
         <SectionHeader title="Swap requests" />

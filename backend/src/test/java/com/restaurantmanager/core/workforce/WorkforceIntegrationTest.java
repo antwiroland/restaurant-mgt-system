@@ -1,6 +1,8 @@
 package com.restaurantmanager.core.workforce;
 
-import com.restaurantmanager.core.BaseIntegrationTest;
+import com.restaurantmanager.core.hr.HrIntegrationTestSupport;
+import java.util.Map;
+import java.util.UUID;
 import com.restaurantmanager.core.common.Role;
 import com.restaurantmanager.core.user.UserEntity;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,14 +21,24 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class WorkforceIntegrationTest extends BaseIntegrationTest {
+/** The quick rota (/scheduling) and time clock. Shifts go through HR scheduling, so staff need an employee record. */
+class WorkforceIntegrationTest extends HrIntegrationTestSupport {
     private UserEntity manager;
     private UserEntity cashier;
 
     @BeforeEach
     void setUpData() {
-        manager = createUser("Manager", "+233340000001", "wf-manager@x.com", "secret123", Role.MANAGER);
-        cashier = createUser("Efo", "+233340000002", "efo@x.com", "secret123", Role.CASHIER);
+        var accra = branch("WF1");
+        UserEntity admin = staff("Owner", Role.ADMIN, null);
+        manager = staff("Manager", Role.MANAGER, accra);
+        cashier = staff("Efo", Role.CASHIER, accra);
+        try {
+            UUID employee = createEmployee(admin, "Efo", "Mensah", accra);
+            postJson("/hr/employees/" + employee + "/link-user", Map.of("userId", cashier.getId()), admin)
+                    .andExpect(status().isOk());
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Test
@@ -34,7 +46,11 @@ class WorkforceIntegrationTest extends BaseIntegrationTest {
         Instant start = Instant.now().plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.HOURS);
         schedule(start, start.plus(8, ChronoUnit.HOURS)).andExpect(status().isCreated());
         schedule(start.plus(4, ChronoUnit.HOURS), start.plus(10, ChronoUnit.HOURS)).andExpect(status().isConflict());
-        schedule(start.plus(8, ChronoUnit.HOURS), start.plus(12, ChronoUnit.HOURS)).andExpect(status().isCreated()); // back-to-back is fine
+        // Back-to-back is not an overlap, but HR's rest rule warns; it saves once the manager confirms.
+        schedule(start.plus(8, ChronoUnit.HOURS), start.plus(12, ChronoUnit.HOURS))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.issues[0].code").value("SHORT_REST"));
+        schedule(start.plus(8, ChronoUnit.HOURS), start.plus(12, ChronoUnit.HOURS), true).andExpect(status().isCreated());
 
         mockMvc.perform(get("/scheduling/my-shifts")
                         .param("from", start.minus(1, ChronoUnit.DAYS).toString())
@@ -141,9 +157,14 @@ class WorkforceIntegrationTest extends BaseIntegrationTest {
     }
 
     private org.springframework.test.web.servlet.ResultActions schedule(Instant start, Instant end) throws Exception {
+        return schedule(start, end, false);
+    }
+
+    private org.springframework.test.web.servlet.ResultActions schedule(Instant start, Instant end, boolean acknowledge) throws Exception {
         return mockMvc.perform(post("/scheduling/shifts")
                 .header("Authorization", "Bearer " + accessToken(manager))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"userId\":\"%s\",\"startsAt\":\"%s\",\"endsAt\":\"%s\",\"position\":\"Cashier\"}".formatted(cashier.getId(), start, end)));
+                .content("{\"userId\":\"%s\",\"startsAt\":\"%s\",\"endsAt\":\"%s\",\"position\":\"Cashier\",\"acknowledgeWarnings\":%s}"
+                        .formatted(cashier.getId(), start, end, acknowledge)));
     }
 }
