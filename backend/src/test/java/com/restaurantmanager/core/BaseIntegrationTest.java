@@ -86,6 +86,8 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected OrderItemRepository orderItemRepository;
     @Autowired
+    protected com.restaurantmanager.core.order.OrderItemModifierRepository orderItemModifierRepository;
+    @Autowired
     protected GroupOrderSessionRepository groupOrderSessionRepository;
     @Autowired
     protected GroupSessionParticipantRepository groupSessionParticipantRepository;
@@ -180,6 +182,7 @@ public abstract class BaseIntegrationTest {
         paymentWebhookEventRepository.deleteAll();
         paymentRepository.deleteAll();
         paymentSplitRepository.deleteAll();
+        orderItemModifierRepository.deleteAll();
         orderItemRepository.deleteAll();
         orderRepository.deleteAll();
         walkoutRepository.deleteAll();

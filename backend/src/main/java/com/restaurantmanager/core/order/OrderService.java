@@ -14,6 +14,7 @@ import com.restaurantmanager.core.menu.MenuItemEntity;
 import com.restaurantmanager.core.menu.MenuItemRepository;
 import com.restaurantmanager.core.menu.ModifierSelectionType;
 import com.restaurantmanager.core.order.dto.GroupAddItemsRequest;
+import com.restaurantmanager.core.order.dto.GroupUpdateItemRequest;
 import com.restaurantmanager.core.order.dto.GroupCartItemResponse;
 import com.restaurantmanager.core.order.dto.GroupCreateSessionRequest;
 import com.restaurantmanager.core.order.dto.GroupFinalizeRequest;
@@ -605,6 +606,8 @@ public class OrderService {
                     p.setSession(session);
                     p.setUserId(principal.userId());
                     p.setDisplayName(resolveDisplayName(principal.userId(), request == null ? null : request.displayName()));
+                    session.setUpdatedAt(Instant.now());
+                    groupOrderSessionRepository.save(session);
                     return groupSessionParticipantRepository.save(p);
                 });
 
@@ -645,18 +648,117 @@ public class OrderService {
             item.setMenuItem(menuItem);
             item.setQuantity(itemRequest.quantity());
             item.setNotes(blankToNull(itemRequest.notes()));
+            item.setModifierOptions(validateAndResolveModifiers(menuItem, itemRequest.modifierOptionIds()));
             groupSessionItemRepository.save(item);
         }
 
+        return groupCartChanged(session, participant.getId());
+    }
+
+    /** Changes the quantity or notes of one of your own lines in an open group cart. */
+    @Transactional
+    public GroupViewResponse updateGroupItem(String code, UUID itemId, GroupUpdateItemRequest request, UserPrincipal principal) {
+        GroupOrderSessionEntity session = openGroupSession(code);
+        GroupSessionItemEntity item = groupItemInSession(session, itemId);
+        if (!item.getParticipant().getUserId().equals(principal.userId())) {
+            throw new ApiException(403, "You can only change your own items");
+        }
+        item.setQuantity(request.quantity());
+        item.setNotes(blankToNull(request.notes()));
+        item.setUpdatedAt(Instant.now());
+        groupSessionItemRepository.save(item);
+        return groupCartChanged(session, item.getParticipant().getId());
+    }
+
+    /** Removes a line from an open group cart: your own, or anyone's if you are the host. */
+    @Transactional
+    public GroupViewResponse removeGroupItem(String code, UUID itemId, UserPrincipal principal) {
+        GroupOrderSessionEntity session = openGroupSession(code);
+        GroupSessionItemEntity item = groupItemInSession(session, itemId);
+        boolean owner = item.getParticipant().getUserId().equals(principal.userId());
+        boolean host = session.getHostUserId().equals(principal.userId());
+        if (!owner && !host) {
+            throw new ApiException(403, "You can only remove your own items");
+        }
+        UUID participantId = item.getParticipant().getId();
+        groupSessionItemRepository.delete(item);
+        return groupCartChanged(session, participantId);
+    }
+
+    /** A participant (not the host) leaves an open session; their items leave the cart with them. */
+    @Transactional
+    public void leaveGroupSession(String code, UserPrincipal principal) {
+        GroupOrderSessionEntity session = openGroupSession(code);
+        if (session.getHostUserId().equals(principal.userId())) {
+            throw new ApiException(409, "The host cannot leave the group; cancel the session instead");
+        }
+        GroupSessionParticipantEntity participant = groupSessionParticipantRepository
+                .findBySessionIdAndUserId(session.getId(), principal.userId())
+                .orElseThrow(() -> new ApiException(404, "You are not in this group session"));
+        groupSessionItemRepository.deleteAll(groupSessionItemRepository.findByParticipantId(participant.getId()));
+        groupSessionParticipantRepository.delete(participant);
+        groupCartChanged(session, participant.getId());
+    }
+
+    /** The host (or a manager) cancels an open session. Nothing is ordered. */
+    @Transactional
+    public GroupViewResponse cancelGroupSession(String code, UserPrincipal principal) {
+        GroupOrderSessionEntity session = openGroupSession(code);
+        boolean host = session.getHostUserId().equals(principal.userId());
+        boolean manager = principal.role() == Role.ADMIN || principal.role() == Role.MANAGER;
+        if (!host && !manager) {
+            throw new ApiException(403, "Only the host can cancel the group session");
+        }
+        session.setStatus(GroupSessionStatus.CANCELLED);
+        return groupCartChanged(session, null);
+    }
+
+    /** Cancels open sessions with no activity (join or cart change) since {@code cutoff}. Returns how many. */
+    @Transactional
+    public int expireIdleGroupSessions(Instant cutoff) {
+        List<GroupOrderSessionEntity> idle = groupOrderSessionRepository.findByStatusAndUpdatedAtBefore(GroupSessionStatus.OPEN, cutoff);
+        for (GroupOrderSessionEntity session : idle) {
+            session.setStatus(GroupSessionStatus.CANCELLED);
+            groupOrderSessionRepository.save(session);
+            realtimePublisher.publishGroupCartUpdated(session.getSessionCode(), null, BigDecimal.ZERO);
+        }
+        return idle.size();
+    }
+
+    private GroupOrderSessionEntity openGroupSession(String code) {
+        GroupOrderSessionEntity session = groupOrderSessionRepository.findBySessionCodeIgnoreCase(code)
+                .orElseThrow(() -> new ApiException(404, "Group session not found"));
+        if (session.getStatus() != GroupSessionStatus.OPEN) {
+            throw new ApiException(409, "Group session is not open");
+        }
+        return session;
+    }
+
+    private GroupSessionItemEntity groupItemInSession(GroupOrderSessionEntity session, UUID itemId) {
+        return groupSessionItemRepository.findById(itemId)
+                .filter(item -> item.getSession().getId().equals(session.getId()))
+                .orElseThrow(() -> new ApiException(404, "Item not found in this group session"));
+    }
+
+    /** Records activity on the session, then tells everyone watching the cart to refresh. */
+    private GroupViewResponse groupCartChanged(GroupOrderSessionEntity session, UUID participantId) {
+        session.setUpdatedAt(Instant.now());
+        groupOrderSessionRepository.save(session);
         GroupViewResponse response = toGroupViewResponse(session);
-        realtimePublisher.publishGroupCartUpdated(session.getSessionCode(), participant.getId(), response.groupTotal());
+        realtimePublisher.publishGroupCartUpdated(session.getSessionCode(), participantId, response.groupTotal());
         return response;
     }
 
     @Transactional(readOnly = true)
-    public GroupViewResponse viewGroupSession(String code) {
+    public GroupViewResponse viewGroupSession(String code, UserPrincipal principal) {
         GroupOrderSessionEntity session = groupOrderSessionRepository.findBySessionCodeIgnoreCase(code)
                 .orElseThrow(() -> new ApiException(404, "Group session not found"));
+        boolean floorStaff = principal.role() == Role.ADMIN || principal.role() == Role.MANAGER || principal.role() == Role.CASHIER;
+        boolean member = session.getHostUserId().equals(principal.userId())
+                || groupSessionParticipantRepository.findBySessionIdAndUserId(session.getId(), principal.userId()).isPresent();
+        if (!floorStaff && !member) {
+            throw new ApiException(403, "Join the group session to see its cart");
+        }
         return toGroupViewResponse(session);
     }
 
@@ -684,7 +786,7 @@ public class OrderService {
                         item.getMenuItem().getId(),
                         item.getQuantity(),
                         item.getNotes(),
-                        null
+                        item.getModifierOptions().stream().map(MenuModifierOptionEntity::getId).toList()
                 )).toList(),
                 request.deliveryAddress(),
                 request.pickupTime(),
@@ -1129,13 +1231,20 @@ public class OrderService {
                                     item.getId(),
                                     item.getMenuItem().getId(),
                                     item.getMenuItem().getName(),
-                                    item.getMenuItem().getPrice(),
+                                    groupItemUnitPrice(item),
                                     item.getQuantity(),
-                                    item.getNotes()
+                                    item.getNotes(),
+                                    item.getModifierOptions().stream()
+                                            .map(option -> new OrderItemModifierResponse(
+                                                    option.getId(),
+                                                    option.getGroup().getName(),
+                                                    option.getName(),
+                                                    option.getPriceDelta()))
+                                            .toList()
                             ))
                             .toList();
                     BigDecimal subtotal = participantItems.stream()
-                            .map(item -> item.getMenuItem().getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                            .map(item -> groupItemUnitPrice(item).multiply(BigDecimal.valueOf(item.getQuantity())))
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
                     return new GroupParticipantCartResponse(
                             participant.getId(),
@@ -1157,8 +1266,15 @@ public class OrderService {
                 session.getStatus(),
                 groupTotal,
                 participantResponses,
-                orderRepository.findFirstByGroupSession_IdOrderByCreatedAtDesc(session.getId()).map(OrderEntity::getId).orElse(null)
+                orderRepository.findFirstByGroupSession_IdOrderByCreatedAtDesc(session.getId()).map(OrderEntity::getId).orElse(null),
+                session.getHostUserId()
         );
+    }
+
+    private BigDecimal groupItemUnitPrice(GroupSessionItemEntity item) {
+        return item.getModifierOptions().stream()
+                .map(MenuModifierOptionEntity::getPriceDelta)
+                .reduce(item.getMenuItem().getPrice(), BigDecimal::add);
     }
 
     private GroupParticipantResponse toParticipantResponse(GroupSessionParticipantEntity participant) {

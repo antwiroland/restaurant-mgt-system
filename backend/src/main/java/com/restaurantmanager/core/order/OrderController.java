@@ -6,6 +6,7 @@ import com.restaurantmanager.core.order.dto.GroupFinalizeRequest;
 import com.restaurantmanager.core.order.dto.GroupJoinRequest;
 import com.restaurantmanager.core.order.dto.GroupJoinResponse;
 import com.restaurantmanager.core.order.dto.GroupSessionResponse;
+import com.restaurantmanager.core.order.dto.GroupUpdateItemRequest;
 import com.restaurantmanager.core.order.dto.GroupViewResponse;
 import com.restaurantmanager.core.order.dto.OrderCancelRequest;
 import com.restaurantmanager.core.order.dto.OrderPublicStatusView;
@@ -219,8 +220,41 @@ public class OrderController {
 
     @GetMapping("/group/sessions/{code}")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','CUSTOMER')")
-    public GroupViewResponse viewGroupSession(@PathVariable String code) {
-        return orderService.viewGroupSession(code);
+    public GroupViewResponse viewGroupSession(@PathVariable String code,
+                                              @AuthenticationPrincipal UserPrincipal principal) {
+        return orderService.viewGroupSession(code, principal);
+    }
+
+    @PatchMapping("/group/sessions/{code}/items/{itemId}")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','CUSTOMER')")
+    public GroupViewResponse updateGroupItem(@PathVariable String code,
+                                             @PathVariable UUID itemId,
+                                             @Valid @RequestBody GroupUpdateItemRequest request,
+                                             @AuthenticationPrincipal UserPrincipal principal) {
+        return orderService.updateGroupItem(code, itemId, request, principal);
+    }
+
+    @DeleteMapping("/group/sessions/{code}/items/{itemId}")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','CUSTOMER')")
+    public GroupViewResponse removeGroupItem(@PathVariable String code,
+                                             @PathVariable UUID itemId,
+                                             @AuthenticationPrincipal UserPrincipal principal) {
+        return orderService.removeGroupItem(code, itemId, principal);
+    }
+
+    @PostMapping("/group/sessions/{code}/leave")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','CUSTOMER')")
+    public void leaveGroupSession(@PathVariable String code,
+                                  @AuthenticationPrincipal UserPrincipal principal) {
+        orderService.leaveGroupSession(code, principal);
+    }
+
+    @PostMapping("/group/sessions/{code}/cancel")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','CUSTOMER')")
+    public GroupViewResponse cancelGroupSession(@PathVariable String code,
+                                                @AuthenticationPrincipal UserPrincipal principal) {
+        return orderService.cancelGroupSession(code, principal);
     }
 
     @PostMapping("/group/sessions/{code}/finalize")

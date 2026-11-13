@@ -1,16 +1,21 @@
 package com.restaurantmanager.core.order;
 
 import com.restaurantmanager.core.menu.MenuItemEntity;
+import com.restaurantmanager.core.menu.MenuModifierOptionEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -36,6 +41,12 @@ public class GroupSessionItemEntity {
 
     @Column(length = 1000)
     private String notes;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "group_session_item_modifiers",
+            joinColumns = @JoinColumn(name = "group_session_item_id"),
+            inverseJoinColumns = @JoinColumn(name = "modifier_option_id"))
+    private List<MenuModifierOptionEntity> modifierOptions = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -99,5 +110,17 @@ public class GroupSessionItemEntity {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public List<MenuModifierOptionEntity> getModifierOptions() {
+        return modifierOptions;
+    }
+
+    public void setModifierOptions(List<MenuModifierOptionEntity> modifierOptions) {
+        this.modifierOptions = new ArrayList<>(modifierOptions);
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

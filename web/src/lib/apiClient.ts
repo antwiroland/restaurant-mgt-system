@@ -401,6 +401,8 @@ export type GroupViewRecord = {
   sessionCode: string;
   status: "OPEN" | "COMPLETED" | "CANCELLED";
   groupTotal: string;
+  orderId?: string | null;
+  hostUserId?: string;
   participants: {
     participantId: string;
     userId?: string;
@@ -410,9 +412,11 @@ export type GroupViewRecord = {
       itemId: string;
       menuItemId: string;
       name: string;
+      /** Unit price including the chosen modifiers. */
       price: string;
       quantity: number;
       notes?: string;
+      modifiers?: { id: string; groupName: string; optionName: string; priceDelta: string }[];
     }[];
   }[];
 };
@@ -1105,6 +1109,40 @@ export async function addGroupItems(
     method: "POST",
     token: session.accessToken,
     body: payload,
+  });
+}
+
+export async function updateGroupItem(
+  session: StaffSession,
+  code: string,
+  itemId: string,
+  payload: { quantity: number; notes?: string },
+): Promise<GroupViewRecord> {
+  return apiRequest<GroupViewRecord>(`/orders/group/sessions/${encodeURIComponent(code)}/items/${itemId}`, {
+    method: "PATCH",
+    token: session.accessToken,
+    body: payload,
+  });
+}
+
+export async function removeGroupItem(session: StaffSession, code: string, itemId: string): Promise<GroupViewRecord> {
+  return apiRequest<GroupViewRecord>(`/orders/group/sessions/${encodeURIComponent(code)}/items/${itemId}`, {
+    method: "DELETE",
+    token: session.accessToken,
+  });
+}
+
+export async function leaveGroupSession(session: StaffSession, code: string): Promise<void> {
+  return apiRequest<void>(`/orders/group/sessions/${encodeURIComponent(code)}/leave`, {
+    method: "POST",
+    token: session.accessToken,
+  });
+}
+
+export async function cancelGroupSession(session: StaffSession, code: string): Promise<GroupViewRecord> {
+  return apiRequest<GroupViewRecord>(`/orders/group/sessions/${encodeURIComponent(code)}/cancel`, {
+    method: "POST",
+    token: session.accessToken,
   });
 }
 

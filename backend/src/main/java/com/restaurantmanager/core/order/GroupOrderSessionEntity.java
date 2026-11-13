@@ -77,4 +77,13 @@ public class GroupOrderSessionEntity {
     public void setStatus(GroupSessionStatus status) {
         this.status = status;
     }
+
+    public java.time.Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    /** Marks activity on the session (join, cart change); idle open sessions are expired from this. */
+    public void setUpdatedAt(java.time.Instant updatedAt) {
+        this.updatedAt = updatedAt;
+    }
 }
