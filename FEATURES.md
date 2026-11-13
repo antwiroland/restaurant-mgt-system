@@ -83,7 +83,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Public dine-in ordering from a table QR without an account
 - **Pickup is paid before it reaches the kitchen.** An unpaid pickup order stays `PENDING` ("awaiting payment"), off the KDS and the pickup board, and staff cannot confirm it. A successful payment confirms it. `UnpaidPickupExpiryJob` cancels pickups still unpaid after 30 minutes (`orders.unpaid-pickup.expire-after-minutes`), releasing stock and promo codes
 - **Order lookup by the number on the ticket** (`GET /orders/lookup?number=7D63D7F5`): the first 8 characters of the id, with or without `#`; a full id also works
-- Public pickup board (`/orders-status`: paid pickup orders, numbers only, grouped In queue / Preparing / Ready to collect) and table status board (`/tables-status`)
+- Public order board (`/orders-status`: pickup and delivery order numbers tagged Pickup or Delivery, grouped In queue / Preparing / Ready; a pickup leaves once collected, a delivery once the rider takes it; no items, names or tables) and table status board (`/tables-status`)
 
 ### Billing: Service Charge, Tax and Tips
 - Service charge percentage, optionally on dine-in only

@@ -494,14 +494,18 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public List<OrderPublicStatusView> listPublicOrders() {
-        // Pickup board: paid pickup orders still with the kitchen or waiting to be collected (unpaid ones are not
-        // the kitchen's yet, so they are not shown).
+        // Order board: pickup and delivery orders the kitchen has accepted, until they leave the counter. A pickup
+        // leaves when it is collected (COMPLETED), a delivery when the rider takes it (OUT_FOR_DELIVERY). Unpaid
+        // pickups are not the kitchen's yet (still PENDING), so they are not shown; dine-in guests are at their table.
         Set<OrderStatus> shown = EnumSet.of(OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.READY);
-        return orderRepository.findActiveForPublicDisplay(List.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED))
+        Set<OrderType> types = EnumSet.of(OrderType.PICKUP, OrderType.DELIVERY);
+        return orderRepository.findActiveForPublicDisplay(List.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED,
+                        OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED))
                 .stream()
-                .filter(order -> order.getType() == OrderType.PICKUP && shown.contains(order.getStatus()))
+                .filter(order -> types.contains(order.getType()) && shown.contains(order.getStatus()))
                 .map(order -> new OrderPublicStatusView(
                         orderNumber(order.getId()),
+                        order.getType(),
                         order.getStatus(),
                         order.getUpdatedAt()
                 ))

@@ -719,6 +719,7 @@ export async function getPublicTableStatus(): Promise<TablePublicStatusView[]> {
 /** One paid pickup order on the public status board: its short number and status, nothing else. */
 export type OrderPublicStatusView = {
   orderNumber: string;
+  type: "PICKUP" | "DELIVERY";
   status: "CONFIRMED" | "PREPARING" | "READY";
   updatedAt: string;
 };

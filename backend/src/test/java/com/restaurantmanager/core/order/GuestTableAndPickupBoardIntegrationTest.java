@@ -147,6 +147,48 @@ class GuestTableAndPickupBoardIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
+    void orderBoard_showsPickupAndDelivery_untilCollectedOrOutForDelivery() throws Exception {
+        String pickupId = pickupOrder();
+        payCash(pickupId);
+        String deliveryId = json(mockMvc.perform(post("/orders").header("Authorization", "Bearer " + accessToken(cashier))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"DELIVERY\",\"deliveryAddress\":\"12 Oxford St\",\"items\":[{\"menuItemId\":\"" + jollof.getId() + "\",\"quantity\":1}]}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).get("id").asText();
+        payCash(deliveryId);
+        String pickup = pickupId.substring(0, 8).toUpperCase();
+        String delivery = deliveryId.substring(0, 8).toUpperCase();
+
+        JsonNode board = json(mockMvc.perform(get("/orders/public/status")).andReturn().getResponse().getContentAsString());
+        assertThat(board).hasSize(2);
+        board.forEach(line -> assertThat(line.get("type").asText()).isEqualTo(line.get("orderNumber").asText().equals(pickup) ? "PICKUP" : "DELIVERY"));
+
+        for (String id : List.of(pickupId, deliveryId)) {
+            setStatus(id, "PREPARING");
+            setStatus(id, "READY");
+        }
+        assertThat(boardNumbers()).containsExactlyInAnyOrder(pickup, delivery);
+
+        setStatus(deliveryId, "OUT_FOR_DELIVERY"); // the rider took it
+        assertThat(boardNumbers()).containsExactly(pickup);
+        setStatus(pickupId, "COMPLETED"); // the customer collected it
+        assertThat(boardNumbers()).isEmpty();
+    }
+
+    private void setStatus(String orderId, String next) throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/orders/" + orderId + "/status")
+                        .header("Authorization", "Bearer " + accessToken(cashier))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"" + next + "\"}"))
+                .andExpect(status().isOk());
+    }
+
+    private List<String> boardNumbers() throws Exception {
+        List<String> numbers = new ArrayList<>();
+        json(mockMvc.perform(get("/orders/public/status")).andReturn().getResponse().getContentAsString())
+                .forEach(line -> numbers.add(line.get("orderNumber").asText()));
+        return numbers;
+    }
+
+    @Test
     void pickupIsPaidBeforeTheKitchenSeesIt() throws Exception {
         String pickupId = pickupOrder();
         assertThat(kdsOrderIds()).doesNotContain(pickupId);
