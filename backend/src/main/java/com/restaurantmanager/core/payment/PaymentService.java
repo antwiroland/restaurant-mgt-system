@@ -60,6 +60,7 @@ public class PaymentService {
     private final PaymentRefundRepository refundRepository;
     private final LoyaltyAccountService loyaltyAccountService;
     private final TableSessionService tableSessionService;
+    private final com.restaurantmanager.core.table.TableSittingService tableSitting;
     private final com.restaurantmanager.core.billing.BillingService billingService;
     private final com.restaurantmanager.core.payment.split.SplitService splitService;
     private final com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications;
@@ -79,7 +80,7 @@ public class PaymentService {
                           UserRepository userRepository,
                           PaymentRefundRepository refundRepository,
                           LoyaltyAccountService loyaltyAccountService,
-                          TableSessionService tableSessionService,
+                          TableSessionService tableSessionService, com.restaurantmanager.core.table.TableSittingService tableSitting,
                           com.restaurantmanager.core.billing.BillingService billingService,
                           com.restaurantmanager.core.payment.split.SplitService splitService,
             com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications,
@@ -101,6 +102,7 @@ public class PaymentService {
         this.refundRepository = refundRepository;
         this.loyaltyAccountService = loyaltyAccountService;
         this.tableSessionService = tableSessionService;
+        this.tableSitting = tableSitting;
         this.billingService = billingService;
         this.splitService = splitService;
     }
@@ -245,7 +247,10 @@ public class PaymentService {
         // Mark it paid (and run the success side effects) before the single insert, so the row is never stored
         // half-done as INITIATED.
         applyStatusChange(payment, PaymentStatus.SUCCESS, "Cash received");
-        PaymentEntity saved = paymentRepository.save(payment);
+        PaymentEntity saved = paymentRepository.saveAndFlush(payment);
+        // applyStatusChange checked the table before this payment existed: check again now that it is stored, so a
+        // table settled in cash is freed (and its sitting ended once the food is served).
+        refreshTableOccupancy(order);
         realtimePublisher.publishPaymentStatusChanged(saved.getId(), order.getId(), PaymentStatus.INITIATED,
                 PaymentStatus.SUCCESS, saved.getAmount(), saved.getMethod());
         return toInitiateResponse(saved);
@@ -705,6 +710,8 @@ public class PaymentService {
         tableRepository.save(table);
         if (newStatus == TableStatus.AVAILABLE) {
             tableSessionService.closeAll(table.getId());
+            // Paid in full: once the food is also served, the next party must not see this party's bill.
+            tableSitting.endSittingIfFinished(table.getId());
         }
         evictTableCache();
         tableRealtimePublisher.publishTableStatusChanged(table.getNumber(), newStatus);

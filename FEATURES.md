@@ -61,6 +61,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
   - Alerts for cashiers and managers when a table was served and unpaid for 20 minutes, or asked for the bill 10 minutes ago (`tables.payment-watch.*`). Guests are never prompted
 - **Walkouts** (`POST /tables/{id}/walkout`, manager): writes off the unpaid orders, frees the table and records the amount, reason, who took the orders and the guests' phone; audited (`WALKOUT_RECORDED`) and reported (`/reports/walkouts`, CSV/PDF with losses by staff member)
 - Public table bill page (`/bill/[token]`) and public table tracking
+- **Guests only see their own sitting** (`restaurant_tables.guest_history_from`, `TableSittingService`): the QR running bill, order tracker and waiter calls show only the current party's orders. A sitting ends when everything is paid and served (or cancelled/written off), or when staff close, reverse, walk out or free the table; the next party then sees an empty bill. A guest who paid up front keeps tracking the order until it is served. Cash payments now free a settled table too (the check used to run before the cash payment was stored)
 
 ### Reservations
 - Create, list, change status and cancel, with conflict detection for overlapping bookings on the same table
