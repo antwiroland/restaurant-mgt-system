@@ -145,7 +145,10 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Web `/financial` page with manager PIN approval, discount, void and refund forms, the reconciliation report, sign-off and the audit trail
 
 ### Shifts
-- Cashiers open and close shifts with opening and closing cash. Managers and admins can close cashier shifts. Web `/shifts` page
+- Cash shifts are drawer counts. Staff open a shift with a float; **cash can only be taken or refunded with an open shift** (`app.shifts.require-open-shift-for-cash`), and each cash payment and cash refund is tied to the open shift of the person who handled the money
+- Expected cash = float + cash sales − cash refunds + cash in − cash out. Cash in/out (float top-ups, petty cash, bank drops) is recorded with a reason; a pay-out cannot exceed the drawer
+- Closing records the counted cash and the variance (short/over). Cashiers close their own shifts; managers and admins any at their branch
+- `GET /shifts` (history, last 30 days by default) and `GET /shifts/{id}` (breakdown and movements). Web `/shifts`: open drawers with live expected cash, cash in/out, breakdown, and a closed-shift history with variances
 
 ### Promotions & Loyalty
 - Promo code management (`/promotions/codes`) and a validation preview

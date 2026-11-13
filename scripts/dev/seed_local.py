@@ -412,8 +412,26 @@ def main():
     def zone_min(zone):
         return float(zone.get("minOrderAmount") or 0)
 
+    # Cash needs an open shift (the drawer it goes into). Staff who take test-data cash without one of their own get
+    # a seed drawer, closed balanced before the extras run.
+    auto_shifts = {}
+
+    def ensure_shift(token):
+        if token in auto_shifts:
+            return
+        opened = api.call("POST", "/shifts/open", {"openingCash": 0, "notes": "Seed drawer for test-data cash sales"}, token, ok=False)
+        auto_shifts[token] = opened.get("id") if isinstance(opened, dict) and "_error" not in opened else None
+
+    def close_auto_shifts():
+        for token, shift_id in auto_shifts.items():
+            if shift_id:
+                expected = api.call("GET", f"/shifts/{shift_id}", token=token)["expectedCash"]
+                api.call("POST", f"/shifts/{shift_id}/close", {"closingCash": expected, "notes": "Seed drawer, balanced"}, token)
+
     def pay(order, token, method=None):
         method = method or random.choice(["MOBILE_MONEY", "MOBILE_MONEY", "CASH", "CARD"])
+        if method == "CASH":
+            ensure_shift(token)
         init = api.call("POST", "/payments/initiate", {"orderId": order["id"], "method": method, "momoPhone": "+233244000111",
                                                        "idempotencyKey": f"seed-{order['id']}"}, token)
         payment = api.call("GET", f"/payments/{init['paymentId']}", token=token)
@@ -552,6 +570,8 @@ def main():
                               f"paid_at=CASE WHEN paid_at IS NULL THEN NULL ELSE TIMESTAMP '{ts}' + INTERVAL '3' MINUTE END WHERE order_id='{order_id}'")
         for chunk in range(0, len(statements), 40):
             h2_sql(db_url, ";".join(statements[chunk:chunk + 40]))
+
+    close_auto_shifts()
 
     # ---------------------------------------------------------------- HR
     from seed_hr import print_hr_summary, seed_hr

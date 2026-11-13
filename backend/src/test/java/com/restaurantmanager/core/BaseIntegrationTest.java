@@ -86,6 +86,10 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected OrderItemRepository orderItemRepository;
     @Autowired
+    protected com.restaurantmanager.core.shift.CashierShiftRepository cashierShiftRepository;
+    @Autowired
+    protected com.restaurantmanager.core.shift.CashMovementRepository cashMovementRepository;
+    @Autowired
     protected com.restaurantmanager.core.order.OrderItemModifierRepository orderItemModifierRepository;
     @Autowired
     protected GroupOrderSessionRepository groupOrderSessionRepository;
@@ -198,6 +202,8 @@ public abstract class BaseIntegrationTest {
         categoryRepository.deleteAll();
         auditLogRepository.deleteAll();
         refreshTokenRepository.deleteAll();
+        cashMovementRepository.deleteAll();
+        cashierShiftRepository.deleteAll();
         userRepository.deleteAll();
         securityGuardService.clearAllLoginFailures();
     }

@@ -1,6 +1,9 @@
 app:
   rate-limit:
     enabled: false
+  shifts:
+    # Most tests take cash without opening a shift; CashShiftIntegrationTest turns this on.
+    require-open-shift-for-cash: false
 
 media:
   local-dir: target/test-uploads
