@@ -75,6 +75,13 @@ app:
     expo-endpoint: ${EXPO_PUSH_ENDPOINT:https://exp.host/--/api/v2/push/send}
     # Optional: required only if "enhanced push security" is turned on for the Expo project.
     expo-access-token: ${EXPO_ACCESS_TOKEN:}
+  reservations:
+    # A free table goes RESERVED this long before the booked time, so staff can clean and set it.
+    # A table a guest is still using is never interrupted: it is held as soon as they pay and it is free.
+    hold-before-minutes: ${RESERVATION_HOLD_BEFORE_MINUTES:60}
+    # A party that has not arrived (no order at the table) this long after the booked time is a no-show:
+    # the table goes back to AVAILABLE.
+    no-show-after-minutes: ${RESERVATION_NO_SHOW_AFTER_MINUTES:30}
   orders:
     # Branch for customer/guest orders that don't get one from a table, the staff creator,
     # the request or the delivery zone. Leave empty to use the only active branch (if there is one).

@@ -101,6 +101,7 @@ public class OrderService {
     private final CacheManager cacheManager;
     private final TableRealtimePublisher tableRealtimePublisher;
     private final com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications;
+    private final com.restaurantmanager.core.reservation.ReservationTableHolds reservationTableHolds;
 
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
@@ -124,7 +125,9 @@ public class OrderService {
                         OrderBranchResolver branchResolver,
             com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications,
                         CacheManager cacheManager,
-                        TableRealtimePublisher tableRealtimePublisher) {
+                        TableRealtimePublisher tableRealtimePublisher,
+                        com.restaurantmanager.core.reservation.ReservationTableHolds reservationTableHolds) {
+        this.reservationTableHolds = reservationTableHolds;
         this.cacheManager = cacheManager;
         this.tableRealtimePublisher = tableRealtimePublisher;
         this.pushNotifications = pushNotifications;
@@ -751,6 +754,10 @@ public class OrderService {
         } else if (request.type() == OrderType.DINE_IN) {
             RestaurantTableEntity table = resolveTable(request.tableId(), request.tableToken(), principal);
             tableSitting.startSittingIfIdle(table);
+            if (table.getStatus() == TableStatus.RESERVED) {
+                // The party the table was held for has arrived: the reservation's hold is used up.
+                reservationTableHolds.markSeated(table.getId(), Instant.now());
+            }
             boolean newlyOccupied = table.getStatus() != TableStatus.OCCUPIED;
             table.setStatus(TableStatus.OCCUPIED);
             tableRepository.save(table);

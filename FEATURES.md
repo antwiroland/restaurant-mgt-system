@@ -66,7 +66,7 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 ### Reservations
 - Create, list, change status and cancel, with conflict detection for overlapping bookings on the same table
 - Guest reservations, guest lookup and guest cancel
-- `TableReservationJob` marks tables reserved 15 minutes before a booking
+- `TableReservationJob` holds a free table (RESERVED) 1 hour before a booking so staff can prepare it; a table still in use is never interrupted and is held once it frees up. The table is released when the reservation is cancelled (by the customer or staff) or the party has not arrived 30 minutes after the booked time; once the party is seated the normal pay-and-free flow applies (`app.reservations.*`)
 - Web `/reservations` page and a mobile reservation screen
 
 ### Orders & Pricing
