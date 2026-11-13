@@ -282,4 +282,11 @@ public class EmployeeEntity {
     public void setTin(String tin) { this.tin = tin; }
     public boolean isLoginDisabledByHr() { return loginDisabledByHr; }
     public void setLoginDisabledByHr(boolean loginDisabledByHr) { this.loginDisabledByHr = loginDisabledByHr; }
+
+    /** Status is ON_LEAVE because of approved leave; it returns to ACTIVE automatically when the leave ends. */
+    @Column(name = "status_from_leave", nullable = false)
+    private boolean statusFromLeave;
+
+    public boolean isStatusFromLeave() { return statusFromLeave; }
+    public void setStatusFromLeave(boolean statusFromLeave) { this.statusFromLeave = statusFromLeave; }
 }

@@ -111,4 +111,20 @@ public class LeaveRequestEntity {
     public Instant getDecidedAt() { return decidedAt; }
     public void setDecidedAt(Instant decidedAt) { this.decidedAt = decidedAt; }
     public Instant getCreatedAt() { return createdAt; }
+
+    /** Of {@link #getDays()}, the days that fall in the following year (leave running over New Year). */
+    @Column(name = "next_year_days", nullable = false, precision = 6, scale = 2) private BigDecimal nextYearDays = BigDecimal.ZERO;
+
+    public BigDecimal getNextYearDays() { return nextYearDays; }
+    public void setNextYearDays(BigDecimal nextYearDays) { this.nextYearDays = nextYearDays; }
+
+    /** Days charged to each year: {startYear: days − nextYearDays, startYear + 1: nextYearDays}, leaving out zero. */
+    public java.util.Map<Integer, BigDecimal> daysByYear() {
+        java.util.Map<Integer, BigDecimal> map = new java.util.LinkedHashMap<>();
+        BigDecimal next = nextYearDays == null ? BigDecimal.ZERO : nextYearDays;
+        BigDecimal first = days.subtract(next);
+        if (first.signum() > 0) map.put(startDate.getYear(), first);
+        if (next.signum() > 0) map.put(startDate.getYear() + 1, next);
+        return map;
+    }
 }

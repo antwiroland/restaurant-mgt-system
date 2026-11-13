@@ -101,4 +101,10 @@ public class LeaveTypeEntity {
 
     public boolean isPayOutOnExit() { return payOutOnExit; }
     public void setPayOutOnExit(boolean payOutOnExit) { this.payOutOnExit = payOutOnExit; }
+
+    /** Most days one person may take in a calendar year (null: no yearly limit beyond the balance). */
+    @Column(name = "max_days_per_year", precision = 6, scale = 2) private BigDecimal maxDaysPerYear;
+
+    public BigDecimal getMaxDaysPerYear() { return maxDaysPerYear; }
+    public void setMaxDaysPerYear(BigDecimal maxDaysPerYear) { this.maxDaysPerYear = maxDaysPerYear; }
 }

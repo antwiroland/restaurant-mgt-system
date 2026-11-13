@@ -394,9 +394,21 @@ public class PayrollService {
             }
             LocalDate s = r.getStartDate().isBefore(from) ? from : r.getStartDate();
             LocalDate en = r.getEndDate().isAfter(to) ? to : r.getEndDate();
-            Set<LocalDate> holidays = overtimeSettings.observedHolidays(e.primaryBranchId(), s, en);
-            total = total.add(LeaveCalculator.countDays(s, en, r.isStartHalf() && s.equals(r.getStartDate()), r.isEndHalf() && en.equals(r.getEndDate()),
-                    type.getCountBasis(), leaveSetup.nonWorkingDays(), holidays));
+            if (s.equals(r.getStartDate()) && en.equals(r.getEndDate())) {
+                total = total.add(r.getDays()); // the days charged when the leave was requested (counted from the rota)
+                continue;
+            }
+            // Leave running past the period: its charged days, shared by the standard-week days on each side.
+            Set<LocalDate> holidays = overtimeSettings.observedHolidays(e.primaryBranchId(), r.getStartDate(), r.getEndDate());
+            BigDecimal whole = LeaveCalculator.countDays(r.getStartDate(), r.getEndDate(), r.isStartHalf(), r.isEndHalf(),
+                    type.getCountBasis(), leaveSetup.nonWorkingDays(), holidays);
+            BigDecimal part = LeaveCalculator.countDays(s, en, r.isStartHalf() && s.equals(r.getStartDate()), r.isEndHalf() && en.equals(r.getEndDate()),
+                    type.getCountBasis(), leaveSetup.nonWorkingDays(), holidays);
+            if (whole.signum() == 0) {
+                whole = BigDecimal.valueOf(java.time.temporal.ChronoUnit.DAYS.between(r.getStartDate(), r.getEndDate()) + 1);
+                part = BigDecimal.valueOf(java.time.temporal.ChronoUnit.DAYS.between(s, en) + 1);
+            }
+            total = total.add(r.getDays().multiply(part).divide(whole, 2, java.math.RoundingMode.HALF_UP));
         }
         return total.setScale(2, java.math.RoundingMode.HALF_UP);
     }

@@ -77,6 +77,7 @@ export function LeaveSetupPanels() {
                   <td className="text-xs">
                     {t.requiresDocument ? <span className="badge badge-info mr-1">Document</span> : null}
                     {t.maxDaysPerRequest ? <span className="badge badge-neutral">Max {formatDays(t.maxDaysPerRequest)} days</span> : null}
+                    {t.maxDaysPerYear ? <span className="badge badge-neutral">{formatDays(t.maxDaysPerYear)} days a year</span> : null}
                   </td>
                   <td>{central ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(t)}>Edit</button> : null}</td>
                 </tr>
@@ -127,7 +128,7 @@ function TypeModal({ type, onClose, onSaved }: { type: LeaveType | null; onClose
   const { authenticatedFetch } = useStaffSession();
   const [form, setForm] = useState<LeaveTypeInput>(type ? { ...type } : {
     code: "", name: "", paid: true, deductsBalance: true, requiresDocument: false, allowNegative: false,
-    countBasis: "WORKDAYS", approvalSteps: ["BRANCH_MANAGER"], maxDaysPerRequest: null, active: true, displayOrder: 0,
+    countBasis: "WORKDAYS", approvalSteps: ["BRANCH_MANAGER"], maxDaysPerRequest: null, maxDaysPerYear: null, active: true, displayOrder: 0,
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -195,6 +196,10 @@ function TypeModal({ type, onClose, onSaved }: { type: LeaveType | null; onClose
           <Field label="Max days per request (optional)">
             <input className="input tabular" inputMode="decimal" value={form.maxDaysPerRequest ?? ""}
               onChange={(e) => set("maxDaysPerRequest", e.target.value ? Number(e.target.value.replace(/[^0-9.]/g, "")) : null)} />
+          </Field>
+          <Field label="Max days per year (optional)">
+            <input className="input tabular" inputMode="decimal" value={form.maxDaysPerYear ?? ""}
+              onChange={(e) => set("maxDaysPerYear", e.target.value ? Number(e.target.value.replace(/[^0-9.]/g, "")) : null)} />
           </Field>
           <Field label="Display order">
             <input className="input tabular" inputMode="numeric" value={form.displayOrder} onChange={(e) => set("displayOrder", Number(e.target.value.replace(/\D/g, "") || 0))} />

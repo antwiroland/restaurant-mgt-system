@@ -117,6 +117,7 @@ public class LeaveSetupService {
         type.setCountBasis(r.countBasis());
         type.setApprovalSteps(LeaveTypeEntity.formatSteps(List.copyOf(distinct)));
         type.setMaxDaysPerRequest(r.maxDaysPerRequest());
+        type.setMaxDaysPerYear(r.maxDaysPerYear());
         type.setActive(r.active() == null || r.active());
         type.setDisplayOrder(r.displayOrder() == null ? 0 : r.displayOrder());
     }
@@ -234,7 +235,7 @@ public class LeaveSetupService {
 
     static TypeView toView(LeaveTypeEntity t) {
         return new TypeView(t.getId(), t.getCode(), t.getName(), t.isPaid(), t.isDeductsBalance(), t.isRequiresDocument(), t.isAllowNegative(),
-                t.getCountBasis(), t.steps(), t.getMaxDaysPerRequest(), t.isActive(), t.getDisplayOrder());
+                t.getCountBasis(), t.steps(), t.getMaxDaysPerRequest(), t.isActive(), t.getDisplayOrder(), t.getMaxDaysPerYear());
     }
 
     private static PolicyView toView(LeavePolicyEntity p, LeaveTypeEntity type) {
@@ -250,11 +251,13 @@ public class LeaveSetupService {
                               @NotNull CountBasis countBasis,
                               @NotEmpty @Size(max = 3) List<@NotNull ApprovalStep> approvalSteps,
                               @DecimalMin("0.5") @DecimalMax("366") BigDecimal maxDaysPerRequest,
+                              @DecimalMin("0.5") @DecimalMax("366") BigDecimal maxDaysPerYear,
                               Boolean active, @Min(0) @Max(999) Integer displayOrder) {}
 
     public record TypeView(UUID id, String code, String name, boolean paid, boolean deductsBalance, boolean requiresDocument,
                            boolean allowNegative, CountBasis countBasis, List<ApprovalStep> approvalSteps, BigDecimal maxDaysPerRequest,
-                           boolean active, int displayOrder) {}
+                           boolean active, int displayOrder,
+                           BigDecimal maxDaysPerYear) {}
 
     public record PolicyRequest(@NotNull UUID leaveTypeId, UUID branchId, EmploymentType employmentType,
                                 @NotNull @DecimalMin("0") @DecimalMax("366") BigDecimal annualDays,

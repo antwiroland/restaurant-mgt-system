@@ -143,8 +143,13 @@ export function LeaveRequestForm({ employee, onClose, onSaved }: {
           <div className="rounded-xl bg-sunken p-3 text-sm" role="status">
             <p className="font-semibold">
               {plural(quote.days)}
-              {type?.countBasis === "WORKDAYS" ? " (working days; weekends and public holidays are not counted)" : " (calendar days)"}
+              {quote.countedFrom === "ROTA" ? " (the days you are on the rota; public holidays not counted)"
+                : quote.countedFrom === "USUAL_PATTERN" ? " (the days you usually work; public holidays not counted)"
+                  : type?.countBasis === "WORKDAYS" ? " (working days; weekends and public holidays are not counted)" : " (calendar days)"}
             </p>
+            {quote.nextYearDays ? (
+              <p className="text-ink-soft">{formatDays(quote.nextYearDays)} of these days fall in the new year and come from next year&apos;s balance.</p>
+            ) : null}
             {quote.deductsBalance && quote.availableDays != null ? (
               <p className="text-ink-soft">{formatDays(quote.availableDays)} days available on the first day; {formatDays(Number(quote.availableDays) - Number(quote.days))} left afterwards.</p>
             ) : null}

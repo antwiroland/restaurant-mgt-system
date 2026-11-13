@@ -37,6 +37,17 @@ public class LeaveNotifier {
         send(approvers(step, employee, branchId), "Leave request to review", employee.fullName() + " requested " + what + ".", "LEAVE_REQUESTED");
     }
 
+    /** A pending request is still waiting; once the leave has started HR is told as well. */
+    public void reminder(ApprovalStep step, EmployeeEntity employee, UUID branchId, String what, boolean started) {
+        Set<UUID> to = approvers(step, employee, branchId);
+        if (started && step != ApprovalStep.HR) {
+            to.addAll(approvers(ApprovalStep.HR, employee, branchId));
+        }
+        send(to, started ? "Leave decision overdue" : "Leave request waiting",
+                employee.fullName() + "'s " + what + (started ? " has started and still has no decision." : " is still waiting for a decision."),
+                "LEAVE_REMINDER");
+    }
+
     public void decided(EmployeeEntity employee, boolean approved, String what) {
         send(self(employee),
                 approved ? "Leave approved" : "Leave declined",
