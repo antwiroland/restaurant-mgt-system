@@ -1,5 +1,10 @@
 # Backend
 backend/target/
+
+# Attendance gateway (build output, local queue, device logins)
+attendance-gateway/target/
+attendance-gateway/gateway-data/
+attendance-gateway/config/
 *.log
 
 # Node workspaces
