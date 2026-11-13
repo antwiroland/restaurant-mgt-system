@@ -18,7 +18,8 @@ import { initiatePayment } from '../src/api/payment';
 import { useAuthStore } from '../src/store/auth';
 import { fetchMyAddresses, saveMyAddress } from '../src/api/user';
 import { fetchLoyaltyBalance } from '../src/api/loyalty';
-import { quoteCartOffers, type CartQuote } from '../src/api/offers';
+import { quoteCart, type CartQuote } from '../src/api/quote';
+import { ServerTotals } from '../src/features/billing/ServerTotals';
 import { fetchDeliveryZones, type DeliveryZone } from '../src/api/delivery';
 import { fetchBillingConfig } from '../src/api/billing';
 import { billingNote, TIP_CHOICES, tipAmountFor, type TipChoice } from '../src/features/billing/billing';
@@ -48,16 +49,7 @@ export default function CheckoutScreen() {
     fetchBillingConfig().then(setBilling).catch(() => setBilling(null));
   }, []);
 
-  // Offers are applied by the server when the order is placed; show them here so the total matches.
   const [offerQuote, setOfferQuote] = useState<CartQuote | null>(null);
-  useEffect(() => {
-    if (lines.length === 0) return;
-    quoteCartOffers(
-      lines.map((line) => ({ menuItemId: line.item.id, quantity: line.quantity, modifierOptionIds: line.modifierOptionIds })),
-      tableToken,
-    ).then(setOfferQuote).catch(() => setOfferQuote(null));
-  }, [lines, tableToken]);
-  const offerDiscount = offerQuote?.offerDiscount ?? 0;
 
   const selectedAddress = useMemo(
     () => addresses.find((address) => address.id === selectedAddressId) ?? null,
@@ -85,6 +77,25 @@ export default function CheckoutScreen() {
     deliveryZoneId: effectiveOrderType === 'DELIVERY' && zoneId ? zoneId : undefined,
     tipAmount: tipAmount > 0 ? tipAmount : undefined,
   };
+  // Price the order exactly as the server will charge it (offers, promo, points, delivery, charges, tax, tip).
+  const quoteKey = JSON.stringify(orderPayload);
+  useEffect(() => {
+    if (orderPayload.items.length === 0 || (orderPayload.type === 'DELIVERY' && !orderPayload.deliveryZoneId && zones.length > 0)) {
+      setOfferQuote(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      quoteCart(orderPayload, isAuthenticated && !isGuest)
+        .then((quote) => { if (!cancelled) setOfferQuote(quote); })
+        .catch(() => { if (!cancelled) setOfferQuote(null); });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // quoteKey captures everything the quote depends on.
+  }, [quoteKey, isAuthenticated, isGuest, zones.length]);
   const selectedZone = zones.find((zone) => zone.id === zoneId) ?? null;
   const deliveryFee = effectiveOrderType === 'DELIVERY' && selectedZone ? Number(selectedZone.fee) : 0;
 
@@ -405,29 +416,42 @@ export default function CheckoutScreen() {
           <Text style={styles.summaryLabel}>Items</Text>
           <Text style={styles.summaryValue}>{lines.length}</Text>
         </View>
-        {deliveryFee > 0 && (
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Delivery fee</Text>
-            <Text style={styles.summaryValue}>GHS {deliveryFee.toFixed(2)}</Text>
-          </View>
+        {offerQuote ? (
+          <>
+            {offerQuote.promoRejected ? <Text style={styles.hint}>Promo {promoCode} can&apos;t be used on this order.</Text> : null}
+            <ServerTotals
+              quote={offerQuote}
+              rowStyle={styles.summaryRow}
+              labelStyle={styles.summaryLabel}
+              valueStyle={styles.summaryValue}
+              discountColor={colors.success}
+            />
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabelBold}>Total</Text>
+              <Text style={styles.summaryValueBold}>GHS {offerQuote.total.toFixed(2)}</Text>
+            </View>
+          </>
+        ) : (
+          <>
+            {deliveryFee > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Delivery fee</Text>
+                <Text style={styles.summaryValue}>GHS {deliveryFee.toFixed(2)}</Text>
+              </View>
+            )}
+            {tipAmount > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Tip</Text>
+                <Text style={styles.summaryValue}>GHS {tipAmount.toFixed(2)}</Text>
+              </View>
+            )}
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabelBold}>{chargesNote ? 'Subtotal' : 'Total'}</Text>
+              <Text style={styles.summaryValueBold}>GHS {(total() + deliveryFee + tipAmount).toFixed(2)}</Text>
+            </View>
+            {chargesNote ? <Text style={styles.hint}>{chargesNote}</Text> : null}
+          </>
         )}
-        {offerQuote?.appliedOffers.map((offer) => (
-          <View key={offer.offerId} style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Offer: {offer.name}</Text>
-            <Text style={styles.summaryValue}>-GHS {offer.discount.toFixed(2)}</Text>
-          </View>
-        ))}
-        {tipAmount > 0 && (
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Tip</Text>
-            <Text style={styles.summaryValue}>GHS {tipAmount.toFixed(2)}</Text>
-          </View>
-        )}
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabelBold}>{chargesNote ? 'Subtotal' : 'Total'}</Text>
-          <Text style={styles.summaryValueBold}>GHS {Math.max(0, total() - offerDiscount + deliveryFee + tipAmount).toFixed(2)}</Text>
-        </View>
-        {chargesNote ? <Text style={styles.hint}>{chargesNote}</Text> : null}
       </View>
 
       {!isOnline && (

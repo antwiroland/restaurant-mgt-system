@@ -743,6 +743,38 @@ export default function PosPage() {
                   <Row key={tax.code} label={`${tax.name}${quote.taxInclusive ? " (incl.)" : ""}`} value={formatMoney(tax.amount)} muted={quote.taxInclusive} />
                 ))}
               </dl>
+              {quote?.offerHints && quote.offerHints.length > 0 ? (
+                <ul className="mt-2 grid gap-1.5" aria-label="Deals to offer the customer">
+                  {quote.offerHints.map((hint) => {
+                    // More of a line already on the ticket keeps its options; otherwise add the dish (opens its options).
+                    const existing = cart.find((line) => line.item.id === hint.menuItemId);
+                    const menuItem = menuItems.find((item) => item.id === hint.menuItemId);
+                    return (
+                      <li key={`${hint.offerId}-${hint.menuItemId}`} className="flex items-center justify-between gap-2 rounded-lg border border-brand/30 bg-brand-subtle px-2.5 py-2">
+                        <span className="flex items-start gap-1.5 text-xs font-semibold text-ink">
+                          <Icon name="tag" size={14} className="mt-0.5 shrink-0 text-brand" />
+                          {hint.message}
+                        </span>
+                        {existing || (menuItem && menuItem.available) ? (
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm shrink-0"
+                            onClick={() => {
+                              if (existing) {
+                                setCart((current) => addToCart(current, existing.item, hint.quantity));
+                              } else if (menuItem) {
+                                void addItem(menuItem);
+                              }
+                            }}
+                          >
+                            Add
+                          </button>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
               {promoCode && quote && !quote.promoCode ? <p className="mt-1 text-xs text-warning-on">Promo code not applied — check it&apos;s valid for this order.</p> : null}
               {quoteState === "error" ? <p className="mt-1 text-xs text-ink-muted">Live pricing unavailable — final total is confirmed when the order is placed.</p> : null}
 

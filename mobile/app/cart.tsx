@@ -13,7 +13,9 @@ import { router } from 'expo-router';
 import { useCartStore } from '../src/store/cart';
 import { validatePromoCode } from '../src/api/loyalty';
 import { fetchMenuItem, fetchMenuItemModifiers } from '../src/api/menu';
-import { quoteCartOffers, type CartQuote } from '../src/api/offers';
+import { quoteCart, type CartQuote } from '../src/api/quote';
+import { useAuthStore } from '../src/store/auth';
+import { ServerTotals } from '../src/features/billing/ServerTotals';
 import { colors } from '../src/theme';
 
 export default function CartScreen() {
@@ -36,8 +38,9 @@ export default function CartScreen() {
   const [promoInput, setPromoInput] = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
   const [offerQuote, setOfferQuote] = useState<CartQuote | null>(null);
+  const signedInCustomer = useAuthStore((st) => st.isAuthenticated && st.role === 'CUSTOMER');
 
-  // Ask the server which offers apply and what would complete a deal. Re-run when the cart changes.
+  // Price the cart on the server (offers, then promo, then charges and tax), and get suggestions to complete a deal.
   const cartKey = lines.map((line) => `${line.key}x${line.quantity}`).join('|');
   useEffect(() => {
     if (lines.length === 0) {
@@ -46,9 +49,14 @@ export default function CartScreen() {
     }
     let cancelled = false;
     const timer = setTimeout(() => {
-      quoteCartOffers(
-        lines.map((line) => ({ menuItemId: line.item.id, quantity: line.quantity, modifierOptionIds: line.modifierOptionIds })),
-        tableToken,
+      quoteCart(
+        {
+          type: tableToken ? 'DINE_IN' : 'PICKUP',
+          tableToken: tableToken ?? undefined,
+          items: lines.map((line) => ({ menuItemId: line.item.id, quantity: line.quantity, modifierOptionIds: line.modifierOptionIds })),
+          promoCode: promoCode ?? undefined,
+        },
+        signedInCustomer,
       )
         .then((quote) => { if (!cancelled) setOfferQuote(quote); })
         .catch(() => { if (!cancelled) setOfferQuote(null); });
@@ -57,7 +65,7 @@ export default function CartScreen() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [cartKey, tableToken]);
+  }, [cartKey, tableToken, promoCode, signedInCustomer]);
 
   /** Add what a deal needs: more of a line already in the cart, or a dish without required choices. */
   async function addForHint(menuItemId: string, quantity: number) {
@@ -114,8 +122,8 @@ export default function CartScreen() {
 
   const subtotalAmount = subtotal();
   const discount = discountAmount();
-  const offerDiscount = offerQuote?.offerDiscount ?? 0;
-  const grandTotal = Math.max(0, total() - offerDiscount);
+  // The server's figure when we have it; otherwise the phone's own estimate.
+  const grandTotal = offerQuote ? offerQuote.total : total();
 
   if (lines.length === 0) {
     return (
@@ -206,13 +214,19 @@ export default function CartScreen() {
           <Text style={styles.totalLabel}>Subtotal</Text>
           <Text style={styles.totalValue}>GHS {subtotalAmount.toFixed(2)}</Text>
         </View>
-        {offerQuote?.appliedOffers.map((offer) => (
-          <View key={offer.offerId} style={styles.totalRow}>
-            <Text style={[styles.totalLabel, { color: colors.success }]}>Offer: {offer.name}</Text>
-            <Text style={[styles.totalValue, { color: colors.success }]}>-GHS {offer.discount.toFixed(2)}</Text>
-          </View>
-        ))}
-        {discount > 0 && (
+        {offerQuote?.promoRejected ? (
+          <Text style={styles.promoRejected}>Promo {promoCode} can&apos;t be used on this order.</Text>
+        ) : null}
+        {offerQuote ? (
+          <ServerTotals
+            quote={offerQuote}
+            rowStyle={styles.totalRow}
+            labelStyle={styles.totalLabel}
+            valueStyle={styles.totalValue}
+            discountColor={colors.success}
+          />
+        ) : null}
+        {!offerQuote && discount > 0 && (
           <View style={styles.totalRow}>
             <Text style={[styles.totalLabel, { color: colors.success }]}>Discount</Text>
             <Text style={[styles.totalValue, { color: colors.success }]}>-GHS {discount.toFixed(2)}</Text>
@@ -285,6 +299,7 @@ const styles = StyleSheet.create({
   promoBtn: { backgroundColor: colors.brand, borderRadius: 8, paddingHorizontal: 16, justifyContent: 'center' },
   promoBtnText: { color: colors.white, fontWeight: '600', fontSize: 14 },
   promoApplied: { color: colors.success, fontSize: 12, marginBottom: 8 },
+  promoRejected: { color: colors.danger, fontSize: 12, marginBottom: 8 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   totalLabel: { fontSize: 14, color: colors.inkMuted },
   totalValue: { fontSize: 14, color: colors.inkSoft, fontWeight: '600' },
