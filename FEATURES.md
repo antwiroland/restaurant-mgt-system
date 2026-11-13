@@ -265,6 +265,9 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
     - 3 delivery zones, promo codes and a buy-X-get-Y offer
     - About 90 orders with 30 days of history: kitchen tickets at every stage, deliveries assigned to riders, customer reviews
     - Reservations, a week of staff rota, an open cash shift and an open group-order session
+    - HR (`seed_hr.py`): employees, contracts, documents, schedules, attendance, leave, timesheets, tip pools, payroll with bank/MoMo/cash payout details (bank and MoMo payslips left unpaid so payment files can be downloaded) and recruitment
+    - Everything else (`seed_extras.py`): restaurant profile, printers, dish photos, East Legon history, saved addresses and favourites, loyalty spent at checkout, failed and retried MoMo payments, a closed shift with a cash shortfall, discount/void/full and part refunds, a signed-off reconciliation, split bills (staff, guest QR and group by-items), waiter calls and a bill request, a served-unpaid table, a walkout, guest feedback, review replies, stock delivery/waste/count with a dish taken off the menu, and a pickup awaiting payment
+  - `run-backend-local.sh` relaxes the auth and PIN rate limits for local seeding (`RATE_LIMIT_AUTH_REQUESTS`, `RATE_LIMIT_PIN_REQUESTS`)
   - `run-web-local.sh` builds the web app for a given backend port and serves it
   - Steps are in `documentation/DEPLOYMENT_READINESS.md` → "Local test environment"
 

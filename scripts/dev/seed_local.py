@@ -167,11 +167,14 @@ class Api:
             return {"_error": err.code, "_detail": detail}
 
     def webhook_success(self, reference: str, amount: str):
-        payload = json.dumps({
-            "event": "charge.success",
-            "data": {"id": f"seed-{reference}", "reference": reference, "status": "success",
-                     "amount": int(round(float(amount) * 100)), "currency": "GHS"},
-        }, separators=(",", ":"))
+        self.webhook_event(reference, amount, "charge.success", "success")
+
+    def webhook_event(self, reference: str, amount: str, event: str, status: str, gateway_response: str | None = None):
+        data = {"id": f"seed-{event}-{reference}", "reference": reference, "status": status,
+                "amount": int(round(float(amount) * 100)), "currency": "GHS"}
+        if gateway_response:
+            data["gateway_response"] = gateway_response
+        payload = json.dumps({"event": event, "data": data}, separators=(",", ":"))
         signature = hmac.new(self.secret.encode(), payload.encode(), hashlib.sha512).hexdigest()
         self.call("POST", "/payments/webhook", raw=payload.encode(), headers={"X-Paystack-Signature": signature})
 
@@ -554,6 +557,13 @@ def main():
     from seed_hr import print_hr_summary, seed_hr
     hr_summary = seed_hr(api, A, {"OSU": osu, "ELG": legon}, users, step=step, db_url=db_url)
 
+    # ---------------------------------------------------------------- everything else (financial, splits, photos…)
+    from seed_extras import print_extras_summary, seed_extras
+    extras_summary = seed_extras(api, {
+        "tokens": tokens, "customers": CUSTOMERS, "items": items, "tables": tables, "zones": zones, "osu": osu, "legon": legon,
+        "basket": basket, "pay": pay, "advance": advance, "h2_sql": h2_sql, "db_url": db_url, "road_order_id": road["id"], "iso": iso, "password": PASSWORD,
+    }, step=step)
+
     print("\nDone.")
     print(f"  Orders: {counts['completed']} finished (history), {counts['active']} live today, {counts['cancelled']} cancelled")
     print(f"  Accounts (password {PASSWORD}):")
@@ -564,6 +574,7 @@ def main():
     print(f"  Promo codes: WELCOME10, FEAST20 (expired: EXPIRED5)   Open group session: {code}")
     print(f"  Guest QR link: /scan/{guest_table['qrToken']}")
     print_hr_summary(hr_summary)
+    print_extras_summary(extras_summary)
 
 
 def step(label):
