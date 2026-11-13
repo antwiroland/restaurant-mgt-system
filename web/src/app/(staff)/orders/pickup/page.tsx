@@ -16,7 +16,13 @@ const STATUS_TEXT: Partial<Record<OrderRecord["status"], string>> = {
   CANCELLED: "Cancelled",
 };
 
-/** Customer at the counter: find their pickup by pickup code or the order number on the board/receipt, then hand over. */
+const PICKUP_CODE = /^PK\d{6}$/i;
+
+/**
+ * Customer at the counter: find their pickup by pickup code or the order number on the board/receipt, then hand it
+ * over. Handing over needs the customer's pickup code (the order number is on the public board, so it is not proof);
+ * admins and managers can override for a customer who lost theirs.
+ */
 export default function PickupLookupPage() {
   const { session, loading, authenticatedFetch } = useStaffSession();
   const [code, setCode] = useState("");
@@ -24,6 +30,10 @@ export default function PickupLookupPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  /** The pickup code the customer gave: the search itself when they searched by code, otherwise typed at handover. */
+  const [handoverCode, setHandoverCode] = useState("");
+  const [codeFromSearch, setCodeFromSearch] = useState(false);
+  const canOverride = session?.user.role === "ADMIN" || session?.user.role === "MANAGER";
 
   async function onLookup(event: FormEvent) {
     event.preventDefault();
@@ -35,21 +45,31 @@ export default function PickupLookupPage() {
     try {
       const next = await authenticatedFetch((activeSession) => getOrderByPickupCode(activeSession, typed));
       setOrder(next);
+      const byCode = PICKUP_CODE.test(typed);
+      setCodeFromSearch(byCode);
+      setHandoverCode(byCode ? typed.toUpperCase() : "");
     } catch (err) {
       setOrder(null);
       setError(err instanceof Error ? err.message : "Could not find order");
     }
   }
 
-  async function markCollected() {
+  async function markCollected(withoutCode = false) {
     if (!order) return;
+    const pickupCode = withoutCode ? undefined : handoverCode.trim().replace(/^#/, "");
+    if (!withoutCode && !pickupCode) {
+      setError("Ask the customer for their pickup code (PK followed by 6 digits).");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
-      const next = await authenticatedFetch((activeSession) => updateOrderStatus(activeSession, order.id, "COMPLETED"));
+      const next = await authenticatedFetch((activeSession) => updateOrderStatus(activeSession, order.id, "COMPLETED", pickupCode));
       setOrder(next);
       setMessage(`Order #${order.id.slice(0, 8).toUpperCase()} handed over. It has left the order board.`);
       setCode("");
+      setHandoverCode("");
+      setCodeFromSearch(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not mark the order collected");
     } finally {
@@ -85,7 +105,7 @@ export default function PickupLookupPage() {
           <div className="mt-4 rounded-xl border border-line p-4">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="font-mono text-xl font-bold">#{order.id.slice(0, 8).toUpperCase()}</p>
-              {order.pickupCode ? <p className="font-mono text-sm text-ink-soft">Code {order.pickupCode}</p> : null}
+              {codeFromSearch ? <p className="text-sm font-semibold text-success-on">Pickup code checked</p> : null}
             </div>
             <p className={`mt-1 font-semibold ${order.status === "READY" ? "text-success-on" : "text-ink"}`}>
               {STATUS_TEXT[order.status] ?? order.status}
@@ -99,10 +119,39 @@ export default function PickupLookupPage() {
               ))}
             </ul>
             <p className="mt-2 text-sm text-ink-soft">Total {formatMoney(order.total)}</p>
+            {order.status === "READY" && !codeFromSearch ? (
+              <div className="mt-4">
+                <label className="text-sm font-semibold text-ink" htmlFor="handover-code">Customer&apos;s pickup code</label>
+                <p className="text-xs text-ink-soft">Ask the customer to show it in their app or on their receipt.</p>
+                <input
+                  id="handover-code"
+                  className="input mt-1 font-mono uppercase"
+                  value={handoverCode}
+                  onChange={(e) => setHandoverCode(e.target.value)}
+                  placeholder="PK000000"
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                />
+              </div>
+            ) : null}
             <div className="mt-4 flex flex-wrap gap-2">
               {order.status === "READY" ? (
                 <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void markCollected()}>
                   Mark collected
+                </button>
+              ) : null}
+              {order.status === "READY" && canOverride && !codeFromSearch ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    if (window.confirm("Hand over without the pickup code? Only do this after checking who the customer is.")) {
+                      void markCollected(true);
+                    }
+                  }}
+                >
+                  Hand over without code
                 </button>
               ) : null}
               <Link className="btn btn-secondary" href={`/orders/${order.id}`}>Open order</Link>

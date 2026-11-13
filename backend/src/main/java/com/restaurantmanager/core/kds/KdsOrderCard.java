@@ -13,6 +13,8 @@ public record KdsOrderCard(
         OrderStatus status,
         String notes,
         Instant createdAt,
-        List<KdsOrderItem> items
+        List<KdsOrderItem> items,
+        /** PICKUP orders are handed over at the counter with the customer's pickup code, not from the KDS. */
+        com.restaurantmanager.core.order.OrderType orderType
 ) {
 }

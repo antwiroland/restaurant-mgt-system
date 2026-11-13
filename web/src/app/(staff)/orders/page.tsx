@@ -174,7 +174,10 @@ export default function OrdersPage() {
     const cancellable = !["CANCELLED", "VOIDED", "COMPLETED", "DELIVERED"].includes(order.status);
     return (
       <div className={`flex items-center justify-end gap-2 ${size === "sm" ? "flex-nowrap whitespace-nowrap" : "flex-wrap"}`}>
-        {next ? (
+        {order.type === "PICKUP" && order.status === "READY" ? (
+          // Handing over needs the customer's pickup code, entered on the pickup counter page.
+          <Link className={`btn btn-primary btn-${size}`} href="/orders/pickup">Hand over</Link>
+        ) : next ? (
           <button className={`btn btn-primary btn-${size}`} disabled={busy} onClick={() => void handleStatusChange(order.id, next)}>
             {busy ? <Spinner className="text-current" size={16} /> : null}
             {statusActionLabel(order.status)}
