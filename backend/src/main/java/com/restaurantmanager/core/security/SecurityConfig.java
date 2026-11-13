@@ -62,6 +62,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/prometheus", "/actuator/info").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/menu/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/promotions/offers/public").permitAll()
                         .requestMatchers(HttpMethod.GET, "/delivery/zones").permitAll()
                         .requestMatchers(HttpMethod.GET, "/billing/settings").permitAll()
                         .requestMatchers(HttpMethod.GET, "/restaurant/profile").permitAll()

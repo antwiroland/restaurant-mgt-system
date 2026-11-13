@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
 import { router } from 'expo-router';
 import { useCartStore } from '../src/store/cart';
 import { validatePromoCode } from '../src/api/loyalty';
+import { fetchMenuItem, fetchMenuItemModifiers } from '../src/api/menu';
+import { quoteCartOffers, type CartQuote } from '../src/api/offers';
 import { colors } from '../src/theme';
 
 export default function CartScreen() {
@@ -28,9 +30,61 @@ export default function CartScreen() {
     setPromo,
     clearPromo,
     tableNumber,
+    tableToken,
+    addItem,
   } = useCartStore();
   const [promoInput, setPromoInput] = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
+  const [offerQuote, setOfferQuote] = useState<CartQuote | null>(null);
+
+  // Ask the server which offers apply and what would complete a deal. Re-run when the cart changes.
+  const cartKey = lines.map((line) => `${line.key}x${line.quantity}`).join('|');
+  useEffect(() => {
+    if (lines.length === 0) {
+      setOfferQuote(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      quoteCartOffers(
+        lines.map((line) => ({ menuItemId: line.item.id, quantity: line.quantity, modifierOptionIds: line.modifierOptionIds })),
+        tableToken,
+      )
+        .then((quote) => { if (!cancelled) setOfferQuote(quote); })
+        .catch(() => { if (!cancelled) setOfferQuote(null); });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [cartKey, tableToken]);
+
+  /** Add what a deal needs: more of a line already in the cart, or a dish without required choices. */
+  async function addForHint(menuItemId: string, quantity: number) {
+    const existing = lines.find((line) => line.item.id === menuItemId);
+    if (existing) {
+      for (let i = 0; i < quantity; i++) {
+        addItem(existing.item, {
+          notes: existing.notes,
+          modifierOptionIds: existing.modifierOptionIds,
+          modifierSummary: existing.modifierSummary,
+          unitPrice: existing.unitPrice,
+        });
+      }
+      return;
+    }
+    try {
+      const [item, groups] = await Promise.all([fetchMenuItem(menuItemId), fetchMenuItemModifiers(menuItemId)]);
+      if (groups.some((group) => group.required)) {
+        Alert.alert('Choose your options', `Add ${item.name} from the menu to pick its options.`);
+        router.push('/(tabs)/menu');
+        return;
+      }
+      for (let i = 0; i < quantity; i++) addItem(item);
+    } catch {
+      Alert.alert('Could not add', 'Try adding it from the menu.');
+    }
+  }
 
   async function applyPromo() {
     if (!promoInput.trim()) return;
@@ -60,7 +114,8 @@ export default function CartScreen() {
 
   const subtotalAmount = subtotal();
   const discount = discountAmount();
-  const grandTotal = total();
+  const offerDiscount = offerQuote?.offerDiscount ?? 0;
+  const grandTotal = Math.max(0, total() - offerDiscount);
 
   if (lines.length === 0) {
     return (
@@ -113,6 +168,19 @@ export default function CartScreen() {
       />
 
       <View style={styles.footer}>
+        {offerQuote?.offerHints.map((hint) => (
+          <View key={`${hint.offerId}-${hint.menuItemId}`} style={styles.hint}>
+            <Text style={styles.hintText}>{hint.message}</Text>
+            <TouchableOpacity
+              style={styles.hintBtn}
+              onPress={() => void addForHint(hint.menuItemId, hint.quantity)}
+              accessibilityRole="button"
+              accessibilityLabel={hint.message}
+            >
+              <Text style={styles.hintBtnText}>Add</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
         <View style={styles.promoRow}>
           <TextInput
             style={styles.promoInput}
@@ -138,6 +206,12 @@ export default function CartScreen() {
           <Text style={styles.totalLabel}>Subtotal</Text>
           <Text style={styles.totalValue}>GHS {subtotalAmount.toFixed(2)}</Text>
         </View>
+        {offerQuote?.appliedOffers.map((offer) => (
+          <View key={offer.offerId} style={styles.totalRow}>
+            <Text style={[styles.totalLabel, { color: colors.success }]}>Offer: {offer.name}</Text>
+            <Text style={[styles.totalValue, { color: colors.success }]}>-GHS {offer.discount.toFixed(2)}</Text>
+          </View>
+        ))}
         {discount > 0 && (
           <View style={styles.totalRow}>
             <Text style={[styles.totalLabel, { color: colors.success }]}>Discount</Text>
@@ -191,6 +265,13 @@ const styles = StyleSheet.create({
   removeBtn: { marginLeft: 'auto' },
   removeBtnText: { color: colors.danger, fontSize: 13 },
   footer: { padding: 16, backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.line },
+  hint: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.brandSubtle,
+    borderRadius: 10, padding: 10, marginBottom: 8,
+  },
+  hintText: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.ink },
+  hintBtn: { backgroundColor: colors.brand, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, minHeight: 36, justifyContent: 'center' },
+  hintBtnText: { color: colors.white, fontWeight: '700', fontSize: 13 },
   promoRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   promoInput: {
     flex: 1,

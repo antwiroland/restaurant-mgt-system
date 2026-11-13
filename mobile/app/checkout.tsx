@@ -18,6 +18,7 @@ import { initiatePayment } from '../src/api/payment';
 import { useAuthStore } from '../src/store/auth';
 import { fetchMyAddresses, saveMyAddress } from '../src/api/user';
 import { fetchLoyaltyBalance } from '../src/api/loyalty';
+import { quoteCartOffers, type CartQuote } from '../src/api/offers';
 import { fetchDeliveryZones, type DeliveryZone } from '../src/api/delivery';
 import { fetchBillingConfig } from '../src/api/billing';
 import { billingNote, TIP_CHOICES, tipAmountFor, type TipChoice } from '../src/features/billing/billing';
@@ -46,6 +47,17 @@ export default function CheckoutScreen() {
   useEffect(() => {
     fetchBillingConfig().then(setBilling).catch(() => setBilling(null));
   }, []);
+
+  // Offers are applied by the server when the order is placed; show them here so the total matches.
+  const [offerQuote, setOfferQuote] = useState<CartQuote | null>(null);
+  useEffect(() => {
+    if (lines.length === 0) return;
+    quoteCartOffers(
+      lines.map((line) => ({ menuItemId: line.item.id, quantity: line.quantity, modifierOptionIds: line.modifierOptionIds })),
+      tableToken,
+    ).then(setOfferQuote).catch(() => setOfferQuote(null));
+  }, [lines, tableToken]);
+  const offerDiscount = offerQuote?.offerDiscount ?? 0;
 
   const selectedAddress = useMemo(
     () => addresses.find((address) => address.id === selectedAddressId) ?? null,
@@ -399,6 +411,12 @@ export default function CheckoutScreen() {
             <Text style={styles.summaryValue}>GHS {deliveryFee.toFixed(2)}</Text>
           </View>
         )}
+        {offerQuote?.appliedOffers.map((offer) => (
+          <View key={offer.offerId} style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Offer: {offer.name}</Text>
+            <Text style={styles.summaryValue}>-GHS {offer.discount.toFixed(2)}</Text>
+          </View>
+        ))}
         {tipAmount > 0 && (
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Tip</Text>
@@ -407,7 +425,7 @@ export default function CheckoutScreen() {
         )}
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabelBold}>{chargesNote ? 'Subtotal' : 'Total'}</Text>
-          <Text style={styles.summaryValueBold}>GHS {(total() + deliveryFee + tipAmount).toFixed(2)}</Text>
+          <Text style={styles.summaryValueBold}>GHS {Math.max(0, total() - offerDiscount + deliveryFee + tipAmount).toFixed(2)}</Text>
         </View>
         {chargesNote ? <Text style={styles.hint}>{chargesNote}</Text> : null}
       </View>

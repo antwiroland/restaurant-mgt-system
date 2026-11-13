@@ -275,7 +275,10 @@ export function CartClient() {
 
           <dl className="mt-5 grid gap-1.5 text-sm">
             <Row label={t("common.subtotal")} value={quote ? quote.subtotal : subtotal} />
-            {quote && Number(quote.discountTotal) > 0 ? <Row label="Discounts" value={-Number(quote.discountTotal)} /> : null}
+            {quote?.appliedOffers?.map((offer) => <Row key={offer.offerId} label={`Offer: ${offer.name}`} value={-Number(offer.discount)} />)}
+            {quote && Number(quote.discountTotal) - Number(quote.offerDiscount ?? 0) > 0 ? (
+              <Row label="Other discounts" value={-(Number(quote.discountTotal) - Number(quote.offerDiscount ?? 0))} />
+            ) : null}
             {type === "DELIVERY" ? <Row label="Delivery" value={quote ? quote.deliveryFee : zone?.fee ?? 0} /> : null}
             {quote && Number(quote.serviceCharge ?? 0) > 0 ? <Row label="Service charge" value={quote.serviceCharge ?? 0} /> : null}
             {quote?.taxLines?.map((tax) => <Row key={tax.code} label={`${tax.name}${quote.taxInclusive ? " (incl.)" : ""}`} value={tax.amount} />)}
@@ -285,6 +288,37 @@ export function CartClient() {
               <dd className="money font-display text-2xl font-extrabold">{formatMoney(total)}</dd>
             </div>
           </dl>
+          {quote?.offerHints && quote.offerHints.length > 0 ? (
+            <ul className="mt-4 grid gap-2" aria-label="Deals you can complete">
+              {quote.offerHints.map((hint) => {
+                // Same dish already in the cart: add more of that exact line (same choices). Otherwise open the dish.
+                const existing = lines.find((line) => line.menuItemId === hint.menuItemId);
+                return (
+                  <li key={`${hint.offerId}-${hint.menuItemId}`} className="flex items-center justify-between gap-3 rounded-xl border border-brand/30 bg-brand-subtle p-3">
+                    <span className="flex items-start gap-2 text-sm font-semibold text-ink">
+                      <Icon name="tag" size={16} className="mt-0.5 shrink-0 text-brand" />
+                      {hint.message}
+                    </span>
+                    {existing ? (
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm shrink-0"
+                        onClick={() => {
+                          const { key: _key, ...line } = existing;
+                          void _key;
+                          cart.add({ ...line, quantity: hint.quantity });
+                        }}
+                      >
+                        Add
+                      </button>
+                    ) : (
+                      <Link className="btn btn-primary btn-sm shrink-0" href={`/explore/${hint.menuItemId}`}>Add</Link>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
           {quoteError ? <p className="mt-2 text-sm text-danger-on" role="alert">{quoteError}</p> : null}
           {!quote && !quoteError ? <p className="mt-2 text-xs text-ink-muted">Final total is confirmed by the restaurant when you place the order.</p> : null}
         </section>

@@ -10,6 +10,10 @@ import java.util.UUID;
 public interface MenuOfferRepository extends JpaRepository<MenuOfferEntity, UUID> {
     List<MenuOfferEntity> findByMenuItem_IdInAndActiveTrue(Collection<UUID> menuItemIds);
 
-    @Query("select o from MenuOfferEntity o join fetch o.menuItem order by o.createdAt desc")
+    @Query("select o from MenuOfferEntity o left join fetch o.menuItem left join fetch o.freeMenuItem left join fetch o.branch order by o.createdAt desc")
     List<MenuOfferEntity> findAllWithMenuItem();
+
+    /** Active offers with what pricing needs; callers filter by schedule and branch. */
+    @Query("select o from MenuOfferEntity o left join fetch o.menuItem left join fetch o.freeMenuItem left join fetch o.branch where o.active = true")
+    List<MenuOfferEntity> findActiveForPricing();
 }
