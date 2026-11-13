@@ -42,6 +42,10 @@ public class ScheduleNotifier {
                 "The swap for " + when + (approved ? " was approved. Check your schedule." : " was declined."), "SHIFT_SWAP_DECIDED");
     }
 
+    public void openShiftClaimed(Collection<UUID> managerUserIds, String who, String when) {
+        send(managerUserIds, "Open shift taken", who + " took the open shift on " + when + ".", "OPEN_SHIFT_CLAIMED");
+    }
+
     private void send(Collection<UUID> userIds, String title, String body, String type) {
         List<UUID> recipients = userIds.stream().filter(Objects::nonNull).distinct().toList();
         if (!recipients.isEmpty()) {

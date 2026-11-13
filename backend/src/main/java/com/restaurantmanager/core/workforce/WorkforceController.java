@@ -70,8 +70,8 @@ public class WorkforceController {
     @DeleteMapping("/scheduling/shifts/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
-    public void delete(@PathVariable UUID id) {
-        workforceService.deleteSchedule(id);
+    public void delete(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal) {
+        workforceService.deleteSchedule(id, principal);
     }
 
     @PostMapping("/timeclock/clock-in")

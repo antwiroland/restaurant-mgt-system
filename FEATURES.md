@@ -192,9 +192,14 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Designed for other makes (ZKTeco) through a connector interface in the gateway
 
 ### Staff Scheduling and Timesheets
-- Weekly rota with overlap checks; staff clock in and out (with breaks)
+- **HR > Schedule** is where shifts are planned: shift templates with staffing levels, a week board with coverage and open shifts, drafts checked against leave, rest time, shift length, weekly hours, availability, branch assignment and employment status, then published (all, or one shift at a time) with staff notified
+- **Copy previous week**: copies a week's shifts to the next as drafts; shifts that would break a rule in the new week are skipped and listed
+- **Labour cost**: the board estimates the rota's wages from paid hours and each employee's active contract (salaries converted to an hourly figure as payroll does); per-person figures only for those who may see pay
+- **Open shifts**: staff see unassigned published shifts at their branches (HR > My schedule) and take one, under the same rules; the branch's managers are told
+- Shift swaps between colleagues, approved by a manager; availability per employee; limits per organisation or branch
+- The quick rota API (`/scheduling/shifts`) goes through the same HR rules and publishes straight away (warnings need `acknowledgeWarnings`); staff need an employee record. Removing a published shift cancels it and tells the person
+- Web `/schedule`: the published rota, clock in and out (with breaks) and timesheets; managers plan in HR > Schedule
 - Timesheets show worked vs scheduled hours, overtime (over 8 h a day), late arrivals (over 5 minutes) and missed shifts. Managers can correct entries with a reason
-- Web `/schedule` page for all staff roles
 
 ### Report Exports
 - CSV or PDF downloads of sales, daily reconciliation, the audit trail and timesheets (`/reports/*`)

@@ -14,6 +14,7 @@ import { addDays, isoDate, startOfWeek } from "@/features/workforce/time";
 import { getBranches, type BranchRecord } from "@/lib/apiClient";
 import {
   ScheduleIssuesError,
+  copyScheduleWeek,
   getScheduleBoard,
   getShiftTemplates,
   publishSchedule,
@@ -52,6 +53,8 @@ function Schedule() {
   const [dialog, setDialog] = useState<{ shift?: Shift; employeeId?: string | null; date?: string } | null>(null);
   const [publishIssues, setPublishIssues] = useState<ScheduleIssue[]>([]);
   const [publishing, setPublishing] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [copySkipped, setCopySkipped] = useState<{ employeeName: string; when: string; reason: string }[]>([]);
   const canManage = can("hr.schedule.manage");
   const canPublish = can("hr.schedule.publish");
 
@@ -119,6 +122,26 @@ function Schedule() {
     }
   }
 
+  async function copyPreviousWeek() {
+    if (!branchId) return;
+    if (!window.confirm(`Copy the shifts of the week before into ${weekRangeLabel(anchor, 7)} as drafts?`)) return;
+    setCopying(true);
+    setNotice("");
+    setCopySkipped([]);
+    try {
+      const result = await authenticatedFetch((s) => copyScheduleWeek(s, branchId, isoDate(addDays(anchor, -7)), isoDate(anchor)));
+      setNotice(result.copied
+        ? `Copied ${result.copied} shift${result.copied === 1 ? "" : "s"} as drafts. Review them, then publish.`
+        : "The week before had no shifts to copy.");
+      setCopySkipped(result.skipped);
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, "Could not copy the week"));
+    } finally {
+      setCopying(false);
+    }
+  }
+
   const drafts = board?.shifts.filter((s) => s.status === "DRAFT").length ?? 0;
   const understaffed = board?.coverage.filter((c) => c.state === "UNDERSTAFFED").length ?? 0;
   const open = board?.shifts.filter((s) => s.status !== "CANCELLED" && !s.employeeId).length ?? 0;
@@ -177,6 +200,11 @@ function Schedule() {
                       <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)}>{v[0].toUpperCase() + v.slice(1)}</button>
                     ))}
                   </div>
+                  {canManage && view === "week" ? (
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyPreviousWeek()} disabled={copying}>
+                      {copying ? "Copying…" : "Copy previous week"}
+                    </button>
+                  ) : null}
                   {canPublish && view !== "month" ? (
                     <button type="button" className="btn btn-primary btn-sm" onClick={publish} disabled={publishing || drafts === 0}>
                       {publishing ? "Publishing…" : `Publish ${drafts || ""} draft${drafts === 1 ? "" : "s"}`}
@@ -190,12 +218,31 @@ function Schedule() {
                   <span className="badge badge-gold">{drafts} draft</span>
                   <span className={`badge ${open ? "badge-warning" : "badge-neutral"}`}>{open} open</span>
                   <span className={`badge ${understaffed ? "badge-danger" : "badge-success"}`}>{understaffed} understaffed slot{understaffed === 1 ? "" : "s"}</span>
+                  {board.labour ? (
+                    <span
+                      className="badge badge-neutral"
+                      title={board.labour.byEmployee.length
+                        ? board.labour.byEmployee.map((e) => `${e.name ?? "Employee"}: ${(e.paidMinutes / 60).toFixed(1)} h, ${Number(e.cost).toFixed(2)}`).join("\n")
+                        : "Paid hours at each employee's contract rate"}
+                    >
+                      Est. labour {Number(board.labour.total).toFixed(2)}
+                      {board.labour.unpricedShifts ? ` (+${board.labour.unpricedShifts} unpriced)` : ""}
+                    </span>
+                  ) : null}
                   <label className="ml-auto flex items-center gap-1.5 text-ink-soft">
                     <input type="checkbox" checked={showCancelled} onChange={(e) => setShowCancelled(e.target.checked)} /> Show cancelled
                   </label>
                 </div>
               ) : null}
               {publishIssues.length ? <IssuesList issues={publishIssues} /> : null}
+              {copySkipped.length ? (
+                <div className="alert alert-warning text-sm">
+                  <p className="font-semibold">Not copied ({copySkipped.length}):</p>
+                  <ul className="mt-1 list-disc pl-5">
+                    {copySkipped.map((s, i) => <li key={i}>{s.employeeName}, {s.when}: {s.reason}</li>)}
+                  </ul>
+                </div>
+              ) : null}
 
               {!board && loading ? <Skeleton className="h-72 w-full" /> : null}
               {board ? (

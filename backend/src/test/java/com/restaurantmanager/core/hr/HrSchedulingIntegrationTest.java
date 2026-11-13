@@ -24,6 +24,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class HrSchedulingIntegrationTest extends HrIntegrationTestSupport {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.restaurantmanager.core.workforce.WorkScheduleRepository workScheduleRepository;
+
     private static final ZoneId ZONE = ZoneId.of("Africa/Accra");
 
     private BranchEntity accra;
@@ -295,12 +298,21 @@ class HrSchedulingIntegrationTest extends HrIntegrationTestSupport {
     @Test
     void legacyShiftsCreatedBeforeLinking_countForOverlapAfterLinking() throws Exception {
         UserEntity late = staff("Late Link", Role.CASHIER, accra);
+        // The quick rota now refuses people without an employee record...
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/scheduling/shifts")
                         .header("Authorization", bearer(manager))
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("userId", late.getId(), "startsAt", at(monday, 9).toString(),
                                 "endsAt", at(monday, 17).toString()))))
-                .andExpect(status().isCreated());
+                .andExpect(status().isConflict());
+        // ...but shifts it made before that (login only, no employee) still count once the login is linked.
+        com.restaurantmanager.core.workforce.WorkScheduleEntity legacy = new com.restaurantmanager.core.workforce.WorkScheduleEntity();
+        legacy.setUserId(late.getId());
+        legacy.setBranchId(accra.getId());
+        legacy.setStartsAt(at(monday, 9));
+        legacy.setEndsAt(at(monday, 17));
+        legacy.setStatus(com.restaurantmanager.core.workforce.ScheduleStatus.PUBLISHED);
+        workScheduleRepository.save(legacy);
         UUID employee = createEmployee(admin, "Late", "Link", accra);
         postJson("/hr/employees/" + employee + "/link-user", Map.of("userId", late.getId()), admin).andExpect(status().isOk());
         postJson("/hr/schedules", shift(employee, monday, 12, 20), manager)

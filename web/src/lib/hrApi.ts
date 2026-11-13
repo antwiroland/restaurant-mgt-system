@@ -316,9 +316,16 @@ export type CoverageCell = {
   date: string; templateId: string; templateName: string; minStaff: number; maxStaff?: number | null;
   assigned: number; open: number; state: "OK" | "UNDERSTAFFED" | "OVERSTAFFED";
 };
+/** Estimated wages for the rota; {@code byEmployee} only for those who may see pay. */
+export type LabourCost = {
+  total: string; pricedMinutes: number; pricedShifts: number; unpricedShifts: number;
+  byEmployee: { employeeId: string; name?: string | null; paidMinutes: number; hourlyRate: string; cost: string }[];
+};
 export type ScheduleBoard = {
   branchId: string; from: string; to: string; shifts: Shift[]; employees: BoardEmployee[]; coverage: CoverageCell[]; policy: SchedulingPolicy;
+  labour?: LabourCost | null;
 };
+export type OpenShift = { shift: Shift; warnings: ScheduleIssue[] };
 export type ShiftInput = {
   employeeId?: string | null; branchId: string; templateId?: string | null; date?: string | null;
   startsAt?: string | null; endsAt?: string | null; breakMinutes?: number | null; positionId?: string | null;
@@ -393,6 +400,17 @@ export const cancelShift = (s: StaffSession, id: string, reason?: string) =>
 export const deleteDraftShift = (s: StaffSession, id: string) => apiRequest<void>(`/hr/schedules/${id}`, { ...auth(s), method: "DELETE" });
 export const publishSchedule = (s: StaffSession, branchId: string, from: string, to: string) =>
   scheduleCall<{ published: number; openShifts: number; employeesNotified: number }>(s, "/hr/schedules/publish", "POST", { branchId, from, to });
+/** Publishes one draft (re-checked) and tells the employee. */
+export const publishOneShift = (s: StaffSession, id: string) => scheduleCall<Shift>(s, `/hr/schedules/${id}/publish`, "POST", {});
+/** Copies a week's shifts at a branch to another week as drafts; shifts that would break a rule are skipped. */
+export const copyScheduleWeek = (s: StaffSession, branchId: string, fromWeek: string, toWeek: string, includeOpenShifts = true) =>
+  apiRequest<{ copied: number; skipped: { employeeName: string; when: string; reason: string }[] }>("/hr/schedules/copy-week", {
+    ...auth(s), method: "POST", body: { branchId, fromWeek, toWeek, includeOpenShifts },
+  });
+/** Open shifts at my branches in the coming weeks that I could take. */
+export const getMyOpenShifts = (s: StaffSession) => apiRequest<OpenShift[]>("/hr/me/open-shifts", auth(s));
+export const claimOpenShift = (s: StaffSession, id: string, acknowledgeWarnings = false) =>
+  scheduleCall<Shift>(s, `/hr/me/open-shifts/${id}/claim`, "POST", { acknowledgeWarnings });
 
 export const getShiftTemplates = (s: StaffSession, branchId?: string, includeArchived = false) =>
   apiRequest<ShiftTemplate[]>(`/hr/shift-templates${query({ branchId, includeArchived })}`, auth(s));

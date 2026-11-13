@@ -37,13 +37,20 @@ public class WorkforceService {
     private final com.restaurantmanager.core.hr.timesheet.TimesheetGuard timesheetGuard;
     private final ZoneId zone;
 
+    private final com.restaurantmanager.core.hr.schedule.ScheduleService hrSchedule;
+    private final com.restaurantmanager.core.hr.schedule.ScheduleExtrasService hrScheduleExtras;
+
     public WorkforceService(WorkScheduleRepository scheduleRepository, TimeEntryRepository entryRepository,
                             UserRepository userRepository,
                             com.restaurantmanager.core.hr.employee.EmployeeRepository employeeRepository,
                             com.restaurantmanager.core.hr.attendance.AttendanceCorrectionRepository correctionRepository,
                             com.restaurantmanager.core.hr.attendance.AttendancePolicyService attendancePolicyService,
                             com.restaurantmanager.core.hr.timesheet.TimesheetGuard timesheetGuard,
+                            com.restaurantmanager.core.hr.schedule.ScheduleService hrSchedule,
+                            com.restaurantmanager.core.hr.schedule.ScheduleExtrasService hrScheduleExtras,
                             @org.springframework.beans.factory.annotation.Value("${app.time-zone:Africa/Accra}") String timeZone) {
+        this.hrSchedule = hrSchedule;
+        this.hrScheduleExtras = hrScheduleExtras;
         this.scheduleRepository = scheduleRepository;
         this.entryRepository = entryRepository;
         this.userRepository = userRepository;
@@ -67,46 +74,44 @@ public class WorkforceService {
                 .toList();
     }
 
+    /**
+     * The quick rota goes through HR scheduling, so the same rules apply wherever a shift is made (leave, rest,
+     * weekly hours, branch, employment status, overlap) and the person is told. A new shift is published straight
+     * away, as the quick rota has no draft stage; warnings must be confirmed with {@code acknowledgeWarnings}.
+     */
     @Transactional
     public ScheduleView saveSchedule(UUID id, ScheduleRequest request, UserPrincipal manager) {
-        if (!request.endsAt().isAfter(request.startsAt())) {
-            throw new ApiException(400, "Shift must end after it starts");
-        }
-        if (Duration.between(request.startsAt(), request.endsAt()).toHours() > 16) {
-            throw new ApiException(400, "A scheduled shift cannot be longer than 16 hours");
-        }
         UserEntity staff = userRepository.findById(request.userId()).orElseThrow(() -> new ApiException(404, "Staff member not found"));
         if (staff.getRole() == Role.CUSTOMER) {
             throw new ApiException(400, "Customers cannot be scheduled");
         }
-        WorkScheduleEntity schedule = id == null ? new WorkScheduleEntity()
-                : scheduleRepository.findById(id).orElseThrow(() -> new ApiException(404, "Shift not found"));
-        // drafts from HR scheduling count too, so the quick rota cannot double-book someone
-        boolean overlaps = scheduleRepository.findActiveForUser(request.startsAt(), request.endsAt(), request.userId()).stream()
-                .anyMatch(other -> !other.getId().equals(schedule.getId()));
-        if (overlaps) {
-            throw new ApiException(409, staff.getName() + " already has a shift that overlaps this time");
+        com.restaurantmanager.core.hr.employee.EmployeeEntity employee = employeeRepository.findByUserId(staff.getId())
+                .orElseThrow(() -> new ApiException(409, staff.getName()
+                        + " has no employee record in HR. Add them under HR > Employees before scheduling them."));
+        UUID branchId = request.branchId() != null ? request.branchId()
+                : employee.primaryBranchId() != null ? employee.primaryBranchId()
+                : staff.getBranch() == null ? null : staff.getBranch().getId();
+        if (branchId == null) {
+            throw new ApiException(400, "Choose the branch for this shift");
         }
-        schedule.setUserId(staff.getId());
-        schedule.setBranchId(request.branchId() != null ? request.branchId() : (staff.getBranch() == null ? null : staff.getBranch().getId()));
-        schedule.setStartsAt(request.startsAt());
-        schedule.setEndsAt(request.endsAt());
-        schedule.setPosition(blankToNull(request.position()));
-        schedule.setNotes(blankToNull(request.notes()));
-        employeeRepository.findByUserId(staff.getId()).ifPresent(e -> schedule.setEmployeeId(e.getId()));
+        var saved = hrSchedule.save(manager, id, new com.restaurantmanager.core.hr.schedule.ScheduleService.ShiftRequest(
+                employee.getId(), branchId, null, null, request.startsAt(), request.endsAt(), null, null, null,
+                blankToNull(request.notes()), Boolean.TRUE.equals(request.acknowledgeWarnings()), null));
         if (id == null) {
-            // the quick rota has no draft stage: its shifts are live immediately
-            schedule.setCreatedBy(manager.userId());
-            schedule.setStatus(ScheduleStatus.PUBLISHED);
-            schedule.setPublishedAt(java.time.Instant.now());
-            schedule.setPublishedBy(manager.userId());
+            hrScheduleExtras.publishShift(manager, saved.shift().id());
         }
-        return toView(scheduleRepository.save(schedule), staff);
+        return toView(scheduleRepository.findById(saved.shift().id()).orElseThrow(), staff);
     }
 
+    /** A draft is removed; a published shift is cancelled and the person told (it may already be in their plans). */
     @Transactional
-    public void deleteSchedule(UUID id) {
-        scheduleRepository.delete(scheduleRepository.findById(id).orElseThrow(() -> new ApiException(404, "Shift not found")));
+    public void deleteSchedule(UUID id, UserPrincipal manager) {
+        WorkScheduleEntity shift = scheduleRepository.findById(id).orElseThrow(() -> new ApiException(404, "Shift not found"));
+        if (shift.getStatus() == ScheduleStatus.DRAFT) {
+            hrSchedule.deleteDraft(manager, id);
+        } else if (shift.getStatus() != ScheduleStatus.CANCELLED) {
+            hrSchedule.cancel(manager, id, new com.restaurantmanager.core.hr.schedule.ScheduleService.CancelRequest("Removed from the rota"));
+        }
     }
 
     @Transactional(readOnly = true)
@@ -290,7 +295,9 @@ public class WorkforceService {
                                   @jakarta.validation.constraints.NotNull Instant startsAt,
                                   @jakarta.validation.constraints.NotNull Instant endsAt,
                                   @jakarta.validation.constraints.Size(max = 60) String position,
-                                  @jakarta.validation.constraints.Size(max = 500) String notes) {}
+                                  @jakarta.validation.constraints.Size(max = 500) String notes,
+                                  /** Save despite rule warnings (rest time, weekly hours, unavailability). */
+                                  Boolean acknowledgeWarnings) {}
 
     public record ScheduleView(UUID id, UUID userId, String userName, UUID branchId, Instant startsAt, Instant endsAt,
                                long minutes, String position, String notes) {}

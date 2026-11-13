@@ -68,6 +68,7 @@ public class ScheduleService {
     private final HrAuditService audit;
     private final ScheduleNotifier notifier;
     private final LeaveLookup leaveLookup;
+    private final LabourCostCalculator labourCost;
     private final ZoneId zone;
 
     public ScheduleService(WorkScheduleRepository scheduleRepository, EmployeeRepository employeeRepository,
@@ -75,8 +76,9 @@ public class ScheduleService {
                            PositionRepository positionRepository, ShiftTemplateRepository templateRepository,
                            AvailabilityRepository availabilityRepository, SwapRequestRepository swapRepository,
                            SchedulingSetupService setupService, HrAccessService accessService, HrAuditService audit,
-                           ScheduleNotifier notifier, LeaveLookup leaveLookup,
+                           ScheduleNotifier notifier, LeaveLookup leaveLookup, LabourCostCalculator labourCost,
                            @Value("${app.timezone:Africa/Accra}") String timeZone) {
+        this.labourCost = labourCost;
         this.scheduleRepository = scheduleRepository;
         this.employeeRepository = employeeRepository;
         this.assignmentRepository = assignmentRepository;
@@ -122,7 +124,9 @@ public class ScheduleService {
                 .toList();
 
         List<CoverageCell> coverage = coverage(branchId, from, to, shifts);
-        return new BoardView(branchId, from, to, toViews(shifts, employees), rows, coverage, setupService.effectivePolicy(branchId));
+        // The total is shown to schedulers; per-person figures only to those who may see pay.
+        LabourCostCalculator.LabourCost labour = labourCost.estimate(shifts, employees, access.has(HrPermission.COMPENSATION_VIEW));
+        return new BoardView(branchId, from, to, toViews(shifts, employees), rows, coverage, setupService.effectivePolicy(branchId), labour);
     }
 
     /** For each active template at the branch and each matching day: assigned vs required staff, plus open shifts. */
@@ -305,7 +309,7 @@ public class ScheduleService {
         Map<UUID, EmployeeEntity> employees = employeeMap(drafts);
         List<ScheduleRules.Issue> problems = new ArrayList<>();
         for (WorkScheduleEntity draft : drafts) {
-            EmployeeEntity employee = employees.get(draft.getEmployeeId());
+            EmployeeEntity employee = draft.getEmployeeId() == null ? null : employees.get(draft.getEmployeeId());
             if (employee == null) {
                 continue;
             }
@@ -323,7 +327,7 @@ public class ScheduleService {
             draft.setStatus(ScheduleStatus.PUBLISHED);
             draft.setPublishedAt(now);
             draft.setPublishedBy(access.userId());
-            EmployeeEntity employee = employees.get(draft.getEmployeeId());
+            EmployeeEntity employee = draft.getEmployeeId() == null ? null : employees.get(draft.getEmployeeId());
             if (employee != null) {
                 draft.setUserId(employee.getUserId()); // the login may have been linked after drafting
                 notify.add(employee.getUserId());
@@ -460,5 +464,5 @@ public class ScheduleService {
                                long assigned, long open, String state) {}
 
     public record BoardView(UUID branchId, LocalDate from, LocalDate to, List<ShiftView> shifts, List<BoardEmployee> employees,
-                            List<CoverageCell> coverage, ScheduleRules.Policy policy) {}
+                            List<CoverageCell> coverage, ScheduleRules.Policy policy, LabourCostCalculator.LabourCost labour) {}
 }

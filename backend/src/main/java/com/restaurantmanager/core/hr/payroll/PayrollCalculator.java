@@ -50,6 +50,21 @@ public final class PayrollCalculator {
 
     // ------------------------------------------------------------ earnings
 
+    /** The hourly equivalent of a contract's pay, as payroll works it out; null for pay types it cannot price. */
+    public static BigDecimal hourlyRate(SalaryType type, BigDecimal rate, BigDecimal weeklyHours) {
+        if (type == null || rate == null) {
+            return null;
+        }
+        BigDecimal hours = weeklyHours == null || weeklyHours.signum() <= 0 ? DEFAULT_WEEKLY_HOURS : weeklyHours;
+        return switch (type) {
+            case MONTHLY -> rate.multiply(MONTHS_PER_YEAR).divide(WEEKS_PER_YEAR.multiply(hours), 4, RoundingMode.HALF_UP);
+            case WEEKLY -> rate.divide(hours, 4, RoundingMode.HALF_UP);
+            case DAILY -> rate.multiply(BigDecimal.valueOf(WORKDAYS_PER_WEEK)).divide(hours, 4, RoundingMode.HALF_UP);
+            case HOURLY -> rate.setScale(4, RoundingMode.HALF_UP);
+            default -> null;
+        };
+    }
+
     public static Earnings earnings(EarningsInput in) {
         List<Line> lines = new ArrayList<>();
         List<String> issues = new ArrayList<>();
