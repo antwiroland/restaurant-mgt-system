@@ -163,6 +163,14 @@ Pre-launch checks (sandbox provider tests, the Postgres migration check, device 
 - Managers see averages, the rating spread and comments, and can reply. Ratings of 2 or lower raise a live alert
 - Web `/feedback` page; the order detail page shows the rating. Mobile: rate from the order screen and see the reply
 
+### Biometric Attendance Devices
+- **Hikvision terminals** (face, fingerprint, card) read by a standalone **attendance gateway** on the restaurant network (`attendance-gateway/`, Java 21 + SQLite): live ISAPI alert stream plus periodic event search to recover anything missed, an offline queue that keeps every scan until the backend confirms it, encrypted device logins that never leave the restaurant, heartbeats, and a local simulator for testing
+- Backend (`/attendance/gateway/*`): revocable per-gateway keys (stored hashed), idempotent event ingestion (device serial + event id), device time kept, events up to 7 days late accepted
+- Direction is never guessed: the terminal's own check-in/break/check-out status, or a fixed direction per terminal (e.g. exit-only); otherwise the scan waits for review. A second clock-in is refused, never turned into a clock-out; double scans within 5 minutes are ignored
+- Accepted scans are ordinary attendance records (source DEVICE): lateness, early leave, breaks, missed clock-outs, timesheets, overtime and payroll apply as for POS clock-ins
+- Web **HR > Attendance Devices**: health overview with alerts (gateway silent, device offline, queue backing up, clock drift, unknown people), review queue (record as / try again / don't count, audited), devices, device user to employee links, gateways (key shown once, rotate, revoke)
+- Designed for other makes (ZKTeco) through a connector interface in the gateway
+
 ### Staff Scheduling and Timesheets
 - Weekly rota with overlap checks; staff clock in and out (with breaks)
 - Timesheets show worked vs scheduled hours, overtime (over 8 h a day), late arrivals (over 5 minutes) and missed shifts. Managers can correct entries with a reason

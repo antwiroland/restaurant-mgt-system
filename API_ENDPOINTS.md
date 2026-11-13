@@ -242,3 +242,17 @@ These are Next.js pages (not API endpoints) accessible without login:
 
 Connect to `/ws` with `Authorization: Bearer <accessToken>` in the STOMP CONNECT frame (optional: anonymous connections
 can only use public topics). Subscription rules: `documentation/WEBSOCKET_EVENTS.md`.
+
+## Biometric attendance (gateway and admin)
+
+Called by the local attendance gateway with its key (`X-Gateway-Key: rmgw_...` or `Authorization: Gateway rmgw_...`), not a user token:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/attendance/gateway/events` | Batch of device events `{gatewayId, events:[{deviceSerialNumber, deviceEventId, employeeDeviceId, eventType?, authenticationMethod?, deviceTimestamp, gatewayReceivedAt?, rawEvent?}]}`; every event answered with `ACCEPTED`, `REPEAT_SCAN`, `NEEDS_REVIEW`, `UNMATCHED` or `REJECTED` (+ `duplicate`) |
+| `POST` | `/attendance/gateway/heartbeat` | Health (pending, failed sends, last error, each device's status and clock offset); answers with the gateway's configuration |
+| `GET` | `/attendance/gateway/config` | Gateway id and its devices (no device passwords) |
+| `GET` | `/attendance/gateway/devices` | Its devices |
+| `POST` | `/attendance/gateway/sync-status` | Pending / failed counts and last error |
+
+Staff screens (`/hr/attendance-devices`): `GET /overview`, `GET|POST /gateways`, `POST /gateways/{id}/rotate-key`, `POST /gateways/{id}/revoke`, `GET|POST /devices`, `PUT /devices/{id}`, `GET|POST /device-ids`, `DELETE /device-ids/{id}`, `GET /events?filter=review|all`, `POST /events/{id}/apply|retry|dismiss`. Details and permissions: `documentation/hr/HR_TECHNICAL_DOCUMENTATION.md` (5c-bis).
