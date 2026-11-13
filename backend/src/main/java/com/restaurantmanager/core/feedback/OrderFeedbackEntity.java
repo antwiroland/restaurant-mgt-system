@@ -85,4 +85,29 @@ public class OrderFeedbackEntity {
     public Instant getRespondedAt() { return respondedAt; }
     public void setRespondedAt(Instant respondedAt) { this.respondedAt = respondedAt; }
     public Instant getCreatedAt() { return createdAt; }
+
+    /** The order's branch, so each branch sees and answers its own feedback. */
+    @Column(name = "branch_id")
+    private UUID branchId;
+
+    /** The rider who delivered the order (delivery rating). */
+    @Column(name = "rider_user_id")
+    private UUID riderUserId;
+
+    /** The staff member who took the order (service rating); null for orders guests placed themselves. */
+    @Column(name = "staff_user_id")
+    private UUID staffUserId;
+
+    /** A guest (no account) may leave a phone number to receive the manager's reply. */
+    @Column(name = "guest_phone", length = 20)
+    private String guestPhone;
+
+    public UUID getBranchId() { return branchId; }
+    public void setBranchId(UUID branchId) { this.branchId = branchId; }
+    public UUID getRiderUserId() { return riderUserId; }
+    public void setRiderUserId(UUID riderUserId) { this.riderUserId = riderUserId; }
+    public UUID getStaffUserId() { return staffUserId; }
+    public void setStaffUserId(UUID staffUserId) { this.staffUserId = staffUserId; }
+    public String getGuestPhone() { return guestPhone; }
+    public void setGuestPhone(String guestPhone) { this.guestPhone = guestPhone; }
 }

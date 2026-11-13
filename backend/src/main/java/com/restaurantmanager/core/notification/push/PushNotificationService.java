@@ -81,13 +81,17 @@ public class PushNotificationService {
                         + (order.getPickupCode() == null ? "." : ". Pickup code " + order.getPickupCode() + ".")}
                     : new String[]{"Order ready", "Your order " + ref + " is on its way to your table."};
             case OUT_FOR_DELIVERY -> new String[]{"On the way", "Your order " + ref + " is out for delivery."};
-            case DELIVERED -> new String[]{"Delivered", "Your order " + ref + " has been delivered. Enjoy!"};
+            case DELIVERED -> new String[]{"Delivered", "Your order " + ref + " has been delivered. Enjoy! Tap to tell us how it was."};
+            // Pickup and dine-in orders finish as COMPLETED (a delivery finished at DELIVERED and was already asked).
+            case COMPLETED -> order.getType() == OrderType.DELIVERY ? null
+                    : new String[]{"How was it?", "Thanks for your order " + ref + ". Tap to rate it: it takes a few seconds."};
             case CANCELLED -> new String[]{"Order cancelled", "Your order " + ref + " was cancelled."};
             default -> null;
         };
         if (message != null) {
             notifyUsers(List.of(order.getCustomerUserId()), message[0], message[1],
-                    Map.of("type", "ORDER_STATUS", "orderId", order.getId().toString(), "status", status.name()));
+                    Map.of("type", status == OrderStatus.DELIVERED || status == OrderStatus.COMPLETED ? "RATE_ORDER" : "ORDER_STATUS",
+                            "orderId", order.getId().toString(), "status", status.name()));
         }
     }
 

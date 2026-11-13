@@ -36,7 +36,7 @@ describe("How was your meal? prompt", () => {
     return fetchMock;
   }
 
-  it("offers a served order this phone placed, and forgets it once rated", async () => {
+  it("offers a served order this phone placed, and keeps it after rating to show the reply", async () => {
     rememberOrder("tok", "served-order");
     const fetchMock = stubServer({
       "served-order": { status: 200, body: { orderId: "served-order", orderNumber: "SERVEDOR", status: "COMPLETED", rateable: true, rated: false } },
@@ -50,7 +50,22 @@ describe("How was your meal? prompt", () => {
 
     expect(await screen.findByText("Thanks for rating this order!")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/orders/served-order/feedback"), expect.objectContaining({ method: "POST" }));
-    expect(rememberedOrders("tok")).toEqual([]);
+    // Kept until the rating window closes, so the restaurant's reply can be shown here.
+    expect(rememberedOrders("tok").map((o) => o.orderId)).toEqual(["served-order"]);
+  });
+
+  it("shows the restaurant's reply to a rated order", async () => {
+    rememberOrder("tok", "rated-order");
+    stubServer({
+      "rated-order": {
+        status: 200,
+        body: { orderId: "rated-order", orderNumber: "RATEDORD", status: "COMPLETED", rateable: true, rated: true, response: "Sorry, next drink is on us" },
+      },
+    });
+    render(<GuestRatePrompt tableToken="tok" shownOrderIds={[]} />);
+    expect(await screen.findByText("Reply from the restaurant")).toBeInTheDocument();
+    expect(screen.getByText("Sorry, next drink is on us")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send rating" })).not.toBeInTheDocument();
   });
 
   it("shows nothing for expired orders (and forgets them), still-cooking ones, or orders already on the table page", async () => {

@@ -53,21 +53,37 @@ public class FeedbackController {
         return feedbackService.forOrder(orderId, principal);
     }
 
+    /** Ratings, newest first. Branch managers get their branch; admins everything or {@code branchId}. */
     @GetMapping("/feedback")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public List<FeedbackService.FeedbackView> list(
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) Integer maxRating) {
-        return feedbackService.list(from, to, maxRating);
+            @RequestParam(required = false) Integer maxRating,
+            @RequestParam(required = false) UUID branchId) {
+        return feedbackService.list(principal, from, to, maxRating, branchId);
     }
 
     @GetMapping("/feedback/summary")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public FeedbackService.Summary summary(
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return feedbackService.summary(from, to);
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) UUID branchId) {
+        return feedbackService.summary(principal, from, to, branchId);
+    }
+
+    /** Average ratings per rider (delivery), per staff member (service) and per dish (food). */
+    @GetMapping("/feedback/breakdown")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public FeedbackService.Breakdown breakdown(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) UUID branchId) {
+        return feedbackService.breakdown(principal, from, to, branchId);
     }
 
     @PostMapping("/feedback/{id}/respond")
@@ -75,6 +91,6 @@ public class FeedbackController {
     public FeedbackService.FeedbackView respond(@PathVariable UUID id,
                                                 @Valid @RequestBody FeedbackService.RespondRequest request,
                                                 @AuthenticationPrincipal UserPrincipal principal) {
-        return feedbackService.respond(id, request.response(), principal.userId());
+        return feedbackService.respond(id, request.response(), principal);
     }
 }
