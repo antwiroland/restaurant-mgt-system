@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@theme {
+  /* product: warm food-tech palette, derived from the app's own "Hearth" tokens */
+  --color-cream: #fbf6ee;
+  --color-cream-2: #f4ead9;
+  --color-cream-3: #ead9bf;
+  --color-ink: #1e1813;
+  --color-ink-2: #2c231d;
+  --color-ink-soft: #5f5148;
+  --color-ink-muted: #8a7b70;
+  --color-line: #e6d9c7;
+  --color-terra: #c2562b;
+  --color-terra-deep: #9c4521;
+  --color-terra-soft: #f6e2d6;
+  --color-leaf: #2f7a4f;
+  --color-leaf-soft: #e1efe4;
+  --color-gold: #c9a45c;
+
+  /* KENVO Integrated Systems corporate identity */
+  --color-kenvo: #2f6bff;
+  --color-kenvo-bright: #5c8dff;
+  --color-kenvo-ink: #071633;
+  --color-kenvo-night: #04060b;
+
+  --font-display: "Fraunces Variable", Georgia, serif;
+  --font-sans: "Manrope Variable", system-ui, sans-serif;
+  --font-brand: "Archivo", "Manrope Variable", system-ui, sans-serif;
+
+  --shadow-soft: 0 1px 2px rgb(30 24 19 / 0.06), 0 12px 32px -12px rgb(30 24 19 / 0.18);
+  --shadow-lift: 0 2px 4px rgb(30 24 19 / 0.06), 0 30px 60px -20px rgb(30 24 19 / 0.35);
+}
+
+@layer base {
+  html {
+    scroll-padding-top: 5.5rem;
+    -webkit-text-size-adjust: 100%;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+  }
+  body {
+    background: var(--color-cream);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection { background: var(--color-terra-soft); color: var(--color-ink); }
+  :focus-visible {
+    outline: 3px solid var(--color-kenvo);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+  img { max-width: 100%; height: auto; }
+}
+
+@layer components {
+  .container-x { width: 100%; max-width: 76rem; margin-inline: auto; padding-inline: 1rem; }
+  @media (min-width: 640px) { .container-x { padding-inline: 1.5rem; } }
+  @media (min-width: 1024px) { .container-x { padding-inline: 2rem; } }
+
+  .eyebrow {
+    font-family: var(--font-brand);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-terra);
+  }
+  .grain {
+    background-image: radial-gradient(rgb(30 24 19 / 0.035) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+}
+
+/* auto-scrolling photo strip, paused for reduced motion */
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.marquee { animation: marquee 60s linear infinite; }
+.marquee:hover { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .marquee { animation: none; } }
