@@ -11,6 +11,7 @@ attendance-gateway/config/
 web/node_modules/
 web/.next/
 mobile/node_modules/
+mobile/.expo/
 
 # Environment files
 .env
