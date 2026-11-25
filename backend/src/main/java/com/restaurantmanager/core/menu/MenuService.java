@@ -280,6 +280,13 @@ public class MenuService {
         category.setDescription(blankToNull(request.description()));
         category.setDisplayOrder(request.displayOrder());
         category.setActive(request.active());
+        if (request.beverage() != null) {
+            category.setBeverage(request.beverage());
+        }
+        if (request.kitchenStation() != null) {
+            String station = request.kitchenStation().trim().toUpperCase(Locale.ROOT).replace(' ', '_');
+            category.setKitchenStation(station.isEmpty() ? null : station);
+        }
     }
 
     private void applyMenuItemRequest(MenuItemEntity item, MenuItemRequest request, CategoryEntity category) {
@@ -397,7 +404,9 @@ public class MenuService {
                 category.getName(),
                 category.getDescription(),
                 category.getDisplayOrder(),
-                category.isActive());
+                category.isActive(),
+                category.isBeverage(),
+                category.getKitchenStation());
     }
 
     private MenuItemResponse toMenuItemResponse(MenuItemEntity item) {
@@ -415,7 +424,8 @@ public class MenuService {
                 item.getImageUrl(),
                 stockouts.onMenu(item),
                 item.isActive(),
-                stockouts.soldOutAt(item.getId()));
+                stockouts.soldOutAt(item.getId()),
+                item.getCategory().isBeverage());
     }
 
     /**

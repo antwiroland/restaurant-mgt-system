@@ -162,6 +162,25 @@ public class OrderEntity {
     @Column(name = "stock_deducted", nullable = false)
     private boolean stockDeducted;
 
+    /** Course dining: the meal (one party's sitting) this order is part of. */
+    @Column(name = "dining_order_id")
+    private UUID diningOrderId;
+
+    /** Course dining: the course this order's dishes belong to; null when sent straight to the kitchen. */
+    @Column(name = "dining_order_course_id")
+    private UUID diningOrderCourseId;
+
+    /** The station that prepares this order (e.g. KITCHEN, BAR); null: the main kitchen. */
+    @Column(name = "kitchen_station", length = 40)
+    private String kitchenStation;
+
+    /** When a held course order was released to the kitchen, and by whom. */
+    @Column(name = "released_at")
+    private Instant releasedAt;
+
+    @Column(name = "released_by")
+    private UUID releasedBy;
+
     @PrePersist
     public void prePersist() {
         Instant now = Instant.now();
@@ -567,4 +586,15 @@ public class OrderEntity {
     public void setStockDeducted(boolean stockDeducted) {
         this.stockDeducted = stockDeducted;
     }
+
+    public UUID getDiningOrderId() { return diningOrderId; }
+    public void setDiningOrderId(UUID diningOrderId) { this.diningOrderId = diningOrderId; }
+    public UUID getDiningOrderCourseId() { return diningOrderCourseId; }
+    public void setDiningOrderCourseId(UUID diningOrderCourseId) { this.diningOrderCourseId = diningOrderCourseId; }
+    public String getKitchenStation() { return kitchenStation; }
+    public void setKitchenStation(String kitchenStation) { this.kitchenStation = kitchenStation; }
+    public Instant getReleasedAt() { return releasedAt; }
+    public void setReleasedAt(Instant releasedAt) { this.releasedAt = releasedAt; }
+    public UUID getReleasedBy() { return releasedBy; }
+    public void setReleasedBy(UUID releasedBy) { this.releasedBy = releasedBy; }
 }

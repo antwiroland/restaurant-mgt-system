@@ -19,7 +19,9 @@ import java.util.regex.Pattern;
  *
  * <ul>
  *   <li>Public (no sign-in): a table's own topics, guarded by its secret QR token
- *   ({@code /topic/public.tables.{token}.orders|requests}), the pickup board ping and the table status board.</li>
+ *   ({@code /topic/public.tables.{token}.orders|requests|courses}), the pickup board ping and the table status board.</li>
+ *   <li>Course dining ({@code /topic/dining.courses[.{branchId}]}): floor staff; staff tied to a branch only get their
+ *   branch's topic, everyone else (admins, staff without a branch) may follow every branch.</li>
  *   <li>Floor staff (admin, manager, cashier): new orders, status changes, payments, service requests, deliveries.</li>
  *   <li>Managers and admins: inventory and low-rating alerts.</li>
  *   <li>One order ({@code /topic/orders.{id}[.payments|.delivery]}): floor staff, the order's customer, its rider.</li>
@@ -32,10 +34,12 @@ public class WebSocketTopicAuthorizer {
     private static final Set<Role> FLOOR_STAFF = EnumSet.of(Role.ADMIN, Role.MANAGER, Role.CASHIER);
     private static final Set<Role> MANAGERS = EnumSet.of(Role.ADMIN, Role.MANAGER);
 
-    private static final Pattern PUBLIC_TABLE = Pattern.compile("^/topic/public\\.tables\\.[A-Za-z0-9_-]{8,128}\\.(orders|requests)$");
+    private static final Pattern PUBLIC_TABLE = Pattern.compile("^/topic/public\\.tables\\.[A-Za-z0-9_-]{8,128}\\.(orders|requests|courses)$");
     private static final Pattern ORDER = Pattern.compile(
             "^/topic/orders\\.([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(\\.payments|\\.delivery)?$");
     private static final Pattern GROUP = Pattern.compile("^/topic/group\\.([A-Za-z0-9-]{3,64})$");
+    private static final Pattern DINING_BRANCH = Pattern.compile(
+            "^/topic/dining\\.courses\\.([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$");
 
     private final OrderRepository orderRepository;
     private final GroupOrderSessionRepository groupSessionRepository;
@@ -69,6 +73,9 @@ public class WebSocketTopicAuthorizer {
                  "/topic/service-requests" -> {
                 return FLOOR_STAFF.contains(role);
             }
+            case "/topic/dining.courses" -> {
+                return FLOOR_STAFF.contains(role) && !branchScoped(principal);
+            }
             case "/topic/deliveries" -> {
                 return FLOOR_STAFF.contains(role) || role == Role.RIDER;
             }
@@ -78,6 +85,11 @@ public class WebSocketTopicAuthorizer {
             default -> {
                 // per order or per group below
             }
+        }
+        Matcher dining = DINING_BRANCH.matcher(destination);
+        if (dining.matches()) {
+            return FLOOR_STAFF.contains(role)
+                    && (!branchScoped(principal) || principal.branchId().toString().equalsIgnoreCase(dining.group(1)));
         }
         Matcher order = ORDER.matcher(destination);
         if (order.matches()) {
@@ -102,5 +114,10 @@ public class WebSocketTopicAuthorizer {
                     .orElse(false);
         }
         return false;
+    }
+
+    /** Managers and cashiers tied to one branch see only that branch's floor, as in the REST API. */
+    private static boolean branchScoped(UserPrincipal principal) {
+        return (principal.role() == Role.MANAGER || principal.role() == Role.CASHIER) && principal.branchId() != null;
     }
 }

@@ -78,6 +78,17 @@ public class GlobalExceptionHandler {
                 .body(new ApiError(405, "METHOD_NOT_ALLOWED", ex.getMethod() + " is not supported here", Instant.now()));
     }
 
+    /**
+     * Two people changed the same record at once (e.g. a waiter and a cashier releasing one course): the loser is told
+     * to look again rather than getting a server error.
+     */
+    @ExceptionHandler({org.springframework.dao.PessimisticLockingFailureException.class,
+            org.springframework.orm.ObjectOptimisticLockingFailureException.class})
+    public ResponseEntity<ApiError> handleConcurrentChange(Exception ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiError(409, "CONFLICT", "Someone else changed this at the same moment. Refresh and try again", Instant.now()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleGeneric(Exception ex) {
         log.error("Unexpected error", ex);

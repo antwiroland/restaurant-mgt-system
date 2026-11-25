@@ -27,6 +27,14 @@ public class CategoryEntity {
     @Column(nullable = false)
     private boolean active = true;
 
+    /** Beverages can be ordered at any time: they never wait for a dining course to be released. */
+    @Column(name = "is_beverage", nullable = false)
+    private boolean beverage;
+
+    /** Where this category is prepared (e.g. KITCHEN, BAR, GRILL); null: the main kitchen. */
+    @Column(name = "kitchen_station", length = 40)
+    private String kitchenStation;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -98,4 +106,9 @@ public class CategoryEntity {
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
     }
+
+    public boolean isBeverage() { return beverage; }
+    public void setBeverage(boolean beverage) { this.beverage = beverage; }
+    public String getKitchenStation() { return kitchenStation; }
+    public void setKitchenStation(String kitchenStation) { this.kitchenStation = kitchenStation; }
 }

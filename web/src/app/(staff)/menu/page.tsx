@@ -1,5 +1,6 @@
 "use client";
 
+import { stationLabel } from "@/features/dining/dining";
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { ConfirmModal } from "@/components/ConfirmModal";
@@ -36,10 +37,10 @@ export default function MenuManagementPage() {
   const [availabilityFilter, setAvailabilityFilter] = useState<"ALL" | "AVAILABLE" | "UNAVAILABLE">("ALL");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [categoryForm, setCategoryForm] = useState({ name: "", description: "", displayOrder: "0", active: true });
+  const [categoryForm, setCategoryForm] = useState({ name: "", description: "", displayOrder: "0", active: true, beverage: false, kitchenStation: "" });
   const [itemForm, setItemForm] = useState({ categoryId: "", name: "", description: "", price: "", imageUrl: "", available: true });
   const [editingCategory, setEditingCategory] = useState<CategoryRecord | null>(null);
-  const [editingCategoryForm, setEditingCategoryForm] = useState({ name: "", description: "", displayOrder: "0", active: true });
+  const [editingCategoryForm, setEditingCategoryForm] = useState({ name: "", description: "", displayOrder: "0", active: true, beverage: false, kitchenStation: "" });
   const [editingItem, setEditingItem] = useState<MenuItemRecord | null>(null);
   const [editingItemForm, setEditingItemForm] = useState({ categoryId: "", name: "", description: "", price: "", imageUrl: "", available: true });
   const [editBusy, setEditBusy] = useState(false);
@@ -93,8 +94,10 @@ export default function MenuManagementPage() {
         description: categoryForm.description || undefined,
         displayOrder: Number.parseInt(categoryForm.displayOrder || "0", 10),
         active: categoryForm.active,
+        beverage: categoryForm.beverage,
+        kitchenStation: categoryForm.kitchenStation.trim(),
       }));
-      setCategoryForm({ name: "", description: "", displayOrder: "0", active: true });
+      setCategoryForm({ name: "", description: "", displayOrder: "0", active: true, beverage: false, kitchenStation: "" });
       await loadAll();
       setMessage("Category created.");
     } catch (err) {
@@ -132,6 +135,8 @@ export default function MenuManagementPage() {
         description: editingCategoryForm.description || undefined,
         displayOrder: Number.parseInt(editingCategoryForm.displayOrder || "0", 10),
         active: editingCategoryForm.active,
+        beverage: editingCategoryForm.beverage,
+        kitchenStation: editingCategoryForm.kitchenStation.trim(),
       }));
       await loadAll();
       setMessage("Category updated.");
@@ -210,6 +215,11 @@ export default function MenuManagementPage() {
             <input className="input" placeholder="Name" value={categoryForm.name} onChange={(e) => setCategoryForm((s) => ({ ...s, name: e.target.value }))} required />
             <input className="input" placeholder="Description" value={categoryForm.description} onChange={(e) => setCategoryForm((s) => ({ ...s, description: e.target.value }))} />
             <input className="input" type="number" min={0} placeholder="Display order" value={categoryForm.displayOrder} onChange={(e) => setCategoryForm((s) => ({ ...s, displayOrder: e.target.value }))} />
+            <input className="input" placeholder="Prepared at (e.g. Bar). Empty: main kitchen" maxLength={40} value={categoryForm.kitchenStation} onChange={(e) => setCategoryForm((s) => ({ ...s, kitchenStation: e.target.value }))} />
+            <label className="flex items-center gap-2 text-sm text-ink-soft">
+              <input type="checkbox" checked={categoryForm.beverage} onChange={(e) => setCategoryForm((s) => ({ ...s, beverage: e.target.checked }))} />
+              Drinks: always served straight away, never held for a course
+            </label>
             <button className="btn btn-primary">Create</button>
           </form>
         </article>
@@ -237,7 +247,11 @@ export default function MenuManagementPage() {
               <li key={category.id} className="rounded-xl border border-line bg-surface p-3 flex items-center justify-between gap-2">
                 <div>
                   <p className="font-medium">{category.name}</p>
-                  <p className="text-xs text-ink-soft">order {category.displayOrder} - {category.active ? "active" : "inactive"}</p>
+                  <p className="text-xs text-ink-soft">
+                    order {category.displayOrder} - {category.active ? "active" : "inactive"}
+                    {category.kitchenStation ? ` · ${stationLabel(category.kitchenStation)}` : ""}
+                    {category.beverage ? " · drinks" : ""}
+                  </p>
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -249,6 +263,8 @@ export default function MenuManagementPage() {
                         description: category.description ?? "",
                         displayOrder: String(category.displayOrder),
                         active: category.active,
+                        beverage: !!category.beverage,
+                        kitchenStation: category.kitchenStation ? stationLabel(category.kitchenStation) : "",
                       });
                     }}
                   >
@@ -416,6 +432,15 @@ export default function MenuManagementPage() {
           <label className="flex items-center gap-2 text-sm text-ink-soft">
             <input type="checkbox" checked={editingCategoryForm.active} onChange={(e) => setEditingCategoryForm((s) => ({ ...s, active: e.target.checked }))} />
             Active
+          </label>
+          <label className="field">
+            <span className="field-label">Prepared at</span>
+            <input className="input" maxLength={40} placeholder="e.g. Bar. Empty: main kitchen" value={editingCategoryForm.kitchenStation} onChange={(e) => setEditingCategoryForm((s) => ({ ...s, kitchenStation: e.target.value }))} />
+            <span className="text-xs text-ink-muted">Its dishes appear on that station&apos;s kitchen display.</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-ink-soft">
+            <input type="checkbox" checked={editingCategoryForm.beverage} onChange={(e) => setEditingCategoryForm((s) => ({ ...s, beverage: e.target.checked }))} />
+            Drinks: always served straight away, never held for a course
           </label>
         </div>
       </Modal>

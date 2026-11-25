@@ -18,7 +18,14 @@ public final class AfterCommit {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    work.run();
+                    // The data is already committed: a failure here (e.g. the message broker is down) must not turn
+                    // the request into an error, or the guest or cashier retries and the order is placed twice.
+                    try {
+                        work.run();
+                    } catch (RuntimeException ex) {
+                        org.slf4j.LoggerFactory.getLogger(AfterCommit.class)
+                                .warn("After-commit work failed (the transaction is committed): {}", ex.toString());
+                    }
                 }
             });
         } else {

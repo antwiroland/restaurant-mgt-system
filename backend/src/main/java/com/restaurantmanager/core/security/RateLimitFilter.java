@@ -67,7 +67,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return null;
         }
         if ("/qr/sessions/link".equals(path) || (path.startsWith("/orders/public/") && path.endsWith("/feedback"))
-                || (path.startsWith("/tables/public/") && path.endsWith("/requests"))) {
+                || (path.startsWith("/tables/public/") && path.endsWith("/requests"))
+                || path.startsWith("/dining/public/")) {
             return new LimitSpec("public", rateLimitProps.getPublicRequests(), rateLimitProps.getPublicWindowSeconds() * 1000L);
         }
         if ("/auth/login".equals(path) || "/auth/register".equals(path) || "/auth/refresh".equals(path)

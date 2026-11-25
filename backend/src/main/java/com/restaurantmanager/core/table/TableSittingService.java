@@ -29,9 +29,12 @@ public class TableSittingService {
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final RestaurantTableRepository tableRepository;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
     public TableSittingService(OrderRepository orderRepository, PaymentRepository paymentRepository,
-                               RestaurantTableRepository tableRepository) {
+                               RestaurantTableRepository tableRepository,
+                               org.springframework.context.ApplicationEventPublisher events) {
+        this.events = events;
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
         this.tableRepository = tableRepository;
@@ -41,6 +44,7 @@ public class TableSittingService {
     public void endSitting(RestaurantTableEntity table) {
         table.setGuestHistoryFrom(Instant.now());
         tableRepository.save(table);
+        events.publishEvent(new TableSittingEndedEvent(table.getId()));
     }
 
     /** Ends the sitting if every order on the table is paid and served, cancelled or written off. */

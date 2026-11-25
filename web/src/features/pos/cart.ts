@@ -10,7 +10,8 @@ export type MenuItem = {
   modifierOptionIds?: string[];
   modifierLabel?: string;
 };
-export type CartLine = { item: MenuItem; quantity: number; notes?: string };
+/** `courseId`: dine-in course dining, the course this line waits for (none: sent to the kitchen now). */
+export type CartLine = { item: MenuItem; quantity: number; notes?: string; courseId?: string };
 export type OrderType = "DINE_IN" | "PICKUP" | "DELIVERY";
 
 /**
@@ -41,6 +42,10 @@ export function setQuantity(cart: CartLine[], key: string, quantity: number): Ca
 
 export function setLineNotes(cart: CartLine[], key: string, notes: string): CartLine[] {
   return cart.map((line) => (lineKey(line.item) === key ? { ...line, notes } : line));
+}
+
+export function setLineCourse(cart: CartLine[], key: string, courseId: string | undefined): CartLine[] {
+  return cart.map((line) => (lineKey(line.item) === key ? { ...line, courseId: courseId || undefined } : line));
 }
 
 export function removeFromCart(cart: CartLine[], key: string): CartLine[] {

@@ -60,5 +60,12 @@ public enum AuditAction {
     /** A payroll payment file (bank or Mobile Money) was exported. */
     HR_PAYMENT_FILE_EXPORTED,
     /** A manager closed out a table whose guests left without paying. */
-    WALKOUT_RECORDED
+    WALKOUT_RECORDED,
+    /** Course dining: a waiter, cashier or manager released a course to the kitchen. */
+    COURSE_RELEASED,
+    /** Course dining: a course was put on hold, resumed or cancelled before reaching the kitchen. */
+    COURSE_HELD,
+    COURSE_CANCELLED,
+    /** Course dining: the list of courses (names, order, stations) was changed. */
+    COURSE_CONFIG_CHANGED
 }

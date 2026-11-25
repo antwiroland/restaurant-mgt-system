@@ -185,7 +185,8 @@ public class InventoryService {
         if (!order.isStockDeducted()) {
             return;
         }
-        if (statusBeforeCancel != OrderStatus.PENDING && statusBeforeCancel != OrderStatus.CONFIRMED) {
+        if (statusBeforeCancel != OrderStatus.PENDING && statusBeforeCancel != OrderStatus.CONFIRMED
+                && statusBeforeCancel != OrderStatus.HELD) {
             return; // food already prepared: ingredients were consumed
         }
         Map<UUID, Map<UUID, BigDecimal>> byLocation = new HashMap<>();

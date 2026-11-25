@@ -2,9 +2,11 @@
 
 import { Client } from "@stomp/stompjs";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { DiningCoursesPanel } from "@/components/DiningCoursesPanel";
 import { GuestOrderActions } from "@/components/GuestOrderActions";
+import { SEND_NOW, effectiveCourseId, groupByCourse, hasCourseLines, orderedCourses } from "@/features/dining/dining";
 import { GuestRatePrompt } from "@/components/GuestRatePrompt";
 import { rememberOrder } from "@/features/orders/guestOrders";
 import { Skeleton } from "@/components/Skeleton";
@@ -28,6 +30,9 @@ import {
   type PublicOrderTrackingRecord,
   type TableScanRecord,
   linkTableSession,
+  submitPublicDining,
+  type DiningCourseRecord,
+  type PublicDiningRecord,
 } from "@/lib/apiClient";
 
 type CartLine = {
@@ -37,6 +42,8 @@ type CartLine = {
   unitPrice: number;
   modifierOptionIds: string[];
   modifierSummary: string[];
+  /** Course dining: the course this dish waits for; empty sends it to the kitchen now. */
+  courseId?: string;
 };
 
 type SelectionByGroup = Record<string, string[]>;
@@ -92,6 +99,9 @@ export default function GuestScanMenuPage() {
   const [sheetItemId, setSheetItemId] = useState<string | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [justAdded, setJustAdded] = useState(0);
+  const [courses, setCourses] = useState<DiningCourseRecord[]>([]);
+  const [diningRefresh, setDiningRefresh] = useState(0);
+  const [sessionRef, setSessionRef] = useState<string | undefined>(undefined);
 
   // A returning guest on this device skips the phone step.
   useEffect(() => {
@@ -133,6 +143,7 @@ export default function GuestScanMenuPage() {
       sessionId = window.crypto?.randomUUID?.() ?? `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       window.localStorage.setItem("rm-table-session-id", sessionId);
     }
+    setSessionRef(sessionId);
     void linkTableSession(token, sessionId).catch(() => undefined);
   }, [token]);
 
@@ -331,6 +342,13 @@ export default function GuestScanMenuPage() {
     }
   }
 
+  const onDiningLoaded = useCallback((dining: PublicDiningRecord) => setCourses(orderedCourses(dining.courses)), []);
+  const usesCourses = hasCourseLines(cart.map((line) => ({ courseId: line.courseId, beverage: line.item.beverage })));
+
+  function setLineCourse(lineKey: string, courseId: string) {
+    setCart((previous) => previous.map((line) => (line.key === lineKey ? { ...line, courseId: courseId || undefined } : line)));
+  }
+
   function updateQuantity(lineKey: string, delta: number) {
     setCart((previous) => {
       const existing = previous.find((line) => line.key === lineKey);
@@ -351,6 +369,29 @@ export default function GuestScanMenuPage() {
     setPlacing(true);
     setError("");
     try {
+      if (usesCourses) {
+        // Course dining: dishes for now go to the kitchen straight away, the rest wait for their course.
+        await submitPublicDining(token, {
+          notes: notes.trim() || undefined,
+          guestName: guest.name || undefined,
+          guestPhone: guest.phone,
+          sessionRef,
+          items: cart.map((line) => ({
+            menuItemId: line.item.id,
+            quantity: line.quantity,
+            modifierOptionIds: line.modifierOptionIds.length > 0 ? line.modifierOptionIds : undefined,
+            courseId: effectiveCourseId(line.courseId, line.item.beverage),
+          })),
+        });
+        setCart([]);
+        setNotes("");
+        setMessage("Your order is in. Anything for now is on its way; tap “Request next course” when you're ready for the next one.");
+        setCartOpen(false);
+        setDiningRefresh((value) => value + 1);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        getPublicTableTracking(token).then(setTrackedOrders).catch(() => {});
+        return;
+      }
       const order = await createPublicDineInOrder({
         tableToken: token,
         notes: notes.trim() || undefined,
@@ -427,6 +468,7 @@ export default function GuestScanMenuPage() {
             <p className="alert alert-success shadow-sm" role="status"><Icon name="checkCircle" size={18} className="mt-0.5 shrink-0" />{message}</p>
           ) : null}
 
+          {token && table ? <DiningCoursesPanel token={token} refreshKey={diningRefresh + liveTick} sessionRef={sessionRef} onLoaded={onDiningLoaded} /> : null}
           {token ? <GuestRatePrompt tableToken={token} shownOrderIds={trackedOrders.map((o) => o.orderId)} refreshKey={liveTick} /> : null}
 
           {recentOrders.length > 0 ? (
@@ -654,7 +696,7 @@ export default function GuestScanMenuPage() {
       <Modal open={cartOpen} title={`Your order · Table ${table?.tableNumber ?? ""}`} onClose={() => setCartOpen(false)}
         footer={
           <button type="button" disabled={placing || cart.length === 0} onClick={() => void placeOrder()} className="btn btn-primary btn-lg btn-block justify-between">
-            <span className="flex items-center gap-2">{placing ? <Spinner className="text-current" /> : <Icon name="chef" size={20} />}{placing ? "Sending…" : "Send to kitchen"}</span>
+            <span className="flex items-center gap-2">{placing ? <Spinner className="text-current" /> : <Icon name="chef" size={20} />}{placing ? "Sending…" : usesCourses ? "Place order" : "Send to kitchen"}</span>
             <span className="money">{formatMoney(total)}</span>
           </button>
         }
@@ -663,26 +705,43 @@ export default function GuestScanMenuPage() {
           {cart.length === 0 ? (
             <p className="text-ink-soft">Your order is empty.</p>
           ) : (
-            <ul className="divide-y divide-line-subtle">
-              {cart.map((line) => (
-                <li key={line.key} className="flex items-center gap-3 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-ink">{line.item.name}</p>
-                    {line.modifierSummary.length > 0 ? <p className="text-xs text-ink-soft">{line.modifierSummary.map((m) => m.split(": ")[1] ?? m).join(" · ")}</p> : null}
-                    <p className="money mt-0.5 text-sm text-ink-soft">{formatMoney(line.unitPrice * line.quantity)}</p>
-                  </div>
-                  <div className="flex items-center rounded-full border border-line">
-                    <button className="grid h-10 w-10 place-items-center" onClick={() => updateQuantity(line.key, -1)} aria-label={`Remove one ${line.item.name}`}>
-                      <Icon name={line.quantity === 1 ? "trash" : "minus"} size={16} />
-                    </button>
-                    <span className="w-6 text-center font-bold tabular">{line.quantity}</span>
-                    <button className="grid h-10 w-10 place-items-center" onClick={() => updateQuantity(line.key, 1)} aria-label={`Add one ${line.item.name}`}>
-                      <Icon name="plus" size={16} />
-                    </button>
-                  </div>
-                </li>
+            <div className="grid gap-2">
+              {groupByCourse(cart.map((line) => ({ ...line, beverage: line.item.beverage })), courses).map((group) => (
+                <section key={group.courseId ?? "now"} aria-label={group.title}>
+                  {usesCourses ? <h3 className="text-xs font-bold uppercase tracking-wide text-ink-muted">{group.title}</h3> : null}
+                  <ul className="divide-y divide-line-subtle">
+                    {group.lines.map((line) => (
+                        <li key={line.key} className="flex items-center gap-3 py-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-ink">{line.item.name}</p>
+                            {line.modifierSummary.length > 0 ? <p className="text-xs text-ink-soft">{line.modifierSummary.map((m) => m.split(": ")[1] ?? m).join(" · ")}</p> : null}
+                            <p className="money mt-0.5 text-sm text-ink-soft">{formatMoney(line.unitPrice * line.quantity)}</p>
+                            {courses.length > 0 && !line.item.beverage ? (
+                              <label className="mt-1 flex items-center gap-2 text-xs text-ink-soft">
+                                <span>Serve</span>
+                                <select className="select h-8 min-w-0 py-0 text-xs" value={line.courseId ?? SEND_NOW}
+                                  aria-label={`When to serve ${line.item.name}`} onChange={(e) => setLineCourse(line.key, e.target.value)}>
+                                  <option value={SEND_NOW}>Now</option>
+                                  {courses.map((course) => <option key={course.id} value={course.id}>As {course.name.toLowerCase()}</option>)}
+                                </select>
+                              </label>
+                            ) : null}
+                          </div>
+                          <div className="flex items-center rounded-full border border-line">
+                            <button className="grid h-10 w-10 place-items-center" onClick={() => updateQuantity(line.key, -1)} aria-label={`Remove one ${line.item.name}`}>
+                              <Icon name={line.quantity === 1 ? "trash" : "minus"} size={16} />
+                            </button>
+                            <span className="w-6 text-center font-bold tabular">{line.quantity}</span>
+                            <button className="grid h-10 w-10 place-items-center" onClick={() => updateQuantity(line.key, 1)} aria-label={`Add one ${line.item.name}`}>
+                              <Icon name="plus" size={16} />
+                            </button>
+                          </div>
+                        </li>
+                    ))}
+                  </ul>
+                </section>
               ))}
-            </ul>
+            </div>
           )}
           <div className="grid gap-3 rounded-xl bg-ivory p-3">
             <label className="field">
@@ -691,6 +750,9 @@ export default function GuestScanMenuPage() {
             </label>
           </div>
           {error ? <p className="alert alert-danger" role="alert">{error}</p> : null}
+          {courses.length > 0 ? (
+            <p className="text-xs text-ink-muted">Ordering a full meal? Choose when each dish is served: later courses wait until you tap &ldquo;Request next course&rdquo;. Drinks always come straight away.</p>
+          ) : null}
           <p className="text-xs text-ink-muted">Prices include any options you chose. Pay by Mobile Money from your order once it is sent, or pay our team.</p>
         </div>
       </Modal>
