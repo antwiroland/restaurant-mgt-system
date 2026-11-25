@@ -455,7 +455,13 @@ def main():
 
     def advance(order_id, token, stops):
         for status in stops:
-            api.call("PATCH", f"/orders/{order_id}/status", {"status": status}, token)
+            body = {"status": status}
+            if status == "COMPLETED":
+                # Handing over a pickup needs the customer's pickup code, as at the real counter.
+                code = api.call("GET", f"/orders/{order_id}", None, token).get("pickupCode")
+                if code:
+                    body["pickupCode"] = code
+            api.call("PATCH", f"/orders/{order_id}/status", body, token)
 
     finished, counts = [], {"completed": 0, "active": 0, "cancelled": 0}
     # Historical orders (back-dated later): mostly completed.
