@@ -46,6 +46,10 @@ public record OrderResponse(
         List<com.restaurantmanager.core.billing.BillingService.TaxLine> taxLines,
         /** Name and phone a QR guest gave (staff only; never on public views). */
         String guestName,
-        String guestPhone
+        String guestPhone,
+        /** Course dining: the meal and course this order belongs to (null for ordinary orders). */
+        UUID diningOrderId,
+        UUID diningOrderCourseId,
+        String kitchenStation
 ) {
 }

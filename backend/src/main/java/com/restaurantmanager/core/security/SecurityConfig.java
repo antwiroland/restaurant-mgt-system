@@ -73,6 +73,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/tables/public").permitAll()
                         .requestMatchers("/tables/public/*/requests").permitAll()
                         .requestMatchers("/orders/public/**").permitAll()
+                        // Course dining from the table QR page: the table's secret token is the key
+                        .requestMatchers("/dining/public/**").permitAll()
                         .requestMatchers("/reservations").permitAll()
                         .requestMatchers("/reservations/guest/**").permitAll()
                         .requestMatchers("/reservations/*/guest-cancel").permitAll()

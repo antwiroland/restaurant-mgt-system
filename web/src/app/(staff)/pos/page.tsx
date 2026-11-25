@@ -12,6 +12,7 @@ import {
   cartTotal,
   lineKey,
   removeFromCart,
+  setLineCourse,
   setLineNotes,
   setQuantity,
   type CartLine,
@@ -20,6 +21,9 @@ import { useStaffSession } from "@/components/SessionProvider";
 import {
   createOrder,
   getBillingConfig,
+  getDiningCourses,
+  submitDiningForTable,
+  type DiningCourseRecord,
   getDeliveryZones,
   getMenuItemModifiers,
   getMe,
@@ -41,6 +45,7 @@ import {
   type TableRecord,
 } from "@/lib/apiClient";
 import { formatMoney } from "@/lib/brand";
+import { SEND_NOW, effectiveCourseId, hasCourseLines, orderedCourses } from "@/features/dining/dining";
 import { StaffClockPanel } from "@/features/hr/attendance/StaffClockPanel";
 
 const ORDER_TYPES = [
@@ -88,6 +93,7 @@ export default function PosPage() {
   const [message, setMessage] = useState<{ tone: "info" | "success" | "danger"; text: string } | null>(null);
   const [orderFieldErrors, setOrderFieldErrors] = useState<{ cart?: string; tableId?: string; deliveryAddress?: string }>({});
   const [editingNote, setEditingNote] = useState<string | null>(null);
+  const [courses, setCourses] = useState<DiningCourseRecord[]>([]);
 
   const [quote, setQuote] = useState<OrderQuoteRecord | null>(null);
   const [quoteState, setQuoteState] = useState<"idle" | "loading" | "error">("idle");
@@ -260,6 +266,57 @@ export default function PosPage() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
+  // Course dining: the courses a dine-in dish can be held for (none offered: everything goes now, as before).
+  useEffect(() => {
+    if (!session) return;
+    authenticatedFetch((activeSession) => getDiningCourses(activeSession))
+      .then((next) => setCourses(orderedCourses(next)))
+      .catch(() => setCourses([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per signed-in user
+  }, [session?.user.id]);
+
+  const beverageIds = useMemo(() => new Set(menuItems.filter((item) => item.beverage).map((item) => item.id)), [menuItems]);
+  const offerCourses = orderType === "DINE_IN" && courses.length > 0;
+  const usesCourses = offerCourses && hasCourseLines(cart.map((line) => ({ courseId: line.courseId, beverage: beverageIds.has(line.item.id) })));
+
+  /** Dine-in with dishes held for later courses: goes through course dining instead of a single order. */
+  async function submitCourses() {
+    if (promoCode.trim() || Number(tipAmount) > 0) {
+      setMessage({ tone: "danger", text: "Promo codes and tips can't be added to an order with courses. Remove them, or send everything now." });
+      return;
+    }
+    setSubmittingOrder(true);
+    setMessage(null);
+    setOrderFieldErrors({});
+    try {
+      const meal = await authenticatedFetch((activeSession) => submitDiningForTable(activeSession, tableId, {
+        notes: orderNotes.trim() || undefined,
+        items: cart.map((line) => ({
+          menuItemId: line.item.id,
+          quantity: line.quantity,
+          notes: line.notes?.trim() || undefined,
+          modifierOptionIds: line.item.modifierOptionIds?.length ? line.item.modifierOptionIds : undefined,
+          courseId: effectiveCourseId(line.courseId, beverageIds.has(line.item.id)),
+        })),
+      }));
+      setCart([]);
+      setOrderNotes("");
+      setShowExtras(false);
+      setTables((current) => current.map((table) => (table.id === tableId ? { ...table, status: "OCCUPIED" } : table)));
+      setTableId("");
+      void authenticatedFetch((activeSession) => getTables(activeSession)).then(setTables).catch(() => undefined);
+      const held = meal.courses.filter((course) => course.status === "PENDING" || course.status === "ON_HOLD").map((course) => course.courseName);
+      setMessage({
+        tone: "success",
+        text: `Table ${meal.tableNumber}: anything for now is on its way to the kitchen.${held.length > 0 ? ` ${held.join(", ")} will wait until released from Courses.` : ""} The table pays from its bill.`,
+      });
+    } catch (err) {
+      setMessage({ tone: "danger", text: err instanceof Error ? err.message : "Could not send the order" });
+    } finally {
+      setSubmittingOrder(false);
+    }
+  }
+
   /* ---------------------------- Submit ---------------------------- */
   async function handleCreateOrder() {
     if (!session) return;
@@ -273,6 +330,10 @@ export default function PosPage() {
 
     if (Object.keys(nextFieldErrors).length > 0) {
       setOrderFieldErrors(nextFieldErrors);
+      return;
+    }
+    if (usesCourses) {
+      await submitCourses();
       return;
     }
 
@@ -683,6 +744,17 @@ export default function PosPage() {
                               <p className="font-semibold leading-snug text-ink">{line.item.name}</p>
                               {line.item.modifierLabel ? <p className="text-xs text-ink-soft">{line.item.modifierLabel}</p> : null}
                               <p className="text-xs text-ink-muted">{formatMoney(line.item.price)} each</p>
+                              {offerCourses && !beverageIds.has(line.item.id) ? (
+                                <select
+                                  className="select mt-1 h-8 min-h-0 w-auto py-0 text-xs"
+                                  value={line.courseId ?? SEND_NOW}
+                                  onChange={(event) => setCart((c) => setLineCourse(c, key, event.target.value))}
+                                  aria-label={`When to serve ${line.item.name}`}
+                                >
+                                  <option value={SEND_NOW}>Send now</option>
+                                  {courses.map((course) => <option key={course.id} value={course.id}>Hold for {course.name.toLowerCase()}</option>)}
+                                </select>
+                              ) : null}
                             </div>
                             <p className="money shrink-0 text-ink">{formatMoney(line.item.price * line.quantity)}</p>
                           </div>
@@ -794,7 +866,7 @@ export default function PosPage() {
               >
                 <span className="flex items-center gap-2">
                   {submittingOrder ? <Spinner className="text-current" /> : <Icon name="chef" size={20} />}
-                  {submittingOrder ? "Sending…" : "Send to kitchen"}
+                  {submittingOrder ? "Sending…" : usesCourses ? "Send & hold courses" : "Send to kitchen"}
                 </span>
                 <span className="money flex items-center gap-2">
                   {quoteState === "loading" ? <Spinner size={14} className="opacity-70" /> : null}

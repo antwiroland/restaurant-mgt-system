@@ -113,4 +113,25 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
     List<OrderEntity> findByRiderUserIdAndStatusInOrderByCreatedAtAsc(UUID riderUserId, java.util.Collection<OrderStatus> statuses);
 
     Optional<OrderEntity> findFirstByGroupSession_IdOrderByCreatedAtDesc(UUID groupSessionId);
+
+    /** Course dining: the orders (batches) of one meal, oldest first. */
+    List<OrderEntity> findByDiningOrderIdOrderByCreatedAtAsc(UUID diningOrderId);
+
+    List<OrderEntity> findByDiningOrderIdInOrderByCreatedAtAsc(java.util.Collection<UUID> diningOrderIds);
+
+    List<OrderEntity> findByDiningOrderCourseIdOrderByCreatedAtAsc(UUID diningOrderCourseId);
+
+    /**
+     * Releases a held course to the kitchen: only orders still HELD change, so a release can never send the same dishes
+     * twice. Returns how many orders were released. Clears the persistence context; reload what you need afterwards.
+     */
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update OrderEntity o
+               set o.status = com.restaurantmanager.core.order.OrderStatus.PENDING,
+                   o.releasedAt = :now, o.releasedBy = :releasedBy, o.updatedAt = :now
+             where o.diningOrderCourseId = :courseId
+               and o.status = com.restaurantmanager.core.order.OrderStatus.HELD
+            """)
+    int releaseHeldCourse(@Param("courseId") UUID courseId, @Param("releasedBy") UUID releasedBy, @Param("now") Instant now);
 }

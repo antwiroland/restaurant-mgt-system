@@ -263,6 +263,8 @@ export type MenuItemRecord = {
   active: boolean;
   /** Branches where an ingredient has run out. */
   soldOutBranchIds?: (string | null)[];
+  /** From the category: beverages can be ordered at any time, outside the dining courses. */
+  beverage?: boolean;
 };
 
 export type CategoryRecord = {
@@ -271,6 +273,19 @@ export type CategoryRecord = {
   description?: string;
   displayOrder: number;
   active: boolean;
+  /** Beverages skip dining course holds and go straight to the bar. */
+  beverage?: boolean;
+  /** Where the category is prepared (e.g. KITCHEN, BAR); empty means the main kitchen. */
+  kitchenStation?: string | null;
+};
+
+export type CategoryPayload = {
+  name: string;
+  description?: string;
+  displayOrder: number;
+  active: boolean;
+  beverage?: boolean;
+  kitchenStation?: string;
 };
 
 export type MenuModifierOptionRecord = {
@@ -350,7 +365,8 @@ export type OrderRecord = {
   id: string;
   customerUserId?: string;
   type: "DINE_IN" | "PICKUP" | "DELIVERY";
-  status: "PENDING" | "CONFIRMED" | "PREPARING" | "READY" | "OUT_FOR_DELIVERY" | "DELIVERED" | "COMPLETED" | "CANCELLED" | "VOIDED";
+  /** HELD: a dining course waiting for staff to release it to the kitchen (already on the table's bill). */
+  status: "PENDING" | "CONFIRMED" | "PREPARING" | "READY" | "OUT_FOR_DELIVERY" | "DELIVERED" | "COMPLETED" | "CANCELLED" | "VOIDED" | "HELD";
   tableId?: string;
   tableNumber?: string;
   deliveryAddress?: string;
@@ -435,6 +451,14 @@ export type KdsOrderCard = {
   notes?: string;
   createdAt: string;
   items: { id?: string; name: string; quantity: number; notes?: string; modifiers: string[]; ready?: boolean }[];
+  /** The station preparing this ticket (e.g. BAR); empty means the main kitchen. */
+  kitchenStation?: string | null;
+  /** Course dining: the course of this ticket and who released it to the kitchen. */
+  courseName?: string | null;
+  diningOrderId?: string | null;
+  diningOrderCourseId?: string | null;
+  releasedByName?: string | null;
+  releasedAt?: string | null;
 };
 
 export type KdsBoardRecord = {
@@ -700,8 +724,11 @@ export async function closeShift(
   });
 }
 
-export async function getKdsBoard(session: StaffSession, branchId?: string): Promise<KdsBoardRecord> {
-  const query = branchId ? `?branchId=${encodeURIComponent(branchId)}` : "";
+export async function getKdsBoard(session: StaffSession, branchId?: string, station?: string): Promise<KdsBoardRecord> {
+  const params = new URLSearchParams();
+  if (branchId) params.set("branchId", branchId);
+  if (station) params.set("station", station);
+  const query = params.toString() ? `?${params.toString()}` : "";
   return apiRequest<KdsBoardRecord>(`/kds/board${query}`, { token: session.accessToken });
 }
 
@@ -944,7 +971,7 @@ export async function getMenuCategories(): Promise<CategoryRecord[]> {
 
 export async function createMenuCategory(
   session: StaffSession,
-  payload: { name: string; description?: string; displayOrder: number; active: boolean },
+  payload: CategoryPayload,
 ): Promise<CategoryRecord> {
   return apiRequest<CategoryRecord>("/menu/categories", {
     method: "POST",
@@ -956,7 +983,7 @@ export async function createMenuCategory(
 export async function updateMenuCategory(
   session: StaffSession,
   id: string,
-  payload: { name: string; description?: string; displayOrder: number; active: boolean },
+  payload: CategoryPayload,
 ): Promise<CategoryRecord> {
   return apiRequest<CategoryRecord>(`/menu/categories/${id}`, {
     method: "PUT",
@@ -2648,4 +2675,242 @@ export async function setFavourite(session: StaffSession, menuItemId: string, fa
 /** Guest cart estimate (no sign-in): same pricing rules as the authenticated quote. */
 export async function quoteOrderPublic(payload: Parameters<typeof createOrder>[1]): Promise<OrderQuoteRecord> {
   return apiRequest<OrderQuoteRecord>("/orders/public/quote", { method: "POST", body: payload });
+}
+
+/* ------------------------------------------------------------------------------------------------------------------
+ * Course dining: guests order a meal in courses; waiters, cashiers and managers release each course to the kitchen.
+ * ---------------------------------------------------------------------------------------------------------------- */
+
+export type CourseStatus = "PENDING" | "ON_HOLD" | "RELEASED" | "PREPARING" | "READY" | "PARTIALLY_SERVED" | "SERVED" | "CANCELLED";
+
+export type DiningCourseRecord = {
+  id: string;
+  branchId?: string | null;
+  name: string;
+  description?: string | null;
+  displayOrder: number;
+  active: boolean;
+  defaultStation?: string | null;
+};
+
+export type DiningCoursePayload = {
+  name: string;
+  description?: string;
+  displayOrder?: number;
+  active?: boolean;
+  defaultStation?: string;
+  branchId?: string;
+};
+
+/** One dish. No courseId (or a beverage): sent to the kitchen straight away; otherwise held with its course. */
+export type DiningSubmitItem = {
+  menuItemId: string;
+  quantity: number;
+  notes?: string;
+  modifierOptionIds?: string[];
+  courseId?: string;
+};
+
+export type DiningItemRecord = {
+  itemId: string;
+  name: string;
+  quantity: number;
+  unitPrice: string;
+  notes?: string | null;
+  modifiers: string[];
+  ready: boolean;
+};
+
+export type DiningBatchRecord = {
+  orderId: string;
+  orderNumber: string;
+  status: OrderRecord["status"];
+  kitchenStation?: string | null;
+  createdAt: string;
+  releasedAt?: string | null;
+  total: string;
+  items: DiningItemRecord[];
+};
+
+export type DiningOrderCourseRecord = {
+  id: string;
+  courseId?: string | null;
+  courseName: string;
+  sequence: number;
+  status: CourseStatus;
+  releasedAt?: string | null;
+  releasedByName?: string | null;
+  releasedByRole?: string | null;
+  servedAt?: string | null;
+  itemCount: number;
+  pendingRequestId?: string | null;
+  batches: DiningBatchRecord[];
+};
+
+export type CourseRequestStatus = "PENDING" | "APPROVED" | "CANCELLED" | "EXPIRED";
+
+export type CourseReleaseRequestRecord = {
+  id: string;
+  diningOrderId: string;
+  diningOrderNumber: string;
+  diningOrderCourseId: string;
+  courseName?: string | null;
+  courseStatus?: CourseStatus | null;
+  tableId: string;
+  tableNumber?: string | null;
+  branchId?: string | null;
+  status: CourseRequestStatus;
+  requestedAt: string;
+  handledBy?: string | null;
+  handledByName?: string | null;
+  handledByRole?: string | null;
+  handledAt?: string | null;
+  items: DiningItemRecord[];
+};
+
+export type DiningOrderRecord = {
+  id: string;
+  number: string;
+  tableId: string;
+  tableNumber: string;
+  branchId?: string | null;
+  status: "OPEN" | "CLOSED";
+  openedAt: string;
+  courses: DiningOrderCourseRecord[];
+  sentNow: DiningBatchRecord[];
+  nextCourseId?: string | null;
+  pendingRequest?: CourseReleaseRequestRecord | null;
+};
+
+export type ReleaseResultRecord = {
+  course: DiningOrderCourseRecord;
+  releasedOrders: number;
+  message: string;
+};
+
+export type PublicDiningCourseRecord = {
+  id: string;
+  courseId?: string | null;
+  courseName: string;
+  sequence: number;
+  status: CourseStatus;
+  releasedAt?: string | null;
+  items: { name: string; quantity: number; modifiers: string[]; notes?: string | null }[];
+};
+
+export type PublicDiningRecord = {
+  tableNumber: string;
+  courses: DiningCourseRecord[];
+  diningOrderId?: string | null;
+  mealCourses: PublicDiningCourseRecord[];
+  canRequestNextCourse: boolean;
+  nextCourseName?: string | null;
+  pendingRequest?: { id: string; courseName?: string | null; status: CourseRequestStatus; requestedAt: string } | null;
+};
+
+export type NextCourseRecord = {
+  outcome: "REQUESTED" | "ALREADY_PENDING" | "NO_PENDING_COURSE" | "ON_HOLD";
+  message: string;
+  requestId?: string | null;
+  courseName?: string | null;
+};
+
+// ---- Guest (table QR)
+
+export async function getPublicDining(tableToken: string): Promise<PublicDiningRecord> {
+  return apiRequest<PublicDiningRecord>(`/dining/public/tables/${encodeURIComponent(tableToken)}`);
+}
+
+export async function submitPublicDining(
+  tableToken: string,
+  payload: { items: DiningSubmitItem[]; notes?: string; guestName?: string; guestPhone?: string; sessionRef?: string },
+): Promise<PublicDiningRecord> {
+  return apiRequest<PublicDiningRecord>(`/dining/public/tables/${encodeURIComponent(tableToken)}/items`, { method: "POST", body: payload });
+}
+
+export async function requestNextCourse(tableToken: string, sessionRef?: string): Promise<NextCourseRecord> {
+  return apiRequest<NextCourseRecord>(`/dining/public/tables/${encodeURIComponent(tableToken)}/request-next-course`, {
+    method: "POST",
+    body: { sessionRef },
+  });
+}
+
+// ---- Staff
+
+export async function getDiningCourses(
+  session: StaffSession,
+  options: { includeInactive?: boolean; branchId?: string } = {},
+): Promise<DiningCourseRecord[]> {
+  const params = new URLSearchParams();
+  if (options.includeInactive) params.set("includeInactive", "true");
+  if (options.branchId) params.set("branchId", options.branchId);
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return apiRequest<DiningCourseRecord[]>(`/dining/courses${query}`, { token: session.accessToken });
+}
+
+export async function createDiningCourse(session: StaffSession, payload: DiningCoursePayload): Promise<DiningCourseRecord> {
+  return apiRequest<DiningCourseRecord>("/dining/courses", { method: "POST", token: session.accessToken, body: payload });
+}
+
+export async function updateDiningCourse(session: StaffSession, id: string, payload: DiningCoursePayload): Promise<DiningCourseRecord> {
+  return apiRequest<DiningCourseRecord>(`/dining/courses/${id}`, { method: "PUT", token: session.accessToken, body: payload });
+}
+
+export async function setDiningCourseActive(session: StaffSession, id: string, active: boolean): Promise<DiningCourseRecord> {
+  return apiRequest<DiningCourseRecord>(`/dining/courses/${id}/status`, { method: "PATCH", token: session.accessToken, body: { active } });
+}
+
+export async function reorderDiningCourses(session: StaffSession, courseIds: string[]): Promise<DiningCourseRecord[]> {
+  return apiRequest<DiningCourseRecord[]>("/dining/courses/order", { method: "PUT", token: session.accessToken, body: { courseIds } });
+}
+
+export async function getOpenMeals(session: StaffSession): Promise<DiningOrderRecord[]> {
+  return apiRequest<DiningOrderRecord[]>("/dining/orders", { token: session.accessToken });
+}
+
+export async function submitDiningForTable(
+  session: StaffSession,
+  tableId: string,
+  payload: { items: DiningSubmitItem[]; notes?: string },
+): Promise<DiningOrderRecord> {
+  return apiRequest<DiningOrderRecord>(`/dining/tables/${tableId}/items`, { method: "POST", token: session.accessToken, body: payload });
+}
+
+export type CourseAction = "hold" | "resume" | "serve" | "cancel";
+
+export async function releaseDiningCourse(session: StaffSession, orderCourseId: string): Promise<ReleaseResultRecord> {
+  return apiRequest<ReleaseResultRecord>(`/dining/order-courses/${orderCourseId}/release`, { method: "POST", token: session.accessToken });
+}
+
+export async function changeDiningCourse(
+  session: StaffSession,
+  orderCourseId: string,
+  action: CourseAction,
+  reason?: string,
+): Promise<DiningOrderCourseRecord> {
+  return apiRequest<DiningOrderCourseRecord>(`/dining/order-courses/${orderCourseId}/${action}`, {
+    method: "POST",
+    token: session.accessToken,
+    body: action === "cancel" ? { reason } : undefined,
+  });
+}
+
+export async function getCourseRequests(session: StaffSession, pendingOnly = true): Promise<CourseReleaseRequestRecord[]> {
+  return apiRequest<CourseReleaseRequestRecord[]>(`/dining/course-release-requests${pendingOnly ? "/pending" : ""}`, {
+    token: session.accessToken,
+  });
+}
+
+export async function releaseCourseRequest(session: StaffSession, requestId: string): Promise<ReleaseResultRecord> {
+  return apiRequest<ReleaseResultRecord>(`/dining/course-release-requests/${requestId}/release`, {
+    method: "POST",
+    token: session.accessToken,
+  });
+}
+
+export async function dismissCourseRequest(session: StaffSession, requestId: string): Promise<CourseReleaseRequestRecord> {
+  return apiRequest<CourseReleaseRequestRecord>(`/dining/course-release-requests/${requestId}/dismiss`, {
+    method: "POST",
+    token: session.accessToken,
+  });
 }

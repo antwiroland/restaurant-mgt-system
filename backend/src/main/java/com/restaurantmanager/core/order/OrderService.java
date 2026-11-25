@@ -104,6 +104,7 @@ public class OrderService {
     private final TableRealtimePublisher tableRealtimePublisher;
     private final com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications;
     private final com.restaurantmanager.core.reservation.ReservationTableHolds reservationTableHolds;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
@@ -128,7 +129,9 @@ public class OrderService {
             com.restaurantmanager.core.notification.push.PushNotificationService pushNotifications,
                         CacheManager cacheManager,
                         TableRealtimePublisher tableRealtimePublisher,
-                        com.restaurantmanager.core.reservation.ReservationTableHolds reservationTableHolds) {
+                        com.restaurantmanager.core.reservation.ReservationTableHolds reservationTableHolds,
+                        org.springframework.context.ApplicationEventPublisher events) {
+        this.events = events;
         this.reservationTableHolds = reservationTableHolds;
         this.cacheManager = cacheManager;
         this.tableRealtimePublisher = tableRealtimePublisher;
@@ -158,7 +161,18 @@ public class OrderService {
 
     @Transactional
     public OrderResponse createOrder(OrderCreateRequest request, UserPrincipal principal) {
-        return createOrderInternal(request, principal, null, null, null);
+        return createOrderInternal(request, principal, null, null, null, null);
+    }
+
+    /**
+     * Course dining: places one batch of a meal (one course at one station, or dishes sent straight away) through the
+     * normal order path, so pricing, stock, taxes, the table's bill and the kitchen work exactly as for any order.
+     * A held batch is created in {@link OrderStatus#HELD} and only reaches the kitchen when its course is released.
+     */
+    @Transactional
+    public OrderResponse createDiningOrder(OrderCreateRequest request, UserPrincipal principal, String guestName,
+                                           String guestPhone, DiningPlacement placement) {
+        return createOrderInternal(request, principal, null, blankToNull(guestName), normalizePhone(guestPhone), placement);
     }
 
     @Transactional
@@ -176,7 +190,7 @@ public class OrderService {
                 request.promoCode(),
                 null
         );
-        return createOrderInternal(internalRequest, null, null, blankToNull(request.guestName()), normalizePhone(request.guestPhone()));
+        return createOrderInternal(internalRequest, null, null, blankToNull(request.guestName()), normalizePhone(request.guestPhone()), null);
     }
 
     /** Digits with an optional leading +, so staff can dial it and MoMo accepts it. */
@@ -244,6 +258,9 @@ public class OrderService {
         OrderEntity order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ApiException(404, "Order not found"));
         assertOrderAccess(order, principal);
+        if (order.getStatus() == OrderStatus.HELD) {
+            throw new ApiException(409, "This course has not been released to the kitchen yet");
+        }
         if (order.getStatus() == OrderStatus.PENDING) {
             throw new ApiException(409, "Accept the order before marking items ready");
         }
@@ -297,6 +314,7 @@ public class OrderService {
         OrderEntity saved = orderRepository.save(order);
         endSittingIfFinished(saved);
         realtimePublisher.publishOrderStatusChanged(saved.getId(), previous, saved.getStatus(), tableToken(saved));
+        events.publishEvent(new OrderStatusChangedEvent(saved.getId(), previous, saved.getStatus()));
         notifyReadyForPickup(saved, previous);
         pushNotifications.orderStatusChanged(saved, saved.getStatus());
         return toResponse(saved);
@@ -316,7 +334,8 @@ public class OrderService {
         if (order.getStatus() == OrderStatus.CANCELLED) {
             return new CancelResult(false, toResponse(order));
         }
-        if (order.getStatus() != OrderStatus.PENDING) {
+        // A held course has not reached the kitchen: like a new order, it can be cancelled without a manager.
+        if (order.getStatus() != OrderStatus.PENDING && order.getStatus() != OrderStatus.HELD) {
             validateOverrideToken(request == null ? null : request.overrideToken(), OverrideActionType.VOID);
         }
 
@@ -330,9 +349,10 @@ public class OrderService {
         OrderEntity saved = orderRepository.save(order);
         endSittingIfFinished(saved);
         realtimePublisher.publishOrderStatusChanged(saved.getId(), previous, saved.getStatus(), tableToken(saved));
+        events.publishEvent(new OrderStatusChangedEvent(saved.getId(), previous, saved.getStatus()));
         pushNotifications.orderStatusChanged(saved, OrderStatus.CANCELLED);
 
-        boolean returnBody = previous != OrderStatus.PENDING;
+        boolean returnBody = previous != OrderStatus.PENDING && previous != OrderStatus.HELD;
         return new CancelResult(returnBody, toResponse(saved));
     }
 
@@ -485,6 +505,11 @@ public class OrderService {
         if (tableHasOutstandingBalance(tableId)) {
             throw new ApiException(409, "Table has outstanding balance. Settle bills or reverse table");
         }
+        boolean heldCourses = tableSitting.visibleToGuests(table, orderRepository.findByTableIdOrderByCreatedAtAsc(tableId)).stream()
+                .anyMatch(order -> order.getStatus() == OrderStatus.HELD);
+        if (heldCourses) {
+            throw new ApiException(409, "This table still has courses waiting to be released. Release or cancel them first");
+        }
         table.setStatus(TableStatus.AVAILABLE);
         tableRepository.save(table);
         tableSitting.endSitting(table);
@@ -516,6 +541,7 @@ public class OrderService {
             inventoryService.restoreForOrder(order, previous);
             OrderEntity savedOrder = orderRepository.save(order);
             realtimePublisher.publishOrderStatusChanged(savedOrder.getId(), previous, savedOrder.getStatus(), tableToken(savedOrder));
+            events.publishEvent(new OrderStatusChangedEvent(savedOrder.getId(), previous, savedOrder.getStatus()));
         }
 
         table.setStatus(TableStatus.AVAILABLE);
@@ -831,17 +857,26 @@ public class OrderService {
             participantByIndex.put(i, sessionItems.get(i).getParticipant().getId());
         }
 
-        OrderResponse response = createOrderInternal(createRequest, principal, participantByIndex, null, null);
+        OrderResponse response = createOrderInternal(createRequest, principal, participantByIndex, null, null, null);
         session.setStatus(GroupSessionStatus.COMPLETED);
         groupOrderSessionRepository.save(session);
         return response;
     }
 
     private OrderResponse createOrderInternal(OrderCreateRequest request, UserPrincipal principal, Map<Integer, UUID> participantByIndex,
-                                              String guestName, String guestPhone) {
+                                              String guestName, String guestPhone, DiningPlacement placement) {
         OrderEntity order = new OrderEntity();
         order.setType(request.type());
-        order.setStatus(OrderStatus.PENDING);
+        order.setStatus(placement != null && placement.held() ? OrderStatus.HELD : OrderStatus.PENDING);
+        if (placement != null) {
+            order.setDiningOrderId(placement.diningOrderId());
+            order.setDiningOrderCourseId(placement.diningOrderCourseId());
+            order.setKitchenStation(placement.kitchenStation());
+            if (!placement.held() && placement.diningOrderCourseId() != null) {
+                order.setReleasedAt(Instant.now());
+                order.setReleasedBy(placement.releasedBy());
+            }
+        }
         order.setNotes(blankToNull(request.notes()));
         order.setGuestName(guestName);
         order.setGuestPhone(guestPhone);
@@ -1143,6 +1178,8 @@ public class OrderService {
     private boolean isValidTransition(OrderStatus previous, OrderStatus next, OrderType orderType) {
         return switch (previous) {
             case PENDING -> next == OrderStatus.CONFIRMED || next == OrderStatus.CANCELLED;
+            // A held course goes to the kitchen only through a course release (DiningService), never a status update.
+            case HELD -> next == OrderStatus.CANCELLED;
             case CONFIRMED -> next == OrderStatus.PREPARING || next == OrderStatus.CANCELLED;
             case PREPARING -> next == OrderStatus.READY;
             case READY -> next == OrderStatus.COMPLETED
@@ -1237,7 +1274,10 @@ public class OrderService {
                     order.getTipAmount(),
                     taxLinesByOrder.getOrDefault(order.getId(), List.of()),
                     order.getGuestName(),
-                    order.getGuestPhone()
+                    order.getGuestPhone(),
+                    order.getDiningOrderId(),
+                    order.getDiningOrderCourseId(),
+                    order.getKitchenStation()
             );
         }).toList();
     }

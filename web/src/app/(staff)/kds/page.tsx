@@ -6,7 +6,8 @@ import { playAlertSound } from "@/lib/alertSound";
 import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
 import { useStaffSession } from "@/components/SessionProvider";
-import { getBranches, getKdsBoard, sendOrderToPrinter, setOrderItemReady, updateOrderStatus, type BranchRecord, type KdsBoardRecord, type KdsOrderCard } from "@/lib/apiClient";
+import { stationLabel } from "@/features/dining/dining";
+import { getBranches, getKdsBoard, getMenuCategories, sendOrderToPrinter, setOrderItemReady, updateOrderStatus, type BranchRecord, type KdsBoardRecord, type KdsOrderCard } from "@/lib/apiClient";
 
 const COLUMNS: Array<keyof KdsBoardRecord["columns"]> = ["PENDING", "CONFIRMED", "PREPARING", "READY"];
 const POLL_INTERVAL_MS = 15000;
@@ -31,6 +32,9 @@ export default function KdsPage() {
   const [board, setBoard] = useState<KdsBoardRecord | null>(null);
   const [branches, setBranches] = useState<BranchRecord[]>([]);
   const [branchId, setBranchId] = useState<string>("");
+  // Station screens (e.g. the bar) show only their own tickets; empty shows every station.
+  const [station, setStation] = useState<string>("");
+  const [stations, setStations] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -56,7 +60,7 @@ export default function KdsPage() {
   async function loadBoard() {
     if (!session) return;
     await authenticatedFetch(async (activeSession) => {
-      const next = await getKdsBoard(activeSession, branchId || undefined);
+      const next = await getKdsBoard(activeSession, branchId || undefined, station || undefined);
       const ids = Object.values(next.columns).flat().map((card) => card.orderId);
       if (knownTickets.current && ids.some((id) => !knownTickets.current!.has(id))) playAlertSound("order");
       knownTickets.current = new Set([...(knownTickets.current ?? []), ...ids]);
@@ -72,6 +76,15 @@ export default function KdsPage() {
       setBranches(next);
     });
   }
+
+  useEffect(() => {
+    getMenuCategories()
+      .then((categories) => {
+        const named = categories.map((category) => category.kitchenStation?.trim().toUpperCase()).filter((value): value is string => !!value);
+        setStations(Array.from(new Set(["KITCHEN", ...named])).sort());
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!session) return;
@@ -90,7 +103,7 @@ export default function KdsPage() {
     }, POLL_INTERVAL_MS);
 
     return () => window.clearInterval(timer);
-  }, [authenticatedFetch, session, branchId]);
+  }, [authenticatedFetch, session, branchId, station]);
 
   useEffect(() => {
     if (!session) return;
@@ -117,7 +130,7 @@ export default function KdsPage() {
       setRealtimeConnected(false);
       client.deactivate();
     };
-  }, [session, authenticatedFetch, branchId, getToken]);
+  }, [session, authenticatedFetch, branchId, station, getToken]);
 
   async function toggleItem(orderId: string, itemId: string, ready: boolean) {
     setBusyOrderId(orderId);
@@ -219,6 +232,19 @@ export default function KdsPage() {
               <option value="">All branches</option>
               {branches.map((branch) => (
                 <option key={branch.id} value={branch.id}>{branch.name}</option>
+              ))}
+            </select>
+          ) : null}
+          {stations.length > 1 ? (
+            <select
+              value={station}
+              onChange={(event) => setStation(event.target.value)}
+              className="h-11 rounded-[10px] border border-night-line bg-night-card px-3 text-[15px] text-night-ink focus:border-brand focus:outline-none"
+              aria-label="Station"
+            >
+              <option value="">All stations</option>
+              {stations.map((value) => (
+                <option key={value} value={value}>{stationLabel(value)}</option>
               ))}
             </select>
           ) : null}
@@ -390,6 +416,19 @@ function OrderCard({
           <Icon name="timer" size={16} /> {age.label}
         </span>
       </header>
+      {card.courseName || (card.kitchenStation && card.kitchenStation !== "KITCHEN") ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {card.courseName ? (
+            <span className="rounded-md bg-brand px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-white">{card.courseName}</span>
+          ) : null}
+          {card.kitchenStation && card.kitchenStation !== "KITCHEN" ? (
+            <span className="rounded-md bg-night-raised px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-night-ink">{stationLabel(card.kitchenStation)}</span>
+          ) : null}
+          {card.releasedByName && !compact ? (
+            <span className="px-1 py-0.5 text-xs text-night-soft">Sent by {card.releasedByName}</span>
+          ) : null}
+        </div>
+      ) : null}
       <div className="mt-2 flex justify-end">
         <button type="button" onClick={() => onPrint(card.orderId)} className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold text-night-soft hover:bg-night-raised hover:text-night-ink">
           <Icon name="print" size={14} /> Print ticket

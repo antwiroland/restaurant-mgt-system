@@ -22,7 +22,8 @@ public class KdsController {
     @GetMapping("/board")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER')")
     public KdsBoardResponse board(@RequestParam(required = false) UUID branchId,
+                                  @RequestParam(required = false) String station,
                                   @AuthenticationPrincipal UserPrincipal principal) {
-        return kdsService.board(branchId, principal);
+        return kdsService.board(branchId, station, principal);
     }
 }

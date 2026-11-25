@@ -21,7 +21,8 @@ type Props = {
   guestPhone?: string;
 };
 
-const OPEN_STATUSES: PublicOrderTrackingRecord["status"][] = ["PENDING", "CONFIRMED", "PREPARING", "READY"];
+// HELD: a later course not yet sent to the kitchen. It is already on the bill, so it can be paid like any open order.
+const OPEN_STATUSES: PublicOrderTrackingRecord["status"][] = ["HELD", "PENDING", "CONFIRMED", "PREPARING", "READY"];
 
 function newKey(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;

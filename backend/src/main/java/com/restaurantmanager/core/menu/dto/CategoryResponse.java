@@ -7,6 +7,8 @@ public record CategoryResponse(
         String name,
         String description,
         int displayOrder,
-        boolean active
+        boolean active,
+        boolean beverage,
+        String kitchenStation
 ) {
 }

@@ -47,7 +47,8 @@ public class FavouriteController {
         return ids.stream().map(byId::get)
                 .filter(item -> item != null && item.isActive())
                 .map(item -> new MenuItemResponse(item.getId(), item.getCategory().getId(), item.getCategory().getName(),
-                        item.getName(), item.getDescription(), item.getPrice(), item.getImageUrl(), item.isAvailable(), item.isActive(), List.of()))
+                        item.getName(), item.getDescription(), item.getPrice(), item.getImageUrl(), item.isAvailable(), item.isActive(), List.of(),
+                        item.getCategory().isBeverage()))
                 .toList();
     }
 

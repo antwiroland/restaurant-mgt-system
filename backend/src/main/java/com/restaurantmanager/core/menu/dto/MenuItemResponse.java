@@ -16,6 +16,8 @@ public record MenuItemResponse(
         boolean available,
         boolean active,
         /** Branches where an ingredient has run out (a null entry: the restaurant's own stock, when it has no branches). */
-        List<UUID> soldOutBranchIds
+        List<UUID> soldOutBranchIds,
+        /** From the item's category: beverages can be ordered at any time, outside the dining courses. */
+        boolean beverage
 ) {
 }

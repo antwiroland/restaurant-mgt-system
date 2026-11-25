@@ -164,6 +164,17 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected com.restaurantmanager.core.table.payment.WalkoutRepository walkoutRepository;
 
+    @Autowired
+    protected com.restaurantmanager.core.dining.CourseStatusHistoryRepository courseStatusHistoryRepository;
+    @Autowired
+    protected com.restaurantmanager.core.dining.CourseReleaseRequestRepository courseReleaseRequestRepository;
+    @Autowired
+    protected com.restaurantmanager.core.dining.DiningOrderCourseRepository diningOrderCourseRepository;
+    @Autowired
+    protected com.restaurantmanager.core.dining.DiningOrderRepository diningOrderRepository;
+    @Autowired
+    protected com.restaurantmanager.core.dining.DiningCourseRepository diningCourseRepository;
+
     @BeforeEach
     void cleanupDb() {
         hrTestCleanup.clean();
@@ -198,6 +209,11 @@ public abstract class BaseIntegrationTest {
         orderItemModifierRepository.deleteAll();
         orderItemRepository.deleteAll();
         orderRepository.deleteAll();
+        courseStatusHistoryRepository.deleteAll();
+        courseReleaseRequestRepository.deleteAll();
+        diningOrderCourseRepository.deleteAll();
+        diningOrderRepository.deleteAll();
+        diningCourseRepository.deleteAll();
         walkoutRepository.deleteAll();
         deliveryZoneRepository.deleteAll();
         groupSessionItemRepository.deleteAll();

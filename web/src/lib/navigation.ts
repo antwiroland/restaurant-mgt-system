@@ -36,6 +36,7 @@ export const navGroups: NavGroup[] = [
       { label: "Dashboard", href: "/dashboard", icon: "dashboard", roles: MGMT, description: "Today's performance" },
       { label: "Point of Sale", href: "/pos", icon: "register", roles: OPS, description: "Take orders and payments" },
       { label: "Orders", href: "/orders", icon: "receipt", roles: OPS, description: "Track every order" },
+      { label: "Courses", href: "/dining", icon: "flame", roles: OPS, description: "Release courses to the kitchen" },
       { label: "Kitchen Display", href: "/kds", icon: "chef", roles: OPS, description: "Live kitchen tickets" },
       { label: "Floor & Tables", href: "/tables", icon: "table", roles: OPS, description: "Seating and bills" },
       { label: "Reservations", href: "/reservations", icon: "calendar", roles: OPS, description: "Bookings" },
